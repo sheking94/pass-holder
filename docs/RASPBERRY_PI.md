@@ -58,12 +58,16 @@ sudo chown -R root:passholder /etc/passholder/tls
 sudo chmod 640 /etc/passholder/tls/server.key
 ```
 
-Skrypt wypisze odcisk SHA-256 urzędu. Plik `/etc/passholder/tls/ca.crt` zainstalujesz na urządzeniach:
+Skrypt wypisze odcisk SHA-256 urzędu i odcisk certyfikatu serwera.
 
-- **Ubuntu (Chrome):** `chrome://settings/certificates` → Urzędy → Importuj → `ca.crt`, zaznacz
-  „ufaj przy identyfikacji witryn”.
-- **Android:** aplikacja (krok 4 planu) będzie miała ten urząd wbudowany albo przypięty odciskiem,
-  bez instalowania w systemie.
+- **Ubuntu (Chrome):** plik `/etc/passholder/tls/ca.crt` zainstaluj w `chrome://settings/certificates` →
+  Urzędy → Importuj → `ca.crt`, zaznacz „ufaj przy identyfikacji witryn”.
+- **Android:** nic nie instalujesz w systemie. Przy łączeniu aplikacja pokaże odcisk certyfikatu serwera;
+  porównaj go z wynikiem
+  `sudo openssl x509 -in /etc/passholder/tls/server.crt -noout -fingerprint -sha256` i potwierdź.
+  Od tej chwili aplikacja ufa tylko temu jednemu certyfikatowi. Po wygenerowaniu nowego certyfikatu
+  (np. po dopisaniu adresu Tailscale albo po 825 dniach) telefon odmówi połączenia: najpierw
+  zsynchronizuj telefon, potem wymień certyfikat, a w aplikacji wybierz „Odłącz ten telefon” i połącz ponownie.
 
 Klucz `ca.key` pozwala wystawić certyfikat dla dowolnej nazwy, której ufają Twoje urządzenia. Po
 wygenerowaniu certyfikatu przenieś go z Pi w bezpieczne miejsce (np. na zaszyfrowany pendrive) i usuń z Pi.

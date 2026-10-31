@@ -120,7 +120,11 @@ Wszystko przez HTTPS. Odpowiedzi JSON, binaria jako Base64.
 ## 7. Sieć i transport
 
 - Serwer nasłuchuje na HTTPS z własnym certyfikatem (lokalne CA lub samopodpisany).
-- Android: przypięcie odcisku SHA-256 certyfikatu podanego przy parowaniu.
+- Android: przypięcie odcisku SHA-256 certyfikatu serwera (cały certyfikat w DER, jak w
+  `openssl x509 -fingerprint -sha256`). Przy parowaniu aplikacja pokazuje odcisk, użytkownik porównuje go
+  z wynikiem na Pi. Potem aplikacja ufa wyłącznie temu certyfikatowi i nie sprawdza nazwy hosta (dowód
+  posiadania klucza prywatnego tego certyfikatu jest silniejszy niż zgodność nazwy). Nowy certyfikat
+  wymaga ponownego sparowania.
 - Chrome: wtyczka nie może przypiąć certyfikatu, więc certyfikat (lub lokalne CA) trzeba dodać do
   zaufanych w systemie albo w Chrome.
 - Poza domem: VPN (WireGuard lub Tailscale) z jedną komendą do włączania i wyłączania. Bez VPN serwer

@@ -9,7 +9,7 @@ Prywatny menedżer haseł z serwerem synchronizacji na Raspberry Pi, wtyczką do
 | `server/` | Serwer na Raspberry Pi (Node.js, Fastify, SQLite) | gotowe |
 | `deploy/`, `docs/RASPBERRY_PI.md` | Certyfikaty, usługa systemd, VPN, instrukcja instalacji | gotowe |
 | `extension/` | Wtyczka Chrome (Manifest V3) | gotowe |
-| `android/` | Aplikacja Android (Kotlin, Jetpack Compose) | krok 4 |
+| `android/` | Aplikacja Android (Kotlin, Jetpack Compose) | gotowe |
 
 ## Uruchomienie testów
 
@@ -41,3 +41,25 @@ npm run build -w extension
 Potem w Chrome: `chrome://extensions` → włącz „Tryb dewelopera” → „Załaduj rozpakowane” → wskaż `extension/dist`.
 Wcześniej zainstaluj w Chrome urząd certyfikacji serwera (`ca.crt`, patrz [docs/RASPBERRY_PI.md](docs/RASPBERRY_PI.md)).
 Przy pierwszym połączeniu wtyczka poprosi o zgodę na dostęp do adresu serwera.
+
+## Aplikacja na Androida
+
+Wymaga JDK 17 lub nowszego i Android SDK (najprościej: zainstaluj Android Studio i otwórz katalog `android/`).
+
+```sh
+cd android
+./gradlew :core:test            # krypto, wektory testowe, synchronizacja, klient HTTP (zwykła JVM, bez emulatora)
+./gradlew :app:assembleDebug    # APK: app/build/outputs/apk/debug/app-debug.apk
+```
+
+Test całego systemu: prawdziwy serwer Node.js przez HTTPS, klient w Kotlinie i kod wtyczki w TypeScripcie
+na jednym sejfie (wymaga wcześniejszego `npm install` w katalogu głównym i `openssl`):
+
+```sh
+cd android
+PASSHOLDER_SERVER_TEST=1 ./gradlew :core:test
+```
+
+Instalacja na telefonie: włącz w telefonie debugowanie USB, podłącz go i uruchom `./gradlew :app:installDebug`
+(albo przycisk Run w Android Studio). Przy łączeniu aplikacja pokaże odcisk certyfikatu serwera do porównania
+z Raspberry Pi, patrz [docs/RASPBERRY_PI.md](docs/RASPBERRY_PI.md).
