@@ -2,7 +2,8 @@
   "name": "pass-holder",
   "private": true,
   "workspaces": [
-    "core"
+    "core",
+    "server"
   ],
   "scripts": {
     "test": "npm run test --workspaces",
