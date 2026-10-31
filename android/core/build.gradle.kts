@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
+    `java-test-fixtures`
 }
 
 // Plain Kotlin/JVM, no Android: crypto, sync and the server client run in fast JVM unit tests.
@@ -18,10 +19,12 @@ dependencies {
     api(libs.okhttp)
     implementation(libs.bouncycastle)
 
+    // FakeServer: the server API on MockWebServer, shared by the core tests and the app's screen tests.
+    testFixturesApi(libs.okhttp.mockwebserver)
+
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.okhttp.tls)
-    testImplementation(libs.okhttp.mockwebserver)
     testRuntimeOnly(libs.junit.platform.launcher)
 }
 

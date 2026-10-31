@@ -36,6 +36,24 @@ android {
         buildConfig = true
     }
 
+    testOptions {
+        unitTests {
+            // Robolectric runs the real activity and Compose UI on the JVM, no emulator needed.
+            isIncludeAndroidResources = true
+            all {
+                // Roborazzi writes the screenshots to app/screenshots/ on every run.
+                it.systemProperty("roborazzi.test.record", "true")
+                // Robolectric downloads Android jars from Maven Central; -ProbolectricRepoUrl=… picks a mirror.
+                providers.gradleProperty("robolectricRepoUrl").orNull?.let { url ->
+                    it.systemProperty("robolectric.dependency.repo.url", url)
+                }
+                it.maxHeapSize = "2g"
+                it.forkEvery = 1 // a fresh JVM per test class, see ScreenTests.kt
+                it.testLogging { events("passed", "skipped", "failed") }
+            }
+        }
+    }
+
     packaging {
         resources.excludes += setOf("META-INF/versions/9/OSGI-INF/MANIFEST.MF", "META-INF/DEPENDENCIES")
     }
@@ -58,4 +76,17 @@ dependencies {
     implementation(libs.compose.material3)
     implementation(libs.compose.ui.tooling.preview)
     debugImplementation(libs.compose.ui.tooling)
+    debugImplementation(libs.compose.ui.test.manifest)
+
+    testImplementation(testFixtures(project(":core")))
+    testImplementation(libs.okhttp.tls)
+    testImplementation(libs.junit4)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.androidx.test.ext.junit)
+    testImplementation(libs.androidx.work.testing)
+    testImplementation(platform(libs.compose.bom))
+    testImplementation(libs.compose.ui.test.junit4)
 }

@@ -12,8 +12,6 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 
@@ -51,12 +49,13 @@ object SecureClipboard {
  * copied something else in the meantime, and we clear it anyway: a password left behind is the worse outcome.
  */
 class ClearClipboardWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
-    override suspend fun doWork(): Result = withContext(Dispatchers.Main) {
+    // ClipboardManager calls are plain IPC to the system and work from this background thread.
+    override suspend fun doWork(): Result {
         val clipboard = applicationContext.getSystemService(ClipboardManager::class.java)
         val current = runCatching { clipboard.primaryClip?.getItemAt(0)?.coerceToText(applicationContext)?.toString() }.getOrNull()
-        if (current != null && SecureClipboard.sha256(current) != inputData.getString(KEY_HASH)) return@withContext Result.success()
+        if (current != null && SecureClipboard.sha256(current) != inputData.getString(KEY_HASH)) return Result.success()
         if (Build.VERSION.SDK_INT >= 28) clipboard.clearPrimaryClip() else clipboard.setPrimaryClip(ClipData.newPlainText("", ""))
-        Result.success()
+        return Result.success()
     }
 
     companion object {

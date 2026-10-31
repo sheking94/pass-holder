@@ -49,8 +49,13 @@ Wymaga JDK 17 lub nowszego i Android SDK (najprościej: zainstaluj Android Studi
 ```sh
 cd android
 ./gradlew :core:test            # krypto, wektory testowe, synchronizacja, klient HTTP (zwykła JVM, bez emulatora)
+./gradlew :app:testDebugUnitTest  # ekrany aplikacji na JVM (Robolectric), zrzuty do app/screenshots/
 ./gradlew :app:assembleDebug    # APK: app/build/outputs/apk/debug/app-debug.apk
 ```
+
+Testy ekranów uruchamiają prawdziwą aplikację (aktywność, ViewModel, Compose) bez emulatora i klikają ją jak
+użytkownik: parowanie, nowy sejf, generator, synchronizacja, kopiowanie hasła, usuwanie, blokada.
+Przy każdym uruchomieniu Roborazzi zapisuje zrzuty ekranów w [`android/app/screenshots/`](android/app/screenshots/).
 
 Test całego systemu: prawdziwy serwer Node.js przez HTTPS, klient w Kotlinie i kod wtyczki w TypeScripcie
 na jednym sejfie (wymaga wcześniejszego `npm install` w katalogu głównym i `openssl`):

@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
@@ -22,6 +23,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -73,9 +75,13 @@ fun ConnectScreen(state: UiState, vm: AppViewModel) {
                             "Porównaj z wynikiem na Raspberry Pi:\nsudo openssl x509 -in /etc/passholder/tls/server.crt -noout -fingerprint -sha256",
                             style = MaterialTheme.typography.bodySmall,
                         )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(confirmed, { confirmed = it })
-                            Text("Odcisk się zgadza")
+                        // The whole row toggles, not only the small box.
+                        Row(
+                            Modifier.fillMaxWidth().toggleable(value = confirmed, role = Role.Checkbox, onValueChange = { confirmed = it }),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(checked = confirmed, onCheckedChange = null)
+                            Text("Odcisk się zgadza", Modifier.padding(start = 12.dp))
                         }
                     }
                 }
