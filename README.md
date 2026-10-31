@@ -21,6 +21,8 @@ npm test
 npm run typecheck
 ```
 
+Co testujemy i jakie luki znalazły testy: [docs/TESTY.md](docs/TESTY.md).
+
 Wektory testowe (`core/test-vectors/v1.json`) generuje `npm run gen-vectors -w core`.
 Każda implementacja (także Kotlin) musi odtworzyć je dokładnie.
 

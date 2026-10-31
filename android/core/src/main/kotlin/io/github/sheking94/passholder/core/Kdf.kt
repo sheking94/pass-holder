@@ -37,8 +37,10 @@ object Kdf {
     const val MIN_ITERATIONS = 2
     const val MIN_PARALLELISM = 1
 
-    /** Upper bound so a malicious server cannot make the phone run out of memory (1 GiB). */
+    /** Upper bounds so a malicious server cannot make the phone run out of memory (1 GiB) or hash for minutes. Same as core/src/kdf.ts. */
     const val MAX_MEMORY_KIB = 1_048_576
+    const val MAX_ITERATIONS = 100
+    const val MAX_PARALLELISM = 64
 
     private val INFO_ENC = Encoding.utf8("passholder/v1/enc")
     private val INFO_AUTH = Encoding.utf8("passholder/v1/auth")
@@ -57,7 +59,9 @@ object Kdf {
         require(params.memoryKiB >= MIN_MEMORY_KIB) { "KDF memory too low" }
         require(params.memoryKiB <= MAX_MEMORY_KIB) { "KDF memory too high for this device" }
         require(params.iterations >= MIN_ITERATIONS) { "KDF iterations too low" }
+        require(params.iterations <= MAX_ITERATIONS) { "KDF iterations too high" }
         require(params.parallelism >= MIN_PARALLELISM) { "KDF parallelism too low" }
+        require(params.parallelism <= MAX_PARALLELISM) { "KDF parallelism too high" }
     }
 
     /** Argon2id (version 0x13) of the NFC-normalized password. Slow on purpose: call it off the main thread. */

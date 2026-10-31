@@ -43,6 +43,10 @@ class FakeServer(val setupToken: String = "token") : Dispatcher() {
     private val tokens = mutableSetOf<String>()
     var sessionCount = 0
 
+    /** What a restart of the real server does: sessions live only in its memory. */
+    @Synchronized
+    fun forgetSessions() = tokens.clear()
+
     private fun reply(code: Int, body: String) = MockResponse().setResponseCode(code).setHeader("content-type", "application/json").setBody(body)
     private fun error(code: Int, message: String) = reply(code, """{"error":"$message"}""")
     private fun hash(authKeyB64: String) = Encoding.toHex(MessageDigest.getInstance("SHA-256").digest(Encoding.fromBase64(authKeyB64)))

@@ -28,7 +28,8 @@ wrappedVaultKey = seal(encKey, vaultKey, aad="passholder/v1/vault-key")
 - Argon2id domyślnie: `m = 65536 KiB (64 MiB)`, `t = 3`, `p = 4`, salt 16 losowych bajtów.
   Parametry i salt są jawne i leżą na serwerze, żeby nowe urządzenie mogło wyprowadzić te same klucze.
 - Klient odrzuca parametry słabsze niż `m = 19456`, `t = 2`, `p = 1`, żeby złośliwy serwer nie mógł
-  wymusić słabego KDF.
+  wymusić słabego KDF, oraz większe niż `m = 1048576` (1 GiB), `t = 100`, `p = 64`, żeby nie mógł
+  wyczerpać pamięci urządzenia. Każdy parametr musi być liczbą całkowitą.
 - Hasło jest normalizowane do NFC przed kodowaniem UTF-8 (to samo „ż” wpisane na różnych klawiaturach
   daje te same bajty).
 - Dlaczego dwa klucze z jednego: serwer może sprawdzić, że znasz hasło (authKey), ale nie może z tego
