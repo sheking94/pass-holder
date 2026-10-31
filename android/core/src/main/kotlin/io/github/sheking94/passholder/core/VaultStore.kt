@@ -70,6 +70,11 @@ class VaultStore(
     private class Session(val vaultKey: ByteArray, val authKey: ByteArray, val vault: LocalVault) {
         var token: String? = null
         var tokenExpiresAt = 0L
+
+        fun remember(login: SessionResponse) {
+            token = login.token
+            tokenExpiresAt = login.expiresAt
+        }
     }
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -86,11 +91,11 @@ class VaultStore(
 
     /** Snapshot of live entries, sorted by name. */
     @Synchronized
-    fun entries(): List<LocalEntry> =
-        requireSession().vault.liveEntries().sortedBy { it.credentials!!.name.lowercase() }
+    fun entries(): List<LiveEntry> =
+        requireSession().vault.liveEntries().sortedBy { it.credentials.name.lowercase() }
 
     @Synchronized
-    fun entry(id: String): LocalEntry? = requireSession().vault.entries[id]?.takeIf { !it.deleted }
+    fun entry(id: String): LiveEntry? = requireSession().vault.liveEntry(id)
 
     @Synchronized
     fun pendingCount(): Int = requireSession().vault.pendingCount()
@@ -124,15 +129,12 @@ class VaultStore(
         val kdf = client.prelogin().kdf
         Kdf.assertAcceptable(kdf)
         val keys = Kdf.deriveKeys(masterPassword, kdf)
-        val login = login(client, keys.authKey)
+        val login = requestSession(client, keys.authKey)
         val vaultKey = VaultCrypto.unwrapVaultKey(keys.encKey, login.wrappedVaultKey)
         keys.encKey.fill(0)
         disk.set(ACCOUNT, json.encodeToString(Account(serverUrl, certificatePin, kdf, login.wrappedVaultKey)))
         start(vaultKey, keys.authKey, LocalVault())
-        requireSession().apply {
-            token = login.token
-            tokenExpiresAt = login.expiresAt
-        }
+        requireSession().remember(login)
         sync()
     }
 
@@ -199,26 +201,35 @@ class VaultStore(
         val s = requireSession()
         val account = account() ?: throw IllegalStateException("Brak konta")
         val client = makeClient(account.serverUrl, account.certificatePin)
-        if (s.token == null || s.tokenExpiresAt <= now() + 10_000) logIn(client, s)
-        try {
-            VaultSync.sync(s.vault, s.vaultKey) { request -> client.sync(s.token!!, request) }
-        } catch (e: ApiException) {
-            // The server keeps sessions in memory only, so switching the Pi off and on forgets our token
-            // although it has not expired yet. Log in again once and retry.
-            if (e.status != 401) throw e
-            logIn(client, s)
-            VaultSync.sync(s.vault, s.vaultKey) { request -> client.sync(s.token!!, request) }
-        }
+        withFreshToken(client, s) { token -> VaultSync.sync(s.vault, s.vaultKey) { request -> client.sync(token, request) } }
         save()
     }
 
-    private fun logIn(client: ServerClient, s: Session) {
-        val login = login(client, s.authKey)
-        s.token = login.token
-        s.tokenExpiresAt = login.expiresAt
+    /**
+     * Runs [action] with a valid session token. The server keeps sessions in memory only, so switching the
+     * Pi off and on forgets our token although it has not expired yet: on 401 log in again once and retry.
+     */
+    private fun withFreshToken(client: ServerClient, s: Session, action: (token: String) -> Unit) {
+        val current = s.token
+        val expiringSoon = s.tokenExpiresAt <= now() + TOKEN_REFRESH_MARGIN_MS
+        val token = if (current != null && !expiringSoon) current else refreshToken(client, s)
+        try {
+            action(token)
+        } catch (e: ApiException) {
+            if (e.status != 401) throw e
+            action(refreshToken(client, s))
+        }
     }
 
-    private fun login(client: ServerClient, authKey: ByteArray): SessionResponse = try {
+    /** Gets a new session token, keeps it in [s] and returns it. */
+    private fun refreshToken(client: ServerClient, s: Session): String {
+        val login = requestSession(client, s.authKey)
+        s.remember(login)
+        return login.token
+    }
+
+    /** POST /session, with the server's errors turned into messages for the user. */
+    private fun requestSession(client: ServerClient, authKey: ByteArray): SessionResponse = try {
         client.session(Encoding.toBase64(authKey))
     } catch (e: ApiException) {
         throw when (e.status) {
@@ -250,6 +261,9 @@ class VaultStore(
 
     companion object {
         const val AUTO_LOCK_MS = 15 * 60_000L
+
+        /** A token this close to expiry is renewed before a sync, so it does not run out halfway. */
+        private const val TOKEN_REFRESH_MARGIN_MS = 10_000L
         private const val ACCOUNT = "account"
         private const val VAULT = "vault"
         private const val LOCAL_VAULT_AAD = "passholder/v1/local-vault"

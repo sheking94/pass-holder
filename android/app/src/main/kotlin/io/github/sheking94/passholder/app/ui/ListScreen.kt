@@ -32,7 +32,7 @@ import io.github.sheking94.passholder.app.UiState
 fun ListScreen(state: UiState, vm: AppViewModel) {
     var query by rememberSaveable { mutableStateOf("") }
     val rows = state.entries.filter {
-        val c = it.credentials!!
+        val c = it.credentials
         query.isBlank() || "${c.name} ${c.username}".contains(query.trim(), ignoreCase = true)
     }
 
@@ -46,7 +46,7 @@ fun ListScreen(state: UiState, vm: AppViewModel) {
                 item { Text(if (query.isBlank()) "Brak wpisów. Dodaj pierwszy." else "Nic nie pasuje.", Modifier.padding(vertical = 16.dp)) }
             }
             items(rows, key = { it.id }) { entry ->
-                val c = entry.credentials!!
+                val c = entry.credentials
                 Row(
                     Modifier.fillMaxWidth().clickable(enabled = !state.busy) { vm.openEntry(entry.id) }.padding(vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -55,8 +55,8 @@ fun ListScreen(state: UiState, vm: AppViewModel) {
                         Text(c.name + if (entry.dirty) " •" else "", style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(c.username, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    TextButton(onClick = { vm.copy(c.username, "login", sensitive = false) }) { Text("Login") }
-                    TextButton(onClick = { vm.copy(c.password, "hasło", sensitive = true) }) { Text("Hasło") }
+                    TextButton(onClick = { vm.copyLogin(c.username) }) { Text("Login") }
+                    TextButton(onClick = { vm.copyPassword(c.password) }) { Text("Hasło") }
                 }
                 HorizontalDivider()
             }

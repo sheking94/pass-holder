@@ -36,14 +36,14 @@ class ClearClipboardWorkerTest {
 
     @Test
     fun `clears the clipboard when it still holds the copied password`() {
-        SecureClipboard.copy(context, "hasło", "hunter2", sensitive = true)
+        SecureClipboard.copyPassword(context, "hasło", "hunter2")
         assertEquals(ListenableWorker.Result.success(), runWorker("hunter2"))
         assertFalse(clipboard.hasPrimaryClip() && clipboard.primaryClip!!.getItemAt(0).text?.isNotEmpty() == true)
     }
 
     @Test
     fun `leaves something you copied later alone`() {
-        SecureClipboard.copy(context, "hasło", "hunter2", sensitive = true)
+        SecureClipboard.copyPassword(context, "hasło", "hunter2")
         clipboard.setPrimaryClip(ClipData.newPlainText("notatka", "lista zakupów"))
         runWorker("hunter2")
         assertEquals("lista zakupów", clipboard.primaryClip!!.getItemAt(0).text.toString())
@@ -51,7 +51,7 @@ class ClearClipboardWorkerTest {
 
     @Test
     fun `marks a copied password as sensitive`() {
-        SecureClipboard.copy(context, "hasło", "hunter2", sensitive = true)
+        SecureClipboard.copyPassword(context, "hasło", "hunter2")
         assertEquals(true, clipboard.primaryClip!!.description.extras?.getBoolean("android.content.extra.IS_SENSITIVE"))
     }
 }

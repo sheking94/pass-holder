@@ -12,6 +12,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import io.github.sheking94.passholder.core.Encoding
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 
@@ -20,16 +21,23 @@ object SecureClipboard {
     const val CLEAR_AFTER_MINUTES = 1L
     private const val WORK_NAME = "clear-clipboard"
 
-    fun copy(context: Context, label: String, text: String, sensitive: Boolean) {
-        val clipboard = context.getSystemService(ClipboardManager::class.java)
-        val clip = ClipData.newPlainText(label, text)
-        if (sensitive) {
-            // Android 13+ then hides the text in the "copied" preview and keyboard suggestions.
-            val key = if (Build.VERSION.SDK_INT >= 33) ClipDescription.EXTRA_IS_SENSITIVE else "android.content.extra.IS_SENSITIVE"
-            clip.description.extras = PersistableBundle().apply { putBoolean(key, true) }
-        }
-        clipboard.setPrimaryClip(clip)
-        if (!sensitive) return
+    fun copyText(context: Context, label: String, text: String) {
+        clipboard(context).setPrimaryClip(ClipData.newPlainText(label, text))
+    }
+
+    /** Copies a password marked as sensitive and schedules clearing it after [CLEAR_AFTER_MINUTES]. */
+    fun copyPassword(context: Context, label: String, password: String) {
+        val clip = ClipData.newPlainText(label, password)
+        // Android 13+ then hides the text in the "copied" preview and keyboard suggestions.
+        val key = if (Build.VERSION.SDK_INT >= 33) ClipDescription.EXTRA_IS_SENSITIVE else "android.content.extra.IS_SENSITIVE"
+        clip.description.extras = PersistableBundle().apply { putBoolean(key, true) }
+        clipboard(context).setPrimaryClip(clip)
+        scheduleClear(context, password)
+    }
+
+    private fun clipboard(context: Context) = context.getSystemService(ClipboardManager::class.java)
+
+    private fun scheduleClear(context: Context, text: String) {
         // WorkManager runs the job even if the app is closed or the process was killed in the meantime.
         // Only a hash of the password goes into the job, which WorkManager stores in its database.
         val request = OneTimeWorkRequestBuilder<ClearClipboardWorker>()
@@ -40,7 +48,7 @@ object SecureClipboard {
     }
 
     internal fun sha256(text: String): String =
-        MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
+        Encoding.toHex(MessageDigest.getInstance("SHA-256").digest(text.toByteArray()))
 }
 
 /**

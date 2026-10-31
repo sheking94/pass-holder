@@ -6,7 +6,7 @@ import androidx.lifecycle.viewModelScope
 import io.github.sheking94.passholder.core.CertificatePin
 import io.github.sheking94.passholder.core.Credentials
 import io.github.sheking94.passholder.core.GeneratorOptions
-import io.github.sheking94.passholder.core.LocalEntry
+import io.github.sheking94.passholder.core.LiveEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,7 +34,7 @@ data class UiState(
     val screen: Screen,
     val busy: Boolean = false,
     val status: Status? = null,
-    val entries: List<LocalEntry> = emptyList(),
+    val entries: List<LiveEntry> = emptyList(),
     val pending: Int = 0,
     /** Server address the user wants to pair with, and the fingerprint of its certificate, waiting for confirmation. */
     val pairing: Pairing? = null,
@@ -92,7 +92,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         if (!url.startsWith("https://")) return fail("Podaj pełny adres, np. https://passholder.local:8443")
-        run("Pobieram certyfikat serwera…") {
+        launchVaultOperation("Pobieram certyfikat serwera…") {
             val fingerprint = CertificatePin.fingerprint(CertificatePin.fetchServerCertificate(url))
             _state.update { it.copy(pairing = Pairing(url, fingerprint), status = null) }
         }
@@ -103,7 +103,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** Step 2: create a new vault on the server, or download the existing one. */
     fun connect(isNew: Boolean, setupToken: String, masterPassword: String) {
         val pairing = _state.value.pairing ?: return
-        run("Liczę klucze z hasła głównego… (to celowo trwa kilka sekund)") {
+        launchVaultOperation("Liczę klucze z hasła głównego… (to celowo trwa kilka sekund)") {
             if (isNew) store.createVault(pairing.url, pairing.fingerprint, setupToken.trim(), masterPassword)
             else store.connectExisting(pairing.url, pairing.fingerprint, masterPassword)
             showList("Połączono z serwerem.")
@@ -112,17 +112,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     // --- Lock and unlock --------------------------------------------------------------------------
 
-    fun unlock(masterPassword: String) = run("Odblokowuję…") {
+    fun unlock(masterPassword: String) = launchVaultOperation("Odblokowuję…") {
         store.unlock(masterPassword)
         showList(null)
     }
 
-    fun lock() = run("Blokuję…") {
+    fun lock() = launchVaultOperation("Blokuję…") {
         store.lock()
         _state.value = UiState(Screen.Locked)
     }
 
-    fun disconnect() = run("Odłączam…") {
+    fun disconnect() = launchVaultOperation("Odłączam…") {
         store.disconnect()
         _state.value = UiState(Screen.Connect)
     }
@@ -136,26 +136,30 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun save(id: String?, credentials: Credentials) {
         if (credentials.name.isBlank()) return fail("Podaj nazwę serwisu")
         if (credentials.password.isEmpty()) return fail("Podaj albo wygeneruj hasło")
-        run("Zapisuję…") {
+        launchVaultOperation("Zapisuję…") {
             store.upsert(id ?: UUID.randomUUID().toString(), credentials.copy(name = credentials.name.trim()))
             showList("Zapisano na telefonie. Zsynchronizuj, gdy serwer będzie włączony.")
         }
     }
 
-    fun delete(id: String) = run("Usuwam…") {
+    fun delete(id: String) = launchVaultOperation("Usuwam…") {
         store.delete(id)
         showList("Usunięto na telefonie. Zsynchronizuj, żeby usunąć też na innych urządzeniach.")
     }
 
-    fun sync() = run("Synchronizuję…") {
+    fun sync() = launchVaultOperation("Synchronizuję…") {
         store.sync()
         showList("Zsynchronizowano o ${DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())}.")
     }
 
-    fun copy(text: String, what: String, sensitive: Boolean) {
-        SecureClipboard.copy(app, what, text, sensitive)
-        val suffix = if (sensitive) " Schowek zostanie wyczyszczony za ${SecureClipboard.CLEAR_AFTER_MINUTES} min." else ""
-        _state.update { it.copy(status = Status("Skopiowano $what.$suffix")) }
+    fun copyLogin(username: String) {
+        SecureClipboard.copyText(app, "login", username)
+        showStatus("Skopiowano login.")
+    }
+
+    fun copyPassword(password: String) {
+        SecureClipboard.copyPassword(app, "hasło", password)
+        showStatus("Skopiowano hasło. Schowek zostanie wyczyszczony za ${SecureClipboard.CLEAR_AFTER_MINUTES} min.")
     }
 
     var generatorOptions: GeneratorOptions
@@ -166,6 +170,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     // --- Helpers ----------------------------------------------------------------------------------
 
+    private fun showStatus(text: String) = _state.update { it.copy(status = Status(text)) }
+
     private fun showList(message: String?) {
         val pending = store.pendingCount()
         val text = message ?: if (pending > 0) "Niezsynchronizowane zmiany: $pending (oznaczone •)." else null
@@ -175,7 +181,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private fun refresh() = _state.update { it.copy(entries = store.entries(), pending = store.pendingCount()) }
 
     /** Runs a blocking vault operation off the main thread, with a progress message and errors shown in the status line. */
-    private fun run(progress: String, action: () -> Unit) {
+    private fun launchVaultOperation(progress: String, action: () -> Unit) {
         if (_state.value.busy) return
         _state.update { it.copy(busy = true, status = Status(progress)) }
         viewModelScope.launch {

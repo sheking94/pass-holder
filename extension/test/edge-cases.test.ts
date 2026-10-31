@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { liveEntries, upsertEntry } from "@passholder/core";
 import { buildApp } from "@passholder/server/src/app.ts";
 import { Database } from "@passholder/server/src/db.ts";
 import { ApiError, ServerClient } from "../src/api.ts";
@@ -19,8 +18,8 @@ async function listen(db: Database, setupToken?: string, port = 0) {
   return app.listen({ host: "127.0.0.1", port });
 }
 
-const newBrowser = () => new VaultStore(memoryStore(), memoryStore());
-const names = (store: VaultStore) => liveEntries({ lastSyncRevision: 0, entries: store.entries() }).map((e) => e.data.name).sort();
+const newBrowser = (now = () => Date.now()) => new VaultStore(memoryStore(), memoryStore(), undefined, now);
+const names = (store: VaultStore) => store.entries().map((e) => e.data.name).sort();
 
 describe("VaultStore edge cases", () => {
   it("logs in again when the server was restarted and forgot the session", async () => {
@@ -34,49 +33,51 @@ describe("VaultStore edge cases", () => {
     await servers.splice(0)[0]!.close();
     await listen(db, undefined, Number(new URL(url).port));
 
-    upsertEntry(browser.vaultForEdit(), "1", { name: "bank.pl", username: "jan", password: "x" });
-    await browser.save();
+    await browser.upsert("1", { name: "bank.pl", username: "jan", password: "x" });
     await browser.sync();
-    expect(browser.entries().get("1")!.dirty).toBe(false);
+    expect(browser.entry("1")!.dirty).toBe(false);
   }, 30_000);
 
   it("resolves a conflict between two browsers by the newer edit", async () => {
     const url = await listen(new Database(":memory:"), SETUP_TOKEN);
-    const a = newBrowser();
+    // One shared clock, so the edit made in b is clearly the newer one.
+    let clock = Date.now();
+    const a = newBrowser(() => clock);
     await a.createVault(url, SETUP_TOKEN, PASSWORD);
-    upsertEntry(a.vaultForEdit(), "1", { name: "a.pl", username: "u", password: "old" }, 100);
+    await a.upsert("1", { name: "a.pl", username: "u", password: "old" });
     await a.sync();
-    const b = newBrowser();
+    const b = newBrowser(() => clock);
     await b.connectExisting(url, PASSWORD);
 
-    upsertEntry(a.vaultForEdit(), "1", { name: "a.pl", username: "u", password: "from-a" }, 200);
-    upsertEntry(b.vaultForEdit(), "1", { name: "a.pl", username: "u", password: "from-b" }, 300);
+    clock += 100;
+    await a.upsert("1", { name: "a.pl", username: "u", password: "from-a" });
+    clock += 100;
+    await b.upsert("1", { name: "a.pl", username: "u", password: "from-b" });
     await a.sync();
     await b.sync();
     await a.sync();
-    expect(a.entries().get("1")!.data).toMatchObject({ password: "from-b" });
-    expect(b.entries().get("1")!.data).toMatchObject({ password: "from-b" });
+    expect(a.entry("1")!.data).toMatchObject({ password: "from-b" });
+    expect(b.entry("1")!.data).toMatchObject({ password: "from-b" });
   }, 30_000);
 
   it("keeps unsynced changes on disk across a lock and unlock", async () => {
     const url = await listen(new Database(":memory:"), SETUP_TOKEN);
     const browser = newBrowser();
     await browser.createVault(url, SETUP_TOKEN, PASSWORD);
-    upsertEntry(browser.vaultForEdit(), "1", { name: "offline.pl", username: "u", password: "p" });
-    await browser.save();
+    await browser.upsert("1", { name: "offline.pl", username: "u", password: "p" });
     await browser.lock();
     await browser.unlock(PASSWORD);
-    expect(browser.entries().get("1")).toMatchObject({ dirty: true });
+    expect(browser.entry("1")).toMatchObject({ dirty: true });
     await browser.sync();
     expect(names(browser)).toEqual(["offline.pl"]);
   }, 30_000);
 
   it("refuses to use the vault while locked", async () => {
     const browser = newBrowser();
-    expect(() => browser.entries()).toThrow("locked");
-    await expect(browser.save()).rejects.toThrow("locked");
-    await expect(browser.sync()).rejects.toThrow("locked");
-    await expect(browser.unlock(PASSWORD)).rejects.toThrow("No account");
+    expect(() => browser.entries()).toThrow("zablokowany");
+    await expect(browser.upsert("1", { name: "a.pl", username: "u", password: "p" })).rejects.toThrow("zablokowany");
+    await expect(browser.sync()).rejects.toThrow("zablokowany");
+    await expect(browser.unlock(PASSWORD)).rejects.toThrow("nie jest połączona");
   });
 
   it("refuses a server that sends weak KDF parameters", async () => {

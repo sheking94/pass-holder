@@ -6,12 +6,10 @@ import { pathToFileURL } from "node:url";
 const [root, url, passwordB64] = process.argv.slice(2) as [string, string, string];
 const password = Buffer.from(passwordB64, "base64").toString("utf8");
 const { VaultStore, memoryStore } = await import(pathToFileURL(`${root}/extension/src/vault-store.ts`).href);
-const { upsertEntry, liveEntries } = await import(pathToFileURL(`${root}/core/src/index.ts`).href);
 
 const store = new VaultStore(memoryStore(), memoryStore());
 await store.connectExisting(url, password);
-const seen = liveEntries({ lastSyncRevision: 0, entries: store.entries() }).map((e: { data: { name: string } }) => e.data.name);
-upsertEntry(store.vaultForEdit(), crypto.randomUUID(), { name: "z-przegladarki.pl", username: "jan", password: "z TS" });
-await store.save();
+const seen = store.entries().map((e: { data: { name: string } }) => e.data.name);
+await store.upsert(crypto.randomUUID(), { name: "z-przegladarki.pl", username: "jan", password: "z TS" });
 await store.sync();
 console.log(JSON.stringify(seen));

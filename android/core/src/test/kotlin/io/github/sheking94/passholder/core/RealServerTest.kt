@@ -76,7 +76,7 @@ class RealServerTest {
         assertEquals("""["z-telefonu.pl"]""", seenByBrowser)
 
         phone.sync()
-        assertEquals(listOf("z-przegladarki.pl", "z-telefonu.pl"), phone.entries().map { it.credentials!!.name })
-        assertEquals("z TS", phone.entries().first().credentials!!.password)
+        assertEquals(listOf("z-przegladarki.pl", "z-telefonu.pl"), phone.entries().map { it.credentials.name })
+        assertEquals("z TS", phone.entries().first().credentials.password)
     }
 }

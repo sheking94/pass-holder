@@ -10,7 +10,7 @@ class SyncTest {
     private val server = MemorySyncServer()
     private val vaultKey = VaultCrypto.newVaultKey()
     private fun sync(vault: LocalVault) = VaultSync.sync(vault, vaultKey, send = server::process)
-    private fun names(vault: LocalVault) = vault.liveEntries().map { it.credentials!!.name }.sorted()
+    private fun names(vault: LocalVault) = vault.liveEntries().map { it.credentials.name }.sorted()
     private fun creds(password: String) = Credentials("a.com", "u", password)
 
     @Test
