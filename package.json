@@ -1,0 +1,11 @@
+{
+  "name": "pass-holder",
+  "private": true,
+  "workspaces": [
+    "core"
+  ],
+  "scripts": {
+    "test": "npm run test --workspaces",
+    "typecheck": "npm run typecheck --workspaces"
+  }
+}
