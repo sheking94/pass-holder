@@ -3,10 +3,12 @@
   "private": true,
   "workspaces": [
     "core",
-    "server"
+    "server",
+    "extension"
   ],
   "scripts": {
     "test": "npm run test --workspaces",
-    "typecheck": "npm run typecheck --workspaces"
+    "typecheck": "npm run typecheck --workspaces",
+    "build": "npm run build --workspaces --if-present"
   }
 }
