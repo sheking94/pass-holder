@@ -10,6 +10,7 @@ import {
   type EntryData,
   type GeneratorOptions,
 } from "@passholder/core";
+import { CLEAR_AFTER_MINUTES, sha256Hex, type ClipboardMessage } from "./clipboard.ts";
 import { chromeStore, VaultStore } from "./vault-store.ts";
 
 const app = document.getElementById("app")!;
@@ -168,9 +169,12 @@ function lockedView() {
 
 // --- List ----------------------------------------------------------------------------------
 
-async function copy(text: string, status: HTMLElement, what: string) {
+async function copy(text: string, status: HTMLElement, what: string, clearLater = false) {
   await navigator.clipboard.writeText(text);
-  setStatus(status, `Skopiowano ${what}.`);
+  if (!clearLater) return setStatus(status, `Skopiowano ${what}.`);
+  const message: ClipboardMessage = { target: "background", type: "password-copied", hash: await sha256Hex(text) };
+  await chrome.runtime.sendMessage(message);
+  setStatus(status, `Skopiowano ${what}. Schowek zostanie wyczyszczony za ${CLEAR_AFTER_MINUTES} min.`);
 }
 
 function listView(message = "") {
@@ -200,7 +204,7 @@ function listView(message = "") {
                 h("div", { class: "user", title: e.data.username }, e.data.username),
               ),
               h("button", { title: "Kopiuj login", onclick: () => copy(e.data.username, status, "login") }, "Login"),
-              h("button", { title: "Kopiuj hasło", onclick: () => copy(e.data.password, status, "hasło") }, "Hasło"),
+              h("button", { title: "Kopiuj hasło", onclick: () => copy(e.data.password, status, "hasło", true) }, "Hasło"),
               h("button", { title: "Edytuj", onclick: () => editView(e.id) }, "Edytuj"),
             ),
           )),

@@ -7,11 +7,11 @@ mkdirSync(outdir, { recursive: true });
 cpSync(new URL("./static/", import.meta.url).pathname, outdir, { recursive: true });
 
 await build({
-  entryPoints: ["src/popup.ts"],
+  entryPoints: ["src/popup.ts", "src/background.ts", "src/offscreen.ts"],
   bundle: true,
   format: "esm",
   target: "chrome120",
-  outfile: `${outdir}popup.js`,
+  outdir,
   minify: false,
   sourcemap: false,
   legalComments: "none",

@@ -8,6 +8,20 @@
     "default_title": "PassHolder",
     "default_popup": "popup.html"
   },
-  "permissions": ["storage", "clipboardWrite"],
-  "optional_host_permissions": ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"]
+  "permissions": [
+    "storage",
+    "clipboardWrite",
+    "clipboardRead",
+    "alarms",
+    "offscreen"
+  ],
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  }
 }
