@@ -41,3 +41,5 @@ echo
 echo "Server certificate for: $san"
 echo "CA fingerprint (compare on each device when you install ca.crt):"
 openssl x509 -in ca.crt -noout -fingerprint -sha256
+echo "Server certificate fingerprint (compare in the Android app when pairing):"
+openssl x509 -in server.crt -noout -fingerprint -sha256

@@ -1,0 +1,46 @@
+package io.github.sheking94.passholder.app.ui
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.unit.dp
+import io.github.sheking94.passholder.app.AppViewModel
+import io.github.sheking94.passholder.app.UiState
+
+/** Unlocking works offline: the wrapped vault key and the encrypted vault are on the phone. */
+@Composable
+fun LockedScreen(state: UiState, vm: AppViewModel) {
+    // remember, not rememberSaveable: the master password must not end up in the saved instance state.
+    var password by remember { mutableStateOf("") }
+    var askDisconnect by remember { mutableStateOf(false) }
+    val unlock = { if (!state.busy) vm.unlock(password) }
+
+    FormColumn {
+        Text("PassHolder jest zablokowany", style = MaterialTheme.typography.headlineSmall)
+        PasswordField(password, { password = it }, "Hasło główne", onDone = unlock)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = unlock, enabled = !state.busy) { Text("Odblokuj") }
+            TextButton(onClick = { askDisconnect = true }, enabled = !state.busy) { Text("Odłącz ten telefon") }
+        }
+        StatusLine(state.status, state.busy)
+    }
+
+    if (askDisconnect) {
+        AlertDialog(
+            onDismissRequest = { askDisconnect = false },
+            title = { Text("Odłączyć telefon?") },
+            text = { Text("Usunie to sejf z telefonu. Niezsynchronizowane zmiany przepadną; to, co jest na serwerze, zostaje.") },
+            confirmButton = { TextButton(onClick = { askDisconnect = false; vm.disconnect() }) { Text("Odłącz", color = MaterialTheme.colorScheme.error) } },
+            dismissButton = { TextButton(onClick = { askDisconnect = false }) { Text("Anuluj") } },
+        )
+    }
+}

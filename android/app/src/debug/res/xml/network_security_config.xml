@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug builds only: also allow plain http:// for a development server
+     (PASSHOLDER_INSECURE_HTTP=1, e.g. http://10.0.2.2:8080 from the emulator). -->
+<network-security-config xmlns:tools="http://schemas.android.com/tools">
+    <base-config cleartextTrafficPermitted="true" tools:ignore="InsecureBaseConfiguration" />
+</network-security-config>

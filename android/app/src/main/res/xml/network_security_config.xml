@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Release: HTTPS only. The app trusts the server through its own certificate pin (CertificatePin.kt),
+     not through Android's CA store. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+</network-security-config>
