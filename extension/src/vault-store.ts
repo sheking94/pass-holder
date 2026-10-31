@@ -196,14 +196,24 @@ export class VaultStore {
     const account = await this.getAccount();
     if (!this.vault || !this.keys || !account) throw new Error("Vault is locked");
     const client = this.makeClient(account.serverUrl);
-    if (!this.keys.token || (this.keys.tokenExpiresAt ?? 0) <= this.now() + 10_000) {
-      const session = await client.session(this.keys.authKey);
-      this.keys = { ...this.keys, token: session.token, tokenExpiresAt: session.expiresAt };
-      await this.session.set("keys", this.keys);
+    if (!this.keys.token || (this.keys.tokenExpiresAt ?? 0) <= this.now() + 10_000) await this.logIn(client);
+    const vaultKey = fromBase64(this.keys.vaultKey);
+    try {
+      await syncVault(this.vault, vaultKey, (request) => client.sync(this.keys!.token!, request));
+    } catch (error) {
+      // The server keeps sessions in memory only, so switching the Pi off and on forgets our token
+      // although it has not expired yet. Log in again once and retry.
+      if (!(error instanceof ApiError && error.status === 401)) throw error;
+      await this.logIn(client);
+      await syncVault(this.vault, vaultKey, (request) => client.sync(this.keys!.token!, request));
     }
-    const token = this.keys.token!;
-    await syncVault(this.vault, fromBase64(this.keys.vaultKey), (request) => client.sync(token, request));
     await this.save();
+  }
+
+  private async logIn(client: ServerClient): Promise<void> {
+    const session = await client.session(this.keys!.authKey);
+    this.keys = { ...this.keys!, token: session.token, tokenExpiresAt: session.expiresAt };
+    await this.session.set("keys", this.keys);
   }
 
   private async startSession(vaultKey: Uint8Array, authKey: Uint8Array, vault: LocalVault): Promise<void> {

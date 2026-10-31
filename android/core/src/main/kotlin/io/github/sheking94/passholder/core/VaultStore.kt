@@ -199,14 +199,23 @@ class VaultStore(
         val s = requireSession()
         val account = account() ?: throw IllegalStateException("Brak konta")
         val client = makeClient(account.serverUrl, account.certificatePin)
-        if (s.token == null || s.tokenExpiresAt <= now() + 10_000) {
-            val login = login(client, s.authKey)
-            s.token = login.token
-            s.tokenExpiresAt = login.expiresAt
+        if (s.token == null || s.tokenExpiresAt <= now() + 10_000) logIn(client, s)
+        try {
+            VaultSync.sync(s.vault, s.vaultKey) { request -> client.sync(s.token!!, request) }
+        } catch (e: ApiException) {
+            // The server keeps sessions in memory only, so switching the Pi off and on forgets our token
+            // although it has not expired yet. Log in again once and retry.
+            if (e.status != 401) throw e
+            logIn(client, s)
+            VaultSync.sync(s.vault, s.vaultKey) { request -> client.sync(s.token!!, request) }
         }
-        val token = s.token!!
-        VaultSync.sync(s.vault, s.vaultKey) { request -> client.sync(token, request) }
         save()
+    }
+
+    private fun logIn(client: ServerClient, s: Session) {
+        val login = login(client, s.authKey)
+        s.token = login.token
+        s.tokenExpiresAt = login.expiresAt
     }
 
     private fun login(client: ServerClient, authKey: ByteArray): SessionResponse = try {
