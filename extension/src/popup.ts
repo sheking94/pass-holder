@@ -3,15 +3,12 @@ import {
   DEFAULT_GENERATOR_OPTIONS,
   MAX_LENGTH,
   MIN_LENGTH,
-  deleteEntry,
   generatePassword,
-  upsertEntry,
   type CharacterGroup,
-  type EntryData,
   type GeneratorOptions,
 } from "@passholder/core";
 import { CLEAR_AFTER_MINUTES, sha256Hex, type ClipboardMessage } from "./clipboard.ts";
-import { chromeStore, VaultStore } from "./vault-store.ts";
+import { chromeStore, STORAGE_KEYS, VaultStore } from "./vault-store.ts";
 
 const app = document.getElementById("app")!;
 const local = chromeStore(chrome.storage.local);
@@ -169,12 +166,17 @@ function lockedView() {
 
 // --- List ----------------------------------------------------------------------------------
 
-async function copy(text: string, status: HTMLElement, what: string, clearLater = false) {
-  await navigator.clipboard.writeText(text);
-  if (!clearLater) return setStatus(status, `Skopiowano ${what}.`);
-  const message: ClipboardMessage = { target: "background", type: "password-copied", hash: await sha256Hex(text) };
+async function copyLogin(username: string, status: HTMLElement) {
+  await navigator.clipboard.writeText(username);
+  setStatus(status, "Skopiowano login.");
+}
+
+/** Copies the password and asks the service worker to clear the clipboard after a minute. */
+async function copyPassword(password: string, status: HTMLElement) {
+  await navigator.clipboard.writeText(password);
+  const message: ClipboardMessage = { target: "background", type: "password-copied", hash: await sha256Hex(password) };
   await chrome.runtime.sendMessage(message);
-  setStatus(status, `Skopiowano ${what}. Schowek zostanie wyczyszczony za ${CLEAR_AFTER_MINUTES} min.`);
+  setStatus(status, `Skopiowano hasło. Schowek zostanie wyczyszczony za ${CLEAR_AFTER_MINUTES} min.`);
 }
 
 function listView(message = "") {
@@ -185,9 +187,8 @@ function listView(message = "") {
 
   const renderList = () => {
     const query = search.value.trim().toLowerCase();
-    const rows = [...store.entries().values()]
-      .filter((e) => !e.deleted)
-      .map((e) => ({ id: e.id, data: e.data as EntryData, dirty: e.dirty }))
+    const rows = store
+      .entries()
       .filter((e) => !query || `${e.data.name} ${e.data.username}`.toLowerCase().includes(query))
       .sort((a, b) => a.data.name.localeCompare(b.data.name, "pl"));
     list.replaceChildren(
@@ -203,16 +204,14 @@ function listView(message = "") {
                 h("div", { class: "name", title: e.data.name }, e.data.name, e.dirty ? " •" : ""),
                 h("div", { class: "user", title: e.data.username }, e.data.username),
               ),
-              h("button", { title: "Kopiuj login", onclick: () => copy(e.data.username, status, "login") }, "Login"),
-              h("button", { title: "Kopiuj hasło", onclick: () => copy(e.data.password, status, "hasło", true) }, "Hasło"),
+              h("button", { title: "Kopiuj login", onclick: () => copyLogin(e.data.username, status) }, "Login"),
+              h("button", { title: "Kopiuj hasło", onclick: () => copyPassword(e.data.password, status) }, "Hasło"),
               h("button", { title: "Edytuj", onclick: () => editView(e.id) }, "Edytuj"),
             ),
           )),
     );
   };
   search.addEventListener("input", renderList);
-
-  const pending = () => [...store.entries().values()].filter((e) => e.dirty).length;
 
   show(
     h("div", { class: "row" }, h("div", { class: "grow" }, search), h("button", { class: "primary", onclick: () => editView() }, "+ Dodaj")),
@@ -232,7 +231,8 @@ function listView(message = "") {
     ),
     status,
   );
-  if (!message && pending() > 0) setStatus(status, `Niezsynchronizowane zmiany: ${pending()} (oznaczone •).`);
+  const pending = store.pendingCount();
+  if (!message && pending > 0) setStatus(status, `Niezsynchronizowane zmiany: ${pending} (oznaczone •).`);
   renderList();
   search.focus();
 }
@@ -240,12 +240,11 @@ function listView(message = "") {
 // --- Edit ----------------------------------------------------------------------------------
 
 async function loadGeneratorOptions(): Promise<GeneratorOptions> {
-  return (await local.get<GeneratorOptions>("generator")) ?? DEFAULT_GENERATOR_OPTIONS;
+  return (await local.get<GeneratorOptions>(STORAGE_KEYS.generator)) ?? DEFAULT_GENERATOR_OPTIONS;
 }
 
 async function editView(id?: string) {
-  const existing = id ? store.entries().get(id) : undefined;
-  const data = existing && !existing.deleted ? existing.data : undefined;
+  const data = id ? store.entry(id)?.data : undefined;
   const name = h("input", { type: "text", value: data?.name ?? "" });
   const username = h("input", { type: "text", value: data?.username ?? "", autocomplete: "off" });
   const password = h("input", { type: "password", class: "mono", value: data?.password ?? "", autocomplete: "off" });
@@ -265,26 +264,22 @@ async function editView(id?: string) {
       length: Number(length.value),
       groups: groupBoxes.filter((g) => g.box.checked).map((g) => g.group),
     };
-    try {
-      password.value = generatePassword(chosen);
-      password.type = "text";
-      await local.set("generator", chosen);
-      setStatus(status, "");
-    } catch (error) {
-      setStatus(status, (error as Error).message === "Choose at least one character group" ? "Wybierz co najmniej jedną grupę znaków" : (error as Error).message, true);
-    }
+    if (chosen.groups.length === 0) return setStatus(status, "Wybierz co najmniej jedną grupę znaków", true);
+    password.value = generatePassword(chosen);
+    password.type = "text";
+    await local.set(STORAGE_KEYS.generator, chosen);
+    setStatus(status, "");
   };
 
   const save = () =>
     busy(status, "Zapisuję…", async () => {
       if (!name.value.trim()) throw new Error("Podaj nazwę serwisu");
       if (!password.value) throw new Error("Podaj albo wygeneruj hasło");
-      upsertEntry(store.vaultForEdit(), id ?? crypto.randomUUID(), {
+      await store.upsert(id ?? crypto.randomUUID(), {
         name: name.value.trim(),
         username: username.value,
         password: password.value,
       });
-      await store.save();
       listView("Zapisano lokalnie. Zsynchronizuj, gdy serwer będzie włączony.");
     });
 
@@ -298,8 +293,7 @@ async function editView(id?: string) {
         return;
       }
       void busy(status, "Usuwam…", async () => {
-        deleteEntry(store.vaultForEdit(), id!);
-        await store.save();
+        await store.delete(id!);
         listView("Usunięto lokalnie. Zsynchronizuj, żeby usunąć też na innych urządzeniach.");
       });
     },

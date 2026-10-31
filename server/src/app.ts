@@ -1,6 +1,15 @@
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
-import { assertKdfParamsAcceptable, fromBase64, processSync, type KdfParams, type SyncRequest } from "@passholder/core";
+import {
+  MAX_KDF,
+  MIN_KDF,
+  assertKdfParamsAcceptable,
+  authHash,
+  fromBase64,
+  processSync,
+  type KdfParams,
+  type SyncRequest,
+} from "@passholder/core";
 import type { Database } from "./db.ts";
 
 export interface AppOptions {
@@ -25,9 +34,10 @@ const kdfSchema = {
   properties: {
     alg: { const: "argon2id" },
     salt: base64,
-    memoryKiB: { type: "integer", minimum: 1, maximum: 4_194_304 },
-    iterations: { type: "integer", minimum: 1, maximum: 100 },
-    parallelism: { type: "integer", minimum: 1, maximum: 64 },
+    // Same bounds as the clients check (core/src/kdf.ts), so the schema and the code cannot disagree.
+    memoryKiB: { type: "integer", minimum: MIN_KDF.memoryKiB, maximum: MAX_KDF.memoryKiB },
+    iterations: { type: "integer", minimum: MIN_KDF.iterations, maximum: MAX_KDF.iterations },
+    parallelism: { type: "integer", minimum: MIN_KDF.parallelism, maximum: MAX_KDF.parallelism },
   },
 } as const;
 
@@ -48,10 +58,6 @@ function decodeKey(value: string): Uint8Array | undefined {
 
 function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
-}
-
-function sha256(bytes: Uint8Array): Uint8Array {
-  return createHash("sha256").update(bytes).digest();
 }
 
 export function buildApp(options: AppOptions): FastifyInstance {
@@ -115,7 +121,7 @@ export function buildApp(options: AppOptions): FastifyInstance {
       }
       const authKey = decodeKey(request.body.authKey);
       if (!authKey) return reply.code(400).send({ error: "authKey must be 32 bytes" });
-      db.initialize({ kdf: request.body.kdf, authHash: sha256(authKey), wrappedVaultKey: request.body.wrappedVaultKey }, now());
+      db.initialize({ kdf: request.body.kdf, authHash: authHash(authKey), wrappedVaultKey: request.body.wrappedVaultKey }, now());
       setupToken = undefined;
       return reply.code(201).send({});
     },
@@ -140,7 +146,7 @@ export function buildApp(options: AppOptions): FastifyInstance {
       const failures = recentFailures(request.ip);
       if (failures.length >= maxLoginFailures) return reply.code(429).send({ error: "Too many attempts, wait a minute" });
       const authKey = decodeKey(request.body.authKey);
-      if (!authKey || !sameBytes(sha256(authKey), meta.authHash)) {
+      if (!authKey || !sameBytes(authHash(authKey), meta.authHash)) {
         failures.push(now());
         return reply.code(401).send({ error: "Wrong master password" });
       }

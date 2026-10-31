@@ -18,6 +18,9 @@ data class LocalEntry(
     val deleted: Boolean get() = credentials == null
 }
 
+/** An entry that is not deleted. [credentials] is never null here, unlike in [LocalEntry]. */
+data class LiveEntry(val id: String, val dirty: Boolean, val credentials: Credentials)
+
 @Serializable
 class LocalVault(
     var lastSyncRevision: Long = 0,
@@ -38,7 +41,11 @@ class LocalVault(
         entries[id] = existing.copy(dirty = true, modifiedAt = now, credentials = null)
     }
 
-    fun liveEntries(): List<LocalEntry> = entries.values.filter { !it.deleted }
+    fun liveEntry(id: String): LiveEntry? = entries[id]?.toLiveEntry()
+
+    private fun LocalEntry.toLiveEntry(): LiveEntry? = credentials?.let { LiveEntry(id, dirty, it) }
+
+    fun liveEntries(): List<LiveEntry> = entries.values.mapNotNull { it.toLiveEntry() }
 
     fun pendingCount(): Int = entries.values.count { it.dirty }
 }

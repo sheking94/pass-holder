@@ -24,7 +24,7 @@ class VaultStoreTest {
         return server.url("/").toString() to fake
     }
 
-    private fun names(store: VaultStore) = store.entries().map { it.credentials!!.name }
+    private fun names(store: VaultStore) = store.entries().map { it.credentials.name }
 
     @Test
     fun `creates a vault, syncs, and a second phone downloads it`() {

@@ -1,9 +1,11 @@
 import {
   assertKdfParamsAcceptable,
+  deleteEntry,
   deriveKeys,
   emptyVault,
   fromBase64,
   fromUtf8,
+  liveEntries,
   newKdfParams,
   newVaultKey,
   open,
@@ -11,15 +13,30 @@ import {
   syncVault,
   toBase64,
   unwrapVaultKey,
+  upsertEntry,
   utf8,
   wrapVaultKey,
+  type EntryData,
   type KdfParams,
   type LocalEntry,
   type LocalVault,
 } from "@passholder/core";
-import { ApiError, ServerClient } from "./api.ts";
+import { ApiError, ServerClient, type SessionResponse } from "./api.ts";
 
 const LOCAL_VAULT_AAD = "passholder/v1/local-vault";
+
+/** Keys in chrome.storage. account, vault and generator are in local storage, sessionKeys in session storage. */
+export const STORAGE_KEYS = {
+  account: "account",
+  vault: "vault",
+  sessionKeys: "keys",
+  generator: "generator",
+} as const;
+
+/** A token this close to expiry is renewed before a sync, so it does not run out halfway. */
+const TOKEN_REFRESH_MARGIN_MS = 10_000;
+
+const LOCKED = "Sejf jest zablokowany";
 
 /** Key-value storage; chrome.storage.local and chrome.storage.session in the extension, a Map in tests. */
 export interface KeyValueStore {
@@ -71,6 +88,9 @@ interface SessionKeys {
 
 export const AUTO_LOCK_MS = 15 * 60_000;
 
+/** An entry that is not deleted, as the popup lists and edits it. */
+export type LiveEntry = LocalEntry & { deleted: false };
+
 function serializeVault(vault: LocalVault): string {
   return JSON.stringify({ lastSyncRevision: vault.lastSyncRevision, entries: [...vault.entries.values()] });
 }
@@ -83,6 +103,7 @@ function deserializeVault(json: string): LocalVault {
 /**
  * Everything the popup does with the vault. The vault is encrypted with the vault key on disk too,
  * so the extension works offline and only talks to the server when you sync.
+ * Every change (upsert, delete, sync) is saved to disk before the method returns.
  */
 export class VaultStore {
   private vault: LocalVault | undefined;
@@ -96,21 +117,36 @@ export class VaultStore {
   ) {}
 
   getAccount(): Promise<Account | undefined> {
-    return this.local.get<Account>("account");
+    return this.local.get<Account>(STORAGE_KEYS.account);
   }
 
   isUnlocked(): boolean {
     return this.vault !== undefined;
   }
 
-  entries(): LocalVault["entries"] {
-    if (!this.vault) throw new Error("Vault is locked");
-    return this.vault.entries;
+  /** Entries that are not deleted, in no particular order. */
+  entries(): LiveEntry[] {
+    return liveEntries(this.requireVault());
   }
 
-  vaultForEdit(): LocalVault {
-    if (!this.vault) throw new Error("Vault is locked");
-    return this.vault;
+  entry(id: string): LiveEntry | undefined {
+    const entry = this.requireVault().entries.get(id);
+    return entry && !entry.deleted ? entry : undefined;
+  }
+
+  /** Number of local changes the server has not seen yet. */
+  pendingCount(): number {
+    return [...this.requireVault().entries.values()].filter((e) => e.dirty).length;
+  }
+
+  async upsert(id: string, data: Omit<EntryData, "modifiedAt">): Promise<void> {
+    upsertEntry(this.requireVault(), id, data, this.now());
+    await this.save();
+  }
+
+  async delete(id: string): Promise<void> {
+    deleteEntry(this.requireVault(), id, this.now());
+    await this.save();
   }
 
   /** Creates a new vault on an empty server. */
@@ -121,7 +157,7 @@ export class VaultStore {
     const vaultKey = newVaultKey();
     const wrappedVaultKey = await wrapVaultKey(keys.encKey, vaultKey);
     await client.setup({ setupToken, kdf, authKey: toBase64(keys.authKey), wrappedVaultKey });
-    await this.local.set("account", { serverUrl, kdf, wrappedVaultKey } satisfies Account);
+    await this.local.set(STORAGE_KEYS.account, { serverUrl, kdf, wrappedVaultKey } satisfies Account);
     await this.startSession(vaultKey, keys.authKey, emptyVault());
   }
 
@@ -137,17 +173,16 @@ export class VaultStore {
       throw error;
     });
     const vaultKey = await unwrapVaultKey(keys.encKey, session.wrappedVaultKey);
-    await this.local.set("account", { serverUrl, kdf, wrappedVaultKey: session.wrappedVaultKey } satisfies Account);
+    await this.local.set(STORAGE_KEYS.account, { serverUrl, kdf, wrappedVaultKey: session.wrappedVaultKey } satisfies Account);
     await this.startSession(vaultKey, keys.authKey, emptyVault());
-    this.keys = { ...this.keys!, token: session.token, tokenExpiresAt: session.expiresAt };
-    await this.session.set("keys", this.keys);
+    await this.rememberToken(session);
     await this.sync();
   }
 
   /** Works offline: the wrapped vault key and the encrypted vault are on disk. */
   async unlock(masterPassword: string): Promise<void> {
     const account = await this.getAccount();
-    if (!account) throw new Error("No account");
+    if (!account) throw new Error("Ta przeglądarka nie jest połączona z serwerem");
     const keys = await deriveKeys(masterPassword, account.kdf);
     let vaultKey: Uint8Array;
     try {
@@ -160,7 +195,7 @@ export class VaultStore {
 
   /** Restores an unlocked state kept in session storage, so reopening the popup needs no password. */
   async resume(): Promise<boolean> {
-    const keys = await this.session.get<SessionKeys>("keys");
+    const keys = await this.session.get<SessionKeys>(STORAGE_KEYS.sessionKeys);
     if (!keys || keys.unlockedUntil <= this.now()) {
       await this.lock();
       return false;
@@ -174,46 +209,69 @@ export class VaultStore {
   async lock(): Promise<void> {
     this.vault = undefined;
     this.keys = undefined;
-    await this.session.remove("keys");
+    await this.session.remove(STORAGE_KEYS.sessionKeys);
   }
 
   /** Forgets this browser's account and local copy. The server keeps everything. */
   async disconnect(): Promise<void> {
     await this.lock();
-    await this.local.remove("account");
-    await this.local.remove("vault");
-  }
-
-  /** Call after each change made through vaultForEdit(). */
-  async save(): Promise<void> {
-    if (!this.vault || !this.keys) throw new Error("Vault is locked");
-    const blob = await seal(fromBase64(this.keys.vaultKey), utf8(serializeVault(this.vault)), LOCAL_VAULT_AAD);
-    await this.local.set("vault", blob);
-    await this.touch();
+    await this.local.remove(STORAGE_KEYS.account);
+    await this.local.remove(STORAGE_KEYS.vault);
   }
 
   async sync(): Promise<void> {
+    const vault = this.requireVault();
+    const keys = this.requireKeys();
     const account = await this.getAccount();
-    if (!this.vault || !this.keys || !account) throw new Error("Vault is locked");
+    if (!account) throw new Error(LOCKED);
     const client = this.makeClient(account.serverUrl);
-    if (!this.keys.token || (this.keys.tokenExpiresAt ?? 0) <= this.now() + 10_000) await this.logIn(client);
-    const vaultKey = fromBase64(this.keys.vaultKey);
-    try {
-      await syncVault(this.vault, vaultKey, (request) => client.sync(this.keys!.token!, request));
-    } catch (error) {
-      // The server keeps sessions in memory only, so switching the Pi off and on forgets our token
-      // although it has not expired yet. Log in again once and retry.
-      if (!(error instanceof ApiError && error.status === 401)) throw error;
-      await this.logIn(client);
-      await syncVault(this.vault, vaultKey, (request) => client.sync(this.keys!.token!, request));
-    }
+    const vaultKey = fromBase64(keys.vaultKey);
+    await this.withFreshToken(client, (token) => syncVault(vault, vaultKey, (request) => client.sync(token, request)));
     await this.save();
   }
 
-  private async logIn(client: ServerClient): Promise<void> {
-    const session = await client.session(this.keys!.authKey);
-    this.keys = { ...this.keys!, token: session.token, tokenExpiresAt: session.expiresAt };
-    await this.session.set("keys", this.keys);
+  /**
+   * Runs action with a valid session token. The server keeps sessions in memory only, so switching the
+   * Pi off and on forgets our token although it has not expired yet: on 401 log in again once and retry.
+   */
+  private async withFreshToken(client: ServerClient, action: (token: string) => Promise<void>): Promise<void> {
+    const keys = this.requireKeys();
+    const expiringSoon = (keys.tokenExpiresAt ?? 0) <= this.now() + TOKEN_REFRESH_MARGIN_MS;
+    const token = keys.token && !expiringSoon ? keys.token : await this.logIn(client);
+    try {
+      await action(token);
+    } catch (error) {
+      if (!(error instanceof ApiError && error.status === 401)) throw error;
+      await action(await this.logIn(client));
+    }
+  }
+
+  /** Gets a new session token from the server and returns it. */
+  private async logIn(client: ServerClient): Promise<string> {
+    const session = await client.session(this.requireKeys().authKey);
+    await this.rememberToken(session);
+    return session.token;
+  }
+
+  private async rememberToken(session: SessionResponse): Promise<void> {
+    this.keys = { ...this.requireKeys(), token: session.token, tokenExpiresAt: session.expiresAt };
+    await this.session.set(STORAGE_KEYS.sessionKeys, this.keys);
+  }
+
+  private requireVault(): LocalVault {
+    if (!this.vault) throw new Error(LOCKED);
+    return this.vault;
+  }
+
+  private requireKeys(): SessionKeys {
+    if (!this.keys) throw new Error(LOCKED);
+    return this.keys;
+  }
+
+  private async save(): Promise<void> {
+    const blob = await seal(fromBase64(this.requireKeys().vaultKey), utf8(serializeVault(this.requireVault())), LOCAL_VAULT_AAD);
+    await this.local.set(STORAGE_KEYS.vault, blob);
+    await this.touch();
   }
 
   private async startSession(vaultKey: Uint8Array, authKey: Uint8Array, vault: LocalVault): Promise<void> {
@@ -225,11 +283,11 @@ export class VaultStore {
   private async touch(): Promise<void> {
     if (!this.keys) return;
     this.keys = { ...this.keys, unlockedUntil: this.now() + AUTO_LOCK_MS };
-    await this.session.set("keys", this.keys);
+    await this.session.set(STORAGE_KEYS.sessionKeys, this.keys);
   }
 
   private async loadVault(vaultKey: Uint8Array): Promise<LocalVault> {
-    const blob = await this.local.get<string>("vault");
+    const blob = await this.local.get<string>(STORAGE_KEYS.vault);
     if (!blob) return emptyVault();
     return deserializeVault(fromUtf8(await open(vaultKey, blob, LOCAL_VAULT_AAD)));
   }

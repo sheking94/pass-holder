@@ -1,5 +1,7 @@
 /** Shared by the popup, the service worker and the offscreen document that clears the clipboard. */
 
+import { toHex } from "@passholder/core";
+
 export const CLEAR_CLIPBOARD_ALARM = "clear-clipboard";
 export const CLEAR_AFTER_MINUTES = 1;
 
@@ -13,5 +15,5 @@ export type ClipboardMessage =
  */
 export async function sha256Hex(text: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+  return toHex(new Uint8Array(digest));
 }

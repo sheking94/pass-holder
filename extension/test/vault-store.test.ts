@@ -1,8 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { liveEntries, upsertEntry, deleteEntry } from "@passholder/core";
 import { buildApp } from "@passholder/server/src/app.ts";
 import { Database } from "@passholder/server/src/db.ts";
-import { memoryStore, VaultStore, AUTO_LOCK_MS } from "../src/vault-store.ts";
+import { memoryStore, VaultStore, AUTO_LOCK_MS, STORAGE_KEYS } from "../src/vault-store.ts";
 
 const SETUP_TOKEN = "token";
 const PASSWORD = "Zażółć gęślą jaźń 2026";
@@ -24,23 +23,21 @@ function newBrowser(now = () => Date.now()) {
   return { local, session, store: new VaultStore(local, session, undefined, now) };
 }
 
-const names = (store: VaultStore) => liveEntries({ lastSyncRevision: 0, entries: store.entries() }).map((e) => e.data.name).sort();
+const names = (store: VaultStore) => store.entries().map((e) => e.data.name).sort();
 
 describe("VaultStore against the real server", () => {
   it("creates a vault, syncs, and a second browser downloads it", async () => {
     const url = await startServer();
     const first = newBrowser().store;
     await first.createVault(url, SETUP_TOKEN, PASSWORD);
-    upsertEntry(first.vaultForEdit(), "1", { name: "bank.pl", username: "jan", password: "s3cret" });
-    await first.save();
+    await first.upsert("1", { name: "bank.pl", username: "jan", password: "s3cret" });
     await first.sync();
 
     const second = newBrowser().store;
     await second.connectExisting(url, PASSWORD);
     expect(names(second)).toEqual(["bank.pl"]);
 
-    deleteEntry(second.vaultForEdit(), "1");
-    await second.save();
+    await second.delete("1");
     await second.sync();
     await first.sync();
     expect(names(first)).toEqual([]);
@@ -58,8 +55,7 @@ describe("VaultStore offline", () => {
     const url = await startServer();
     const browser = newBrowser();
     await browser.store.createVault(url, SETUP_TOKEN, PASSWORD);
-    upsertEntry(browser.store.vaultForEdit(), "1", { name: "poczta.pl", username: "jan", password: "hunter2" });
-    await browser.store.save();
+    await browser.store.upsert("1", { name: "poczta.pl", username: "jan", password: "hunter2" });
     await servers.splice(0)[0]!.close(); // server goes away
 
     await browser.store.lock();
@@ -68,7 +64,7 @@ describe("VaultStore offline", () => {
     await browser.store.unlock(PASSWORD);
     expect(names(browser.store)).toEqual(["poczta.pl"]);
 
-    const onDisk = JSON.stringify([await browser.local.get("account"), await browser.local.get("vault")]);
+    const onDisk = JSON.stringify([await browser.local.get(STORAGE_KEYS.account), await browser.local.get(STORAGE_KEYS.vault)]);
     expect(onDisk).not.toMatch(/poczta|hunter2/);
     await expect(browser.store.sync()).rejects.toThrow("niedostępny");
   }, 30_000);
@@ -85,6 +81,6 @@ describe("VaultStore offline", () => {
     clock += AUTO_LOCK_MS + 1;
     const later = new VaultStore(browser.local, browser.session, undefined, () => clock);
     expect(await later.resume()).toBe(false);
-    expect(await browser.session.get("keys")).toBeUndefined();
+    expect(await browser.session.get(STORAGE_KEYS.sessionKeys)).toBeUndefined();
   }, 30_000);
 });
