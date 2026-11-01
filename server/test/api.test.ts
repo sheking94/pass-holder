@@ -51,8 +51,8 @@ async function setUp(app: ReturnType<typeof buildApp>) {
   });
 }
 
-async function logIn(app: ReturnType<typeof buildApp>, authKey = keys.authKey) {
-  return app.inject({ method: "POST", url: "/api/v1/session", payload: { authKey: toBase64(authKey) } });
+async function logIn(app: ReturnType<typeof buildApp>, authKey = keys.authKey, remoteAddress = "127.0.0.1") {
+  return app.inject({ method: "POST", url: "/api/v1/session", payload: { authKey: toBase64(authKey) }, remoteAddress });
 }
 
 function transport(app: ReturnType<typeof buildApp>, token: string) {
@@ -116,6 +116,16 @@ describe("login", () => {
     expect((await logIn(app)).statusCode).toBe(429);
     clock += 61_000;
     expect((await logIn(app)).statusCode).toBe(200);
+  });
+
+  it("limits failures from all addresses together, e.g. many IPv6 addresses (N3)", async () => {
+    const { app } = start();
+    await setUp(app);
+    const other = await deriveKeys("wrong password", KDF);
+    for (let i = 0; i < 20; i++) expect((await logIn(app, other.authKey, `fd00::${i + 1}`)).statusCode).toBe(401);
+    expect((await logIn(app, keys.authKey, "fd00::99")).statusCode).toBe(429);
+    clock += 61_000;
+    expect((await logIn(app, keys.authKey, "fd00::99")).statusCode).toBe(200);
   });
 
   it("expires sessions", async () => {
