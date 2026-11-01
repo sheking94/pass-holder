@@ -9,6 +9,9 @@ import {
 } from "@passholder/core";
 import { CLEAR_AFTER_MINUTES, sha256Hex, type ClipboardMessage } from "./clipboard.ts";
 import { isValidPin, MAX_PIN_ATTEMPTS } from "./pin-lock.ts";
+import { exportNordPassCsv, parseNordPassCsv } from "./csv-transfer.ts";
+import { chromeTabApi, isTabPage, openInTab, SETUP_PARAM } from "./open-in-tab.ts";
+import { normalizeServerUrls } from "./server-urls.ts";
 import { chromeStore, STORAGE_KEYS, VaultStore, type PinStatus } from "./vault-store.ts";
 
 const app = document.getElementById("app")!;
@@ -74,6 +77,34 @@ function originPattern(url: string): string {
   return `${parsed.protocol}//${parsed.hostname}/*`;
 }
 
+const URL_EXAMPLE = "https://passholder.local:8443";
+const SECOND_URL_EXAMPLE = "https://100.x.y.z:8443";
+
+/** Two address inputs: the main one and an optional second one (e.g. Tailscale). The vault picks whichever answers. */
+function serverUrlFields(current: readonly string[] = []) {
+  const main = h("input", { type: "url", placeholder: URL_EXAMPLE, required: true, value: current[0] ?? "" });
+  const second = h("input", { type: "url", placeholder: SECOND_URL_EXAMPLE, value: current[1] ?? "" });
+  return {
+    main,
+    fields: [
+      h("label", {}, "Adres serwera"),
+      main,
+      h("label", {}, "Drugi adres serwera (opcjonalnie, np. Tailscale)"),
+      second,
+    ],
+    /** The typed addresses and the host permission patterns they need, or an error message. */
+    read(): { urls: string[]; origins: string[] } | string {
+      const urls = normalizeServerUrls([main.value, second.value]);
+      if (urls.length === 0) return `Podaj pełny adres, np. ${URL_EXAMPLE}`;
+      try {
+        return { urls, origins: [...new Set(urls.map(originPattern))] };
+      } catch {
+        return `Podaj pełne adresy, np. ${URL_EXAMPLE}`;
+      }
+    },
+  };
+}
+
 /** A password input with a button that shows or hides what was typed. */
 function passwordField(input: HTMLInputElement) {
   const toggle = h("button", { type: "button", title: "Pokaż lub ukryj hasło" });
@@ -107,13 +138,30 @@ function form(onSubmit: () => void, ...children: Child[]) {
  * Chrome closes the popup as soon as it shows the host permission prompt, so the code after
  * chrome.permissions.request never ran and the vault was never created. A tab stays open
  * while the prompt is shown, so connecting to the server always happens in a tab.
+ * The "Otwórz w karcie" button (?tab) opens the whole extension in a tab for the same reason:
+ * a click on the web page closes the popup and loses what was typed.
  */
-const IN_TAB = new URLSearchParams(location.search).has("setup");
+const PARAMS = new URLSearchParams(location.search);
+const IN_TAB = isTabPage(location.search) || PARAMS.has("addresses");
 
 /** Opens the connect form in a tab and closes the popup. */
 async function openSetupTab() {
-  await chrome.tabs.create({ url: chrome.runtime.getURL("popup.html?setup") });
+  await chrome.tabs.create({ url: chrome.runtime.getURL(`popup.html?${SETUP_PARAM}`) });
   window.close();
+}
+
+/** Button shown only in the popup: switches to a PassHolder tab (opens one if needed). */
+function openInTabButton() {
+  if (IN_TAB || TRANSFER_TAB) return undefined;
+  return h("div", { class: "topbar" }, h("button", {
+    type: "button",
+    class: "small",
+    title: "Karta nie zamyka się po kliknięciu na stronie, więc wpisane dane nie znikają",
+    onclick: async () => {
+      await openInTab(chromeTabApi(), chrome.runtime.getURL("popup.html"));
+      window.close();
+    },
+  }, "Otwórz w karcie ↗"));
 }
 
 /** Shows the connect form here if this is the setup tab, otherwise moves it to a tab. */
@@ -129,7 +177,7 @@ function showConnect() {
 // --- Connect -------------------------------------------------------------------------------
 
 function connectView(mode: "existing" | "new" = "existing") {
-  const url = h("input", { type: "url", placeholder: "https://passholder.local:8443", required: true });
+  const addresses = serverUrlFields();
   const token = h("input", { type: "text", class: "mono", autocomplete: "off" });
   const isNew = mode === "new";
   const password = h("input", { type: "password", autocomplete: isNew ? "new-password" : "current-password" });
@@ -137,24 +185,19 @@ function connectView(mode: "existing" | "new" = "existing") {
   const status = statusLine();
 
   const submit = () => {
-    const serverUrl = url.value.trim();
-    let origin: string;
-    try {
-      origin = originPattern(serverUrl);
-    } catch {
-      return setStatus(status, "Podaj pełny adres, np. https://passholder.local:8443", true);
-    }
+    const typed = addresses.read();
+    if (typeof typed === "string") return setStatus(status, typed, true);
     if (isNew && password.value.length < MIN_MASTER_PASSWORD) {
       return setStatus(status, `Hasło główne musi mieć co najmniej ${MIN_MASTER_PASSWORD} znaków`, true);
     }
     if (isNew && password.value !== repeat.value) return setStatus(status, "Hasła się różnią", true);
     // Must be called directly in the submit handler, before any await (it needs the user gesture).
     // This runs in a tab (see IN_TAB), so the page survives the prompt and the callback runs.
-    chrome.permissions.request({ origins: [origin] }, (granted) => {
+    chrome.permissions.request({ origins: typed.origins }, (granted) => {
       if (!granted) return setStatus(status, "Bez zgody na dostęp do serwera wtyczka nie może się z nim łączyć", true);
       void busy(status, "Liczę klucze z hasła głównego…", async () => {
-        if (isNew) await store.createVault(serverUrl, token.value.trim(), password.value);
-        else await store.connectExisting(serverUrl, password.value);
+        if (isNew) await store.createVault(typed.urls, token.value.trim(), password.value);
+        else await store.connectExisting(typed.urls, password.value);
         listView("Połączono z serwerem. Możesz zamknąć tę kartę i używać ikony PassHolder na pasku. Logowanie PIN-em włączysz przyciskiem PIN.");
       });
     });
@@ -170,8 +213,7 @@ function connectView(mode: "existing" | "new" = "existing") {
     ),
     form(
       submit,
-      h("label", {}, "Adres serwera"),
-      url,
+      ...addresses.fields,
       isNew && h("label", {}, "Token z logu serwera (jednorazowy)"),
       isNew && token,
       h("label", {}, "Hasło główne"),
@@ -182,7 +224,56 @@ function connectView(mode: "existing" | "new" = "existing") {
     ),
     status,
   );
-  url.focus();
+  addresses.main.focus();
+}
+
+// --- Server addresses ----------------------------------------------------------------------
+
+/** Opens the address form in a tab: like connecting, it may need a host permission prompt. */
+async function openAddressesTab() {
+  // Already in a tab (also the "Otwórz w karcie" one): the prompt cannot close it, so show the form here.
+  if (IN_TAB) return addressesView();
+  await chrome.tabs.create({ url: chrome.runtime.getURL("popup.html?addresses") });
+  window.close();
+}
+
+/** Changes the server addresses of an already connected browser, without connecting again. */
+async function addressesView() {
+  const account = await store.getAccount();
+  if (!account) return showConnect();
+  const addresses = serverUrlFields(account.serverUrls);
+  const status = statusLine();
+
+  const submit = () => {
+    const typed = addresses.read();
+    if (typeof typed === "string") return setStatus(status, typed, true);
+    // Before any await, like in connectView: the prompt needs the user gesture.
+    chrome.permissions.request({ origins: typed.origins }, (granted) => {
+      if (!granted) return setStatus(status, "Bez zgody na dostęp do serwera wtyczka nie może się z nim łączyć", true);
+      void busy(status, "Zapisuję…", async () => {
+        await store.setServerUrls(typed.urls);
+        setStatus(status, "Zapisano. Przy synchronizacji wtyczka sama wybierze adres, który odpowiada." + (PARAMS.has("addresses") ? " Możesz zamknąć tę kartę." : ""));
+      });
+    });
+  };
+
+  show(
+    h("h1", {}, "PassHolder: adresy serwera"),
+    h("p", {}, "Podaj adresy, pod którymi łączysz się z tym samym serwerem, np. w sieci domowej i w Tailscale. Każdy z nich musi być w certyfikacie serwera."),
+    form(
+      submit,
+      ...addresses.fields,
+      h(
+        "div",
+        { class: "actions" },
+        h("button", { type: "submit", class: "primary" }, "Zapisz"),
+        // Opened from the list in this tab (not the separate ?addresses tab), so there is a list to go back to.
+        !PARAMS.has("addresses") && h("button", { type: "button", onclick: () => listView() }, "Wróć do listy"),
+      ),
+    ),
+    status,
+  );
+  addresses.main.focus();
 }
 
 // --- Locked --------------------------------------------------------------------------------
@@ -212,10 +303,12 @@ function pinLockedView(pinStatus: PinStatus) {
         pin.value = "";
         throw error;
       }
-      listView();
+      if (TRANSFER_TAB) transferView();
+      else listView();
     });
 
   show(
+    openInTabButton(),
     h("h1", {}, "PassHolder jest zablokowany"),
     form(
       () => void unlock(),
@@ -240,7 +333,8 @@ function lockedView(message = "") {
   const unlock = () =>
     busy(status, "Odblokowuję…", async () => {
       await store.unlock(password.value);
-      listView();
+      if (TRANSFER_TAB) transferView();
+      else listView();
     });
 
   let confirmDisconnect = false;
@@ -259,6 +353,7 @@ function lockedView(message = "") {
   }, "Odłącz tę przeglądarkę");
 
   show(
+    openInTabButton(),
     h("h1", {}, "PassHolder jest zablokowany"),
     form(
       () => void unlock(),
@@ -321,6 +416,7 @@ function listView(message = "") {
   search.addEventListener("input", renderList);
 
   show(
+    openInTabButton(),
     h("div", { class: "row" }, h("div", { class: "grow" }, search), h("button", { class: "primary", onclick: () => editView() }, "+ Dodaj")),
     list,
     h(
@@ -336,6 +432,8 @@ function listView(message = "") {
       }, "Synchronizuj"),
       h("button", { title: "Logowanie PIN-em", onclick: () => void pinSettingsView() }, "PIN"),
       h("button", { onclick: async () => { await store.lock(); await showLocked(); } }, "Zablokuj"),
+      h("button", { title: "Adresy serwera, np. w domu i przez Tailscale", onclick: () => void openAddressesTab() }, "Adresy serwera"),
+      h("button", { title: "Import i eksport haseł w pliku CSV (format NordPass)", onclick: () => void openTransferTab() }, "CSV"),
     ),
     status,
   );
@@ -471,6 +569,7 @@ async function editView(id?: string) {
   }, "Usuń");
 
   show(
+    openInTabButton(),
     h("h1", {}, data ? "Edytuj wpis" : "Nowy wpis"),
     h("label", {}, "Nazwa serwisu"),
     name,
@@ -502,12 +601,94 @@ async function editView(id?: string) {
   name.focus();
 }
 
+// --- CSV import and export ----------------------------------------------------------------
+
+/**
+ * True in the import/export tab. Chrome closes the toolbar popup when the file chooser opens,
+ * so choosing a file to import only works in a normal tab.
+ */
+const TRANSFER_TAB = PARAMS.has("transfer");
+
+async function openTransferTab() {
+  // Already in a tab (also the "Otwórz w karcie" one): the file chooser works here, no new tab needed.
+  if (TRANSFER_TAB || IN_TAB) return transferView();
+  await chrome.tabs.create({ url: chrome.runtime.getURL("popup.html?transfer") });
+  window.close();
+}
+
+/** Lets the browser save text as a file in the downloads folder (or ask where, per Chrome settings). */
+function downloadText(fileName: string, text: string) {
+  const url = URL.createObjectURL(new Blob([text], { type: "text/csv;charset=utf-8" }));
+  const link = h("a", { href: url, download: fileName });
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+function transferView() {
+  const status = statusLine();
+
+  const understood = h("input", { type: "checkbox" });
+  const exportButton = h("button", { type: "button", class: "danger" }, "Pobierz plik CSV");
+  exportButton.addEventListener("click", () => {
+    if (!understood.checked) return setStatus(status, "Najpierw zaznacz, że rozumiesz ryzyko.", true);
+    const entries = store.entries().map((e) => e.data);
+    downloadText(`passholder-${new Date().toISOString().slice(0, 10)}.csv`, exportNordPassCsv(entries));
+    setStatus(status, `Wyeksportowano ${entries.length} wpisów. Usuń plik, gdy nie będzie już potrzebny.`);
+  });
+
+  const file = h("input", { type: "file", accept: ".csv,text/csv" });
+  const importButton = h("button", { type: "button", class: "primary" }, "Importuj");
+  importButton.addEventListener("click", () => {
+    const chosen = file.files?.[0];
+    if (!chosen) return setStatus(status, "Wybierz plik CSV.", true);
+    void busy(status, "Importuję…", async () => {
+      const parsed = parseNordPassCsv(await chosen.text());
+      const { added, duplicates } = await store.importEntries(parsed.entries);
+      const lines = [
+        `Dodano ${added} wpisów (lokalnie, zsynchronizuj, żeby trafiły na serwer).`,
+        duplicates > 0 && `Pominięto ${duplicates} takich, które już są w sejfie.`,
+        parsed.skipped.length > 0 &&
+          `Pominięto ${parsed.skipped.length} wierszy: ` +
+            parsed.skipped.slice(0, 5).map((s) => `wiersz ${s.line}: ${s.reason}`).join("; ") +
+            (parsed.skipped.length > 5 ? "; …" : "."),
+        "Usuń plik CSV z dysku, zawiera hasła jawnym tekstem.",
+      ];
+      setStatus(status, lines.filter(Boolean).join(" "));
+      file.value = "";
+    });
+  });
+
+  show(
+    h("h1", {}, "Import i eksport CSV"),
+    h("p", {}, "Format pliku jest taki sam jak w NordPass. PassHolder przenosi nazwę, login i hasło; pozostałe kolumny (adres, notatka, folder…) są przy eksporcie puste, a przy imporcie pomijane."),
+    h(
+      "fieldset",
+      {},
+      h("legend", {}, "Eksport"),
+      h("p", { class: "warning" }, "Uwaga: plik CSV nie jest zaszyfrowany. Każdy, kto go zobaczy (inny program, kopia zapasowa, synchronizacja folderu Pobrane z chmurą), pozna wszystkie Twoje hasła. Usuń go zaraz po użyciu."),
+      h("label", { class: "check" }, understood, "Rozumiem, plik będzie zawierał hasła jawnym tekstem"),
+      h("div", { class: "actions" }, exportButton),
+    ),
+    h(
+      "fieldset",
+      {},
+      h("legend", {}, "Import"),
+      h("p", {}, "Wybierz plik wyeksportowany z NordPass (albo z PassHolder). Wpisy, które już są w sejfie z tą samą nazwą, loginem i hasłem, zostaną pominięte."),
+      file,
+      h("div", { class: "actions" }, importButton),
+    ),
+    h("div", { class: "actions" }, h("button", { type: "button", onclick: () => listView() }, "Wróć do listy")),
+    status,
+  );
+}
+
 // --- Start ---------------------------------------------------------------------------------
 
 async function start() {
-  if (IN_TAB) document.body.classList.add("tab");
+  if (IN_TAB || TRANSFER_TAB) document.body.classList.add("tab");
   if (!(await store.getAccount())) return showConnect();
-  if (await store.resume()) return listView();
+  if (PARAMS.has("addresses")) return addressesView();
+  if (await store.resume()) return TRANSFER_TAB ? transferView() : listView();
   await showLocked();
 }
 

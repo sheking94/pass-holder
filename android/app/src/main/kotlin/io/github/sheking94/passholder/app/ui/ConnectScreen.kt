@@ -31,16 +31,20 @@ import io.github.sheking94.passholder.app.AppViewModel
 import io.github.sheking94.passholder.app.UiState
 
 private const val MIN_MASTER_PASSWORD = 12
+const val URL_LABEL = "Adres serwera, np. https://passholder.local:8443"
+const val SECOND_URL_LABEL = "Drugi adres (opcjonalnie), np. https://100.x.y.z:8443 z Tailscale"
 
 /**
  * Pairing in two steps:
- * 1. address → the app reads the server certificate and shows its SHA-256 fingerprint;
+ * 1. address (and optionally a second one, e.g. Tailscale) → the app reads the server certificate and
+ *    shows its SHA-256 fingerprint;
  * 2. after you confirm it matches the Pi, master password (and the setup token for a new vault).
  */
 @Composable
 fun ConnectScreen(state: UiState, vm: AppViewModel) {
     var isNew by rememberSaveable { mutableStateOf(false) }
     var url by rememberSaveable { mutableStateOf("https://") }
+    var secondUrl by rememberSaveable { mutableStateOf("") }
     var token by rememberSaveable { mutableStateOf("") }
     // remember, not rememberSaveable: the master password must not end up in the saved instance state.
     var password by remember { mutableStateOf("") }
@@ -57,14 +61,20 @@ fun ConnectScreen(state: UiState, vm: AppViewModel) {
         }
 
         if (pairing == null) {
-            PlainField(url, { url = it }, "Adres serwera, np. https://passholder.local:8443", KeyboardType.Uri)
-            Button(onClick = { confirmed = false; vm.inspectServer(url) }, enabled = !state.busy) { Text("Dalej: sprawdź certyfikat") }
+            PlainField(url, { url = it }, URL_LABEL, KeyboardType.Uri)
+            PlainField(secondUrl, { secondUrl = it }, SECOND_URL_LABEL, KeyboardType.Uri)
+            Text(
+                "Z dwoma adresami (w domu i przez Tailscale) telefon przy synchronizacji sam wybierze ten, który odpowiada.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Button(onClick = { confirmed = false; vm.inspectServer(url, secondUrl) }, enabled = !state.busy) { Text("Dalej: sprawdź certyfikat") }
         } else {
-            Text("Serwer: ${pairing.url}", style = MaterialTheme.typography.bodyMedium)
+            Text("Serwer: ${pairing.urls.joinToString(", ")}", style = MaterialTheme.typography.bodyMedium)
             if (pairing.fingerprint != null) {
                 Card {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Odcisk SHA-256 certyfikatu serwera:", style = MaterialTheme.typography.labelLarge)
+                        val from = if (pairing.urls.size > 1) " (z adresu ${pairing.certificateFrom})" else ""
+                        Text("Odcisk SHA-256 certyfikatu serwera$from:", style = MaterialTheme.typography.labelLarge)
                         // 32 bytes as 4 lines of 8, easy to compare by eye.
                         Text(
                             pairing.fingerprint.split(":").chunked(8).joinToString("\n") { it.joinToString(":") },

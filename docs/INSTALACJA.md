@@ -312,17 +312,22 @@ nowa wtyczka z pustą pamięcią (sejf odzyskasz synchronizacją, ale niezsynchr
    karcie (Chrome zamyka okienko wtyczki, gdy pyta o zgodę, a karta zostaje). Wybierz zakładkę **Nowy sejf**.
 2. Wpisz:
    - **Adres serwera:** `https://passholder.local:8443` (albo `https://192.168.1.50:8443`),
+   - **Drugi adres serwera** (opcjonalnie): adres Tailscale, np. `https://100.x.y.z:8443`. Wtyczka przy
+     każdym połączeniu sama wybierze adres, który odpowiada (docs/WIELE_ADRESOW_SERWERA.md). Oba adresy
+     muszą być w certyfikacie (1.5).
    - **Token z logu serwera** z 1.6,
    - **Hasło główne** (co najmniej 12 znaków) i jego powtórzenie.
 3. Kliknij **Załóż sejf** (albo naciśnij Enter). Przyciskiem **Pokaż** obok pola sprawdzisz wpisane hasło.
    Chrome zapyta o zgodę na dostęp wtyczki do adresu serwera: zaakceptuj.
-   Wtyczka prosi tylko o ten jeden adres (`optional_host_permissions` w `manifest.json`).
+   Wtyczka prosi tylko o wpisane adresy (`optional_host_permissions` w `manifest.json`).
 4. Liczenie kluczy z hasła głównego (Argon2id, 64 MiB) trwa chwilę. Potem zobaczysz pustą listę.
    Kartę możesz zamknąć: dalej używasz ikony PassHolder na pasku.
 
 **Hasła głównego nie da się odzyskać.** Serwer go nie zna i nie ma resetu. Zapisz je w bezpiecznym miejscu.
 
-Kolejny Chrome (inny komputer) łączysz zakładką **Mam już sejf** w tej samej karcie: adres + hasło główne, bez tokena.
+Kolejny Chrome (inny komputer) łączysz zakładką **Mam już sejf** w tej samej karcie: adres(y) + hasło główne, bez tokena.
+
+Adresy już połączonej przeglądarki zmienisz przyciskiem **Adresy serwera** na liście wpisów.
 
 ## 2.5. Używanie
 
@@ -401,7 +406,9 @@ temu jednemu certyfikatowi (`android/core/.../CertificatePin.kt`).
 
 1. Otwórz aplikację, wybierz **Mam już sejf** (sejf założony we wtyczce) albo **Nowy sejf** (jeśli telefon
    jest pierwszym klientem; wtedy potrzebny token z 1.6).
-2. Wpisz adres serwera, np. `https://192.168.1.50:8443`, i stuknij **Dalej: sprawdź certyfikat**.
+2. Wpisz adres serwera, np. `https://192.168.1.50:8443`, opcjonalnie drugi adres (Tailscale,
+   `https://100.x.y.z:8443`) i stuknij **Dalej: sprawdź certyfikat**. Odcisk zostanie pobrany z pierwszego
+   adresu, który odpowie; drugi nie musi teraz działać.
    Zalecam adres IP zamiast `passholder.local`: rozpoznawanie nazw `.local` na Androidzie zależy od wersji
    systemu i producenta (to moje założenie, nie zostało sprawdzone na Twoim telefonie). Certyfikat
    obejmuje oba, a aplikacja i tak weryfikuje przypięty odcisk, nie nazwę.
@@ -424,6 +431,9 @@ Zrzuty ekranów tego procesu: [`android/app/screenshots/`](../android/app/screen
 Tak jak we wtyczce: dodawanie wpisów z generatorem, **Synchronizuj**, **Zablokuj**, kopiowanie hasła
 (schowek czyszczony po minucie), automatyczna blokada po 15 minutach bez aktywności, także gdy aplikacja jest w tle. Aplikacja nie robi kopii
 zapasowych w chmurze Google (`allowBackup=false`).
+
+**Adresy** (na liście wpisów) zmienia adresy serwera bez ponownego parowania. Przy synchronizacji telefon
+sam wybiera adres, który odpowiada.
 
 **Odłącz ten telefon** (na ekranie blokady) usuwa konto i lokalny sejf z telefonu. Zsynchronizuj przed odłączeniem.
 
@@ -501,10 +511,9 @@ skopiuj plik na `/var/lib/passholder/passholder.db` (właściciel `passholder:pa
 
 # Znane ograniczenia
 
-- **Jeden adres serwera na klienta.** Wtyczka i telefon pamiętają adres podany przy łączeniu. Jeśli połączysz
-  się przez `192.168.1.50`, spoza domu (przez `100.x.y.z`) się nie zsynchronizujesz. Jeśli zależy Ci na
-  synchronizacji spoza domu, połącz klienta adresem Tailscale; wtedy w domu też potrzebujesz włączonego VPN
-  (na Pi i na urządzeniu). Zmiana adresu = zsynchronizuj, odłącz, połącz ponownie.
+- **Dwa pola na adresy.** Wtyczka i telefon pamiętają kilka adresów serwera i same wybierają działający
+  (docs/WIELE_ADRESOW_SERWERA.md), ale formularze mają dwa pola. Gdy żaden adres nie odpowiada, czekanie
+  trwa do ok. 4 s na adres.
 - **Brak odtwarzania serwera z klienta.** Gdy zginie baza na Pi i nie masz kopii, klienci mają dane, ale nie
   wgrają ich na nowy, pusty serwer. Rób kopie (patrz wyżej).
 - **Sesje w pamięci serwera.** Restart serwera wylogowuje klientów; ponowne logowanie dzieje się automatycznie.

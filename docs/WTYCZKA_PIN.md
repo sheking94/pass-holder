@@ -75,6 +75,7 @@ innych urządzeniach.
   hasła głównego (`lockedView`). Wołane przy starcie i po kliknięciu **Zablokuj**.
 - `pinLockedView`: pole PIN (klawiatura numeryczna, maks. 6 znaków), **Odblokuj**, **Użyj hasła głównego**.
   Po ostatniej błędnej próbie przechodzi sam na ekran hasła głównego z komunikatem.
+  Ma też przycisk **Otwórz w karcie**, a w karcie importu/eksportu CSV po odblokowaniu wraca do niej (tak jak ekran hasła głównego).
 - `pinSettingsView` (przycisk **PIN** na liście): gdy PIN jest wyłączony, formularz PIN + powtórzenie +
   opcja „Pamiętaj PIN po zamknięciu przeglądarki” z ostrzeżeniem. Gdy włączony, informacja i **Wyłącz PIN**.
 - `lockedView(message)` przyjmuje teraz komunikat do pokazania.

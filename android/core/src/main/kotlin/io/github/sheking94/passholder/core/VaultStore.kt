@@ -44,11 +44,16 @@ class FileStore(private val dir: File) : KeyValueStore {
 /** Kept on disk. Nothing here is readable without the master password. */
 @Serializable
 data class Account(
-    val serverUrl: String,
+    /** Every address of the same server, e.g. the home network IP and the Tailscale IP. At least one. */
+    val serverUrls: List<String> = emptyList(),
     /** SHA-256 fingerprint of the server certificate confirmed when pairing; null for a local http:// server. */
     val certificatePin: String?,
     val kdf: KdfParams,
     val wrappedVaultKey: String,
+    /** The address that answered last time; tried first on the next sync. */
+    val lastServerUrl: String? = null,
+    /** Version 1.0 kept a single address here. Only read, and moved to [serverUrls] by [VaultStore.account]. */
+    val serverUrl: String? = null,
 )
 
 /**
@@ -85,7 +90,20 @@ class VaultStore(
     private val lastActivity = AtomicLong(0)
 
     /** Not synchronized: the file is replaced atomically, and the UI may read it while a sync runs. */
-    fun account(): Account? = disk.get(ACCOUNT)?.let { json.decodeFromString<Account>(it) }
+    fun account(): Account? = disk.get(ACCOUNT)?.let { json.decodeFromString<Account>(it) }?.let {
+        if (it.serverUrls.isEmpty() && it.serverUrl != null) it.copy(serverUrls = listOf(it.serverUrl), serverUrl = null) else it
+    }
+
+    /**
+     * Replaces the list of server addresses. No new pairing is needed: the pin stays, so any address
+     * only works if the server behind it presents the very certificate confirmed when pairing.
+     */
+    @Synchronized
+    fun setServerUrls(serverUrls: List<String>) {
+        val account = account() ?: throw IllegalStateException("Brak konta")
+        val urls = ServerPicker.validate(serverUrls, https = account.certificatePin != null)
+        saveAccount(account.copy(serverUrls = urls, lastServerUrl = account.lastServerUrl?.takeIf { it in urls }))
+    }
 
     val isUnlocked: Boolean get() = session != null
 
@@ -100,10 +118,14 @@ class VaultStore(
     @Synchronized
     fun pendingCount(): Int = requireSession().vault.pendingCount()
 
-    /** Creates a new vault on an empty server. */
+    fun createVault(serverUrl: String, certificatePin: String?, setupToken: String, masterPassword: String) =
+        createVault(listOf(serverUrl), certificatePin, setupToken, masterPassword)
+
+    /** Creates a new vault on an empty server, reached at the first of [serverUrls] that answers. */
     @Synchronized
-    fun createVault(serverUrl: String, certificatePin: String?, setupToken: String, masterPassword: String) {
-        val client = makeClient(serverUrl, certificatePin)
+    fun createVault(serverUrls: List<String>, certificatePin: String?, setupToken: String, masterPassword: String) {
+        val urls = ServerPicker.validate(serverUrls, https = certificatePin != null)
+        val (url, client) = ServerPicker.pick(urls, null) { makeClient(it, certificatePin) }
         val kdf = Kdf.newParams()
         val keys = Kdf.deriveKeys(masterPassword, kdf)
         val vaultKey = VaultCrypto.newVaultKey()
@@ -118,21 +140,25 @@ class VaultStore(
                 else -> e
             }
         }
-        disk.set(ACCOUNT, json.encodeToString(Account(serverUrl, certificatePin, kdf, wrapped)))
+        saveAccount(Account(urls, certificatePin, kdf, wrapped, lastServerUrl = url))
         start(vaultKey, keys.authKey, LocalVault())
     }
 
+    fun connectExisting(serverUrl: String, certificatePin: String?, masterPassword: String) =
+        connectExisting(listOf(serverUrl), certificatePin, masterPassword)
+
     /** Connects this phone to a vault that already exists on the server, then downloads it. */
     @Synchronized
-    fun connectExisting(serverUrl: String, certificatePin: String?, masterPassword: String) {
-        val client = makeClient(serverUrl, certificatePin)
+    fun connectExisting(serverUrls: List<String>, certificatePin: String?, masterPassword: String) {
+        val urls = ServerPicker.validate(serverUrls, https = certificatePin != null)
+        val (url, client) = ServerPicker.pick(urls, null) { makeClient(it, certificatePin) }
         val kdf = client.prelogin().kdf
         Kdf.assertAcceptable(kdf)
         val keys = Kdf.deriveKeys(masterPassword, kdf)
         val login = requestSession(client, keys.authKey)
         val vaultKey = VaultCrypto.unwrapVaultKey(keys.encKey, login.wrappedVaultKey)
         keys.encKey.fill(0)
-        disk.set(ACCOUNT, json.encodeToString(Account(serverUrl, certificatePin, kdf, login.wrappedVaultKey)))
+        saveAccount(Account(urls, certificatePin, kdf, login.wrappedVaultKey, lastServerUrl = url))
         start(vaultKey, keys.authKey, LocalVault())
         requireSession().remember(login)
         sync()
@@ -200,9 +226,11 @@ class VaultStore(
     fun sync() {
         val s = requireSession()
         val account = account() ?: throw IllegalStateException("Brak konta")
-        val client = makeClient(account.serverUrl, account.certificatePin)
+        // The session token stays valid at any address: it is the same server.
+        val (url, client) = ServerPicker.pick(account.serverUrls, account.lastServerUrl) { makeClient(it, account.certificatePin) }
         withFreshToken(client, s) { token -> VaultSync.sync(s.vault, s.vaultKey) { request -> client.sync(token, request) } }
         save()
+        if (url != account.lastServerUrl) saveAccount(account.copy(lastServerUrl = url))
     }
 
     /**
@@ -239,6 +267,8 @@ class VaultStore(
             else -> e
         }
     }
+
+    private fun saveAccount(account: Account) = disk.set(ACCOUNT, json.encodeToString(account))
 
     private fun requireSession(): Session = session ?: throw IllegalStateException("Sejf jest zablokowany")
 
