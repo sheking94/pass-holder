@@ -152,7 +152,7 @@ wylogowania, zmiana w serwerze i obu klientach), I1–I5. Mogą być osobnym kro
 | `server` (vitest) | 23 | 24 (+1: globalny limit) |
 | `extension` (vitest) | 45 | 53 (+6: `auto-lock.test.ts`, +2 w `pin.test.ts`) |
 | `android :core:test` | 54 (+1 pominięty) | 58 (+4: `MaliciousServerTest`), także z `PASSHOLDER_SERVER_TEST=1` (prawdziwy serwer Node) |
-| `android :app:testDebugUnitTest` | – | patrz opis PR |
+| `android :app:testDebugUnitTest` (Robolectric) | – | 17 zielonych |
 | `npm run typecheck` | OK | OK |
 
 Nowe testy S1 i S2 sprawdziłem też „na odwrót”: na kodzie sprzed poprawek padają (4 z 6 testów `auto-lock`,
