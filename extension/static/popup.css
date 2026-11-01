@@ -44,3 +44,5 @@ input[type="range"] { flex: 1; }
 .mono { font-family: ui-monospace, monospace; }
 body.tab { margin: 32px auto; }
 p { margin: 0 0 8px; }
+label.check { display: flex; gap: 6px; align-items: center; margin-top: 10px; color: inherit; }
+.hint { color: var(--muted); font-size: 12px; }

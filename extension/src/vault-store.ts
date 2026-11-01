@@ -22,21 +22,27 @@ import {
   type LocalVault,
 } from "@passholder/core";
 import { ApiError, ServerClient, type SessionResponse } from "./api.ts";
+import { createPinLock, isValidPin, MAX_PIN_ATTEMPTS, openPinLock, WrongPinError, type PinLock, type UnlockKeys } from "./pin-lock.ts";
 
 const LOCAL_VAULT_AAD = "passholder/v1/local-vault";
 
-/** Keys in chrome.storage. account, vault and generator are in local storage, sessionKeys in session storage. */
+/**
+ * Keys in chrome.storage. account, vault and generator are in local storage, sessionKeys in session storage.
+ * pinLock is in session storage, or in local storage if the user wants the PIN to survive a browser restart.
+ */
 export const STORAGE_KEYS = {
   account: "account",
   vault: "vault",
   sessionKeys: "keys",
   generator: "generator",
+  pinLock: "pinLock",
 } as const;
 
 /** A token this close to expiry is renewed before a sync, so it does not run out halfway. */
 const TOKEN_REFRESH_MARGIN_MS = 10_000;
 
 const LOCKED = "Sejf jest zablokowany";
+const INVALID_PIN = "PIN musi mieć od 4 do 6 cyfr";
 export const NO_VAULT_ON_SERVER = "Na serwerze nie ma jeszcze sejfu. Wybierz „Nowy sejf” i załóż go.";
 
 /** Key-value storage; chrome.storage.local and chrome.storage.session in the extension, a Map in tests. */
@@ -88,6 +94,13 @@ interface SessionKeys {
 }
 
 export const AUTO_LOCK_MS = 15 * 60_000;
+
+/** Whether unlocking with a PIN is on, and how. */
+export interface PinStatus {
+  /** True if the PIN is kept on disk and works after a browser restart. */
+  rememberedAfterRestart: boolean;
+  attemptsLeft: number;
+}
 
 /** An entry that is not deleted, as the popup lists and edits it. */
 export type LiveEntry = LocalEntry & { deleted: false };
@@ -158,6 +171,7 @@ export class VaultStore {
     const vaultKey = newVaultKey();
     const wrappedVaultKey = await wrapVaultKey(keys.encKey, vaultKey);
     await client.setup({ setupToken, kdf, authKey: toBase64(keys.authKey), wrappedVaultKey });
+    await this.disablePin();
     await this.local.set(STORAGE_KEYS.account, { serverUrl, kdf, wrappedVaultKey } satisfies Account);
     await this.startSession(vaultKey, keys.authKey, emptyVault());
   }
@@ -177,6 +191,7 @@ export class VaultStore {
       throw error;
     });
     const vaultKey = await unwrapVaultKey(keys.encKey, session.wrappedVaultKey);
+    await this.disablePin();
     await this.local.set(STORAGE_KEYS.account, { serverUrl, kdf, wrappedVaultKey: session.wrappedVaultKey } satisfies Account);
     await this.startSession(vaultKey, keys.authKey, emptyVault());
     await this.rememberToken(session);
@@ -195,6 +210,63 @@ export class VaultStore {
       throw new Error("Złe hasło główne");
     }
     await this.startSession(vaultKey, keys.authKey, await this.loadVault(vaultKey));
+    await this.resetPinAttempts();
+  }
+
+  /**
+   * Works offline like unlock(), but with the PIN set in enablePin(). Every wrong PIN counts; after
+   * MAX_PIN_ATTEMPTS in a row the PIN is deleted and only the master password works.
+   */
+  async unlockWithPin(pin: string): Promise<void> {
+    if (!(await this.getAccount())) throw new Error("Ta przeglądarka nie jest połączona z serwerem");
+    if (!isValidPin(pin)) throw new Error(INVALID_PIN);
+    const found = await this.findPinLock();
+    if (!found) throw new Error("PIN jest wyłączony. Odblokuj hasłem głównym.");
+    const { lock, area } = found;
+    const attempts = lock.failedAttempts + 1;
+    // Counted before checking, so closing the popup during the slow Argon2id does not give a free guess.
+    await area.set(STORAGE_KEYS.pinLock, { ...lock, failedAttempts: attempts } satisfies PinLock);
+    let keys: UnlockKeys;
+    try {
+      keys = await openPinLock(pin, lock);
+    } catch (error) {
+      if (!(error instanceof WrongPinError)) throw error;
+      if (attempts >= MAX_PIN_ATTEMPTS) {
+        await this.disablePin();
+        throw new Error("Zły PIN. To była ostatnia próba: PIN został wyłączony, odblokuj hasłem głównym.");
+      }
+      throw new Error(`Zły PIN. Pozostało prób: ${MAX_PIN_ATTEMPTS - attempts}.`);
+    }
+    await area.set(STORAGE_KEYS.pinLock, { ...lock, failedAttempts: 0 } satisfies PinLock);
+    await this.startSession(keys.vaultKey, keys.authKey, await this.loadVault(keys.vaultKey));
+  }
+
+  /** undefined when the PIN is off. */
+  async pinStatus(): Promise<PinStatus | undefined> {
+    const found = await this.findPinLock();
+    if (!found) return undefined;
+    return {
+      rememberedAfterRestart: found.area === this.local,
+      attemptsLeft: Math.max(0, MAX_PIN_ATTEMPTS - found.lock.failedAttempts),
+    };
+  }
+
+  /**
+   * Turns on unlocking with a PIN (needs an unlocked vault). By default the PIN is kept in session
+   * storage, which Chrome holds in memory only, so after a browser restart the master password is needed.
+   * With rememberAfterRestart it goes to local storage, on disk, where a copy can be brute-forced offline.
+   */
+  async enablePin(pin: string, rememberAfterRestart: boolean): Promise<void> {
+    if (!isValidPin(pin)) throw new Error(INVALID_PIN);
+    const keys = this.requireKeys();
+    const lock = await createPinLock(pin, { vaultKey: fromBase64(keys.vaultKey), authKey: fromBase64(keys.authKey) });
+    await this.disablePin();
+    await (rememberAfterRestart ? this.local : this.session).set(STORAGE_KEYS.pinLock, lock);
+  }
+
+  async disablePin(): Promise<void> {
+    await this.session.remove(STORAGE_KEYS.pinLock);
+    await this.local.remove(STORAGE_KEYS.pinLock);
   }
 
   /** Restores an unlocked state kept in session storage, so reopening the popup needs no password. */
@@ -216,9 +288,10 @@ export class VaultStore {
     await this.session.remove(STORAGE_KEYS.sessionKeys);
   }
 
-  /** Forgets this browser's account and local copy. The server keeps everything. */
+  /** Forgets this browser's account, PIN and local copy. The server keeps everything. */
   async disconnect(): Promise<void> {
     await this.lock();
+    await this.disablePin();
     await this.local.remove(STORAGE_KEYS.account);
     await this.local.remove(STORAGE_KEYS.vault);
   }
@@ -260,6 +333,22 @@ export class VaultStore {
   private async rememberToken(session: SessionResponse): Promise<void> {
     this.keys = { ...this.requireKeys(), token: session.token, tokenExpiresAt: session.expiresAt };
     await this.session.set(STORAGE_KEYS.sessionKeys, this.keys);
+  }
+
+  /** Session storage first: enablePin() keeps the PIN in only one of the two. */
+  private async findPinLock(): Promise<{ lock: PinLock; area: KeyValueStore } | undefined> {
+    for (const area of [this.session, this.local]) {
+      const lock = await area.get<PinLock>(STORAGE_KEYS.pinLock);
+      if (lock) return { lock, area };
+    }
+    return undefined;
+  }
+
+  private async resetPinAttempts(): Promise<void> {
+    const found = await this.findPinLock();
+    if (found && found.lock.failedAttempts > 0) {
+      await found.area.set(STORAGE_KEYS.pinLock, { ...found.lock, failedAttempts: 0 } satisfies PinLock);
+    }
   }
 
   private requireVault(): LocalVault {

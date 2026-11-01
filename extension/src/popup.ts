@@ -8,7 +8,8 @@ import {
   type GeneratorOptions,
 } from "@passholder/core";
 import { CLEAR_AFTER_MINUTES, sha256Hex, type ClipboardMessage } from "./clipboard.ts";
-import { chromeStore, STORAGE_KEYS, VaultStore } from "./vault-store.ts";
+import { isValidPin, MAX_PIN_ATTEMPTS } from "./pin-lock.ts";
+import { chromeStore, STORAGE_KEYS, VaultStore, type PinStatus } from "./vault-store.ts";
 
 const app = document.getElementById("app")!;
 const local = chromeStore(chrome.storage.local);
@@ -154,7 +155,7 @@ function connectView(mode: "existing" | "new" = "existing") {
       void busy(status, "Liczę klucze z hasła głównego…", async () => {
         if (isNew) await store.createVault(serverUrl, token.value.trim(), password.value);
         else await store.connectExisting(serverUrl, password.value);
-        listView("Połączono z serwerem. Możesz zamknąć tę kartę i używać ikony PassHolder na pasku.");
+        listView("Połączono z serwerem. Możesz zamknąć tę kartę i używać ikony PassHolder na pasku. Logowanie PIN-em włączysz przyciskiem PIN.");
       });
     });
   };
@@ -186,9 +187,56 @@ function connectView(mode: "existing" | "new" = "existing") {
 
 // --- Locked --------------------------------------------------------------------------------
 
-function lockedView() {
+/** The PIN screen when the PIN is on, otherwise the master password screen. */
+async function showLocked() {
+  const pin = await store.pinStatus();
+  if (pin) pinLockedView(pin);
+  else lockedView();
+}
+
+function pinInput(autocomplete = "off") {
+  return h("input", { type: "password", inputmode: "numeric", pattern: "[0-9]{4,6}", maxlength: 6, autocomplete, class: "mono" });
+}
+
+function pinLockedView(pinStatus: PinStatus) {
+  const pin = pinInput();
+  const status = statusLine();
+  if (pinStatus.attemptsLeft < MAX_PIN_ATTEMPTS) setStatus(status, `Pozostało prób: ${pinStatus.attemptsLeft}.`, true);
+  const unlock = () =>
+    busy(status, "Sprawdzam PIN…", async () => {
+      try {
+        await store.unlockWithPin(pin.value);
+      } catch (error) {
+        // After the last wrong attempt the PIN is gone: move to the master password screen.
+        if (!(await store.pinStatus())) return lockedView((error as Error).message);
+        pin.value = "";
+        throw error;
+      }
+      listView();
+    });
+
+  show(
+    h("h1", {}, "PassHolder jest zablokowany"),
+    form(
+      () => void unlock(),
+      h("label", {}, "PIN"),
+      passwordField(pin).row,
+      h(
+        "div",
+        { class: "actions" },
+        h("button", { type: "submit", class: "primary" }, "Odblokuj"),
+        h("button", { type: "button", onclick: () => lockedView() }, "Użyj hasła głównego"),
+      ),
+    ),
+    status,
+  );
+  pin.focus();
+}
+
+function lockedView(message = "") {
   const password = h("input", { type: "password", autocomplete: "current-password" });
   const status = statusLine();
+  setStatus(status, message, Boolean(message));
   const unlock = () =>
     busy(status, "Odblokowuję…", async () => {
       await store.unlock(password.value);
@@ -286,7 +334,8 @@ function listView(message = "") {
             setStatus(status, `Zsynchronizowano ${new Date().toLocaleTimeString("pl")}.`);
           }),
       }, "Synchronizuj"),
-      h("button", { onclick: async () => { await store.lock(); lockedView(); } }, "Zablokuj"),
+      h("button", { title: "Logowanie PIN-em", onclick: () => void pinSettingsView() }, "PIN"),
+      h("button", { onclick: async () => { await store.lock(); await showLocked(); } }, "Zablokuj"),
     ),
     status,
   );
@@ -294,6 +343,68 @@ function listView(message = "") {
   if (!message && pending > 0) setStatus(status, `Niezsynchronizowane zmiany: ${pending} (oznaczone •).`);
   renderList();
   search.focus();
+}
+
+// --- PIN settings --------------------------------------------------------------------------
+
+async function pinSettingsView() {
+  const current = await store.pinStatus();
+  const status = statusLine();
+  const back = h("button", { type: "button", onclick: () => listView() }, "Wróć");
+
+  if (current) {
+    show(
+      h("h1", {}, "Logowanie PIN-em"),
+      h("p", {}, "PIN jest włączony. ", current.rememberedAfterRestart
+        ? "Działa też po ponownym uruchomieniu przeglądarki."
+        : "Po zamknięciu przeglądarki trzeba będzie raz podać hasło główne."),
+      h(
+        "div",
+        { class: "actions" },
+        h("button", {
+          class: "danger",
+          onclick: async () => {
+            await store.disablePin();
+            listView("PIN wyłączony. Do odblokowania potrzebne będzie hasło główne.");
+          },
+        }, "Wyłącz PIN"),
+        back,
+      ),
+      status,
+    );
+    return;
+  }
+
+  const pin = pinInput("new-password");
+  const repeat = pinInput("new-password");
+  const remember = h("input", { type: "checkbox" });
+  const submit = () => {
+    if (!isValidPin(pin.value)) return setStatus(status, "PIN musi mieć od 4 do 6 cyfr", true);
+    if (pin.value !== repeat.value) return setStatus(status, "PIN-y się różnią", true);
+    void busy(status, "Liczę klucz z PIN-u…", async () => {
+      await store.enablePin(pin.value, remember.checked);
+      listView("PIN włączony. Użyjesz go po zablokowaniu sejfu.");
+    });
+  };
+
+  show(
+    h("h1", {}, "Włącz logowanie PIN-em"),
+    h("p", { class: "hint" },
+      `PIN odblokowuje sejf tylko w tej przeglądarce. Hasło główne dalej działa. Po ${MAX_PIN_ATTEMPTS} błędnych PIN-ach z rzędu PIN zostanie wyłączony.`),
+    form(
+      submit,
+      h("label", {}, "PIN (4-6 cyfr)"),
+      passwordField(pin).row,
+      h("label", {}, "Powtórz PIN"),
+      passwordField(repeat).row,
+      h("label", { class: "check" }, remember, "Pamiętaj PIN po zamknięciu przeglądarki"),
+      h("p", { class: "hint" },
+        "Bez tej opcji PIN jest tylko w pamięci przeglądarki. Z nią trafia na dysk, a ktoś z kopią profilu Chrome może odgadnąć krótki PIN w kilka minut do kilku godzin."),
+      h("div", { class: "actions" }, h("button", { type: "submit", class: "primary" }, "Włącz PIN"), back),
+    ),
+    status,
+  );
+  pin.focus();
 }
 
 // --- Edit ----------------------------------------------------------------------------------
@@ -397,7 +508,7 @@ async function start() {
   if (IN_TAB) document.body.classList.add("tab");
   if (!(await store.getAccount())) return showConnect();
   if (await store.resume()) return listView();
-  lockedView();
+  await showLocked();
 }
 
 void start();
