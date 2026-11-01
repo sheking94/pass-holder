@@ -22,8 +22,20 @@ class MainActivity : FragmentActivity() {
 
     override fun onStart() {
         super.onStart()
-        // Coming back after a while: lock first if the idle time has run out.
+        // Back in the app: lock now if the 60 s after leaving have run out, then the 15-minute idle check.
+        viewModel.onReturn()
         viewModel.checkAutoLock()
+    }
+
+    /**
+     * The app left the screen: Home, the recent apps list, another app on top, the screen turned off, or the
+     * activity closed with Back. Lock (at once, or after 60 s with the delay on), so opening the app again asks
+     * for the fingerprint or the master password. A screen rotation also stops the activity, but it comes
+     * straight back: nothing happens then.
+     */
+    override fun onStop() {
+        super.onStop()
+        if (!isChangingConfigurations) viewModel.lockOnLeave()
     }
 
     /** Any touch or key press counts as activity for the auto-lock. */

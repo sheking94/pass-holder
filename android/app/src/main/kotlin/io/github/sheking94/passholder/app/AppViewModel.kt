@@ -21,6 +21,7 @@ import kotlinx.serialization.SerializationException
 import java.text.DateFormat
 import java.util.Date
 import java.util.UUID
+import kotlin.concurrent.thread
 
 sealed interface Screen {
     data object Connect : Screen
@@ -71,6 +72,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      */
     private var fingerprintOnLockedScreen = true
 
+    private val _fingerprintRequests = MutableStateFlow(0)
+    /** Goes up each time the app leaves the screen; the locked screen then offers the fingerprint dialog again. */
+    val fingerprintRequests: StateFlow<Int> = _fingerprintRequests.asStateFlow()
+
+    private val _lockDelay = MutableStateFlow(app.settings.lockDelay)
+    /** "Blokuj dopiero po 60 s poza aplikacją" is on. */
+    val lockDelay: StateFlow<Boolean> = _lockDelay.asStateFlow()
+
+    /** The app left the screen while a vault operation (e.g. a sync) was running: lock as soon as it ends. */
+    private var lockWhenDone = false
+
     init {
         // Auto-lock also while the app sits in the background, as long as the process lives.
         viewModelScope.launch {
@@ -89,6 +101,59 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun touch() = store.touch()
+
+    /**
+     * Called when the app leaves the screen (MainActivity.onStop, not for a rotation). The keys live in
+     * VaultStore, which belongs to the process, not to this ViewModel or the activity: without a lock they
+     * stayed in memory after closing the app, until Android killed the process.
+     *
+     * With the delay on (default), [LeaveLock] locks 60 s later unless the user comes back sooner: switching
+     * to the browser to paste a password, or a half-filled entry form, survive a short trip. With it off, or
+     * once the 60 s have passed, opening the app asks for the fingerprint or the master password.
+     */
+    fun lockOnLeave() {
+        fingerprintOnLockedScreen = true
+        _fingerprintRequests.update { it + 1 }
+        if (!store.isUnlocked) return
+        if (app.settings.lockDelay) app.leaveLock.schedule(LeaveLock.DELAY_MS) else lockNow()
+    }
+
+    /** Called when the app is on screen again (MainActivity.onStart). Locks if the 60 s after leaving ran out. */
+    fun onReturn() {
+        if (app.leaveLock.cancel() && store.isUnlocked) lockNow()
+        showLockedIfLocked()
+    }
+
+    /**
+     * Locks the vault and shows the locked screen. lock() only zeroes two arrays, so it runs on the main
+     * thread; but while an operation is running (a sync can take seconds) it holds the vault, so the lock waits
+     * until the operation ends instead of blocking the main thread.
+     */
+    private fun lockNow() {
+        if (_state.value.busy) {
+            lockWhenDone = true
+            return
+        }
+        store.lock()
+        _state.value = UiState(Screen.Locked)
+    }
+
+    /** The 60 s timer locks the vault in the background; the screens must not go on showing entries then. */
+    private fun showLockedIfLocked() {
+        val s = _state.value
+        val showsVault = s.screen == Screen.List || s.screen == Screen.Addresses || s.screen is Screen.Edit
+        if (showsVault && !s.busy && !store.isUnlocked) _state.value = UiState(Screen.Locked)
+    }
+
+    fun setLockDelay(on: Boolean) {
+        app.settings.lockDelay = on
+        _lockDelay.value = on
+    }
+
+    /** The activity is closed for good. If a running operation still waits to be followed by the lock, lock off the main thread. */
+    override fun onCleared() {
+        if (lockWhenDone) thread(name = "passholder-lock") { store.lock() }
+    }
 
     fun checkAutoLock() {
         val screen = _state.value.screen
@@ -324,6 +389,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 _state.update { it.copy(status = Status(message, isError = true)) }
             } finally {
                 _state.update { it.copy(busy = false) }
+                if (lockWhenDone) {
+                    lockWhenDone = false
+                    lockNow()
+                }
+                showLockedIfLocked()
             }
         }
     }

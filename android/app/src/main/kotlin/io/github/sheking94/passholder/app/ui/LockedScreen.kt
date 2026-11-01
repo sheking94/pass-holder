@@ -16,7 +16,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.flow.first
 import androidx.compose.ui.unit.dp
 import io.github.sheking94.passholder.app.AppViewModel
 import io.github.sheking94.passholder.app.UiState
@@ -35,7 +37,12 @@ fun LockedScreen(state: UiState, vm: AppViewModel) {
     val activity = LocalActivity.current as? FragmentActivity
     val unlockWithFinger = { activity?.let(vm::unlockWithBiometric) }
 
-    LaunchedEffect(Unit) {
+    val fingerprintRequest by vm.fingerprintRequests.collectAsStateWithLifecycle()
+
+    // On app start and on every return to the app. Waits until the activity is in front: the system dialog
+    // cannot be shown by an activity that is still in the background.
+    LaunchedEffect(fingerprintRequest) {
+        activity?.lifecycle?.currentStateFlow?.first { it.isAtLeast(Lifecycle.State.RESUMED) }
         if (vm.takeFingerprintOnLockedScreen()) unlockWithFinger()
     }
 
