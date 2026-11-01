@@ -8,6 +8,7 @@ import {
   type GeneratorOptions,
 } from "@passholder/core";
 import { CLEAR_AFTER_MINUTES, sha256Hex, type ClipboardMessage } from "./clipboard.ts";
+import { chromeTabApi, isTabPage, openInTab, SETUP_PARAM } from "./open-in-tab.ts";
 import { chromeStore, STORAGE_KEYS, VaultStore } from "./vault-store.ts";
 
 const app = document.getElementById("app")!;
@@ -106,13 +107,29 @@ function form(onSubmit: () => void, ...children: Child[]) {
  * Chrome closes the popup as soon as it shows the host permission prompt, so the code after
  * chrome.permissions.request never ran and the vault was never created. A tab stays open
  * while the prompt is shown, so connecting to the server always happens in a tab.
+ * The "Otwórz w karcie" button (?tab) opens the whole extension in a tab for the same reason:
+ * a click on the web page closes the popup and loses what was typed.
  */
-const IN_TAB = new URLSearchParams(location.search).has("setup");
+const IN_TAB = isTabPage(location.search);
 
 /** Opens the connect form in a tab and closes the popup. */
 async function openSetupTab() {
-  await chrome.tabs.create({ url: chrome.runtime.getURL("popup.html?setup") });
+  await chrome.tabs.create({ url: chrome.runtime.getURL(`popup.html?${SETUP_PARAM}`) });
   window.close();
+}
+
+/** Button shown only in the popup: switches to a PassHolder tab (opens one if needed). */
+function openInTabButton() {
+  if (IN_TAB) return undefined;
+  return h("div", { class: "topbar" }, h("button", {
+    type: "button",
+    class: "small",
+    title: "Karta nie zamyka się po kliknięciu na stronie, więc wpisane dane nie znikają",
+    onclick: async () => {
+      await openInTab(chromeTabApi(), chrome.runtime.getURL("popup.html"));
+      window.close();
+    },
+  }, "Otwórz w karcie ↗"));
 }
 
 /** Shows the connect form here if this is the setup tab, otherwise moves it to a tab. */
@@ -211,6 +228,7 @@ function lockedView() {
   }, "Odłącz tę przeglądarkę");
 
   show(
+    openInTabButton(),
     h("h1", {}, "PassHolder jest zablokowany"),
     form(
       () => void unlock(),
@@ -273,6 +291,7 @@ function listView(message = "") {
   search.addEventListener("input", renderList);
 
   show(
+    openInTabButton(),
     h("div", { class: "row" }, h("div", { class: "grow" }, search), h("button", { class: "primary", onclick: () => editView() }, "+ Dodaj")),
     list,
     h(
@@ -360,6 +379,7 @@ async function editView(id?: string) {
   }, "Usuń");
 
   show(
+    openInTabButton(),
     h("h1", {}, data ? "Edytuj wpis" : "Nowy wpis"),
     h("label", {}, "Nazwa serwisu"),
     name,
