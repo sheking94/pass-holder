@@ -8,10 +8,10 @@
 #   <ca-dir>   keeps ca.key (secret) and ca.crt. Created on the first run, reused later for renewals.
 #   <out-dir>  gets server.crt, server.key and a copy of ca.crt: copy these three to the Pi.
 #
-# The CA can only vouch for names under .local and for private addresses (home network, Tailscale,
-# localhost): a stolen ca.key cannot be used to fake your bank's site. Chrome checks this limit
+# The CA can only vouch for names under .local, for localhost and for private addresses (home network,
+# Tailscale, loopback): a stolen ca.key cannot be used to fake your bank's site. Chrome checks this limit
 # (X.509 nameConstraints). Other names: set PASSHOLDER_CA_DNS before the FIRST run, e.g.
-#   PASSHOLDER_CA_DNS="local tail1234.ts.net" deploy/make-certs.sh ...
+#   PASSHOLDER_CA_DNS="local localhost tail1234.ts.net" deploy/make-certs.sh ...
 set -euo pipefail
 
 if [ "$#" -lt 3 ]; then
@@ -36,7 +36,7 @@ fi
 # Private IPv4 ranges (RFC 1918), Tailscale's 100.64.0.0/10, loopback, and IPv6 unique local fc00::/7
 # (Tailscale's IPv6 addresses are in it).
 constraints="nameConstraints=critical"
-for dns in ${PASSHOLDER_CA_DNS:-local}; do constraints="$constraints,permitted;DNS:$dns"; done
+for dns in ${PASSHOLDER_CA_DNS:-local localhost}; do constraints="$constraints,permitted;DNS:$dns"; done
 for ip in 10.0.0.0/255.0.0.0 172.16.0.0/255.240.0.0 192.168.0.0/255.255.0.0 100.64.0.0/255.192.0.0 \
   127.0.0.0/255.0.0.0 fc00::/fe00::; do
   constraints="$constraints,permitted;IP:$ip"
@@ -77,7 +77,7 @@ cp "$ca_dir/ca.crt" "$out/ca.crt"
 # openssl applies the same name limits as Chrome: a name outside them would be rejected by the browser.
 if ! openssl verify -CAfile "$ca_dir/ca.crt" "$out/server.crt" >/dev/null 2>&1; then
   rm -f "$out/server.crt" "$out/server.key"
-  echo "One of the names ($san) is outside what the CA may vouch for (.local names and private" >&2
+  echo "One of the names ($san) is outside what the CA may vouch for (.local, localhost and private" >&2
   echo "addresses). Use such a name, or set PASSHOLDER_CA_DNS and start with a new <ca-dir>." >&2
   exit 1
 fi

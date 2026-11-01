@@ -61,9 +61,18 @@ export function parseEntryData(value: unknown): EntryData {
   return { name: v.name, username: v.username, password: v.password, modifiedAt: v.modifiedAt as number };
 }
 
+/**
+ * A tombstone holds nothing but modifiedAt. Checked strictly because the deleted flag next to the blob
+ * is not encrypted: without this a server could mark a live entry as deleted and every client would
+ * accept its payload (it has modifiedAt too) as a tombstone. Entry and tombstone payloads never look
+ * alike, so the encrypted content itself says which one it is (S2 of the security review).
+ */
 export function parseTombstoneData(value: unknown): TombstoneData {
   const v = value as Record<string, unknown>;
-  if (typeof v !== "object" || v === null || !Number.isSafeInteger(v.modifiedAt)) {
+  if (
+    typeof v !== "object" || v === null || Array.isArray(v) ||
+    Object.keys(v).some((key) => key !== "modifiedAt") || !Number.isSafeInteger(v.modifiedAt)
+  ) {
     throw new Error("Invalid tombstone payload");
   }
   return { modifiedAt: v.modifiedAt as number };

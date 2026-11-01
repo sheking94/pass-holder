@@ -37,7 +37,7 @@ class RealServerTest {
     fun `phone and browser share a vault through the real server`(@TempDir tmp: File) {
         assumeTrue(System.getenv("PASSHOLDER_SERVER_TEST") == "1", "set PASSHOLDER_SERVER_TEST=1")
         val tls = File(tmp, "tls")
-        run("bash", "deploy/make-certs.sh", tls.path, "localhost", "127.0.0.1")
+        run("bash", "deploy/make-certs.sh", File(tmp, "ca").path, tls.path, "localhost", "127.0.0.1")
         val port = ServerSocket(0).use { it.localPort }
         server = ProcessBuilder("node", "--disable-warning=ExperimentalWarning", "server/src/main.ts")
             .directory(root).redirectErrorStream(true)

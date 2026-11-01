@@ -167,12 +167,12 @@ Katalogi:
 | `~/passholder-ca/` | `ca.key` (**tajny**), `ca.crt` | urząd; zostaje na Ubuntu, potrzebny przy odnawianiu certyfikatu |
 | `~/passholder-tls/` | `server.crt`, `server.key`, `ca.crt` | kopiujesz na Pi |
 
-**Ograniczenie nazw.** Urząd może poświadczać tylko nazwy w domenie `.local` i adresy prywatne
+**Ograniczenie nazw.** Urząd może poświadczać tylko nazwy w domenie `.local`, `localhost` i adresy prywatne
 (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, Tailscale `100.64.0.0/10`, `127.0.0.0/8` i IPv6 `fc00::/7`).
 Zapisuje to rozszerzenie X.509 `nameConstraints`, którego pilnuje Chrome. Gdyby ktoś ukradł `ca.key`, nie
 podrobi nim strony banku ani poczty: Chrome odrzuci taki certyfikat z błędem `NET::ERR_CERT_INVALID`. Jeśli
 potrzebujesz innej nazwy (np. MagicDNS `pi.tailXXXX.ts.net`), ustaw ją **przed pierwszym** uruchomieniem:
-`PASSHOLDER_CA_DNS="local tailXXXX.ts.net" deploy/make-certs.sh …`. Skrypt sprawdza każdy certyfikat
+`PASSHOLDER_CA_DNS="local localhost tailXXXX.ts.net" deploy/make-certs.sh …`. Skrypt sprawdza każdy certyfikat
 (`openssl verify`) i nie wystawi go dla nazwy spoza listy.
 
 Na końcu skrypt wypisuje dwa odciski SHA-256:
