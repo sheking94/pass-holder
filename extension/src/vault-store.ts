@@ -37,6 +37,7 @@ export const STORAGE_KEYS = {
 const TOKEN_REFRESH_MARGIN_MS = 10_000;
 
 const LOCKED = "Sejf jest zablokowany";
+export const NO_VAULT_ON_SERVER = "Na serwerze nie ma jeszcze sejfu. Wybierz „Nowy sejf” i załóż go.";
 
 /** Key-value storage; chrome.storage.local and chrome.storage.session in the extension, a Map in tests. */
 export interface KeyValueStore {
@@ -164,7 +165,10 @@ export class VaultStore {
   /** Connects this browser to a vault that already exists on the server, then downloads it. */
   async connectExisting(serverUrl: string, masterPassword: string): Promise<void> {
     const client = this.makeClient(serverUrl);
-    const { kdf } = await client.prelogin();
+    const { kdf } = await client.prelogin().catch((error: unknown) => {
+      if (error instanceof ApiError && error.status === 404) throw new ApiError(404, NO_VAULT_ON_SERVER);
+      throw error;
+    });
     assertKdfParamsAcceptable(kdf);
     const keys = await deriveKeys(masterPassword, kdf);
     const authKey = toBase64(keys.authKey);

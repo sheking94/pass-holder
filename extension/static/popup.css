@@ -42,3 +42,5 @@ legend { color: var(--muted); padding: 0 4px; }
 .groups label { display: flex; gap: 4px; align-items: center; margin: 0; color: inherit; }
 input[type="range"] { flex: 1; }
 .mono { font-family: ui-monospace, monospace; }
+body.tab { margin: 32px auto; }
+p { margin: 0 0 8px; }

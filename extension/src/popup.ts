@@ -73,15 +73,67 @@ function originPattern(url: string): string {
   return `${parsed.protocol}//${parsed.hostname}/*`;
 }
 
+/** A password input with a button that shows or hides what was typed. */
+function passwordField(input: HTMLInputElement) {
+  const toggle = h("button", { type: "button", title: "Pokaż lub ukryj hasło" });
+  const setVisible = (visible: boolean) => {
+    input.type = visible ? "text" : "password";
+    toggle.textContent = visible ? "Ukryj" : "Pokaż";
+    toggle.setAttribute("aria-pressed", String(visible));
+  };
+  toggle.addEventListener("click", () => setVisible(input.type === "password"));
+  setVisible(false);
+  return { row: h("div", { class: "row" }, h("div", { class: "grow" }, input), toggle), setVisible };
+}
+
+/**
+ * A form whose submit button (and Enter in any of its inputs) runs onSubmit.
+ * Other buttons inside must have type "button", or Enter would click them too.
+ */
+function form(onSubmit: () => void, ...children: Child[]) {
+  return h("form", {
+    onsubmit: (event: Event) => {
+      event.preventDefault();
+      onSubmit();
+    },
+  }, ...children);
+}
+
+// --- Setup tab -----------------------------------------------------------------------------
+
+/**
+ * True when this page is open in a normal browser tab rather than in the toolbar popup.
+ * Chrome closes the popup as soon as it shows the host permission prompt, so the code after
+ * chrome.permissions.request never ran and the vault was never created. A tab stays open
+ * while the prompt is shown, so connecting to the server always happens in a tab.
+ */
+const IN_TAB = new URLSearchParams(location.search).has("setup");
+
+/** Opens the connect form in a tab and closes the popup. */
+async function openSetupTab() {
+  await chrome.tabs.create({ url: chrome.runtime.getURL("popup.html?setup") });
+  window.close();
+}
+
+/** Shows the connect form here if this is the setup tab, otherwise moves it to a tab. */
+function showConnect() {
+  if (IN_TAB) return connectView();
+  show(
+    h("h1", {}, "PassHolder: połącz z serwerem"),
+    h("p", {}, "Połączenie z serwerem ustawia się w osobnej karcie, bo Chrome zamyka to okienko, gdy pyta o zgodę na dostęp do serwera."),
+    h("div", { class: "actions" }, h("button", { class: "primary", onclick: () => void openSetupTab() }, "Otwórz ustawienia połączenia")),
+  );
+}
+
 // --- Connect -------------------------------------------------------------------------------
 
 function connectView(mode: "existing" | "new" = "existing") {
   const url = h("input", { type: "url", placeholder: "https://passholder.local:8443", required: true });
   const token = h("input", { type: "text", class: "mono", autocomplete: "off" });
-  const password = h("input", { type: "password", autocomplete: "new-password" });
+  const isNew = mode === "new";
+  const password = h("input", { type: "password", autocomplete: isNew ? "new-password" : "current-password" });
   const repeat = h("input", { type: "password", autocomplete: "new-password" });
   const status = statusLine();
-  const isNew = mode === "new";
 
   const submit = () => {
     const serverUrl = url.value.trim();
@@ -95,13 +147,14 @@ function connectView(mode: "existing" | "new" = "existing") {
       return setStatus(status, `Hasło główne musi mieć co najmniej ${MIN_MASTER_PASSWORD} znaków`, true);
     }
     if (isNew && password.value !== repeat.value) return setStatus(status, "Hasła się różnią", true);
-    // Must be called directly in the click handler, before any await.
+    // Must be called directly in the submit handler, before any await (it needs the user gesture).
+    // This runs in a tab (see IN_TAB), so the page survives the prompt and the callback runs.
     chrome.permissions.request({ origins: [origin] }, (granted) => {
       if (!granted) return setStatus(status, "Bez zgody na dostęp do serwera wtyczka nie może się z nim łączyć", true);
       void busy(status, "Liczę klucze z hasła głównego…", async () => {
         if (isNew) await store.createVault(serverUrl, token.value.trim(), password.value);
         else await store.connectExisting(serverUrl, password.value);
-        listView("Połączono z serwerem.");
+        listView("Połączono z serwerem. Możesz zamknąć tę kartę i używać ikony PassHolder na pasku.");
       });
     });
   };
@@ -111,18 +164,21 @@ function connectView(mode: "existing" | "new" = "existing") {
     h(
       "div",
       { class: "tabs" },
-      h("button", { "aria-pressed": String(!isNew), onclick: () => connectView("existing") }, "Mam już sejf"),
-      h("button", { "aria-pressed": String(isNew), onclick: () => connectView("new") }, "Nowy sejf"),
+      h("button", { type: "button", "aria-pressed": String(!isNew), onclick: () => connectView("existing") }, "Mam już sejf"),
+      h("button", { type: "button", "aria-pressed": String(isNew), onclick: () => connectView("new") }, "Nowy sejf"),
     ),
-    h("label", {}, "Adres serwera"),
-    url,
-    isNew && h("label", {}, "Token z logu serwera (jednorazowy)"),
-    isNew && token,
-    h("label", {}, "Hasło główne"),
-    password,
-    isNew && h("label", {}, "Powtórz hasło główne"),
-    isNew && repeat,
-    h("div", { class: "actions" }, h("button", { class: "primary", onclick: submit }, isNew ? "Załóż sejf" : "Połącz")),
+    form(
+      submit,
+      h("label", {}, "Adres serwera"),
+      url,
+      isNew && h("label", {}, "Token z logu serwera (jednorazowy)"),
+      isNew && token,
+      h("label", {}, "Hasło główne"),
+      passwordField(password).row,
+      isNew && h("label", {}, "Powtórz hasło główne"),
+      isNew && passwordField(repeat).row,
+      h("div", { class: "actions" }, h("button", { type: "submit", class: "primary" }, isNew ? "Załóż sejf" : "Połącz")),
+    ),
     status,
   );
   url.focus();
@@ -138,10 +194,10 @@ function lockedView() {
       await store.unlock(password.value);
       listView();
     });
-  password.addEventListener("keydown", (e) => e.key === "Enter" && void unlock());
 
   let confirmDisconnect = false;
   const disconnect = h("button", {
+    type: "button",
     class: "danger",
     onclick: async () => {
       if (!confirmDisconnect) {
@@ -150,15 +206,18 @@ function lockedView() {
         return;
       }
       await store.disconnect();
-      connectView();
+      showConnect();
     },
   }, "Odłącz tę przeglądarkę");
 
   show(
     h("h1", {}, "PassHolder jest zablokowany"),
-    h("label", {}, "Hasło główne"),
-    password,
-    h("div", { class: "actions" }, h("button", { class: "primary", onclick: unlock }, "Odblokuj"), disconnect),
+    form(
+      () => void unlock(),
+      h("label", {}, "Hasło główne"),
+      passwordField(password).row,
+      h("div", { class: "actions" }, h("button", { type: "submit", class: "primary" }, "Odblokuj"), disconnect),
+    ),
     status,
   );
   password.focus();
@@ -248,6 +307,7 @@ async function editView(id?: string) {
   const name = h("input", { type: "text", value: data?.name ?? "" });
   const username = h("input", { type: "text", value: data?.username ?? "", autocomplete: "off" });
   const password = h("input", { type: "password", class: "mono", value: data?.password ?? "", autocomplete: "off" });
+  const passwordRow = passwordField(password);
   const status = statusLine();
 
   const options = await loadGeneratorOptions();
@@ -266,7 +326,7 @@ async function editView(id?: string) {
     };
     if (chosen.groups.length === 0) return setStatus(status, "Wybierz co najmniej jedną grupę znaków", true);
     password.value = generatePassword(chosen);
-    password.type = "text";
+    passwordRow.setVisible(true);
     await local.set(STORAGE_KEYS.generator, chosen);
     setStatus(status, "");
   };
@@ -306,12 +366,7 @@ async function editView(id?: string) {
     h("label", {}, "Login"),
     username,
     h("label", {}, "Hasło"),
-    h(
-      "div",
-      { class: "row" },
-      h("div", { class: "grow" }, password),
-      h("button", { onclick: () => (password.type = password.type === "password" ? "text" : "password") }, "Pokaż"),
-    ),
+    passwordRow.row,
     h(
       "fieldset",
       {},
@@ -339,7 +394,8 @@ async function editView(id?: string) {
 // --- Start ---------------------------------------------------------------------------------
 
 async function start() {
-  if (!(await store.getAccount())) return connectView();
+  if (IN_TAB) document.body.classList.add("tab");
+  if (!(await store.getAccount())) return showConnect();
   if (await store.resume()) return listView();
   lockedView();
 }
