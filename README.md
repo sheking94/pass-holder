@@ -43,7 +43,7 @@ npm run build -w extension
 
 Potem w Chrome: `chrome://extensions` → włącz „Tryb dewelopera” → „Załaduj rozpakowane” → wskaż `extension/dist`.
 Wcześniej zainstaluj w Chrome urząd certyfikacji serwera (`ca.crt`, patrz [docs/INSTALACJA.md, część 2](docs/INSTALACJA.md#część-2-wtyczka-do-chrome)).
-Przy pierwszym połączeniu wtyczka poprosi o zgodę na dostęp do adresu serwera.
+Przy pierwszym połączeniu wtyczka otworzy formularz w karcie i poprosi o zgodę na dostęp do adresu serwera.
 
 ## Aplikacja na Androida
 

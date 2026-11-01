@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "@passholder/server/src/app.ts";
 import { Database } from "@passholder/server/src/db.ts";
 import { ApiError, ServerClient } from "../src/api.ts";
-import { memoryStore, VaultStore } from "../src/vault-store.ts";
+import { memoryStore, NO_VAULT_ON_SERVER, VaultStore } from "../src/vault-store.ts";
 
 const SETUP_TOKEN = "token";
 const PASSWORD = "hasło główne";
@@ -96,6 +96,13 @@ describe("VaultStore edge cases", () => {
     await expect(browser.createVault(url, "wrong", PASSWORD)).rejects.toMatchObject({ status: 403 });
     expect(await browser.getAccount()).toBeUndefined();
   }, 30_000);
+
+  it("says to create a vault when connecting to a server that has none yet", async () => {
+    const url = await listen(new Database(":memory:"), SETUP_TOKEN);
+    const browser = newBrowser();
+    await expect(browser.connectExisting(url, PASSWORD)).rejects.toThrow(NO_VAULT_ON_SERVER);
+    expect(await browser.getAccount()).toBeUndefined();
+  });
 });
 
 describe("ServerClient", () => {

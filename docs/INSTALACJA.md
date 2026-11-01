@@ -308,18 +308,21 @@ nowa wtyczka z pustą pamięcią (sejf odzyskasz synchronizacją, ale niezsynchr
 
 ## 2.4. Założenie sejfu
 
-1. Kliknij ikonę PassHolder i wybierz zakładkę **Nowy sejf**.
+1. Kliknij ikonę PassHolder, a potem **Otwórz ustawienia połączenia**. Formularz otworzy się w osobnej
+   karcie (Chrome zamyka okienko wtyczki, gdy pyta o zgodę, a karta zostaje). Wybierz zakładkę **Nowy sejf**.
 2. Wpisz:
    - **Adres serwera:** `https://passholder.local:8443` (albo `https://192.168.1.50:8443`),
    - **Token z logu serwera** z 1.6,
    - **Hasło główne** (co najmniej 12 znaków) i jego powtórzenie.
-3. Kliknij **Załóż sejf**. Chrome zapyta o zgodę na dostęp wtyczki do adresu serwera: zaakceptuj.
+3. Kliknij **Załóż sejf** (albo naciśnij Enter). Przyciskiem **Pokaż** obok pola sprawdzisz wpisane hasło.
+   Chrome zapyta o zgodę na dostęp wtyczki do adresu serwera: zaakceptuj.
    Wtyczka prosi tylko o ten jeden adres (`optional_host_permissions` w `manifest.json`).
 4. Liczenie kluczy z hasła głównego (Argon2id, 64 MiB) trwa chwilę. Potem zobaczysz pustą listę.
+   Kartę możesz zamknąć: dalej używasz ikony PassHolder na pasku.
 
 **Hasła głównego nie da się odzyskać.** Serwer go nie zna i nie ma resetu. Zapisz je w bezpiecznym miejscu.
 
-Kolejny Chrome (inny komputer) łączysz zakładką **Mam już sejf**: adres + hasło główne, bez tokena.
+Kolejny Chrome (inny komputer) łączysz zakładką **Mam już sejf** w tej samej karcie: adres + hasło główne, bez tokena.
 
 ## 2.5. Używanie
 
@@ -486,6 +489,7 @@ skopiuj plik na `/var/lib/passholder/passholder.db` (właściciel `passholder:pa
 | „Invalid setup token” przy zakładaniu sejfu | Usługa wystartowała ponownie i wylosowała nowy token. Odczytaj go jeszcze raz. |
 | Chrome: `NET::ERR_CERT_AUTHORITY_INVALID` | `ca.crt` nie zaimportowany jako zaufany urząd. Krok 2.2. |
 | Chrome: `NET::ERR_CERT_COMMON_NAME_INVALID` | Łączysz się adresem, którego nie ma w certyfikacie. Wygeneruj certyfikat z tym adresem (1.5). |
+| Wtyczka: „Na serwerze nie ma jeszcze sejfu…” | Wybrano „Mam już sejf”, a sejf nie został założony. Załóż go zakładką „Nowy sejf”. |
 | Wtyczka: „Bez zgody na dostęp do serwera…” | Odrzucona prośba o uprawnienie. Spróbuj ponownie i zaakceptuj. |
 | Połączenie odrzucone / timeout | Pi wyłączone, inna sieć Wi-Fi, zapora (1.7), albo spoza domu bez VPN. Sprawdź `curl` z 1.6. |
 | Telefon nie znajduje `passholder.local` | Użyj adresu IP (3.4). |
