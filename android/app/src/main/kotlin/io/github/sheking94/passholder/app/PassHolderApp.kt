@@ -17,6 +17,8 @@ class PassHolderApp : Application() {
         private set
     /** Replaced in tests: Robolectric has neither the Android Keystore nor a fingerprint reader. */
     lateinit var biometric: BiometricUnlock
+    /** Locks the vault 60 s after leaving the app, when the delay is on in the settings. */
+    lateinit var leaveLock: LeaveLock
     var fingerprintPrompt: FingerprintPrompt = SystemFingerprintPrompt
 
     override fun onCreate() {
@@ -25,6 +27,7 @@ class PassHolderApp : Application() {
         vaultStore = VaultStore(FileStore(File(filesDir, "vault")))
         settings = Settings(this)
         biometric = BiometricUnlock(this)
+        leaveLock = LeaveLock(vaultStore)
     }
 }
 
@@ -35,4 +38,9 @@ class Settings(context: Context) {
     var generatorOptions: GeneratorOptions
         get() = prefs.getString("generator", null)?.let { runCatching { Json.decodeFromString<GeneratorOptions>(it) }.getOrNull() } ?: GeneratorOptions()
         set(value) = prefs.edit { putString("generator", Json.encodeToString(value)) }
+
+    /** Leaving the app locks the vault after 60 s instead of at once. On by default. */
+    var lockDelay: Boolean
+        get() = prefs.getBoolean("lockDelay", true)
+        set(value) = prefs.edit { putBoolean("lockDelay", value) }
 }

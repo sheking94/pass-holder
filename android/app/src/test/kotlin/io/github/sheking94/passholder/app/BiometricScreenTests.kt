@@ -8,6 +8,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.robolectric.Shadows.shadowOf
+import android.os.Looper
+import java.time.Duration
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -54,7 +57,11 @@ abstract class BiometricTestBase : ScreenTestBase() {
         app.biometric = BiometricUnlock(app, keys)
         app.biometric.disable()
         app.fingerprintPrompt = finger
+        app.settings.lockDelay = lockDelay
     }
+
+    /** Most tests check the immediate lock; the 60 s delay has its own tests. */
+    protected open val lockDelay = false
 
     protected fun createVaultWithFingerprint() {
         createVault()
@@ -198,6 +205,10 @@ class FingerprintAfterManualLockTest : BiometricTestBase() {
 }
 
 class LockOnLeaveWithoutFingerprintTest : ScreenTestBase() {
+    override fun beforeLaunch(app: PassHolderApp) {
+        app.settings.lockDelay = false
+    }
+
     @Test
     fun `without fingerprint unlock, closing and reopening asks for the master password`() {
         createVault()
@@ -210,5 +221,76 @@ class LockOnLeaveWithoutFingerprintTest : ScreenTestBase() {
         type("Hasło główne", masterPassword)
         click("Odblokuj")
         waitFor("Brak wpisów. Dodaj pierwszy.")
+    }
+}
+
+/** Robolectric's clock only moves when told to: this is "the phone sat in the pocket for [seconds]". */
+private fun passTime(seconds: Long) = shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(seconds))
+
+class LockDelayTest : BiometricTestBase() {
+    override val lockDelay = true
+
+    @Test
+    fun `with the delay on, a short trip keeps the vault and the form, after 60 s it locks`() {
+        createVaultWithFingerprint()
+        assertEquals(1, finger.shown)
+        shot("17-opoznienie-blokady")
+
+        // Half-filled form, then out to another app for 30 s.
+        click("+ Dodaj")
+        type("Nazwa serwisu", "poczta.pl")
+        scenario.moveToState(Lifecycle.State.CREATED)
+        passTime(30)
+        assertTrue(app.vaultStore.isUnlocked)
+        scenario.moveToState(Lifecycle.State.RESUMED)
+        waitFor("poczta.pl")
+        assertEquals(1, finger.shown)
+
+        // Out again for over a minute: the timer locks while the app is in the background.
+        scenario.moveToState(Lifecycle.State.CREATED)
+        passTime(61)
+        compose.waitUntil(5_000) { !app.vaultStore.isUnlocked }
+        scenario.moveToState(Lifecycle.State.RESUMED)
+        waitFor("bank.pl •")
+        assertEquals(2, finger.shown)
+    }
+}
+
+class LockDelayLateTimerTest : BiometricTestBase() {
+    override val lockDelay = true
+
+    @Test
+    fun `a timer that did not fire (app frozen in the background) still locks on return`() {
+        createVaultWithFingerprint()
+        scenario.moveToState(Lifecycle.State.CREATED)
+        // Android froze the app: the timer never ran, but the clock went on past the deadline.
+        app.leaveLock.cancel()
+        var t = 0L
+        app.leaveLock = LeaveLock(app.vaultStore, now = { t }).also { it.schedule(LeaveLock.DELAY_MS) }
+        t = 61_000L
+        assertTrue(app.vaultStore.isUnlocked)
+        finger.cancel = true
+        scenario.moveToState(Lifecycle.State.RESUMED)
+        waitFor("PassHolder jest zablokowany")
+        assertFalse(app.vaultStore.isUnlocked)
+        assertEquals(2, finger.shown)
+    }
+}
+
+class LockDelaySwitchOffTest : BiometricTestBase() {
+    override val lockDelay = true
+
+    @Test
+    fun `the switch turns the delay off, leaving locks at once, and the choice is remembered`() {
+        createVaultWithFingerprint()
+        click("Blokuj dopiero po 60 s poza aplikacją")
+        waitFor("Sejf blokuje się od razu po wyjściu z aplikacji.")
+        assertFalse(app.settings.lockDelay)
+        shot("18-opoznienie-wylaczone")
+        scenario.moveToState(Lifecycle.State.CREATED)
+        assertFalse(app.vaultStore.isUnlocked)
+        scenario.moveToState(Lifecycle.State.RESUMED)
+        waitFor("bank.pl •")
+        assertEquals(2, finger.shown)
     }
 }

@@ -75,6 +75,7 @@ fun ListScreen(state: UiState, vm: AppViewModel) {
             TextButton(onClick = vm::openAddresses, enabled = !state.busy) { Text("Adresy") }
         }
         FingerprintSetting(state, vm)
+        LockDelaySetting(state, vm)
         StatusLine(state.status, state.busy)
     }
 }
@@ -102,5 +103,24 @@ private fun FingerprintSetting(state: UiState, vm: AppViewModel) {
             }
         }
         Switch(checked = enabled, onCheckedChange = null, enabled = canToggle)
+    }
+}
+
+/** Leaving the app locks the vault after 60 s (on, default) or at once (off). */
+@Composable
+private fun LockDelaySetting(state: UiState, vm: AppViewModel) {
+    val on by vm.lockDelay.collectAsStateWithLifecycle()
+    Row(
+        Modifier.fillMaxWidth().toggleable(value = on, enabled = !state.busy, role = Role.Switch) { vm.setLockDelay(it) },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("Blokuj dopiero po 60 s poza aplikacją", style = MaterialTheme.typography.bodyLarge)
+            Text(
+                if (on) "Krótkie wyjście (np. wklejenie hasła) nie blokuje sejfu." else "Sejf blokuje się od razu po wyjściu z aplikacji.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        Switch(checked = on, onCheckedChange = null, enabled = !state.busy)
     }
 }
