@@ -54,14 +54,14 @@ class BiometricUnlock(context: Context, private val keys: UnlockKeyProtector = K
      */
     fun cipherToUnlock(): Cipher {
         val iv = prefs.getString(IV, null) ?: throw BiometricKeyLostException()
-        return try {
-            keys.decryptCipher(Base64.decode(iv, Base64.NO_WRAP)) ?: throw BiometricKeyLostException()
+        val cipher = try {
+            keys.decryptCipher(Base64.decode(iv, Base64.NO_WRAP))
         } catch (e: KeyPermanentlyInvalidatedException) {
+            null
+        }
+        return cipher ?: run {
             disable()
             throw BiometricKeyLostException()
-        } catch (e: BiometricKeyLostException) {
-            disable()
-            throw e
         }
     }
 
@@ -83,8 +83,11 @@ class BiometricUnlock(context: Context, private val keys: UnlockKeyProtector = K
     }
 }
 
-class BiometricKeyLostException :
-    Exception("Odcisk palca przestał działać (np. dodano nowy odcisk w telefonie). Odblokuj hasłem głównym i włącz go ponownie.")
+class BiometricKeyLostException : Exception(MESSAGE) {
+    companion object {
+        const val MESSAGE = "Odcisk palca przestał działać (np. dodano nowy odcisk w telefonie). Odblokuj hasłem głównym i włącz go ponownie."
+    }
+}
 
 /** Makes the ciphers. [KeystoreKeyProtector] on the phone; tests use a plain software key (Robolectric has no Keystore). */
 interface UnlockKeyProtector {

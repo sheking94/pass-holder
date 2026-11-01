@@ -109,14 +109,14 @@ describe("server addresses", () => {
 
     // A second browser connected only at home sees the entry.
     const other = new VaultStore(memoryStore(), memoryStore());
-    await other.connectExisting(home, PASSWORD);
+    await other.connectExisting([home], PASSWORD);
     expect(other.entries().map((e) => e.data.name)).toEqual(["bank.pl"]);
   }, 30_000);
 
   it("reads an account saved by version 1.0 with a single serverUrl", async () => {
     const url = await startServer();
     const first = new VaultStore(memoryStore(), memoryStore());
-    await first.createVault(url, SETUP_TOKEN, PASSWORD);
+    await first.createVault([url], SETUP_TOKEN, PASSWORD);
     const { serverUrls, lastServerUrl, ...rest } = (await first.getAccount())!;
 
     const local = memoryStore();
@@ -132,7 +132,7 @@ describe("server addresses", () => {
   it("refuses an empty list of addresses", async () => {
     const url = await startServer();
     const browser = new VaultStore(memoryStore(), memoryStore());
-    await browser.createVault(url, SETUP_TOKEN, PASSWORD);
+    await browser.createVault([url], SETUP_TOKEN, PASSWORD);
     await expect(browser.setServerUrls([" ", ""])).rejects.toThrow("Podaj adres serwera");
     expect((await browser.getAccount())!.serverUrls).toEqual([url]);
   }, 30_000);

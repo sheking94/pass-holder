@@ -26,7 +26,7 @@ describe("VaultStore edge cases", () => {
     const db = new Database(":memory:");
     const url = await listen(db, SETUP_TOKEN);
     const browser = newBrowser();
-    await browser.createVault(url, SETUP_TOKEN, PASSWORD);
+    await browser.createVault([url], SETUP_TOKEN, PASSWORD);
     await browser.sync(); // gets a session token
 
     // The Pi is switched off and on again: same database and address, sessions are gone.
@@ -43,11 +43,11 @@ describe("VaultStore edge cases", () => {
     // One shared clock, so the edit made in b is clearly the newer one.
     let clock = Date.now();
     const a = newBrowser(() => clock);
-    await a.createVault(url, SETUP_TOKEN, PASSWORD);
+    await a.createVault([url], SETUP_TOKEN, PASSWORD);
     await a.upsert("1", { name: "a.pl", username: "u", password: "old" });
     await a.sync();
     const b = newBrowser(() => clock);
-    await b.connectExisting(url, PASSWORD);
+    await b.connectExisting([url], PASSWORD);
 
     clock += 100;
     await a.upsert("1", { name: "a.pl", username: "u", password: "from-a" });
@@ -63,7 +63,7 @@ describe("VaultStore edge cases", () => {
   it("keeps unsynced changes on disk across a lock and unlock", async () => {
     const url = await listen(new Database(":memory:"), SETUP_TOKEN);
     const browser = newBrowser();
-    await browser.createVault(url, SETUP_TOKEN, PASSWORD);
+    await browser.createVault([url], SETUP_TOKEN, PASSWORD);
     await browser.upsert("1", { name: "offline.pl", username: "u", password: "p" });
     await browser.lock();
     await browser.unlock(PASSWORD);
@@ -86,21 +86,21 @@ describe("VaultStore edge cases", () => {
         Response.json({ kdf: { alg: "argon2id", salt: "AAAAAAAAAAAAAAAAAAAAAA==", memoryKiB: 8, iterations: 1, parallelism: 1 } }),
       );
     const browser = new VaultStore(memoryStore(), memoryStore(), fakeServer);
-    await expect(browser.connectExisting("https://evil", PASSWORD)).rejects.toThrow("KDF");
+    await expect(browser.connectExisting(["https://evil"], PASSWORD)).rejects.toThrow("KDF");
     expect(await browser.getAccount()).toBeUndefined();
   });
 
   it("does not save the account when setup is refused", async () => {
     const url = await listen(new Database(":memory:"), SETUP_TOKEN);
     const browser = newBrowser();
-    await expect(browser.createVault(url, "wrong", PASSWORD)).rejects.toMatchObject({ status: 403 });
+    await expect(browser.createVault([url], "wrong", PASSWORD)).rejects.toMatchObject({ status: 403 });
     expect(await browser.getAccount()).toBeUndefined();
   }, 30_000);
 
   it("says to create a vault when connecting to a server that has none yet", async () => {
     const url = await listen(new Database(":memory:"), SETUP_TOKEN);
     const browser = newBrowser();
-    await expect(browser.connectExisting(url, PASSWORD)).rejects.toThrow(NO_VAULT_ON_SERVER);
+    await expect(browser.connectExisting([url], PASSWORD)).rejects.toThrow(NO_VAULT_ON_SERVER);
     expect(await browser.getAccount()).toBeUndefined();
   });
 });

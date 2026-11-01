@@ -25,7 +25,7 @@ async function lockedBrowserWithPin(rememberAfterRestart = false) {
   const local = memoryStore();
   const session = memoryStore();
   const store = new VaultStore(local, session);
-  await store.createVault(url, SETUP_TOKEN, PASSWORD);
+  await store.createVault([url], SETUP_TOKEN, PASSWORD);
   await store.upsert("1", { name: "bank.pl", username: "jan", password: "s3cret" });
   await store.enablePin(PIN, rememberAfterRestart);
   await store.lock();

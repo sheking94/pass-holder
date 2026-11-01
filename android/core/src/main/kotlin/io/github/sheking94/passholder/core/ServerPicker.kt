@@ -49,22 +49,37 @@ object ServerPicker {
         val ordered = order(urls, lastWorking)
         require(ordered.isNotEmpty()) { "Brak adresu serwera" }
         if (ordered.size == 1) return ordered[0] to makeClient(ordered[0])
-        var pinError: Exception? = null
-        for (url in ordered) {
+        val onAllFailed = { errors: List<Exception> ->
+            errors.firstOrNull(::isPinMismatch) ?: ApiException(
+                0,
+                "Serwer nie odpowiada pod żadnym adresem (${ordered.joinToString(", ")}). " +
+                    "Czy Raspberry Pi jest włączone? Spoza domu potrzebny jest też włączony Tailscale.",
+            )
+        }
+        return firstThatAnswers(ordered, onAllFailed) { url ->
             val client = makeClient(url)
+            client.status(PROBE_TIMEOUT_MS)
+            url to client
+        }
+    }
+
+    /**
+     * Tries [attempt] at each address in turn and returns the first result that does not throw: the address is
+     * not reachable from here (or is not our server), so the next one may be. When every address fails, throws
+     * what [onAllFailed] makes of the errors, in the order the addresses were tried.
+     */
+    fun <T> firstThatAnswers(urls: List<String>, onAllFailed: (List<Exception>) -> Exception, attempt: (url: String) -> T): T {
+        require(urls.isNotEmpty()) { "Brak adresu serwera" }
+        val errors = mutableListOf<Exception>()
+        for (url in urls) {
             try {
-                client.status(PROBE_TIMEOUT_MS)
-                return url to client
+                return attempt(url)
             } catch (e: Exception) {
-                // Not reachable from here (or not our server); try the next address.
-                val isPinMismatch = generateSequence(e as Throwable) { it.cause }.any { it is PinMismatchException }
-                if (isPinMismatch && pinError == null) pinError = e
+                errors += e
             }
         }
-        throw pinError ?: ApiException(
-            0,
-            "Serwer nie odpowiada pod żadnym adresem (${ordered.joinToString(", ")}). " +
-                "Czy Raspberry Pi jest włączone? Spoza domu potrzebny jest też włączony Tailscale.",
-        )
+        throw onAllFailed(errors)
     }
+
+    private fun isPinMismatch(e: Exception) = generateSequence(e as Throwable) { it.cause }.any { it is PinMismatchException }
 }

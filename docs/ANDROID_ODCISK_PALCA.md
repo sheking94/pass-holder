@@ -1,5 +1,7 @@
 # Android: odblokowanie odciskiem palca
 
+> Uwaga (2026-11-01): część nazw funkcji i plików opisanych niżej zmieniła się przy poprawkach po przeglądzie kodu, zob. [POPRAWKI_PRZEGLADU_2.md](POPRAWKI_PRZEGLADU_2.md).
+
 Ten dokument opisuje, jak działa odblokowanie sejfu odciskiem palca w aplikacji Android i dlaczego zrobiono to właśnie tak.
 
 ## Co widzi użytkownik

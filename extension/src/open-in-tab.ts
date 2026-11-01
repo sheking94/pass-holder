@@ -1,3 +1,5 @@
+import { isMainTab, modeQuery, pageMode } from "./page-mode.ts";
+
 /**
  * Opening the extension page in a normal browser tab.
  *
@@ -5,17 +7,6 @@
  * a permission prompt), and everything typed into it is lost. A tab stays open, so the user
  * can switch between the page and PassHolder without losing a half-filled form.
  */
-
-/** Query parameter that marks the page as opened in a tab by the "Otwórz w karcie" button. */
-export const TAB_PARAM = "tab";
-/** Query parameter of the connect form tab (see openSetupTab in popup.ts). */
-export const SETUP_PARAM = "setup";
-
-/** True when the page was opened in a tab, not in the toolbar popup. */
-export function isTabPage(search: string): boolean {
-  const params = new URLSearchParams(search);
-  return params.has(TAB_PARAM) || params.has(SETUP_PARAM);
-}
 
 /** The parts of the chrome.* API used here, so tests can pass a fake. */
 export interface TabApi {
@@ -47,7 +38,7 @@ export function chromeTabApi(): TabApi {
  * `pageUrl` is the full URL of popup.html, e.g. chrome.runtime.getURL("popup.html").
  */
 export async function openInTab(api: TabApi, pageUrl: string): Promise<void> {
-  const existing = (await api.openTabs()).find((t) => t.url.startsWith(pageUrl) && isTabPage(new URL(t.url).search));
+  const existing = (await api.openTabs()).find((t) => t.url.startsWith(pageUrl) && isMainTab(pageMode(new URL(t.url).search)));
   if (existing) return api.focus(existing.tabId, existing.windowId);
-  await api.create(`${pageUrl}?${TAB_PARAM}`);
+  await api.create(`${pageUrl}${modeQuery("tab")}`);
 }

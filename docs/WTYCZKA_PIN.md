@@ -1,5 +1,7 @@
 # Wtyczka Chrome: logowanie PIN-em
 
+> Uwaga (2026-11-01): część nazw funkcji i plików opisanych niżej zmieniła się przy poprawkach po przeglądzie kodu, zob. [POPRAWKI_PRZEGLADU_2.md](POPRAWKI_PRZEGLADU_2.md).
+
 Dokument opisuje funkcję z gałęzi `claude/project-thread-qagvkj`: odblokowanie sejfu we wtyczce
 PIN-em z 4-6 cyfr zamiast hasła głównego.
 

@@ -63,7 +63,7 @@ class RealServerTest {
 
         val password = "Zażółć gęślą jaźń 2026"
         val phone = VaultStore(MemoryStore())
-        phone.createVault(url, pin, setupToken, password)
+        phone.createVault(listOf(url), pin, setupToken, password)
         phone.upsert(UUID.randomUUID().toString(), Credentials("z-telefonu.pl", "jan", "z Kotlina"))
         phone.sync()
 

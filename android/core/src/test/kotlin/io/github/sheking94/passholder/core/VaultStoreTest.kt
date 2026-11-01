@@ -30,14 +30,14 @@ class VaultStoreTest {
     fun `creates a vault, syncs, and a second phone downloads it`() {
         val (url, _) = startServer()
         val first = VaultStore(MemoryStore())
-        first.createVault(url, null, "token", password)
+        first.createVault(listOf(url), null, "token", password)
         first.upsert("1", Credentials("bank.pl", "jan", "s3cret"))
         assertEquals(1, first.pendingCount())
         first.sync()
         assertEquals(0, first.pendingCount())
 
         val second = VaultStore(MemoryStore())
-        second.connectExisting(url, null, password)
+        second.connectExisting(listOf(url), null, password)
         assertEquals(listOf("bank.pl"), names(second))
 
         second.delete("1")
@@ -49,17 +49,17 @@ class VaultStoreTest {
     @Test
     fun `reports a wrong master password, a wrong setup token and an existing vault in Polish`() {
         val (url, _) = startServer()
-        assertEquals("Zły token z logu serwera", assertThrows<ApiException> { VaultStore(MemoryStore()).createVault(url, null, "nope", password) }.message)
-        VaultStore(MemoryStore()).createVault(url, null, "token", password)
-        assertEquals("Złe hasło główne", assertThrows<ApiException> { VaultStore(MemoryStore()).connectExisting(url, null, "wrong") }.message)
-        assertTrue(assertThrows<ApiException> { VaultStore(MemoryStore()).createVault(url, null, "token", password) }.message!!.startsWith("Na serwerze już jest sejf"))
+        assertEquals("Zły token z logu serwera", assertThrows<ApiException> { VaultStore(MemoryStore()).createVault(listOf(url), null, "nope", password) }.message)
+        VaultStore(MemoryStore()).createVault(listOf(url), null, "token", password)
+        assertEquals("Złe hasło główne", assertThrows<ApiException> { VaultStore(MemoryStore()).connectExisting(listOf(url), null, "wrong") }.message)
+        assertTrue(assertThrows<ApiException> { VaultStore(MemoryStore()).createVault(listOf(url), null, "token", password) }.message!!.startsWith("Na serwerze już jest sejf"))
     }
 
     @Test
     fun `unlocks from disk without the server and keeps entries encrypted at rest`(@TempDir dir: File) {
         val (url, _) = startServer()
         val store = VaultStore(FileStore(dir))
-        store.createVault(url, null, "token", password)
+        store.createVault(listOf(url), null, "token", password)
         store.upsert("1", Credentials("poczta.pl", "jan", "hunter2"))
         servers.removeAt(0).shutdown() // the Raspberry Pi is switched off
 
@@ -80,7 +80,7 @@ class VaultStoreTest {
         val (url, _) = startServer()
         var clock = 1_000_000L
         val store = VaultStore(MemoryStore(), now = { clock })
-        store.createVault(url, null, "token", password)
+        store.createVault(listOf(url), null, "token", password)
 
         clock += VaultStore.AUTO_LOCK_MS - 1
         assertFalse(store.lockIfIdle())
@@ -97,7 +97,7 @@ class VaultStoreTest {
         val (url, fake) = startServer()
         var clock = System.currentTimeMillis()
         val store = VaultStore(MemoryStore(), now = { clock })
-        store.createVault(url, null, "token", password)
+        store.createVault(listOf(url), null, "token", password)
         store.sync()
         store.sync()
         assertEquals(1, fake.sessionCount)
@@ -110,7 +110,7 @@ class VaultStoreTest {
     fun `disconnect forgets the account and the local copy`(@TempDir dir: File) {
         val (url, _) = startServer()
         val store = VaultStore(FileStore(dir))
-        store.createVault(url, null, "token", password)
+        store.createVault(listOf(url), null, "token", password)
         store.disconnect()
         assertEquals(null, store.account())
         assertEquals(0, dir.listFiles()!!.size)
@@ -120,7 +120,7 @@ class VaultStoreTest {
     fun `unlocks with exported keys after a restart and rejects wrong keys`(@TempDir dir: File) {
         val (url, _) = startServer()
         val store = VaultStore(FileStore(dir))
-        store.createVault(url, null, "token", password)
+        store.createVault(listOf(url), null, "token", password)
         store.upsert("1", Credentials("poczta.pl", "jan", "hunter2"))
         val keys = store.exportUnlockKeys()
         assertEquals(64, keys.size)
@@ -141,7 +141,7 @@ class VaultStoreTest {
     fun `exporting keys needs an unlocked vault`() {
         val (url, _) = startServer()
         val store = VaultStore(MemoryStore())
-        store.createVault(url, null, "token", password)
+        store.createVault(listOf(url), null, "token", password)
         store.lock()
         assertThrows<IllegalStateException> { store.exportUnlockKeys() }
     }

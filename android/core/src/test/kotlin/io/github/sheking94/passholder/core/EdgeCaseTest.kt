@@ -28,7 +28,7 @@ class EdgeCaseTest {
     fun `logs in again when the server was restarted and forgot the session`() {
         val (url, fake) = startServer()
         val store = VaultStore(MemoryStore())
-        store.createVault(url, null, "token", password)
+        store.createVault(listOf(url), null, "token", password)
         store.sync()
         fake.forgetSessions() // the Raspberry Pi was switched off and on, the token has not expired yet
         store.upsert("1", Credentials("bank.pl", "jan", "x"))
@@ -41,7 +41,7 @@ class EdgeCaseTest {
     fun `does not save the account when setup is refused`() {
         val (url, _) = startServer()
         val store = VaultStore(MemoryStore())
-        assertThrows<ApiException> { store.createVault(url, null, "wrong", password) }
+        assertThrows<ApiException> { store.createVault(listOf(url), null, "wrong", password) }
         assertNull(store.account())
         assertFalse(store.isUnlocked)
     }
@@ -55,7 +55,7 @@ class EdgeCaseTest {
         )
         server.start()
         val store = VaultStore(MemoryStore())
-        assertThrows<IllegalArgumentException> { store.connectExisting(server.url("/").toString(), null, password) }
+        assertThrows<IllegalArgumentException> { store.connectExisting(listOf(server.url("/").toString()), null, password) }
         assertNull(store.account())
         assertEquals(1, server.requestCount) // never sent an auth key
     }
@@ -80,7 +80,7 @@ class EdgeCaseTest {
         val (url, _) = startServer()
         val disk = MemoryStore()
         val store = VaultStore(disk)
-        store.createVault(url, null, "token", password)
+        store.createVault(listOf(url), null, "token", password)
         store.upsert("1", Credentials("offline.pl", "u", "p"))
         store.lock()
         store.unlock(password)

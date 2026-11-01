@@ -1,6 +1,5 @@
 package io.github.sheking94.passholder.app.ui
 
-import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
@@ -30,7 +29,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.sheking94.passholder.app.AppViewModel
 import io.github.sheking94.passholder.app.BiometricAvailability
@@ -85,14 +83,15 @@ fun ListScreen(state: UiState, vm: AppViewModel) {
 private fun FingerprintSetting(state: UiState, vm: AppViewModel) {
     val availability = remember { vm.biometricAvailability() }
     val enabled by vm.biometricEnabled.collectAsStateWithLifecycle()
-    val activity = LocalActivity.current as? FragmentActivity
+    val fingerprint = rememberFingerprintDialog(vm)
     if (availability == BiometricAvailability.Unsupported && !enabled) return
 
     val canToggle = !state.busy && (enabled || availability == BiometricAvailability.Ready)
     // The whole row is the switch, so tapping the label works too.
     Row(
         Modifier.fillMaxWidth().toggleable(value = enabled, enabled = canToggle, role = Role.Switch) { on ->
-            if (on) activity?.let(vm::enableBiometric) else vm.disableBiometric()
+            if (on) fingerprint.show("Włącz odblokowanie odciskiem palca", vm::cipherToEnableBiometric, vm::onBiometricEnableAuthorized)
+            else vm.disableBiometric()
         },
         verticalAlignment = Alignment.CenterVertically,
     ) {

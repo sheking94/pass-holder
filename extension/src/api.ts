@@ -15,6 +15,16 @@ export interface SessionResponse {
   wrappedVaultKey: string;
 }
 
+/** Optional parts of a request, by name, so a call never needs `undefined, undefined, …` placeholders. */
+interface RequestOptions {
+  /** Sent as JSON. */
+  body?: unknown;
+  /** Session token, sent as "Authorization: Bearer". */
+  token?: string;
+  /** Gives up (as "unreachable", status 0) when the server has not answered in time. */
+  timeoutMs?: number;
+}
+
 /** HTTP client for the Raspberry Pi server (API in docs/SPEC.md §6). */
 export class ServerClient {
   private readonly baseUrl: string;
@@ -26,7 +36,8 @@ export class ServerClient {
     this.baseUrl = baseUrl.replace(/\/+$/, "");
   }
 
-  private async request<T>(method: string, path: string, body?: unknown, token?: string, timeoutMs?: number): Promise<T> {
+  private async request<T>(method: string, path: string, options: RequestOptions = {}): Promise<T> {
+    const { body, token, timeoutMs } = options;
     const headers: Record<string, string> = {};
     if (body !== undefined) headers["content-type"] = "application/json";
     if (token) headers.authorization = `Bearer ${token}`;
@@ -48,11 +59,11 @@ export class ServerClient {
 
   /** With timeoutMs, gives up (as "unreachable", status 0) when the server has not answered in time. */
   status(timeoutMs?: number) {
-    return this.request<{ initialized: boolean; version: string }>("GET", "/api/v1/status", undefined, undefined, timeoutMs);
+    return this.request<{ initialized: boolean; version: string }>("GET", "/api/v1/status", { timeoutMs });
   }
 
   setup(body: { setupToken: string; kdf: KdfParams; authKey: string; wrappedVaultKey: string }) {
-    return this.request<object>("POST", "/api/v1/setup", body);
+    return this.request<object>("POST", "/api/v1/setup", { body });
   }
 
   prelogin() {
@@ -60,10 +71,10 @@ export class ServerClient {
   }
 
   session(authKey: string) {
-    return this.request<SessionResponse>("POST", "/api/v1/session", { authKey });
+    return this.request<SessionResponse>("POST", "/api/v1/session", { body: { authKey } });
   }
 
   sync(token: string, body: SyncRequest) {
-    return this.request<SyncResponse>("POST", "/api/v1/sync", body, token);
+    return this.request<SyncResponse>("POST", "/api/v1/sync", { body, token });
   }
 }
