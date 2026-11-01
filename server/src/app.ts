@@ -19,6 +19,8 @@ export interface AppOptions {
   sessionTtlMs?: number;
   /** Failed logins allowed per IP within loginWindowMs. */
   maxLoginFailures?: number;
+  /** Failed logins allowed from all IPs together within loginWindowMs (many addresses, e.g. IPv6). */
+  maxGlobalLoginFailures?: number;
   loginWindowMs?: number;
   now?: () => number;
   https?: { key: Buffer; cert: Buffer };
@@ -65,11 +67,14 @@ export function buildApp(options: AppOptions): FastifyInstance {
   const now = options.now ?? Date.now;
   const sessionTtlMs = options.sessionTtlMs ?? 15 * 60_000;
   const maxLoginFailures = options.maxLoginFailures ?? 5;
+  const maxGlobalLoginFailures = options.maxGlobalLoginFailures ?? 20;
   const loginWindowMs = options.loginWindowMs ?? 60_000;
   let setupToken = options.setupToken;
 
   const sessions = new Map<string, number>();
+  /** Failed login times per IP, plus all of them under ALL_IPS. */
   const loginFailures = new Map<string, number[]>();
+  const ALL_IPS = "*";
 
   const app = Fastify({
     logger: options.logger ?? false,
@@ -81,6 +86,12 @@ export function buildApp(options: AppOptions): FastifyInstance {
     const recent = (loginFailures.get(ip) ?? []).filter((t) => now() - t < loginWindowMs);
     loginFailures.set(ip, recent);
     return recent;
+  }
+
+  /** Forgets expired sessions and old failures, so neither map grows without end (N3 of the security review). */
+  function prune() {
+    for (const [token, expiresAt] of sessions) if (expiresAt <= now()) sessions.delete(token);
+    for (const ip of loginFailures.keys()) if (recentFailures(ip).length === 0) loginFailures.delete(ip);
   }
 
   function requireSession(request: FastifyRequest): boolean {
@@ -143,11 +154,16 @@ export function buildApp(options: AppOptions): FastifyInstance {
     async (request, reply) => {
       const meta = db.getMeta();
       if (!meta) return reply.code(404).send({ error: "Vault not set up" });
+      prune();
       const failures = recentFailures(request.ip);
-      if (failures.length >= maxLoginFailures) return reply.code(429).send({ error: "Too many attempts, wait a minute" });
+      const allFailures = recentFailures(ALL_IPS);
+      if (failures.length >= maxLoginFailures || allFailures.length >= maxGlobalLoginFailures) {
+        return reply.code(429).send({ error: "Too many attempts, wait a minute" });
+      }
       const authKey = decodeKey(request.body.authKey);
       if (!authKey || !sameBytes(authHash(authKey), meta.authHash)) {
         failures.push(now());
+        allFailures.push(now());
         return reply.code(401).send({ error: "Wrong master password" });
       }
       loginFailures.delete(request.ip);

@@ -43,7 +43,8 @@ Sejf można też założyć z telefonu, kolejność klientów nie jest wymuszona
 ### Czego potrzebujesz
 
 - Raspberry Pi 4B, karta microSD (8 GB wystarczy), zasilacz, najlepiej kabel Ethernet.
-- Komputer z Ubuntu, na nim: Chrome, `git`, `rsync`, Node.js 22.18 lub nowszy (do zbudowania wtyczki).
+- Komputer z Ubuntu, na nim: Chrome, `git`, `rsync`, `openssl` (do certyfikatów, jest w Ubuntu domyślnie),
+  Node.js 22.18 lub nowszy (do zbudowania wtyczki).
 - Telefon z Androidem 8.0 lub nowszym (`minSdk = 26` w `android/app/build.gradle.kts`) i kabel USB.
 - Do zbudowania aplikacji: JDK 17+ i Android SDK, najprościej przez Android Studio.
 - Opcjonalnie: darmowe konto Tailscale, jeśli chcesz synchronizować spoza domu.
@@ -145,46 +146,75 @@ portu w routerze, dlatego repozytorium nie ma do niego skryptu.
 ## 1.5. Certyfikat HTTPS
 
 Skrypt `deploy/make-certs.sh` tworzy własny urząd certyfikacji (CA, ważny 10 lat) i podpisany nim certyfikat
-serwera (ważny 825 dni). Podaj **wszystkie** nazwy i adresy, pod którymi będziesz łączyć się z Pi.
-Skrypt sam rozpoznaje, co jest adresem IP, a co nazwą.
+serwera (ważny 825 dni). **Uruchamiasz go na Ubuntu, nie na Pi**: klucz urzędu (`ca.key`) nigdy nie trafia
+na serwer. Na Pi kopiujesz tylko certyfikat i klucz serwera oraz publiczny `ca.crt`. Skrypt odmówi pracy,
+jeśli wykryje, że działa na Raspberry Pi.
+
+Podaj **wszystkie** nazwy i adresy, pod którymi będziesz łączyć się z Pi. Skrypt sam rozpoznaje, co jest
+adresem IP, a co nazwą. Na Ubuntu, w katalogu repozytorium:
 
 ```sh
 # bez Tailscale:
-sudo /opt/pass-holder/deploy/make-certs.sh /etc/passholder/tls passholder.local 192.168.1.50
+deploy/make-certs.sh ~/passholder-ca ~/passholder-tls passholder.local 192.168.1.50
 # z Tailscale:
-sudo /opt/pass-holder/deploy/make-certs.sh /etc/passholder/tls passholder.local 192.168.1.50 100.x.y.z
-
-sudo chown -R root:passholder /etc/passholder/tls
-sudo chmod 640 /etc/passholder/tls/server.key
+deploy/make-certs.sh ~/passholder-ca ~/passholder-tls passholder.local 192.168.1.50 100.x.y.z
 ```
+
+Katalogi:
+
+| Katalog (Ubuntu) | Pliki | Do czego |
+|---|---|---|
+| `~/passholder-ca/` | `ca.key` (**tajny**), `ca.crt` | urząd; zostaje na Ubuntu, potrzebny przy odnawianiu certyfikatu |
+| `~/passholder-tls/` | `server.crt`, `server.key`, `ca.crt` | kopiujesz na Pi |
+
+**Ograniczenie nazw.** Urząd może poświadczać tylko nazwy w domenie `.local`, `localhost` i adresy prywatne
+(`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, Tailscale `100.64.0.0/10`, `127.0.0.0/8` i IPv6 `fc00::/7`).
+Zapisuje to rozszerzenie X.509 `nameConstraints`, którego pilnuje Chrome. Gdyby ktoś ukradł `ca.key`, nie
+podrobi nim strony banku ani poczty: Chrome odrzuci taki certyfikat z błędem `NET::ERR_CERT_INVALID`. Jeśli
+potrzebujesz innej nazwy (np. MagicDNS `pi.tailXXXX.ts.net`), ustaw ją **przed pierwszym** uruchomieniem:
+`PASSHOLDER_CA_DNS="local localhost tailXXXX.ts.net" deploy/make-certs.sh …`. Skrypt sprawdza każdy certyfikat
+(`openssl verify`) i nie wystawi go dla nazwy spoza listy.
 
 Na końcu skrypt wypisuje dwa odciski SHA-256:
 
 - **odcisk CA** – porównasz go, gdy zainstalujesz `ca.crt` w Chrome (część 2),
 - **odcisk certyfikatu serwera** – porównasz go w aplikacji na Androida (część 3).
 
-Pliki w `/etc/passholder/tls/`:
-
-| Plik | Do czego | Kto go potrzebuje |
-|---|---|---|
-| `ca.crt` | certyfikat urzędu, publiczny | Chrome na Ubuntu |
-| `ca.key` | klucz urzędu, **tajny** | tylko przy odnawianiu certyfikatu serwera |
-| `server.crt`, `server.key` | certyfikat i klucz serwera | usługa `passholder` |
-
-**Klucz `ca.key`:** kto go ma, może wystawić certyfikat dla dowolnej nazwy, której ufa Twój Chrome. Po
-zakończeniu instalacji przenieś go z Pi w bezpieczne miejsce (np. zaszyfrowany pendrive) i usuń z Pi:
+Skopiuj pliki serwera na Pi i ustaw uprawnienia:
 
 ```sh
 # na Ubuntu:
-ssh <użytkownik>@passholder.local 'sudo cat /etc/passholder/tls/ca.key' > ca.key && chmod 600 ca.key
-# na Pi, gdy kopia jest bezpieczna:
-sudo shred -u /etc/passholder/tls/ca.key
+scp ~/passholder-tls/server.crt ~/passholder-tls/server.key ~/passholder-tls/ca.crt <użytkownik>@passholder.local:
+# na Pi:
+sudo install -d -m 750 -o root -g passholder /etc/passholder/tls
+sudo install -m 644 -o root -g passholder ~/server.crt ~/ca.crt /etc/passholder/tls/
+sudo install -m 640 -o root -g passholder ~/server.key /etc/passholder/tls/
+shred -u ~/server.key && rm ~/server.crt ~/ca.crt
 ```
 
-**Uwaga:** skrypt tworzy nowy urząd, jeśli w katalogu nie ma `ca.key`. Gdy będziesz odnawiać certyfikat
-albo dopisywać adres, najpierw skopiuj `ca.key` z powrotem do `/etc/passholder/tls/`. Inaczej powstanie
-nowe CA i Chrome przestanie ufać serwerowi, dopóki nie zaimportujesz nowego `ca.crt`. Każdy nowy certyfikat
-serwera oznacza też ponowne parowanie telefonu (patrz 3.6).
+**Klucz `ca.key`** zostaje w `~/passholder-ca/` (uprawnienia `700`/`600`). Dzięki ograniczeniu nazw jego
+kradzież nie zagraża innym stronom, ale pozwala podszyć się pod serwer PassHolder. Najlepiej trzymaj ten
+katalog na zaszyfrowanym dysku (patrz [szyfrowanie dysku](#szyfrowanie-dysku-ubuntu)) albo na zaszyfrowanym
+pendrivie.
+
+**Odnawianie lub dopisanie adresu:** uruchom skrypt ponownie z **tym samym** `~/passholder-ca` i nowym
+katalogiem wyjściowym, potem skopiuj pliki na Pi jak wyżej i zrestartuj usługę. Chrome nie wymaga zmian
+(to samo CA). Nowy certyfikat serwera oznacza ponowne parowanie telefonu (patrz 3.6).
+
+### Przejście na nowe CA (instalacje sprzed tej wersji)
+
+Starsza wersja skryptu tworzyła CA **bez ograniczenia nazw i na Pi**. Taki `ca.crt` w Chrome pozwala temu,
+kto ma `ca.key`, podrobić dowolną stronę. Skrypt odmówi użycia takiego urzędu. Przejście:
+
+1. Zsynchronizuj telefon i wtyczkę (jeszcze ze starym certyfikatem).
+2. Na Ubuntu utwórz nowe CA i certyfikat (polecenie wyżej, **nowy** katalog `~/passholder-ca`) i skopiuj
+   pliki na Pi jak wyżej (nadpiszą stare w `/etc/passholder/tls/`).
+3. Usuń stary klucz urzędu wszędzie, gdzie jest: na Pi `sudo shred -u /etc/passholder/tls/ca.key
+   /etc/passholder/tls/ca.srl` (jeśli jeszcze istnieje) i ewentualne kopie (pendrive, kopie zapasowe).
+4. Na Pi: `sudo systemctl restart passholder`.
+5. W Chrome **usuń stary** urząd „PassHolder local CA” (`chrome://certificate-manager`, ten sam ekran co w
+   2.2) i zaimportuj nowy `~/passholder-ca/ca.crt`. Oba mają tę samą nazwę: rozpoznasz stary po odcisku.
+6. Telefon: ponowne parowanie (3.6).
 
 ## 1.6. Usługa systemd
 
@@ -225,7 +255,7 @@ sejfu przed Tobą. Uwagi:
 
 ### Sprawdzenie
 
-Na Ubuntu (plik `ca.crt` pobierasz w 2.2):
+Na Ubuntu (plik `~/passholder-ca.crt` kopiujesz w 2.2):
 
 ```sh
 curl --cacert ~/passholder-ca.crt https://passholder.local:8443/api/v1/status
@@ -274,10 +304,10 @@ Wynik trafia do `extension/dist/` (`manifest.json`, `popup.html`, `popup.js`, `b
 
 ## 2.2. Zaufanie do certyfikatu serwera
 
-Chrome musi ufać urzędowi, który podpisał certyfikat Pi. Pobierz `ca.crt` (to plik publiczny):
+Chrome musi ufać urzędowi, który podpisał certyfikat Pi. Plik `ca.crt` (publiczny) masz już na Ubuntu z 1.5:
 
 ```sh
-scp <użytkownik>@passholder.local:/etc/passholder/tls/ca.crt ~/passholder-ca.crt
+cp ~/passholder-ca/ca.crt ~/passholder-ca.crt
 openssl x509 -in ~/passholder-ca.crt -noout -fingerprint -sha256
 ```
 
@@ -488,12 +518,30 @@ scp <użytkownik>@passholder.local:kopia.db ~/passholder-kopia-$(date +%F).db
 Kopia zawiera tylko zaszyfrowane dane; bez hasła głównego jest bezużyteczna. Przywrócenie: zatrzymaj usługę,
 skopiuj plik na `/var/lib/passholder/passholder.db` (właściciel `passholder:passholder`), uruchom usługę.
 
+# Szyfrowanie dysku (Ubuntu)
+
+Na dysku Ubuntu leżą: klucz urzędu `~/passholder-ca/ca.key` (1.5) i profil Chrome z zaszyfrowanym sejfem,
+a jeśli włączysz „Pamiętaj PIN po zamknięciu przeglądarki”, także zaszyfrowane PIN-em klucze sejfu. Kto
+skopiuje niezaszyfrowany dysk (kradzież laptopa, kopia zapasowa), może próbować zgadywać PIN bez limitu
+prób. Dlatego wtyczka wymaga wtedy długiego PIN-u (co najmniej 8 znaków, nie same cyfry), a dodatkowo
+**zalecane jest szyfrowanie całego dysku (LUKS)**.
+
+- **Nowa instalacja Ubuntu:** w instalatorze wybierz „Zaawansowane funkcje” → „Użyj LVM i szyfrowania”
+  (nazwa zależy od wersji). To najprostsza droga.
+- **Istniejąca instalacja:** zaszyfrowania dysku systemowego w miejscu nie da się zrobić bezpiecznie jedną
+  komendą. Możesz zaszyfrować tylko katalog domowy innymi narzędziami albo trzymać `~/passholder-ca` na
+  zaszyfrowanym pendrivie i nie włączać zapamiętywania PIN-u.
+- Sprawdzenie: `lsblk -f` pokazuje `crypto_LUKS` pod dyskiem systemowym, jeśli szyfrowanie działa.
+
 # Rozwiązywanie problemów
 
 | Objaw | Przyczyna i rozwiązanie |
 |---|---|
 | `systemctl status passholder` pokazuje błąd `Set PASSHOLDER_TLS_CERT and PASSHOLDER_TLS_KEY…` | Brak `/etc/passholder/passholder.env` albo zmiennych w nim. Krok 1.6. |
-| W logu `EACCES` przy `server.key` | Grupa lub uprawnienia klucza. Powtórz `chown`/`chmod` z 1.5. |
+| W logu `EACCES` przy `server.key` | Grupa lub uprawnienia klucza. Powtórz polecenia `install` z 1.5. |
+| `make-certs.sh`: „…made by an older version of this script, without name limits” | Stare CA bez ograniczenia nazw. Patrz „Przejście na nowe CA” w 1.5. |
+| `make-certs.sh`: „…outside what the CA may vouch for” | Nazwa spoza `.local` lub adres publiczny. Patrz „Ograniczenie nazw” w 1.5. |
+| Chrome: `NET::ERR_CERT_INVALID` przy serwerze PassHolder | Nazwa w certyfikacie spoza ograniczenia CA (np. ręcznie wystawiony certyfikat). Wystaw go skryptem (1.5). |
 | Usługa nie startuje, a `node -v` pokazuje wersję starszą niż 22.18 | Za stary Node. Krok 1.2. |
 | Nie ma tokena w logu | Sejf już istnieje (zakładasz „Mam już sejf”) albo czytasz stary log: użyj `-b` i najnowszego wpisu. |
 | „Invalid setup token” przy zakładaniu sejfu | Usługa wystartowała ponownie i wylosowała nowy token. Odczytaj go jeszcze raz. |

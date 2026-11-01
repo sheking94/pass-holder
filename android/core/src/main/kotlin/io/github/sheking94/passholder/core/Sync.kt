@@ -62,21 +62,27 @@ object VaultSync {
     /**
      * Applies the server's answer. Conflicts are resolved by last write wins on modifiedAt; on a tie the
      * server's version wins, so every device reaches the same result.
-     * Returns true when a local change won a conflict and must be pushed again.
+     *
+     * Last write wins applies to every record, not only to local changes: a remote version older than the
+     * local one is refused and the local one is pushed again, so a server cannot roll an entry back to an
+     * old ciphertext (S2 of the security review, same as core/src/sync.ts).
+     *
+     * Everything is decrypted and checked before anything changes, so a bad record leaves the vault as it was.
+     * Returns true when a local version won and must be pushed again.
      */
     fun applyResponse(vault: LocalVault, response: SyncResponse, vaultKey: ByteArray): Boolean {
+        val remotes = (response.conflicts + response.changes).map { VaultCrypto.decryptRecord(vaultKey, it) }
         for ((id, revision) in response.accepted) {
             vault.entries[id]?.let { vault.entries[id] = it.copy(revision = revision, dirty = false) }
         }
         var needsResync = false
-        for (record in response.conflicts + response.changes) {
-            val remote = VaultCrypto.decryptRecord(vaultKey, record)
-            val local = vault.entries[record.id]
-            if (local != null && local.dirty && local.modifiedAt > remote.modifiedAt) {
-                vault.entries[record.id] = local.copy(revision = record.revision)
+        for (remote in remotes) {
+            val local = vault.entries[remote.id]
+            if (local != null && local.modifiedAt > remote.modifiedAt) {
+                vault.entries[remote.id] = local.copy(revision = remote.revision, dirty = true)
                 needsResync = true
             } else {
-                vault.entries[record.id] = remote
+                vault.entries[remote.id] = remote
             }
         }
         vault.lastSyncRevision = response.currentRevision

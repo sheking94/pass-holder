@@ -1,5 +1,7 @@
 # PassHolder: przegląd bezpieczeństwa
 
+> Stan poprawek (2026-11-01): S1–S4 i N3 poprawione, opis w [POPRAWKI_BEZPIECZENSTWA.md](POPRAWKI_BEZPIECZENSTWA.md).
+
 - Data: 2026-11-01
 - Stan kodu: `main` @ `f5e69e4` (po merge'u PR #16, czyli z refaktorem z przeglądu kodu nr 2)
 - Metoda: skill `/secure-reviewer` (tylko czytanie kodu i wyszukiwanie wzorców). **Nie uruchamiałem** testów,

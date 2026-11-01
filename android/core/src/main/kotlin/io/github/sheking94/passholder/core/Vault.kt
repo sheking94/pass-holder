@@ -2,6 +2,7 @@ package io.github.sheking94.passholder.core
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 
 /** What the user sees and edits. */
 @Serializable
@@ -47,15 +48,30 @@ object VaultCrypto {
         return Aead.seal(vaultKey, Encoding.utf8(text), entryAad(entry.id))
     }
 
-    /** Decrypts a record from the server. The AAD ties the blob to its id, so the server cannot swap blobs. */
+    const val INCONSISTENT_RECORD =
+        "Serwer zwrócił wpis, którego flaga usunięcia nie zgadza się z zaszyfrowaną treścią. Synchronizacja przerwana, dane na tym urządzeniu są bez zmian."
+
+    /**
+     * Decrypts a record from the server. The AAD ties the blob to its id, so the server cannot swap blobs.
+     * The deleted flag is plain text from the server, so the payload must agree with it: a tombstone holds
+     * nothing but modifiedAt, an entry has the credentials (S2 of the security review, same as
+     * parseTombstoneData in core/src/vault.ts). Without this check a server could delete entries everywhere.
+     */
     fun decryptRecord(vaultKey: ByteArray, record: RemoteRecord): LocalEntry {
         val text = Encoding.fromUtf8(Aead.open(vaultKey, record.blob, entryAad(record.id)))
-        return if (record.deleted) {
-            val p = json.decodeFromString<TombstonePayload>(text)
-            LocalEntry(record.id, record.revision, dirty = false, modifiedAt = p.modifiedAt, credentials = null)
-        } else {
-            val p = json.decodeFromString<EntryPayload>(text)
-            LocalEntry(record.id, record.revision, dirty = false, modifiedAt = p.modifiedAt, credentials = Credentials(p.name, p.username, p.password))
+        return try {
+            if (record.deleted) {
+                check(json.parseToJsonElement(text).jsonObject.keys == setOf("modifiedAt"))
+                val p = json.decodeFromString<TombstonePayload>(text)
+                LocalEntry(record.id, record.revision, dirty = false, modifiedAt = p.modifiedAt, credentials = null)
+            } else {
+                val p = json.decodeFromString<EntryPayload>(text)
+                LocalEntry(record.id, record.revision, dirty = false, modifiedAt = p.modifiedAt, credentials = Credentials(p.name, p.username, p.password))
+            }
+        } catch (e: IllegalArgumentException) {
+            throw IllegalStateException(INCONSISTENT_RECORD, e)
+        } catch (e: IllegalStateException) {
+            throw IllegalStateException(INCONSISTENT_RECORD, e)
         }
     }
 }

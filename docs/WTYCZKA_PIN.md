@@ -1,6 +1,12 @@
 # Wtyczka Chrome: logowanie PIN-em
 
 > Uwaga (2026-11-01): część nazw funkcji i plików opisanych niżej zmieniła się przy poprawkach po przeglądzie kodu, zob. [POPRAWKI_PRZEGLADU_2.md](POPRAWKI_PRZEGLADU_2.md).
+>
+> Uwaga 2 (2026-11-01, poprawka S4 z [przeglądu bezpieczeństwa](PRZEGLAD_BEZPIECZENSTWA.md)): PIN zapisywany
+> na dysku („Pamiętaj PIN po zamknięciu przeglądarki”) musi być **długi**: co najmniej 8 znaków i nie same
+> cyfry. Krótki PIN 4-6 cyfr działa tylko w trybie „w pamięci”. Krótki PIN zapisany na dysku przez starszą
+> wersję po pierwszym udanym odblokowaniu jest przenoszony do pamięci. Szczegóły w
+> [POPRAWKI_BEZPIECZENSTWA.md](POPRAWKI_BEZPIECZENSTWA.md), punkt S4.
 
 Dokument opisuje funkcję z gałęzi `claude/project-thread-qagvkj`: odblokowanie sejfu we wtyczce
 PIN-em z 4-6 cyfr zamiast hasła głównego.
@@ -116,6 +122,8 @@ pomaga, bo Argon2id wymaga dużo pamięci na każdą próbę.
 - **„Pamiętaj PIN po zamknięciu przeglądarki”**: `PinLock` leży w profilu Chrome na dysku. Kto skopiuje
   profil (kopia zapasowa, skradziony dysk bez szyfrowania), ten w minuty-godziny odgadnie PIN i otworzy
   sejf **bez znajomości hasła głównego**. Włączaj to tylko, jeśli dysk jest zaszyfrowany (np. LUKS na Ubuntu).
+  **Od poprawki S4** ten tryb wymaga długiego PIN-u (8+ znaków, nie same cyfry), co zamienia minuty-godziny
+  na lata (patrz POPRAWKI_BEZPIECZENSTWA.md).
 - Dłuższy PIN (6 cyfr) jest 100 razy trudniejszy do odgadnięcia niż 4-cyfrowy.
 
 **Czego nie zrobiłem i dlaczego:** prawdziwy limit prób wymaga kogoś, kto pilnuje licznika i nie da się

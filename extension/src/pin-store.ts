@@ -1,4 +1,15 @@
-import { createPinLock, INVALID_PIN, isValidPin, MAX_PIN_ATTEMPTS, openPinLock, WrongPinError, type PinLock, type UnlockKeys } from "./pin-lock.ts";
+import {
+  createPinLock,
+  INVALID_PIN,
+  invalidPinMessage,
+  isLongPin,
+  isValidPin,
+  MAX_PIN_ATTEMPTS,
+  openPinLock,
+  WrongPinError,
+  type PinLock,
+  type UnlockKeys,
+} from "./pin-lock.ts";
 import { STORAGE_KEYS, type KeyValueStore } from "./storage.ts";
 
 /** Whether unlocking with a PIN is on, and how. */
@@ -6,6 +17,16 @@ export interface PinStatus {
   /** True if the PIN is kept on disk and works after a browser restart. */
   rememberedAfterRestart: boolean;
   attemptsLeft: number;
+}
+
+/** What unlock() found out besides the keys. */
+export interface PinUnlockResult {
+  keys: UnlockKeys;
+  /**
+   * The PIN was kept on disk but is short (set before long PINs were required for that). It has been
+   * moved to session storage: it works until the browser closes, then the master password is needed.
+   */
+  movedToMemory: boolean;
 }
 
 /**
@@ -32,9 +53,10 @@ export class PinStore {
   /**
    * Wraps keys under the PIN. By default the lock is kept in session storage, which Chrome holds in memory
    * only, so after a browser restart the master password is needed. With rememberAfterRestart it goes to
-   * local storage, on disk, where a copy can be brute-forced offline.
+   * local storage, on disk, where a copy can be guessed offline: that needs a long PIN (isLongPin).
    */
   async enable(pin: string, keys: UnlockKeys, rememberAfterRestart: boolean): Promise<void> {
+    if (!isValidPin(pin, rememberAfterRestart)) throw new Error(invalidPinMessage(rememberAfterRestart));
     const lock = await createPinLock(pin, keys);
     await this.disable();
     await (rememberAfterRestart ? this.local : this.session).set(STORAGE_KEYS.pinLock, lock);
@@ -49,7 +71,7 @@ export class PinStore {
    * The keys wrapped under this PIN. Every wrong PIN counts; after MAX_PIN_ATTEMPTS in a row the PIN is
    * deleted and only the master password works. A PIN of the wrong shape is refused without counting.
    */
-  async unlock(pin: string): Promise<UnlockKeys> {
+  async unlock(pin: string): Promise<PinUnlockResult> {
     if (!isValidPin(pin)) throw new Error(INVALID_PIN);
     const found = await this.find();
     if (!found) throw new Error("PIN jest wyłączony. Odblokuj hasłem głównym.");
@@ -68,8 +90,15 @@ export class PinStore {
       }
       throw new Error(`Zły PIN. Pozostało prób: ${MAX_PIN_ATTEMPTS - attempts}.`);
     }
-    await area.set(STORAGE_KEYS.pinLock, { ...lock, failedAttempts: 0 } satisfies PinLock);
-    return keys;
+    const reset: PinLock = { ...lock, failedAttempts: 0 };
+    // A short PIN on disk (from before S4 was fixed): keep it only in memory from now on.
+    if (area === this.local && !isLongPin(pin)) {
+      await this.session.set(STORAGE_KEYS.pinLock, reset);
+      await this.local.remove(STORAGE_KEYS.pinLock);
+      return { keys, movedToMemory: true };
+    }
+    await area.set(STORAGE_KEYS.pinLock, reset);
+    return { keys, movedToMemory: false };
   }
 
   /** After an unlock with the master password the count of wrong PINs starts again. */

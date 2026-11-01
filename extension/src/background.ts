@@ -1,4 +1,6 @@
+import { AUTO_LOCK_ALARM, onAutoLockAlarm, scheduleAutoLock } from "./auto-lock.ts";
 import { CLEAR_AFTER_MINUTES, CLEAR_CLIPBOARD_ALARM, type ClipboardMessage } from "./clipboard.ts";
+import { chromeStore, STORAGE_KEYS } from "./storage.ts";
 
 // The popup closes as soon as it loses focus, so the one-minute timer lives here, in an alarm that
 // survives the service worker being stopped.
@@ -11,9 +13,15 @@ chrome.runtime.onMessage.addListener((message: ClipboardMessage) => {
   })();
 });
 
+// Auto-lock also when no PassHolder page is open: follow the deadline the pages write (see auto-lock.ts).
+chrome.storage.session.onChanged.addListener((changes) => {
+  const change = changes[STORAGE_KEYS.sessionKeys];
+  if (change) void scheduleAutoLock(chrome.alarms, change.newValue as { unlockedUntil: number } | undefined);
+});
+
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name !== CLEAR_CLIPBOARD_ALARM) return;
-  void clearClipboard();
+  if (alarm.name === CLEAR_CLIPBOARD_ALARM) void clearClipboard();
+  if (alarm.name === AUTO_LOCK_ALARM) void onAutoLockAlarm(chromeStore(chrome.storage.session), chrome.alarms);
 });
 
 async function clearClipboard() {

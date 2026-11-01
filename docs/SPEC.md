@@ -60,6 +60,11 @@ AAD z `id` wiąże szyfrogram z wpisem, więc serwer nie może podmienić treśc
   `{"name": "...", "username": "...", "password": "...", "modifiedAt": <ms od epoki>}`
 - Usunięty wpis to „nagrobek”: `deleted = true` jawnie dla serwera, a w szyfrogramie tylko
   `{"modifiedAt": <ms>}`. Nagrobki zostają na serwerze, żeby usunięcie dotarło do każdego urządzenia.
+- Flaga `deleted` jest jawna, więc klient sprawdza, czy zgadza się z odszyfrowaną treścią: przy
+  `deleted = true` treść musi mieć **wyłącznie** pole `modifiedAt`, przy `deleted = false` pola żywego
+  wpisu. Inaczej cała synchronizacja jest przerywana bez zmian lokalnych (poprawka S2, zob.
+  [POPRAWKI_BEZPIECZENSTWA.md](POPRAWKI_BEZPIECZENSTWA.md)). Format się nie zmienił: oba rodzaje treści
+  od początku różnią się polami.
 - Wpis, który nigdy nie trafił na serwer, jest po prostu kasowany lokalnie.
 - `modifiedAt` jest wewnątrz szyfrogramu, więc serwer nie zna czasów zmian.
 
@@ -91,8 +96,10 @@ Serwer (w jednej transakcji):
 Klient:
 1. Wysyła wszystkie wpisy `dirty`.
 2. Dla `accepted` ustawia nową `revision`, `dirty = false`.
-3. Dla `conflicts` i `changes` odszyfrowuje wersję z serwera. Jeśli lokalny wpis jest `dirty` i ma
-   większe `modifiedAt`, wygrywa lokalny (przyjmuje `revision` serwera i zostaje `dirty`). W każdym innym
+3. Odszyfrowuje i sprawdza (§4) **wszystkie** rekordy z `conflicts` i `changes`, zanim cokolwiek zmieni.
+   Potem dla każdego: jeśli lokalny wpis ma większe `modifiedAt`, wygrywa lokalny (przyjmuje `revision`
+   serwera i staje się `dirty`, więc zostanie wysłany ponownie). Dotyczy to także wpisów, które nie były
+   `dirty`: serwer nie może podsunąć starszego szyfrogramu pod nowym numerem rewizji. W każdym innym
    przypadku, także przy remisie, wygrywa wersja z serwera.
 4. Ustawia `lastSyncRevision = currentRevision`.
 5. Jeśli jakiś lokalny wpis wygrał konflikt, powtarza synchronizację (maksymalnie 3 rundy).
