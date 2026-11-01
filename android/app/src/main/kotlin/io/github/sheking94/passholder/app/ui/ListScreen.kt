@@ -1,6 +1,8 @@
 package io.github.sheking94.passholder.app.ui
 
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,18 +16,24 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.sheking94.passholder.app.AppViewModel
+import io.github.sheking94.passholder.app.BiometricAvailability
 import io.github.sheking94.passholder.app.UiState
 
 @Composable
@@ -66,6 +74,33 @@ fun ListScreen(state: UiState, vm: AppViewModel) {
             OutlinedButton(onClick = vm::lock, enabled = !state.busy) { Text("Zablokuj") }
             TextButton(onClick = vm::openAddresses, enabled = !state.busy) { Text("Adresy") }
         }
+        FingerprintSetting(state, vm)
         StatusLine(state.status, state.busy)
+    }
+}
+
+/** The switch that turns fingerprint unlock on and off. Hidden on phones without a strong fingerprint reader. */
+@Composable
+private fun FingerprintSetting(state: UiState, vm: AppViewModel) {
+    val availability = remember { vm.biometricAvailability() }
+    val enabled by vm.biometricEnabled.collectAsStateWithLifecycle()
+    val activity = LocalActivity.current as? FragmentActivity
+    if (availability == BiometricAvailability.Unsupported && !enabled) return
+
+    val canToggle = !state.busy && (enabled || availability == BiometricAvailability.Ready)
+    // The whole row is the switch, so tapping the label works too.
+    Row(
+        Modifier.fillMaxWidth().toggleable(value = enabled, enabled = canToggle, role = Role.Switch) { on ->
+            if (on) activity?.let(vm::enableBiometric) else vm.disableBiometric()
+        },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("Odblokowanie odciskiem palca", style = MaterialTheme.typography.bodyLarge)
+            if (availability == BiometricAvailability.NoFingerprint && !enabled) {
+                Text("Najpierw dodaj odcisk palca w ustawieniach telefonu.", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        Switch(checked = enabled, onCheckedChange = null, enabled = canToggle)
     }
 }

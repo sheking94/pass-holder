@@ -179,6 +179,39 @@ class VaultStore(
         start(vaultKey, keys.authKey, loadVault(vaultKey))
     }
 
+    /**
+     * The two keys an unlocked vault holds in memory (vault key + auth key, 64 bytes), for the fingerprint
+     * unlock: the app encrypts them with a key in the Android Keystore that only a fingerprint releases.
+     * Returns a copy; the caller should zero it once encrypted.
+     */
+    @Synchronized
+    fun exportUnlockKeys(): ByteArray {
+        val s = requireSession()
+        return s.vaultKey + s.authKey
+    }
+
+    /**
+     * Unlocks with keys from [exportUnlockKeys] instead of the master password (no Argon2id, so it is instant).
+     * Decrypting the local vault checks the keys: AES-GCM fails on a wrong vault key.
+     */
+    @Synchronized
+    fun unlockWithKeys(keys: ByteArray) {
+        require(keys.size == 2 * KEY_LENGTH) { "Złe klucze odblokowania" }
+        account() ?: throw IllegalStateException("Brak konta")
+        // Without the local vault there is nothing to check the keys against; use the master password then.
+        if (disk.get(VAULT) == null) throw IllegalStateException("Brak sejfu na telefonie")
+        val vaultKey = keys.copyOfRange(0, KEY_LENGTH)
+        val authKey = keys.copyOfRange(KEY_LENGTH, 2 * KEY_LENGTH)
+        val vault = try {
+            loadVault(vaultKey)
+        } catch (e: Exception) {
+            vaultKey.fill(0)
+            authKey.fill(0)
+            throw IllegalArgumentException("Złe klucze odblokowania", e)
+        }
+        start(vaultKey, authKey, vault)
+    }
+
     /** Forgets the keys and the decrypted entries. */
     @Synchronized
     fun lock() {
@@ -291,6 +324,7 @@ class VaultStore(
 
     companion object {
         const val AUTO_LOCK_MS = 15 * 60_000L
+        private const val KEY_LENGTH = 32
 
         /** A token this close to expiry is renewed before a sync, so it does not run out halfway. */
         private const val TOKEN_REFRESH_MARGIN_MS = 10_000L

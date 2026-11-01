@@ -15,12 +15,16 @@ class PassHolderApp : Application() {
         private set
     lateinit var settings: Settings
         private set
+    /** Replaced in tests: Robolectric has neither the Android Keystore nor a fingerprint reader. */
+    lateinit var biometric: BiometricUnlock
+    var fingerprintPrompt: FingerprintPrompt = SystemFingerprintPrompt
 
     override fun onCreate() {
         super.onCreate()
         // filesDir is private to the app; other apps cannot read it (and the vault is encrypted anyway).
         vaultStore = VaultStore(FileStore(File(filesDir, "vault")))
         settings = Settings(this)
+        biometric = BiometricUnlock(this)
     }
 }
 
