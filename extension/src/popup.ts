@@ -8,6 +8,7 @@ import {
   type GeneratorOptions,
 } from "@passholder/core";
 import { CLEAR_AFTER_MINUTES, sha256Hex, type ClipboardMessage } from "./clipboard.ts";
+import { exportNordPassCsv, parseNordPassCsv } from "./csv-transfer.ts";
 import { normalizeServerUrls } from "./server-urls.ts";
 import { chromeStore, STORAGE_KEYS, VaultStore } from "./vault-store.ts";
 
@@ -257,7 +258,8 @@ function lockedView() {
   const unlock = () =>
     busy(status, "Odblokowuję…", async () => {
       await store.unlock(password.value);
-      listView();
+      if (TRANSFER_TAB) transferView();
+      else listView();
     });
 
   let confirmDisconnect = false;
@@ -353,6 +355,7 @@ function listView(message = "") {
       }, "Synchronizuj"),
       h("button", { onclick: async () => { await store.lock(); lockedView(); } }, "Zablokuj"),
       h("button", { title: "Adresy serwera, np. w domu i przez Tailscale", onclick: () => void openAddressesTab() }, "Adresy serwera"),
+      h("button", { title: "Import i eksport haseł w pliku CSV (format NordPass)", onclick: () => void openTransferTab() }, "CSV"),
     ),
     status,
   );
@@ -457,13 +460,93 @@ async function editView(id?: string) {
   name.focus();
 }
 
+// --- CSV import and export ----------------------------------------------------------------
+
+/**
+ * True in the import/export tab. Chrome closes the toolbar popup when the file chooser opens,
+ * so choosing a file to import only works in a normal tab.
+ */
+const TRANSFER_TAB = PARAMS.has("transfer");
+
+async function openTransferTab() {
+  if (TRANSFER_TAB) return transferView();
+  await chrome.tabs.create({ url: chrome.runtime.getURL("popup.html?transfer") });
+  window.close();
+}
+
+/** Lets the browser save text as a file in the downloads folder (or ask where, per Chrome settings). */
+function downloadText(fileName: string, text: string) {
+  const url = URL.createObjectURL(new Blob([text], { type: "text/csv;charset=utf-8" }));
+  const link = h("a", { href: url, download: fileName });
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+function transferView() {
+  const status = statusLine();
+
+  const understood = h("input", { type: "checkbox" });
+  const exportButton = h("button", { type: "button", class: "danger" }, "Pobierz plik CSV");
+  exportButton.addEventListener("click", () => {
+    if (!understood.checked) return setStatus(status, "Najpierw zaznacz, że rozumiesz ryzyko.", true);
+    const entries = store.entries().map((e) => e.data);
+    downloadText(`passholder-${new Date().toISOString().slice(0, 10)}.csv`, exportNordPassCsv(entries));
+    setStatus(status, `Wyeksportowano ${entries.length} wpisów. Usuń plik, gdy nie będzie już potrzebny.`);
+  });
+
+  const file = h("input", { type: "file", accept: ".csv,text/csv" });
+  const importButton = h("button", { type: "button", class: "primary" }, "Importuj");
+  importButton.addEventListener("click", () => {
+    const chosen = file.files?.[0];
+    if (!chosen) return setStatus(status, "Wybierz plik CSV.", true);
+    void busy(status, "Importuję…", async () => {
+      const parsed = parseNordPassCsv(await chosen.text());
+      const { added, duplicates } = await store.importEntries(parsed.entries);
+      const lines = [
+        `Dodano ${added} wpisów (lokalnie, zsynchronizuj, żeby trafiły na serwer).`,
+        duplicates > 0 && `Pominięto ${duplicates} takich, które już są w sejfie.`,
+        parsed.skipped.length > 0 &&
+          `Pominięto ${parsed.skipped.length} wierszy: ` +
+            parsed.skipped.slice(0, 5).map((s) => `wiersz ${s.line}: ${s.reason}`).join("; ") +
+            (parsed.skipped.length > 5 ? "; …" : "."),
+        "Usuń plik CSV z dysku, zawiera hasła jawnym tekstem.",
+      ];
+      setStatus(status, lines.filter(Boolean).join(" "));
+      file.value = "";
+    });
+  });
+
+  show(
+    h("h1", {}, "Import i eksport CSV"),
+    h("p", {}, "Format pliku jest taki sam jak w NordPass. PassHolder przenosi nazwę, login i hasło; pozostałe kolumny (adres, notatka, folder…) są przy eksporcie puste, a przy imporcie pomijane."),
+    h(
+      "fieldset",
+      {},
+      h("legend", {}, "Eksport"),
+      h("p", { class: "warning" }, "Uwaga: plik CSV nie jest zaszyfrowany. Każdy, kto go zobaczy (inny program, kopia zapasowa, synchronizacja folderu Pobrane z chmurą), pozna wszystkie Twoje hasła. Usuń go zaraz po użyciu."),
+      h("label", { class: "check" }, understood, "Rozumiem, plik będzie zawierał hasła jawnym tekstem"),
+      h("div", { class: "actions" }, exportButton),
+    ),
+    h(
+      "fieldset",
+      {},
+      h("legend", {}, "Import"),
+      h("p", {}, "Wybierz plik wyeksportowany z NordPass (albo z PassHolder). Wpisy, które już są w sejfie z tą samą nazwą, loginem i hasłem, zostaną pominięte."),
+      file,
+      h("div", { class: "actions" }, importButton),
+    ),
+    h("div", { class: "actions" }, h("button", { type: "button", onclick: () => listView() }, "Wróć do listy")),
+    status,
+  );
+}
+
 // --- Start ---------------------------------------------------------------------------------
 
 async function start() {
-  if (IN_TAB) document.body.classList.add("tab");
+  if (IN_TAB || TRANSFER_TAB) document.body.classList.add("tab");
   if (!(await store.getAccount())) return showConnect();
   if (PARAMS.has("addresses")) return addressesView();
-  if (await store.resume()) return listView();
+  if (await store.resume()) return TRANSFER_TAB ? transferView() : listView();
   lockedView();
 }
 

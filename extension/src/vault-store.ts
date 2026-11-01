@@ -22,6 +22,7 @@ import {
   type LocalVault,
 } from "@passholder/core";
 import { ApiError, ServerClient, type SessionResponse } from "./api.ts";
+import { sameEntry, type ImportedEntry } from "./csv-transfer.ts";
 import { normalizeServerUrls, pickServer } from "./server-urls.ts";
 
 const LOCAL_VAULT_AAD = "passholder/v1/local-vault";
@@ -174,6 +175,25 @@ export class VaultStore {
   async upsert(id: string, data: Omit<EntryData, "modifiedAt">): Promise<void> {
     upsertEntry(this.requireVault(), id, data, this.now());
     await this.save();
+  }
+
+  /**
+   * Adds imported entries as new local changes, skipping any that already exist with the same
+   * name, username and password (also duplicates within the import). Saves once at the end.
+   * Returns how many were added and how many were duplicates.
+   */
+  async importEntries(entries: readonly ImportedEntry[], newId: () => string = () => crypto.randomUUID()): Promise<{ added: number; duplicates: number }> {
+    const vault = this.requireVault();
+    const known: ImportedEntry[] = liveEntries(vault).map((e) => e.data);
+    let added = 0;
+    for (const entry of entries) {
+      if (known.some((k) => sameEntry(k, entry))) continue;
+      upsertEntry(vault, newId(), entry, this.now());
+      known.push(entry);
+      added++;
+    }
+    if (added > 0) await this.save();
+    return { added, duplicates: entries.length - added };
   }
 
   async delete(id: string): Promise<void> {
