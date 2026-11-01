@@ -8,10 +8,10 @@ import { listView } from "./list.ts";
 import { transferView } from "./transfer.ts";
 
 /** The PIN screen when the PIN is on, otherwise the master password screen. */
-export async function showLocked() {
+export async function showLocked(message = "") {
   const pin = await store.pinStatus();
-  if (pin) pinLockedView(pin);
-  else lockedView();
+  if (pin) pinLockedView(pin, message);
+  else lockedView(message);
 }
 
 /** What this page shows once unlocked: the CSV tab stays on import and export, everything else shows the list. */
@@ -20,9 +20,10 @@ export function showUnlocked() {
   else listView();
 }
 
-function pinLockedView(pinStatus: PinStatus) {
+function pinLockedView(pinStatus: PinStatus, message = "") {
   const pin = pinInput();
   const status = statusLine();
+  setStatus(status, message);
   if (pinStatus.attemptsLeft < MAX_PIN_ATTEMPTS) setStatus(status, `Pozostało prób: ${pinStatus.attemptsLeft}.`, true);
   const unlock = () =>
     busy(status, "Sprawdzam PIN…", async () => {

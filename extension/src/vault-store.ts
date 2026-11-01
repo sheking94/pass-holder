@@ -74,6 +74,12 @@ interface SessionKeys {
 
 export const AUTO_LOCK_MS = 15 * 60_000;
 
+/**
+ * Activity (a click, a key) moves the auto-lock deadline, but writes it to session storage at most this
+ * often, so typing does not cause a storage write per key.
+ */
+export const ACTIVITY_WRITE_INTERVAL_MS = 30_000;
+
 /** An entry that is not deleted, as the popup lists and edits it. */
 export type LiveEntry = LocalEntry & { deleted: false };
 
@@ -137,7 +143,7 @@ export class VaultStore {
   }
 
   isUnlocked(): boolean {
-    return this.vault !== undefined;
+    return this.vault !== undefined && !this.expired();
   }
 
   /** Entries that are not deleted, in no particular order. */
@@ -276,6 +282,39 @@ export class VaultStore {
     return true;
   }
 
+  /**
+   * Called by the page every few seconds and when it becomes visible again. Locks this page when the
+   * 15 minutes have passed, or when another page (popup or tab) or the service worker already locked.
+   * Another page may also have moved the deadline: then this page adopts it.
+   * Returns true when this call locked the vault, so the page should show the locked screen.
+   */
+  async lockIfIdle(): Promise<boolean> {
+    if (!this.keys) return false;
+    const stored = await this.session.get<SessionKeys>(STORAGE_KEYS.sessionKeys);
+    if (!stored || stored.unlockedUntil <= this.now() || stored.vaultKey !== this.keys.vaultKey) {
+      await this.lock();
+      return true;
+    }
+    // A sync in another page may have renewed the token; the deadline is the later of the two.
+    this.keys = { ...stored, unlockedUntil: Math.max(stored.unlockedUntil, this.keys.unlockedUntil) };
+    return false;
+  }
+
+  /**
+   * The user did something on the page (clicked, typed): the 15 minutes start again. Does nothing once
+   * the deadline has passed, so activity cannot reopen a vault that should already be locked.
+   */
+  async noteActivity(): Promise<void> {
+    if (!this.keys || this.expired()) return;
+    if (this.keys.unlockedUntil - this.now() > AUTO_LOCK_MS - ACTIVITY_WRITE_INTERVAL_MS) return;
+    await this.touch();
+  }
+
+  /** When the vault locks unless the user does something; undefined while locked. */
+  unlockedUntil(): number | undefined {
+    return this.keys?.unlockedUntil;
+  }
+
   async lock(): Promise<void> {
     this.vault = undefined;
     this.keys = undefined;
@@ -335,13 +374,18 @@ export class VaultStore {
     await this.local.set(STORAGE_KEYS.account, account);
   }
 
+  /** The 15 minutes have passed. lockIfIdle() then clears the keys; until it runs nothing may use them. */
+  private expired(): boolean {
+    return this.keys !== undefined && this.keys.unlockedUntil <= this.now();
+  }
+
   private requireVault(): LocalVault {
-    if (!this.vault) throw new Error(LOCKED);
+    if (!this.vault || this.expired()) throw new Error(LOCKED);
     return this.vault;
   }
 
   private requireKeys(): SessionKeys {
-    if (!this.keys) throw new Error(LOCKED);
+    if (!this.keys || this.expired()) throw new Error(LOCKED);
     return this.keys;
   }
 
