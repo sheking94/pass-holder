@@ -2,13 +2,14 @@ package io.github.sheking94.passholder.app
 
 import android.os.Bundle
 import android.view.WindowManager
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.fragment.app.FragmentActivity
 import io.github.sheking94.passholder.app.ui.PassHolderUi
 
-class MainActivity : ComponentActivity() {
+/** A FragmentActivity (still a ComponentActivity) because the system fingerprint dialog needs one. */
+class MainActivity : FragmentActivity() {
     private val viewModel: AppViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {

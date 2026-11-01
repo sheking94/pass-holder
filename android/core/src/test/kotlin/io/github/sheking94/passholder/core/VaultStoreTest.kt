@@ -115,4 +115,34 @@ class VaultStoreTest {
         assertEquals(null, store.account())
         assertEquals(0, dir.listFiles()!!.size)
     }
+
+    @Test
+    fun `unlocks with exported keys after a restart and rejects wrong keys`(@TempDir dir: File) {
+        val (url, _) = startServer()
+        val store = VaultStore(FileStore(dir))
+        store.createVault(url, null, "token", password)
+        store.upsert("1", Credentials("poczta.pl", "jan", "hunter2"))
+        val keys = store.exportUnlockKeys()
+        assertEquals(64, keys.size)
+
+        val reopened = VaultStore(FileStore(dir))
+        assertThrows<IllegalArgumentException> { reopened.unlockWithKeys(ByteArray(64)) }
+        assertThrows<IllegalArgumentException> { reopened.unlockWithKeys(ByteArray(10)) }
+        assertFalse(reopened.isUnlocked)
+
+        reopened.unlockWithKeys(keys)
+        assertEquals(listOf("poczta.pl"), names(reopened))
+        // The auth key came along too, so syncing works without the master password.
+        reopened.sync()
+        assertEquals(0, reopened.pendingCount())
+    }
+
+    @Test
+    fun `exporting keys needs an unlocked vault`() {
+        val (url, _) = startServer()
+        val store = VaultStore(MemoryStore())
+        store.createVault(url, null, "token", password)
+        store.lock()
+        assertThrows<IllegalStateException> { store.exportUnlockKeys() }
+    }
 }

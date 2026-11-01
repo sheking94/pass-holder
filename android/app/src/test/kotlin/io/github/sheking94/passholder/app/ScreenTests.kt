@@ -64,8 +64,12 @@ abstract class ScreenTestBase {
         val app = ApplicationProvider.getApplicationContext<PassHolderApp>()
         WorkManagerTestInitHelper.initializeTestWorkManager(app)
         app.vaultStore.disconnect() // a fresh phone: no account, nothing on disk
+        beforeLaunch(app)
         scenario = ActivityScenario.launch(MainActivity::class.java)
     }
+
+    /** Runs before the activity starts, e.g. to put in a fake fingerprint reader. */
+    protected open fun beforeLaunch(app: PassHolderApp) {}
 
     @After
     fun stop() {

@@ -1,6 +1,7 @@
 package io.github.sheking94.passholder.app
 
 import android.app.Application
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.sheking94.passholder.core.CertificatePin
@@ -49,9 +50,20 @@ data class Pairing(val url: String, val fingerprint: String?)
 class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as PassHolderApp
     private val store = app.vaultStore
+    private val biometric = app.biometric
 
     private val _state = MutableStateFlow(UiState(initialScreen()))
     val state: StateFlow<UiState> = _state.asStateFlow()
+
+    private val _biometricEnabled = MutableStateFlow(biometric.isEnabled)
+    /** Fingerprint unlock is turned on (the encrypted keys are on the phone). */
+    val biometricEnabled: StateFlow<Boolean> = _biometricEnabled.asStateFlow()
+
+    /**
+     * Whether the locked screen should open the fingerprint dialog by itself: yes when the app starts and after
+     * the auto-lock, no after the user pressed "Zablokuj" (they would get the dialog straight back).
+     */
+    private var fingerprintOnLockedScreen = true
 
     init {
         // Auto-lock also while the app sits in the background, as long as the process lives.
@@ -77,6 +89,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         if (screen == Screen.Connect || screen == Screen.Locked || _state.value.busy) return
         viewModelScope.launch {
             if (withContext(Dispatchers.IO) { store.lockIfIdle() }) {
+                fingerprintOnLockedScreen = true
                 _state.value = UiState(Screen.Locked, status = Status("Zablokowano po 15 minutach bezczynności."))
             }
         }
@@ -119,12 +132,92 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun lock() = launchVaultOperation("Blokuję…") {
         store.lock()
+        fingerprintOnLockedScreen = false
         _state.value = UiState(Screen.Locked)
     }
 
     fun disconnect() = launchVaultOperation("Odłączam…") {
         store.disconnect()
+        // The stored keys belong to this vault; a vault connected later gets new ones.
+        setBiometricOff()
         _state.value = UiState(Screen.Connect)
+    }
+
+    // --- Fingerprint ------------------------------------------------------------------------------
+
+    fun biometricAvailability(): BiometricAvailability = app.fingerprintPrompt.availability(app)
+
+    /** Called once by the locked screen when it appears: true means "open the fingerprint dialog now". */
+    fun takeFingerprintOnLockedScreen(): Boolean {
+        val open = fingerprintOnLockedScreen && _biometricEnabled.value
+        fingerprintOnLockedScreen = false
+        return open
+    }
+
+    /** Turns fingerprint unlock on. The vault is unlocked (list screen); the finger confirms it is the owner. */
+    fun enableBiometric(activity: FragmentActivity) {
+        if (_state.value.busy) return
+        val cipher = try {
+            biometric.cipherToEnable()
+        } catch (e: Exception) {
+            return fail("Nie udało się przygotować klucza: ${e.message ?: e.javaClass.simpleName}")
+        }
+        app.fingerprintPrompt.authenticate(activity, "Włącz odblokowanie odciskiem palca", cipher,
+            onSuccess = { authorized ->
+                launchVaultOperation("Włączam odcisk palca…") {
+                    val keys = store.exportUnlockKeys()
+                    try {
+                        biometric.enable(authorized, keys)
+                    } finally {
+                        keys.fill(0)
+                    }
+                    _biometricEnabled.value = true
+                    showStatus("Włączono odblokowanie odciskiem palca. Hasło główne nadal działa.")
+                }
+            },
+            onError = { message -> message?.let(::fail) },
+        )
+    }
+
+    fun disableBiometric() {
+        setBiometricOff()
+        showStatus("Wyłączono odblokowanie odciskiem palca.")
+    }
+
+    /** Unlocks with a fingerprint. Any problem leaves the master password field as the way in. */
+    fun unlockWithBiometric(activity: FragmentActivity) {
+        if (_state.value.busy || !_biometricEnabled.value) return
+        val cipher = try {
+            biometric.cipherToUnlock()
+        } catch (e: BiometricKeyLostException) {
+            _biometricEnabled.value = false
+            return fail(e.message!!)
+        } catch (e: Exception) {
+            return fail("Odcisk palca niedostępny: ${e.message ?: e.javaClass.simpleName}")
+        }
+        app.fingerprintPrompt.authenticate(activity, "Odblokuj PassHolder", cipher,
+            onSuccess = { authorized ->
+                launchVaultOperation("Odblokowuję…") {
+                    val keys = biometric.decrypt(authorized)
+                    try {
+                        store.unlockWithKeys(keys)
+                    } catch (e: IllegalArgumentException) {
+                        // Keys of some other vault: they will never work again.
+                        setBiometricOff()
+                        throw IllegalArgumentException("Zapisane klucze nie pasują do sejfu. Odblokuj hasłem głównym i włącz odcisk ponownie.", e)
+                    } finally {
+                        keys.fill(0)
+                    }
+                    showList(null)
+                }
+            },
+            onError = { message -> message?.let(::fail) },
+        )
+    }
+
+    private fun setBiometricOff() {
+        biometric.disable()
+        _biometricEnabled.value = false
     }
 
     // --- Entries ----------------------------------------------------------------------------------
