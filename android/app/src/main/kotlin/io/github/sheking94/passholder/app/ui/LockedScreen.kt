@@ -15,8 +15,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.first
 import androidx.compose.ui.unit.dp
@@ -34,15 +34,16 @@ fun LockedScreen(state: UiState, vm: AppViewModel) {
     var askDisconnect by remember { mutableStateOf(false) }
     val unlock = { if (!state.busy) vm.unlock(password) }
     val biometricEnabled by vm.biometricEnabled.collectAsStateWithLifecycle()
-    val activity = LocalActivity.current as? FragmentActivity
-    val unlockWithFinger = { activity?.let(vm::unlockWithBiometric) }
+    val activity = LocalActivity.current
+    val fingerprint = rememberFingerprintDialog(vm)
+    val unlockWithFinger = { fingerprint.show("Odblokuj PassHolder", vm::cipherToUnlockBiometric, vm::onBiometricUnlockAuthorized) }
 
-    val fingerprintRequest by vm.fingerprintRequests.collectAsStateWithLifecycle()
+    val timesLeftApp by vm.timesLeftApp.collectAsStateWithLifecycle()
 
     // On app start and on every return to the app. Waits until the activity is in front: the system dialog
     // cannot be shown by an activity that is still in the background.
-    LaunchedEffect(fingerprintRequest) {
-        activity?.lifecycle?.currentStateFlow?.first { it.isAtLeast(Lifecycle.State.RESUMED) }
+    LaunchedEffect(timesLeftApp) {
+        (activity as? LifecycleOwner)?.lifecycle?.currentStateFlow?.first { it.isAtLeast(Lifecycle.State.RESUMED) }
         if (vm.takeFingerprintOnLockedScreen()) unlockWithFinger()
     }
 

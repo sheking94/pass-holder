@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { isTabPage, openInTab, type TabApi } from "../src/open-in-tab.ts";
+import { openInTab, type TabApi } from "../src/open-in-tab.ts";
+import { isInTab, isMainTab, pageMode } from "../src/page-mode.ts";
 
 const PAGE = "chrome-extension://abc/popup.html";
 
@@ -13,12 +14,23 @@ function fakeApi(tabs: { tabId: number; windowId: number; url: string }[]) {
   return { api, calls };
 }
 
-describe("isTabPage", () => {
-  it("recognises the tab and setup pages, not the popup", () => {
-    expect(isTabPage("?tab")).toBe(true);
-    expect(isTabPage("?setup")).toBe(true);
-    expect(isTabPage("")).toBe(false);
-    expect(isTabPage("?other")).toBe(false);
+describe("pageMode", () => {
+  it("tells the popup from each tab", () => {
+    expect(pageMode("")).toBe("popup");
+    expect(pageMode("?other")).toBe("popup");
+    expect(pageMode("?tab")).toBe("tab");
+    expect(pageMode("?setup")).toBe("setup");
+    expect(pageMode("?addresses")).toBe("addresses");
+    expect(pageMode("?transfer")).toBe("transfer");
+  });
+
+  it("counts every tab as a tab, also the CSV one, but only tab and setup as the main tab", () => {
+    expect(isInTab("popup")).toBe(false);
+    for (const mode of ["tab", "setup", "addresses", "transfer"] as const) expect(isInTab(mode)).toBe(true);
+    expect(isMainTab("tab")).toBe(true);
+    expect(isMainTab("setup")).toBe(true);
+    expect(isMainTab("addresses")).toBe(false);
+    expect(isMainTab("transfer")).toBe(false);
   });
 });
 
@@ -39,6 +51,15 @@ describe("openInTab", () => {
     const { api, calls } = fakeApi([{ tabId: 3, windowId: 1, url: `${PAGE}?setup` }]);
     await openInTab(api, PAGE);
     expect(calls).toEqual(["focus 3 1"]);
+  });
+
+  it("does not reuse the CSV or address tab: they show only one form", async () => {
+    const { api, calls } = fakeApi([
+      { tabId: 4, windowId: 1, url: `${PAGE}?transfer` },
+      { tabId: 5, windowId: 1, url: `${PAGE}?addresses` },
+    ]);
+    await openInTab(api, PAGE);
+    expect(calls).toEqual([`create ${PAGE}?tab`]);
   });
 
   it("ignores other extension pages", async () => {

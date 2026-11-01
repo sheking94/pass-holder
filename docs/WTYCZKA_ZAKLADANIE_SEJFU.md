@@ -1,5 +1,7 @@
 # Wtyczka Chrome: naprawa zakładania sejfu, Enter i podgląd hasła
 
+> Uwaga (2026-11-01): część nazw funkcji i plików opisanych niżej zmieniła się przy poprawkach po przeglądzie kodu, zob. [POPRAWKI_PRZEGLADU_2.md](POPRAWKI_PRZEGLADU_2.md).
+
 Dokument opisuje poprawki z gałęzi `claude/project-thread-7gdpxw`.
 
 ## 1. Błąd: sejf nie był zakładany

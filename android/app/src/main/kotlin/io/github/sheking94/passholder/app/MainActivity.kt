@@ -35,7 +35,7 @@ class MainActivity : FragmentActivity() {
      */
     override fun onStop() {
         super.onStop()
-        if (!isChangingConfigurations) viewModel.lockOnLeave()
+        if (!isChangingConfigurations) viewModel.onLeftApp()
     }
 
     /** Any touch or key press counts as activity for the auto-lock. */

@@ -1,5 +1,7 @@
 # Wtyczka Chrome: przycisk „Otwórz w karcie”
 
+> Uwaga (2026-11-01): część nazw funkcji i plików opisanych niżej zmieniła się przy poprawkach po przeglądzie kodu, zob. [POPRAWKI_PRZEGLADU_2.md](POPRAWKI_PRZEGLADU_2.md).
+
 Dokument opisuje zmianę z gałęzi `claude/project-thread-borcs6`.
 
 ## Problem

@@ -96,7 +96,7 @@ class ServerPickerTest {
 
         // A second phone paired only at home sees the entry.
         val second = VaultStore(MemoryStore())
-        second.connectExisting(home, null, password)
+        second.connectExisting(listOf(home), null, password)
         assertEquals(listOf("bank.pl"), second.entries().map { it.credentials.name })
     }
 
@@ -104,7 +104,7 @@ class ServerPickerTest {
     fun `reads an account saved by version 1_0 with a single serverUrl`() {
         val (home, _, _) = oneServerTwoAddresses()
         val disk = MemoryStore()
-        VaultStore(disk).createVault(home, null, "token", password)
+        VaultStore(disk).createVault(listOf(home), null, "token", password)
         // What 1.0 wrote: "serverUrl" instead of "serverUrls", no "lastServerUrl".
         val old = disk.data["account"]!!
             .replace(Regex(""""serverUrls":\["([^"]+)"\]"""), """"serverUrl":"$1"""")
@@ -124,10 +124,29 @@ class ServerPickerTest {
         val disk = MemoryStore()
         val (home, _, _) = oneServerTwoAddresses()
         val phone = VaultStore(disk)
-        phone.createVault(home, null, "token", password)
+        phone.createVault(listOf(home), null, "token", password)
         // Paired without a pin (http development server): https addresses cannot be added, and vice versa.
         assertThrows<IllegalArgumentException> { phone.setServerUrls(listOf("https://100.64.0.1:8443")) }
         assertThrows<IllegalArgumentException> { phone.setServerUrls(emptyList()) }
         assertEquals(listOf(home.trimEnd('/')), phone.account()!!.serverUrls)
+    }
+
+    @Test
+    fun `firstThatAnswers returns the first address that works and passes all errors on when none does`() {
+        val tried = mutableListOf<String>()
+        val result = ServerPicker.firstThatAnswers(listOf("a", "b", "c"), onAllFailed = { IllegalStateException() }) { url ->
+            tried += url
+            if (url == "a") throw IllegalStateException("a is down")
+            "answer from $url"
+        }
+        assertEquals("answer from b", result)
+        assertEquals(listOf("a", "b"), tried)
+
+        val error = assertThrows<IllegalStateException> {
+            ServerPicker.firstThatAnswers(listOf("a", "b"), onAllFailed = { errors -> IllegalStateException(errors.joinToString { it.message!! }) }) { url ->
+                throw IllegalStateException("$url is down")
+            }
+        }
+        assertEquals("a is down, b is down", error.message)
     }
 }

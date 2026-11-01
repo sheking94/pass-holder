@@ -52,9 +52,29 @@ data class Account(
     val wrappedVaultKey: String,
     /** The address that answered last time; tried first on the next sync. */
     val lastServerUrl: String? = null,
-    /** Version 1.0 kept a single address here. Only read, and moved to [serverUrls] by [VaultStore.account]. */
-    val serverUrl: String? = null,
 )
+
+/**
+ * The account as it may be on disk: like [Account], plus the single address version 1.0 kept in [serverUrl].
+ * Only read; [toAccount] moves that address to [Account.serverUrls], and the next save writes an [Account].
+ */
+@Serializable
+private data class StoredAccount(
+    val serverUrls: List<String> = emptyList(),
+    val certificatePin: String?,
+    val kdf: KdfParams,
+    val wrappedVaultKey: String,
+    val lastServerUrl: String? = null,
+    val serverUrl: String? = null,
+) {
+    fun toAccount() = Account(
+        serverUrls = serverUrls.ifEmpty { listOfNotNull(serverUrl) },
+        certificatePin = certificatePin,
+        kdf = kdf,
+        wrappedVaultKey = wrappedVaultKey,
+        lastServerUrl = lastServerUrl,
+    )
+}
 
 /**
  * Everything the app does with the vault, the Android counterpart of extension/src/vault-store.ts.
@@ -90,9 +110,7 @@ class VaultStore(
     private val lastActivity = AtomicLong(0)
 
     /** Not synchronized: the file is replaced atomically, and the UI may read it while a sync runs. */
-    fun account(): Account? = disk.get(ACCOUNT)?.let { json.decodeFromString<Account>(it) }?.let {
-        if (it.serverUrls.isEmpty() && it.serverUrl != null) it.copy(serverUrls = listOf(it.serverUrl), serverUrl = null) else it
-    }
+    fun account(): Account? = disk.get(ACCOUNT)?.let { json.decodeFromString<StoredAccount>(it).toAccount() }
 
     /**
      * Replaces the list of server addresses. No new pairing is needed: the pin stays, so any address
@@ -100,7 +118,7 @@ class VaultStore(
      */
     @Synchronized
     fun setServerUrls(serverUrls: List<String>) {
-        val account = account() ?: throw IllegalStateException("Brak konta")
+        val account = requireAccount()
         val urls = ServerPicker.validate(serverUrls, https = account.certificatePin != null)
         saveAccount(account.copy(serverUrls = urls, lastServerUrl = account.lastServerUrl?.takeIf { it in urls }))
     }
@@ -117,9 +135,6 @@ class VaultStore(
 
     @Synchronized
     fun pendingCount(): Int = requireSession().vault.pendingCount()
-
-    fun createVault(serverUrl: String, certificatePin: String?, setupToken: String, masterPassword: String) =
-        createVault(listOf(serverUrl), certificatePin, setupToken, masterPassword)
 
     /** Creates a new vault on an empty server, reached at the first of [serverUrls] that answers. */
     @Synchronized
@@ -144,9 +159,6 @@ class VaultStore(
         start(vaultKey, keys.authKey, LocalVault())
     }
 
-    fun connectExisting(serverUrl: String, certificatePin: String?, masterPassword: String) =
-        connectExisting(listOf(serverUrl), certificatePin, masterPassword)
-
     /** Connects this phone to a vault that already exists on the server, then downloads it. */
     @Synchronized
     fun connectExisting(serverUrls: List<String>, certificatePin: String?, masterPassword: String) {
@@ -167,7 +179,7 @@ class VaultStore(
     /** Works offline: the wrapped vault key and the encrypted vault are on disk. */
     @Synchronized
     fun unlock(masterPassword: String) {
-        val account = account() ?: throw IllegalStateException("Brak konta")
+        val account = requireAccount()
         val keys = Kdf.deriveKeys(masterPassword, account.kdf)
         val vaultKey = try {
             VaultCrypto.unwrapVaultKey(keys.encKey, account.wrappedVaultKey)
@@ -197,7 +209,7 @@ class VaultStore(
     @Synchronized
     fun unlockWithKeys(keys: ByteArray) {
         require(keys.size == 2 * KEY_LENGTH) { "Złe klucze odblokowania" }
-        account() ?: throw IllegalStateException("Brak konta")
+        requireAccount()
         // Without the local vault there is nothing to check the keys against; use the master password then.
         if (disk.get(VAULT) == null) throw IllegalStateException("Brak sejfu na telefonie")
         val vaultKey = keys.copyOfRange(0, KEY_LENGTH)
@@ -258,7 +270,7 @@ class VaultStore(
     @Synchronized
     fun sync() {
         val s = requireSession()
-        val account = account() ?: throw IllegalStateException("Brak konta")
+        val account = requireAccount()
         // The session token stays valid at any address: it is the same server.
         val (url, client) = ServerPicker.pick(account.serverUrls, account.lastServerUrl) { makeClient(it, account.certificatePin) }
         withFreshToken(client, s) { token -> VaultSync.sync(s.vault, s.vaultKey) { request -> client.sync(token, request) } }
@@ -302,6 +314,8 @@ class VaultStore(
     }
 
     private fun saveAccount(account: Account) = disk.set(ACCOUNT, json.encodeToString(account))
+
+    private fun requireAccount(): Account = account() ?: throw IllegalStateException("Brak konta")
 
     private fun requireSession(): Session = session ?: throw IllegalStateException("Sejf jest zablokowany")
 

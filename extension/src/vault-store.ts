@@ -22,62 +22,22 @@ import {
   type LocalVault,
 } from "@passholder/core";
 import { ApiError, ServerClient, type SessionResponse } from "./api.ts";
-import { createPinLock, isValidPin, MAX_PIN_ATTEMPTS, openPinLock, WrongPinError, type PinLock, type UnlockKeys } from "./pin-lock.ts";
-import { sameEntry, type ImportedEntry } from "./csv-transfer.ts";
+import { INVALID_PIN, isValidPin } from "./pin-lock.ts";
+import { PinStore, type PinStatus } from "./pin-store.ts";
 import { normalizeServerUrls, pickServer } from "./server-urls.ts";
+import { STORAGE_KEYS, type KeyValueStore } from "./storage.ts";
+
+export { chromeStore, memoryStore, STORAGE_KEYS, type KeyValueStore } from "./storage.ts";
+export type { PinStatus } from "./pin-store.ts";
 
 const LOCAL_VAULT_AAD = "passholder/v1/local-vault";
-
-/**
- * Keys in chrome.storage. account, vault and generator are in local storage, sessionKeys in session storage.
- * pinLock is in session storage, or in local storage if the user wants the PIN to survive a browser restart.
- */
-export const STORAGE_KEYS = {
-  account: "account",
-  vault: "vault",
-  sessionKeys: "keys",
-  generator: "generator",
-  pinLock: "pinLock",
-} as const;
 
 /** A token this close to expiry is renewed before a sync, so it does not run out halfway. */
 const TOKEN_REFRESH_MARGIN_MS = 10_000;
 
 const LOCKED = "Sejf jest zablokowany";
-const INVALID_PIN = "PIN musi mieć od 4 do 6 cyfr";
+const NOT_CONNECTED = "Ta przeglądarka nie jest połączona z serwerem";
 export const NO_VAULT_ON_SERVER = "Na serwerze nie ma jeszcze sejfu. Wybierz „Nowy sejf” i załóż go.";
-
-/** Key-value storage; chrome.storage.local and chrome.storage.session in the extension, a Map in tests. */
-export interface KeyValueStore {
-  get<T>(key: string): Promise<T | undefined>;
-  set(key: string, value: unknown): Promise<void>;
-  remove(key: string): Promise<void>;
-}
-
-export function chromeStore(area: chrome.storage.StorageArea): KeyValueStore {
-  return {
-    async get<T>(key: string) {
-      return (await area.get(key))[key] as T | undefined;
-    },
-    set: (key, value) => area.set({ [key]: value }),
-    remove: (key) => area.remove(key),
-  };
-}
-
-export function memoryStore(): KeyValueStore {
-  const data = new Map<string, unknown>();
-  return {
-    async get<T>(key: string) {
-      return structuredClone(data.get(key)) as T | undefined;
-    },
-    async set(key, value) {
-      data.set(key, structuredClone(value));
-    },
-    async remove(key) {
-      data.delete(key);
-    },
-  };
-}
 
 /** Kept on disk. Nothing here is readable without the master password. */
 export interface Account {
@@ -97,8 +57,8 @@ function upgradeAccount(stored: StoredAccount): Account {
   return { ...rest, serverUrls: serverUrls ?? (serverUrl ? [serverUrl] : []) };
 }
 
-function toUrlList(serverUrls: string | readonly string[]): string[] {
-  const urls = normalizeServerUrls(typeof serverUrls === "string" ? [serverUrls] : serverUrls);
+function toUrlList(serverUrls: readonly string[]): string[] {
+  const urls = normalizeServerUrls(serverUrls);
   if (urls.length === 0) throw new Error("Podaj adres serwera");
   return urls;
 }
@@ -114,15 +74,22 @@ interface SessionKeys {
 
 export const AUTO_LOCK_MS = 15 * 60_000;
 
-/** Whether unlocking with a PIN is on, and how. */
-export interface PinStatus {
-  /** True if the PIN is kept on disk and works after a browser restart. */
-  rememberedAfterRestart: boolean;
-  attemptsLeft: number;
-}
-
 /** An entry that is not deleted, as the popup lists and edits it. */
 export type LiveEntry = LocalEntry & { deleted: false };
+
+/** What the user sees of an entry, e.g. one row of an imported file. */
+export type EntryFields = Pick<EntryData, "name" | "username" | "password">;
+
+/** What importEntries() did: how many entries were added and how many were already in the vault. */
+export interface ImportResult {
+  added: number;
+  duplicates: number;
+}
+
+/** Same name, username and password: importing it again would only make a duplicate. */
+function sameEntry(a: EntryFields, b: EntryFields): boolean {
+  return a.name === b.name && a.username === b.username && a.password === b.password;
+}
 
 function serializeVault(vault: LocalVault): string {
   return JSON.stringify({ lastSyncRevision: vault.lastSyncRevision, entries: [...vault.entries.values()] });
@@ -141,13 +108,16 @@ function deserializeVault(json: string): LocalVault {
 export class VaultStore {
   private vault: LocalVault | undefined;
   private keys: SessionKeys | undefined;
+  private readonly pin: PinStore;
 
   constructor(
     private readonly local: KeyValueStore,
     private readonly session: KeyValueStore,
     private readonly makeClient: (url: string) => ServerClient = (url) => new ServerClient(url),
     private readonly now: () => number = Date.now,
-  ) {}
+  ) {
+    this.pin = new PinStore(local, session);
+  }
 
   async getAccount(): Promise<Account | undefined> {
     const stored = await this.local.get<StoredAccount>(STORAGE_KEYS.account);
@@ -160,7 +130,7 @@ export class VaultStore {
    */
   async setServerUrls(serverUrls: readonly string[]): Promise<void> {
     const account = await this.getAccount();
-    if (!account) throw new Error("Ta przeglądarka nie jest połączona z serwerem");
+    if (!account) throw new Error(NOT_CONNECTED);
     const urls = toUrlList(serverUrls);
     const lastServerUrl = account.lastServerUrl && urls.includes(account.lastServerUrl) ? account.lastServerUrl : undefined;
     await this.saveAccount({ ...account, serverUrls: urls, lastServerUrl });
@@ -195,9 +165,9 @@ export class VaultStore {
    * name, username and password (also duplicates within the import). Saves once at the end.
    * Returns how many were added and how many were duplicates.
    */
-  async importEntries(entries: readonly ImportedEntry[], newId: () => string = () => crypto.randomUUID()): Promise<{ added: number; duplicates: number }> {
+  async importEntries(entries: readonly EntryFields[], newId: () => string = () => crypto.randomUUID()): Promise<ImportResult> {
     const vault = this.requireVault();
-    const known: ImportedEntry[] = liveEntries(vault).map((e) => e.data);
+    const known: EntryFields[] = liveEntries(vault).map((e) => e.data);
     let added = 0;
     for (const entry of entries) {
       if (known.some((k) => sameEntry(k, entry))) continue;
@@ -215,7 +185,7 @@ export class VaultStore {
   }
 
   /** Creates a new vault on an empty server, reached at the first of serverUrls that answers. */
-  async createVault(serverUrls: string | readonly string[], setupToken: string, masterPassword: string): Promise<void> {
+  async createVault(serverUrls: readonly string[], setupToken: string, masterPassword: string): Promise<void> {
     const urls = toUrlList(serverUrls);
     const { url, client } = await pickServer(urls, this.makeClient);
     const kdf = newKdfParams();
@@ -229,7 +199,7 @@ export class VaultStore {
   }
 
   /** Connects this browser to a vault that already exists on the server, then downloads it. */
-  async connectExisting(serverUrls: string | readonly string[], masterPassword: string): Promise<void> {
+  async connectExisting(serverUrls: readonly string[], masterPassword: string): Promise<void> {
     const urls = toUrlList(serverUrls);
     const { url, client } = await pickServer(urls, this.makeClient);
     const { kdf } = await client.prelogin().catch((error: unknown) => {
@@ -254,7 +224,7 @@ export class VaultStore {
   /** Works offline: the wrapped vault key and the encrypted vault are on disk. */
   async unlock(masterPassword: string): Promise<void> {
     const account = await this.getAccount();
-    if (!account) throw new Error("Ta przeglądarka nie jest połączona z serwerem");
+    if (!account) throw new Error(NOT_CONNECTED);
     const keys = await deriveKeys(masterPassword, account.kdf);
     let vaultKey: Uint8Array;
     try {
@@ -263,63 +233,34 @@ export class VaultStore {
       throw new Error("Złe hasło główne");
     }
     await this.startSession(vaultKey, keys.authKey, await this.loadVault(vaultKey));
-    await this.resetPinAttempts();
+    await this.pin.resetAttempts();
   }
 
   /**
    * Works offline like unlock(), but with the PIN set in enablePin(). Every wrong PIN counts; after
-   * MAX_PIN_ATTEMPTS in a row the PIN is deleted and only the master password works.
+   * MAX_PIN_ATTEMPTS in a row the PIN is deleted and only the master password works (see PinStore).
    */
   async unlockWithPin(pin: string): Promise<void> {
-    if (!(await this.getAccount())) throw new Error("Ta przeglądarka nie jest połączona z serwerem");
-    if (!isValidPin(pin)) throw new Error(INVALID_PIN);
-    const found = await this.findPinLock();
-    if (!found) throw new Error("PIN jest wyłączony. Odblokuj hasłem głównym.");
-    const { lock, area } = found;
-    const attempts = lock.failedAttempts + 1;
-    // Counted before checking, so closing the popup during the slow Argon2id does not give a free guess.
-    await area.set(STORAGE_KEYS.pinLock, { ...lock, failedAttempts: attempts } satisfies PinLock);
-    let keys: UnlockKeys;
-    try {
-      keys = await openPinLock(pin, lock);
-    } catch (error) {
-      if (!(error instanceof WrongPinError)) throw error;
-      if (attempts >= MAX_PIN_ATTEMPTS) {
-        await this.disablePin();
-        throw new Error("Zły PIN. To była ostatnia próba: PIN został wyłączony, odblokuj hasłem głównym.");
-      }
-      throw new Error(`Zły PIN. Pozostało prób: ${MAX_PIN_ATTEMPTS - attempts}.`);
-    }
-    await area.set(STORAGE_KEYS.pinLock, { ...lock, failedAttempts: 0 } satisfies PinLock);
+    if (!(await this.getAccount())) throw new Error(NOT_CONNECTED);
+    const keys = await this.pin.unlock(pin);
     await this.startSession(keys.vaultKey, keys.authKey, await this.loadVault(keys.vaultKey));
   }
 
   /** undefined when the PIN is off. */
-  async pinStatus(): Promise<PinStatus | undefined> {
-    const found = await this.findPinLock();
-    if (!found) return undefined;
-    return {
-      rememberedAfterRestart: found.area === this.local,
-      attemptsLeft: Math.max(0, MAX_PIN_ATTEMPTS - found.lock.failedAttempts),
-    };
+  pinStatus(): Promise<PinStatus | undefined> {
+    return this.pin.status();
   }
 
-  /**
-   * Turns on unlocking with a PIN (needs an unlocked vault). By default the PIN is kept in session
-   * storage, which Chrome holds in memory only, so after a browser restart the master password is needed.
-   * With rememberAfterRestart it goes to local storage, on disk, where a copy can be brute-forced offline.
-   */
+  /** Turns on unlocking with a PIN (needs an unlocked vault). See PinStore.enable for where it is kept. */
   async enablePin(pin: string, rememberAfterRestart: boolean): Promise<void> {
+    // Before requireKeys(): a PIN of the wrong shape is reported as such even while locked.
     if (!isValidPin(pin)) throw new Error(INVALID_PIN);
     const keys = this.requireKeys();
-    const lock = await createPinLock(pin, { vaultKey: fromBase64(keys.vaultKey), authKey: fromBase64(keys.authKey) });
-    await this.disablePin();
-    await (rememberAfterRestart ? this.local : this.session).set(STORAGE_KEYS.pinLock, lock);
+    await this.pin.enable(pin, { vaultKey: fromBase64(keys.vaultKey), authKey: fromBase64(keys.authKey) }, rememberAfterRestart);
   }
 
-  async disablePin(): Promise<void> {
-    await this.session.remove(STORAGE_KEYS.pinLock);
-    await this.local.remove(STORAGE_KEYS.pinLock);
+  disablePin(): Promise<void> {
+    return this.pin.disable();
   }
 
   /** Restores an unlocked state kept in session storage, so reopening the popup needs no password. */
@@ -388,22 +329,6 @@ export class VaultStore {
   private async rememberToken(session: SessionResponse): Promise<void> {
     this.keys = { ...this.requireKeys(), token: session.token, tokenExpiresAt: session.expiresAt };
     await this.session.set(STORAGE_KEYS.sessionKeys, this.keys);
-  }
-
-  /** Session storage first: enablePin() keeps the PIN in only one of the two. */
-  private async findPinLock(): Promise<{ lock: PinLock; area: KeyValueStore } | undefined> {
-    for (const area of [this.session, this.local]) {
-      const lock = await area.get<PinLock>(STORAGE_KEYS.pinLock);
-      if (lock) return { lock, area };
-    }
-    return undefined;
-  }
-
-  private async resetPinAttempts(): Promise<void> {
-    const found = await this.findPinLock();
-    if (found && found.lock.failedAttempts > 0) {
-      await found.area.set(STORAGE_KEYS.pinLock, { ...found.lock, failedAttempts: 0 } satisfies PinLock);
-    }
   }
 
   private async saveAccount(account: Account): Promise<void> {

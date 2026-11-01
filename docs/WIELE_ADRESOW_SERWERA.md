@@ -1,5 +1,7 @@
 # Kilka adresów serwera (sieć domowa + Tailscale)
 
+> Uwaga (2026-11-01): część nazw funkcji i plików opisanych niżej zmieniła się przy poprawkach po przeglądzie kodu, zob. [POPRAWKI_PRZEGLADU_2.md](POPRAWKI_PRZEGLADU_2.md).
+
 Dokument opisuje zmiany z gałęzi `claude/project-thread-9shesd`: wtyczka Chrome i aplikacja na Androida
 pamiętają więcej niż jeden adres tego samego serwera i przy każdym połączeniu same wybierają ten, który
 odpowiada.

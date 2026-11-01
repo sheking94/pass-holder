@@ -15,6 +15,9 @@ export const PIN_PATTERN = /^\d{4,6}$/;
 /** After this many wrong PINs in a row the PIN is deleted and only the master password works. */
 export const MAX_PIN_ATTEMPTS = 5;
 
+/** Shown wherever a PIN of the wrong shape is typed. */
+export const INVALID_PIN = "PIN musi mieć od 4 do 6 cyfr";
+
 const PIN_LOCK_AAD = "passholder/v1/pin-lock";
 
 /** Kept in chrome.storage (session by default, local if the user asks for the PIN to survive a restart). */
@@ -40,7 +43,7 @@ export function isValidPin(pin: string): boolean {
 }
 
 export async function createPinLock(pin: string, keys: UnlockKeys): Promise<PinLock> {
-  if (!isValidPin(pin)) throw new Error("PIN musi mieć od 4 do 6 cyfr");
+  if (!isValidPin(pin)) throw new Error(INVALID_PIN);
   const kdf = newKdfParams();
   const pinKey = await deriveMasterKey(pin, kdf);
   const plaintext = utf8(JSON.stringify({ vaultKey: toBase64(keys.vaultKey), authKey: toBase64(keys.authKey) }));
@@ -49,7 +52,7 @@ export async function createPinLock(pin: string, keys: UnlockKeys): Promise<PinL
 
 /** Throws WrongPinError if the PIN is wrong (the GCM tag does not verify). */
 export async function openPinLock(pin: string, lock: PinLock): Promise<UnlockKeys> {
-  if (!isValidPin(pin)) throw new WrongPinError("PIN musi mieć od 4 do 6 cyfr");
+  if (!isValidPin(pin)) throw new WrongPinError(INVALID_PIN);
   const pinKey = await deriveMasterKey(pin, lock.kdf);
   let plaintext: Uint8Array;
   try {

@@ -8,7 +8,7 @@ const password = Buffer.from(passwordB64, "base64").toString("utf8");
 const { VaultStore, memoryStore } = await import(pathToFileURL(`${root}/extension/src/vault-store.ts`).href);
 
 const store = new VaultStore(memoryStore(), memoryStore());
-await store.connectExisting(url, password);
+await store.connectExisting([url], password);
 const seen = store.entries().map((e: { data: { name: string } }) => e.data.name);
 await store.upsert(crypto.randomUUID(), { name: "z-przegladarki.pl", username: "jan", password: "z TS" });
 await store.sync();

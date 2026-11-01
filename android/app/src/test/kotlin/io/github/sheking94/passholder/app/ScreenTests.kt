@@ -212,7 +212,7 @@ class SecondPhoneTest : ScreenTestBase() {
         // Another device already created the vault and synced an entry.
         val other = io.github.sheking94.passholder.core.VaultStore(io.github.sheking94.passholder.core.MemoryStore())
         val pin = io.github.sheking94.passholder.core.CertificatePin.fingerprint(serverCert.certificate)
-        other.createVault(url, pin, "3f9c2a7e5b1d", masterPassword)
+        other.createVault(listOf(url), pin, "3f9c2a7e5b1d", masterPassword)
         other.upsert("1", Credentials("github.com", "jkowalski", "s3cret"))
         other.sync()
 

@@ -29,12 +29,12 @@ describe("VaultStore against the real server", () => {
   it("creates a vault, syncs, and a second browser downloads it", async () => {
     const url = await startServer();
     const first = newBrowser().store;
-    await first.createVault(url, SETUP_TOKEN, PASSWORD);
+    await first.createVault([url], SETUP_TOKEN, PASSWORD);
     await first.upsert("1", { name: "bank.pl", username: "jan", password: "s3cret" });
     await first.sync();
 
     const second = newBrowser().store;
-    await second.connectExisting(url, PASSWORD);
+    await second.connectExisting([url], PASSWORD);
     expect(names(second)).toEqual(["bank.pl"]);
 
     await second.delete("1");
@@ -45,8 +45,8 @@ describe("VaultStore against the real server", () => {
 
   it("rejects a wrong master password when connecting", async () => {
     const url = await startServer();
-    await newBrowser().store.createVault(url, SETUP_TOKEN, PASSWORD);
-    await expect(newBrowser().store.connectExisting(url, "wrong")).rejects.toThrow("Złe hasło główne");
+    await newBrowser().store.createVault([url], SETUP_TOKEN, PASSWORD);
+    await expect(newBrowser().store.connectExisting([url], "wrong")).rejects.toThrow("Złe hasło główne");
   }, 30_000);
 });
 
@@ -54,7 +54,7 @@ describe("VaultStore offline", () => {
   it("unlocks from disk without the server and keeps entries encrypted at rest", async () => {
     const url = await startServer();
     const browser = newBrowser();
-    await browser.store.createVault(url, SETUP_TOKEN, PASSWORD);
+    await browser.store.createVault([url], SETUP_TOKEN, PASSWORD);
     await browser.store.upsert("1", { name: "poczta.pl", username: "jan", password: "hunter2" });
     await servers.splice(0)[0]!.close(); // server goes away
 
@@ -73,7 +73,7 @@ describe("VaultStore offline", () => {
     const url = await startServer();
     let clock = 1_000_000;
     const browser = newBrowser(() => clock);
-    await browser.store.createVault(url, SETUP_TOKEN, PASSWORD);
+    await browser.store.createVault([url], SETUP_TOKEN, PASSWORD);
 
     const reopened = new VaultStore(browser.local, browser.session, undefined, () => clock);
     expect(await reopened.resume()).toBe(true);

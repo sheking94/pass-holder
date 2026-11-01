@@ -1,4 +1,4 @@
-import type { EntryData } from "@passholder/core";
+import type { EntryFields, ImportResult } from "./vault-store.ts";
 
 /**
  * Import and export of passwords as CSV in the layout NordPass uses, so a file exported from
@@ -36,10 +36,8 @@ export const NORDPASS_COLUMNS = [
 /** NordPass "type" of a login. Other types (note, credit_card, identity) have nothing PassHolder can store. */
 const LOGIN_TYPE = "password";
 
-export type ImportedEntry = Pick<EntryData, "name" | "username" | "password">;
-
 export interface ParsedImport {
-  entries: ImportedEntry[];
+  entries: EntryFields[];
   /** Rows that were not imported, with the line number in the file (header is line 1) and why. */
   skipped: { line: number; reason: string }[];
 }
@@ -108,24 +106,12 @@ export function toCsv(rows: readonly (readonly string[])[]): string {
 // --- NordPass layout -----------------------------------------------------------------------
 
 /** The CSV text of a NordPass-style export of these entries, sorted by name. */
-export function exportNordPassCsv(entries: readonly ImportedEntry[]): string {
+export function exportNordPassCsv(entries: readonly EntryFields[]): string {
   const sorted = [...entries].sort((a, b) => a.name.localeCompare(b.name, "pl"));
-  const rows = sorted.map((e) =>
-    NORDPASS_COLUMNS.map((column) => {
-      switch (column) {
-        case "name":
-          return e.name;
-        case "username":
-          return e.username;
-        case "password":
-          return e.password;
-        case "type":
-          return LOGIN_TYPE;
-        default:
-          return "";
-      }
-    }),
-  );
+  const rows = sorted.map(({ name, username, password }) => {
+    const values: Partial<Record<(typeof NORDPASS_COLUMNS)[number], string>> = { name, username, password, type: LOGIN_TYPE };
+    return NORDPASS_COLUMNS.map((column) => values[column] ?? "");
+  });
   return toCsv([NORDPASS_COLUMNS, ...rows]);
 }
 
@@ -178,7 +164,18 @@ export function parseNordPassCsv(text: string): ParsedImport {
   return result;
 }
 
-/** Same name, username and password: importing it again would only make a duplicate. */
-export function sameEntry(a: ImportedEntry, b: ImportedEntry): boolean {
-  return a.name === b.name && a.username === b.username && a.password === b.password;
+/** How many skipped rows the summary lists one by one; the rest is shown as "…". */
+const LISTED_SKIPPED_ROWS = 5;
+
+/** The message shown after an import: what was added, what was skipped and why, and a reminder to delete the file. */
+export function importSummary(parsed: ParsedImport, result: ImportResult): string {
+  const { skipped } = parsed;
+  const listed = skipped.slice(0, LISTED_SKIPPED_ROWS).map((s) => `wiersz ${s.line}: ${s.reason}`).join("; ");
+  const parts = [
+    `Dodano ${result.added} wpisów (lokalnie, zsynchronizuj, żeby trafiły na serwer).`,
+    result.duplicates > 0 && `Pominięto ${result.duplicates} takich, które już są w sejfie.`,
+    skipped.length > 0 && `Pominięto ${skipped.length} wierszy: ${listed}${skipped.length > LISTED_SKIPPED_ROWS ? "; …" : "."}`,
+    "Usuń plik CSV z dysku, zawiera hasła jawnym tekstem.",
+  ];
+  return parts.filter(Boolean).join(" ");
 }

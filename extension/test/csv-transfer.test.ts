@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "@passholder/server/src/app.ts";
 import { Database } from "@passholder/server/src/db.ts";
-import { exportNordPassCsv, NORDPASS_COLUMNS, parseCsv, parseNordPassCsv } from "../src/csv-transfer.ts";
+import { exportNordPassCsv, importSummary, NORDPASS_COLUMNS, parseCsv, parseNordPassCsv } from "../src/csv-transfer.ts";
 import { memoryStore, VaultStore } from "../src/vault-store.ts";
 
 const HEADER = NORDPASS_COLUMNS.join(",");
@@ -78,6 +78,23 @@ describe("NordPass CSV", () => {
   });
 });
 
+describe("importSummary", () => {
+  it("says only what was added when nothing was skipped", () => {
+    expect(importSummary({ entries: [], skipped: [] }, { added: 2, duplicates: 0 })).toBe(
+      "Dodano 2 wpisów (lokalnie, zsynchronizuj, żeby trafiły na serwer). Usuń plik CSV z dysku, zawiera hasła jawnym tekstem.",
+    );
+  });
+
+  it("lists duplicates and up to five skipped rows", () => {
+    const skipped = [2, 3, 4, 5, 6, 7].map((line) => ({ line, reason: "brak hasła" }));
+    const text = importSummary({ entries: [], skipped }, { added: 1, duplicates: 3 });
+    expect(text).toContain("Pominięto 3 takich, które już są w sejfie.");
+    expect(text).toContain("Pominięto 6 wierszy: wiersz 2: brak hasła; wiersz 3: brak hasła; wiersz 4: brak hasła; wiersz 5: brak hasła; wiersz 6: brak hasła; …");
+    expect(text).not.toContain("wiersz 7");
+    expect(importSummary({ entries: [], skipped: skipped.slice(0, 1) }, { added: 0, duplicates: 0 })).toContain("wiersz 2: brak hasła.");
+  });
+});
+
 describe("VaultStore.importEntries", () => {
   const servers: { close(): Promise<unknown> }[] = [];
   afterEach(async () => {
@@ -88,7 +105,7 @@ describe("VaultStore.importEntries", () => {
     const app = buildApp({ db: new Database(":memory:"), setupToken: "token" });
     servers.push(app);
     const store = new VaultStore(memoryStore(), memoryStore());
-    await store.createVault(await app.listen({ host: "127.0.0.1", port: 0 }), "token", "hasło główne do testu");
+    await store.createVault([await app.listen({ host: "127.0.0.1", port: 0 })], "token", "hasło główne do testu");
     await store.upsert("1", { name: "Bank", username: "jan", password: "x" });
 
     let n = 0;
