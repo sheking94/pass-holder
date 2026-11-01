@@ -11,7 +11,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.sheking94.passholder.app.AppViewModel
 import io.github.sheking94.passholder.app.Screen
 
-/** Picks the screen from the state. No navigation library: four screens are a `when`. */
+/** Picks the screen from the state. No navigation library: five screens are a `when`. */
 @Composable
 fun PassHolderUi(viewModel: AppViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -22,6 +22,7 @@ fun PassHolderUi(viewModel: AppViewModel) {
                     Screen.Connect -> ConnectScreen(state, viewModel)
                     Screen.Locked -> LockedScreen(state, viewModel)
                     Screen.List -> ListScreen(state, viewModel)
+                    Screen.Addresses -> AddressesScreen(state, viewModel)
                     is Screen.Edit -> EditScreen(screen.id, state, viewModel)
                 }
             }
