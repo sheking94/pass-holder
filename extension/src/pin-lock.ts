@@ -7,16 +7,26 @@ import { deriveMasterKey, fromBase64, fromUtf8, newKdfParams, open, seal, toBase
  *
  * A 4-6 digit PIN has at most a million values. Argon2id makes each guess slow, but someone who has a
  * copy of the PinLock can try them all offline (minutes for 4 digits, hours for 6). The attempt limit
- * only stops someone who guesses through the popup. See docs/WTYCZKA_PIN.md.
+ * only stops someone who guesses through the popup. That is fine while the lock is in session storage
+ * (memory), but not on disk, so a PIN kept after a browser restart must be a long one (S4 of the
+ * security review): at least 8 characters and not only digits. See docs/WTYCZKA_PIN.md.
  */
 
+/** A short PIN: 4-6 digits. Allowed only while the PIN lock is kept in memory. */
 export const PIN_PATTERN = /^\d{4,6}$/;
+
+export const LONG_PIN_MIN_LENGTH = 8;
+export const LONG_PIN_MAX_LENGTH = 64;
 
 /** After this many wrong PINs in a row the PIN is deleted and only the master password works. */
 export const MAX_PIN_ATTEMPTS = 5;
 
 /** Shown wherever a PIN of the wrong shape is typed. */
-export const INVALID_PIN = "PIN musi mieć od 4 do 6 cyfr";
+export const INVALID_PIN = "PIN musi mieć od 4 do 6 cyfr albo co najmniej 8 znaków (nie same cyfry)";
+
+/** Shown when a short PIN is chosen together with "remember after restart". */
+export const INVALID_REMEMBERED_PIN =
+  "PIN pamiętany po zamknięciu przeglądarki musi mieć co najmniej 8 znaków i zawierać literę lub inny znak niż cyfra";
 
 const PIN_LOCK_AAD = "passholder/v1/pin-lock";
 
@@ -38,8 +48,18 @@ export interface UnlockKeys {
 
 export class WrongPinError extends Error {}
 
-export function isValidPin(pin: string): boolean {
-  return PIN_PATTERN.test(pin);
+/** 8-64 characters, at least one of them not a digit: far too many values to try offline. */
+export function isLongPin(pin: string): boolean {
+  return pin.length >= LONG_PIN_MIN_LENGTH && pin.length <= LONG_PIN_MAX_LENGTH && /\D/.test(pin);
+}
+
+/** A short PIN or a long one. rememberAfterRestart allows only a long one. */
+export function isValidPin(pin: string, rememberAfterRestart = false): boolean {
+  return isLongPin(pin) || (!rememberAfterRestart && PIN_PATTERN.test(pin));
+}
+
+export function invalidPinMessage(rememberAfterRestart: boolean): string {
+  return rememberAfterRestart ? INVALID_REMEMBERED_PIN : INVALID_PIN;
 }
 
 export async function createPinLock(pin: string, keys: UnlockKeys): Promise<PinLock> {

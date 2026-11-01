@@ -7,6 +7,9 @@ import { showConnect } from "./connect.ts";
 import { listView } from "./list.ts";
 import { transferView } from "./transfer.ts";
 
+const SHORT_PIN_MOVED =
+  "Krótki PIN nie jest już zapisywany na dysku: działa do zamknięcia przeglądarki. Aby pamiętać PIN po restarcie, ustaw dłuższy (przycisk PIN).";
+
 /** The PIN screen when the PIN is on, otherwise the master password screen. */
 export async function showLocked(message = "") {
   const pin = await store.pinStatus();
@@ -15,27 +18,29 @@ export async function showLocked(message = "") {
 }
 
 /** What this page shows once unlocked: the CSV tab stays on import and export, everything else shows the list. */
-export function showUnlocked() {
+export function showUnlocked(message = "") {
   if (MODE === "transfer") transferView();
-  else listView();
+  else listView(message);
 }
 
 function pinLockedView(pinStatus: PinStatus, message = "") {
-  const pin = pinInput();
+  // A remembered PIN is a long one; a short one from before that rule still opens it (see PinStore.unlock).
+  const pin = pinInput("off", pinStatus.rememberedAfterRestart);
   const status = statusLine();
   setStatus(status, message);
   if (pinStatus.attemptsLeft < MAX_PIN_ATTEMPTS) setStatus(status, `Pozostało prób: ${pinStatus.attemptsLeft}.`, true);
   const unlock = () =>
     busy(status, "Sprawdzam PIN…", async () => {
+      let movedToMemory: boolean;
       try {
-        await store.unlockWithPin(pin.value);
+        ({ movedToMemory } = await store.unlockWithPin(pin.value));
       } catch (error) {
         // After the last wrong attempt the PIN is gone: move to the master password screen.
         if (!(await store.pinStatus())) return lockedView((error as Error).message);
         pin.value = "";
         throw error;
       }
-      showUnlocked();
+      showUnlocked(movedToMemory ? SHORT_PIN_MOVED : "");
     });
 
   show(

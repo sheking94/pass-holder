@@ -22,7 +22,7 @@ import {
   type LocalVault,
 } from "@passholder/core";
 import { ApiError, ServerClient, type SessionResponse } from "./api.ts";
-import { INVALID_PIN, isValidPin } from "./pin-lock.ts";
+import { invalidPinMessage, isValidPin } from "./pin-lock.ts";
 import { PinStore, type PinStatus } from "./pin-store.ts";
 import { normalizeServerUrls, pickServer } from "./server-urls.ts";
 import { STORAGE_KEYS, type KeyValueStore } from "./storage.ts";
@@ -246,10 +246,11 @@ export class VaultStore {
    * Works offline like unlock(), but with the PIN set in enablePin(). Every wrong PIN counts; after
    * MAX_PIN_ATTEMPTS in a row the PIN is deleted and only the master password works (see PinStore).
    */
-  async unlockWithPin(pin: string): Promise<void> {
+  async unlockWithPin(pin: string): Promise<{ movedToMemory: boolean }> {
     if (!(await this.getAccount())) throw new Error(NOT_CONNECTED);
-    const keys = await this.pin.unlock(pin);
+    const { keys, movedToMemory } = await this.pin.unlock(pin);
     await this.startSession(keys.vaultKey, keys.authKey, await this.loadVault(keys.vaultKey));
+    return { movedToMemory };
   }
 
   /** undefined when the PIN is off. */
@@ -260,7 +261,7 @@ export class VaultStore {
   /** Turns on unlocking with a PIN (needs an unlocked vault). See PinStore.enable for where it is kept. */
   async enablePin(pin: string, rememberAfterRestart: boolean): Promise<void> {
     // Before requireKeys(): a PIN of the wrong shape is reported as such even while locked.
-    if (!isValidPin(pin)) throw new Error(INVALID_PIN);
+    if (!isValidPin(pin, rememberAfterRestart)) throw new Error(invalidPinMessage(rememberAfterRestart));
     const keys = this.requireKeys();
     await this.pin.enable(pin, { vaultKey: fromBase64(keys.vaultKey), authKey: fromBase64(keys.authKey) }, rememberAfterRestart);
   }

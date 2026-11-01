@@ -518,6 +518,21 @@ scp <użytkownik>@passholder.local:kopia.db ~/passholder-kopia-$(date +%F).db
 Kopia zawiera tylko zaszyfrowane dane; bez hasła głównego jest bezużyteczna. Przywrócenie: zatrzymaj usługę,
 skopiuj plik na `/var/lib/passholder/passholder.db` (właściciel `passholder:passholder`), uruchom usługę.
 
+# Szyfrowanie dysku (Ubuntu)
+
+Na dysku Ubuntu leżą: klucz urzędu `~/passholder-ca/ca.key` (1.5) i profil Chrome z zaszyfrowanym sejfem,
+a jeśli włączysz „Pamiętaj PIN po zamknięciu przeglądarki”, także zaszyfrowane PIN-em klucze sejfu. Kto
+skopiuje niezaszyfrowany dysk (kradzież laptopa, kopia zapasowa), może próbować zgadywać PIN bez limitu
+prób. Dlatego wtyczka wymaga wtedy długiego PIN-u (co najmniej 8 znaków, nie same cyfry), a dodatkowo
+**zalecane jest szyfrowanie całego dysku (LUKS)**.
+
+- **Nowa instalacja Ubuntu:** w instalatorze wybierz „Zaawansowane funkcje” → „Użyj LVM i szyfrowania”
+  (nazwa zależy od wersji). To najprostsza droga.
+- **Istniejąca instalacja:** zaszyfrowania dysku systemowego w miejscu nie da się zrobić bezpiecznie jedną
+  komendą. Możesz zaszyfrować tylko katalog domowy innymi narzędziami albo trzymać `~/passholder-ca` na
+  zaszyfrowanym pendrivie i nie włączać zapamiętywania PIN-u.
+- Sprawdzenie: `lsblk -f` pokazuje `crypto_LUKS` pod dyskiem systemowym, jeśli szyfrowanie działa.
+
 # Rozwiązywanie problemów
 
 | Objaw | Przyczyna i rozwiązanie |

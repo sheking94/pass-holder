@@ -1,4 +1,5 @@
 /** Small DOM helpers shared by all views of popup.html. */
+import { LONG_PIN_MAX_LENGTH } from "../pin-lock.ts";
 
 const app = document.getElementById("app")!;
 
@@ -62,8 +63,19 @@ export function passwordField(input: HTMLInputElement) {
   return { row: h("div", { class: "row" }, h("div", { class: "grow" }, input), toggle), setVisible };
 }
 
-export function pinInput(autocomplete = "off") {
-  return h("input", { type: "password", inputmode: "numeric", pattern: "[0-9]{4,6}", maxlength: 6, autocomplete, class: "mono" });
+/** A PIN input: 4-6 digits, or with long=true a long PIN (letters too, see pin-lock.ts). */
+export function pinInput(autocomplete = "off", long = false) {
+  const input = h("input", { type: "password", autocomplete, class: "mono" });
+  setPinShape(input, long);
+  return input;
+}
+
+/** Switches a PIN input between a short numeric PIN and a long one. */
+export function setPinShape(input: HTMLInputElement, long: boolean) {
+  input.inputMode = long ? "text" : "numeric";
+  input.maxLength = long ? LONG_PIN_MAX_LENGTH : 6;
+  if (long) input.removeAttribute("pattern");
+  else input.pattern = "[0-9]{4,6}";
 }
 
 /**
