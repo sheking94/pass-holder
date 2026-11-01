@@ -230,9 +230,10 @@ function connectView(mode: "existing" | "new" = "existing") {
 
 /** Opens the address form in a tab: like connecting, it may need a host permission prompt. */
 async function openAddressesTab() {
+  // Already in a tab (also the "Otwórz w karcie" one): the prompt cannot close it, so show the form here.
+  if (IN_TAB) return addressesView();
   await chrome.tabs.create({ url: chrome.runtime.getURL("popup.html?addresses") });
-  // In the "Otwórz w karcie" tab, keep that tab open; only the popup closes itself.
-  if (!IN_TAB) window.close();
+  window.close();
 }
 
 /** Changes the server addresses of an already connected browser, without connecting again. */
@@ -250,7 +251,7 @@ async function addressesView() {
       if (!granted) return setStatus(status, "Bez zgody na dostęp do serwera wtyczka nie może się z nim łączyć", true);
       void busy(status, "Zapisuję…", async () => {
         await store.setServerUrls(typed.urls);
-        setStatus(status, "Zapisano. Przy synchronizacji wtyczka sama wybierze adres, który odpowiada. Możesz zamknąć tę kartę.");
+        setStatus(status, "Zapisano. Przy synchronizacji wtyczka sama wybierze adres, który odpowiada." + (PARAMS.has("addresses") ? " Możesz zamknąć tę kartę." : ""));
       });
     });
   };
@@ -261,7 +262,13 @@ async function addressesView() {
     form(
       submit,
       ...addresses.fields,
-      h("div", { class: "actions" }, h("button", { type: "submit", class: "primary" }, "Zapisz")),
+      h(
+        "div",
+        { class: "actions" },
+        h("button", { type: "submit", class: "primary" }, "Zapisz"),
+        // Opened from the list in this tab (not the separate ?addresses tab), so there is a list to go back to.
+        !PARAMS.has("addresses") && h("button", { type: "button", onclick: () => listView() }, "Wróć do listy"),
+      ),
     ),
     status,
   );

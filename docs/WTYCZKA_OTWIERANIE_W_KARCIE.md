@@ -58,8 +58,9 @@ Przycisk trzeba kliknąć przed rozpoczęciem pisania.
 - Współpraca z przyciskami z PR #10 i #12 w karcie `?tab`:
   - **CSV** (`openTransferTab`) pokazuje import/eksport w tej samej karcie, bo w karcie okno wyboru pliku
     działa (nie otwiera nowej karty).
-  - **Adresy serwera** (`openAddressesTab`) otwiera osobną kartę jak wcześniej, ale `window.close()`
-    woła tylko w popupie, żeby nie zamknąć Twojej karty PassHolder.
+  - **Adresy serwera** (`openAddressesTab`) też pokazuje formularz w tej samej karcie (okno zgody Chrome
+    nie zamyka karty). Pod formularzem jest wtedy przycisk **Wróć do listy**. Z popupu adresy dalej
+    otwierają się w osobnej karcie `?addresses`, bez tego przycisku.
 
 ### `extension/static/popup.css`
 
