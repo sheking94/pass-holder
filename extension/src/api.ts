@@ -26,7 +26,7 @@ export class ServerClient {
     this.baseUrl = baseUrl.replace(/\/+$/, "");
   }
 
-  private async request<T>(method: string, path: string, body?: unknown, token?: string): Promise<T> {
+  private async request<T>(method: string, path: string, body?: unknown, token?: string, timeoutMs?: number): Promise<T> {
     const headers: Record<string, string> = {};
     if (body !== undefined) headers["content-type"] = "application/json";
     if (token) headers.authorization = `Bearer ${token}`;
@@ -36,6 +36,7 @@ export class ServerClient {
         method,
         headers,
         ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+        ...(timeoutMs !== undefined ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
       });
     } catch {
       throw new ApiError(0, "Serwer jest niedostępny. Czy Raspberry Pi jest włączone?");
@@ -45,8 +46,9 @@ export class ServerClient {
     return data as T;
   }
 
-  status() {
-    return this.request<{ initialized: boolean; version: string }>("GET", "/api/v1/status");
+  /** With timeoutMs, gives up (as "unreachable", status 0) when the server has not answered in time. */
+  status(timeoutMs?: number) {
+    return this.request<{ initialized: boolean; version: string }>("GET", "/api/v1/status", undefined, undefined, timeoutMs);
   }
 
   setup(body: { setupToken: string; kdf: KdfParams; authKey: string; wrappedVaultKey: string }) {

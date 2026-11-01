@@ -222,3 +222,35 @@ class SecondPhoneTest : ScreenTestBase() {
         shot("11-drugi-telefon")
     }
 }
+
+class TwoAddressesTest : ScreenTestBase() {
+    @Test
+    fun `pairs with two addresses while only one answers, then edits them`() {
+        // At home with the VPN off: the first address does not answer, the certificate comes from the second.
+        val offline = "https://127.0.0.1:1"
+        click("Nowy sejf")
+        type(io.github.sheking94.passholder.app.ui.URL_LABEL, offline)
+        type(io.github.sheking94.passholder.app.ui.SECOND_URL_LABEL, url)
+        click("Dalej: sprawdź certyfikat")
+        waitFor("Odcisk się zgadza")
+        waitFor("(z adresu $url)", substring = true)
+        shot("12-dwa-adresy")
+        finishCreate()
+
+        val store = ApplicationProvider.getApplicationContext<PassHolderApp>().vaultStore
+        assertEquals(listOf(offline, url), store.account()!!.serverUrls)
+        assertEquals(url, store.account()!!.lastServerUrl)
+
+        click("Synchronizuj")
+        waitFor("Zsynchronizowano", substring = true)
+
+        click("Adresy")
+        waitFor("Adresy serwera")
+        shot("13-adresy-serwera")
+        type(io.github.sheking94.passholder.app.ui.URL_LABEL, url)
+        type(io.github.sheking94.passholder.app.ui.SECOND_URL_LABEL, "")
+        click("Zapisz")
+        waitFor("Zapisano adresy serwera", substring = true)
+        assertEquals(listOf(url), store.account()!!.serverUrls)
+    }
+}

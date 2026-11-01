@@ -46,13 +46,20 @@ Przycisk trzeba kliknąć przed rozpoczęciem pisania.
 
 ### `extension/src/popup.ts`
 
-- `IN_TAB = isTabPage(location.search)` zamiast sprawdzania tylko `?setup`. Dzięki temu karta `?tab`
+- `IN_TAB = isTabPage(location.search) || PARAMS.has("addresses")` (karta `?addresses` pochodzi z PR #12
+  o wielu adresach serwera). Dzięki temu karta `?tab`
   zachowuje się jak karta `?setup`: `body` dostaje klasę `tab`, a łączenie z serwerem (po
   „Odłącz tę przeglądarkę”) odbywa się w niej bez przenoszenia do kolejnej karty.
-- `openInTabButton()`: zwraca pasek z przyciskiem albo `undefined` w karcie (`show()` pomija `undefined`).
+- `openInTabButton()`: zwraca pasek z przyciskiem albo `undefined` w każdej karcie, także `?transfer`
+  (import/eksport CSV z PR #10); `show()` pomija `undefined`.
   Kliknięcie: `openInTab(chromeTabApi(), chrome.runtime.getURL("popup.html"))`, potem `window.close()`.
 - `lockedView`, `listView`, `editView`: `openInTabButton()` jako pierwszy element w `show(...)`.
 - `openSetupTab` używa stałej `SETUP_PARAM`; zachowanie bez zmian (zawsze nowa karta).
+- Współpraca z przyciskami z PR #10 i #12 w karcie `?tab`:
+  - **CSV** (`openTransferTab`) pokazuje import/eksport w tej samej karcie, bo w karcie okno wyboru pliku
+    działa (nie otwiera nowej karty).
+  - **Adresy serwera** (`openAddressesTab`) otwiera osobną kartę jak wcześniej, ale `window.close()`
+    woła tylko w popupie, żeby nie zamknąć Twojej karty PassHolder.
 
 ### `extension/static/popup.css`
 

@@ -22,6 +22,8 @@ import {
   type LocalVault,
 } from "@passholder/core";
 import { ApiError, ServerClient, type SessionResponse } from "./api.ts";
+import { sameEntry, type ImportedEntry } from "./csv-transfer.ts";
+import { normalizeServerUrls, pickServer } from "./server-urls.ts";
 
 const LOCAL_VAULT_AAD = "passholder/v1/local-vault";
 
@@ -73,9 +75,26 @@ export function memoryStore(): KeyValueStore {
 
 /** Kept on disk. Nothing here is readable without the master password. */
 export interface Account {
-  serverUrl: string;
+  /** Every address of the same server, e.g. the home network IP and the Tailscale IP. At least one. */
+  serverUrls: string[];
+  /** The address that answered last time; tried first on the next sync. */
+  lastServerUrl?: string;
   kdf: KdfParams;
   wrappedVaultKey: string;
+}
+
+/** Version 1.0 stored a single serverUrl. */
+type StoredAccount = Omit<Account, "serverUrls"> & { serverUrls?: string[]; serverUrl?: string };
+
+function upgradeAccount(stored: StoredAccount): Account {
+  const { serverUrl, serverUrls, ...rest } = stored;
+  return { ...rest, serverUrls: serverUrls ?? (serverUrl ? [serverUrl] : []) };
+}
+
+function toUrlList(serverUrls: string | readonly string[]): string[] {
+  const urls = normalizeServerUrls(typeof serverUrls === "string" ? [serverUrls] : serverUrls);
+  if (urls.length === 0) throw new Error("Podaj adres serwera");
+  return urls;
 }
 
 /** Kept in chrome.storage.session (memory only, gone when the browser closes) while unlocked. */
@@ -117,8 +136,21 @@ export class VaultStore {
     private readonly now: () => number = Date.now,
   ) {}
 
-  getAccount(): Promise<Account | undefined> {
-    return this.local.get<Account>(STORAGE_KEYS.account);
+  async getAccount(): Promise<Account | undefined> {
+    const stored = await this.local.get<StoredAccount>(STORAGE_KEYS.account);
+    return stored && upgradeAccount(stored);
+  }
+
+  /**
+   * Replaces the list of server addresses. The vault stays as it is: every address leads to the same
+   * server, and the browser checks its certificate on every connection anyway.
+   */
+  async setServerUrls(serverUrls: readonly string[]): Promise<void> {
+    const account = await this.getAccount();
+    if (!account) throw new Error("Ta przeglądarka nie jest połączona z serwerem");
+    const urls = toUrlList(serverUrls);
+    const lastServerUrl = account.lastServerUrl && urls.includes(account.lastServerUrl) ? account.lastServerUrl : undefined;
+    await this.saveAccount({ ...account, serverUrls: urls, lastServerUrl });
   }
 
   isUnlocked(): boolean {
@@ -145,26 +177,47 @@ export class VaultStore {
     await this.save();
   }
 
+  /**
+   * Adds imported entries as new local changes, skipping any that already exist with the same
+   * name, username and password (also duplicates within the import). Saves once at the end.
+   * Returns how many were added and how many were duplicates.
+   */
+  async importEntries(entries: readonly ImportedEntry[], newId: () => string = () => crypto.randomUUID()): Promise<{ added: number; duplicates: number }> {
+    const vault = this.requireVault();
+    const known: ImportedEntry[] = liveEntries(vault).map((e) => e.data);
+    let added = 0;
+    for (const entry of entries) {
+      if (known.some((k) => sameEntry(k, entry))) continue;
+      upsertEntry(vault, newId(), entry, this.now());
+      known.push(entry);
+      added++;
+    }
+    if (added > 0) await this.save();
+    return { added, duplicates: entries.length - added };
+  }
+
   async delete(id: string): Promise<void> {
     deleteEntry(this.requireVault(), id, this.now());
     await this.save();
   }
 
-  /** Creates a new vault on an empty server. */
-  async createVault(serverUrl: string, setupToken: string, masterPassword: string): Promise<void> {
-    const client = this.makeClient(serverUrl);
+  /** Creates a new vault on an empty server, reached at the first of serverUrls that answers. */
+  async createVault(serverUrls: string | readonly string[], setupToken: string, masterPassword: string): Promise<void> {
+    const urls = toUrlList(serverUrls);
+    const { url, client } = await pickServer(urls, this.makeClient);
     const kdf = newKdfParams();
     const keys = await deriveKeys(masterPassword, kdf);
     const vaultKey = newVaultKey();
     const wrappedVaultKey = await wrapVaultKey(keys.encKey, vaultKey);
     await client.setup({ setupToken, kdf, authKey: toBase64(keys.authKey), wrappedVaultKey });
-    await this.local.set(STORAGE_KEYS.account, { serverUrl, kdf, wrappedVaultKey } satisfies Account);
+    await this.saveAccount({ serverUrls: urls, lastServerUrl: url, kdf, wrappedVaultKey });
     await this.startSession(vaultKey, keys.authKey, emptyVault());
   }
 
   /** Connects this browser to a vault that already exists on the server, then downloads it. */
-  async connectExisting(serverUrl: string, masterPassword: string): Promise<void> {
-    const client = this.makeClient(serverUrl);
+  async connectExisting(serverUrls: string | readonly string[], masterPassword: string): Promise<void> {
+    const urls = toUrlList(serverUrls);
+    const { url, client } = await pickServer(urls, this.makeClient);
     const { kdf } = await client.prelogin().catch((error: unknown) => {
       if (error instanceof ApiError && error.status === 404) throw new ApiError(404, NO_VAULT_ON_SERVER);
       throw error;
@@ -177,7 +230,7 @@ export class VaultStore {
       throw error;
     });
     const vaultKey = await unwrapVaultKey(keys.encKey, session.wrappedVaultKey);
-    await this.local.set(STORAGE_KEYS.account, { serverUrl, kdf, wrappedVaultKey: session.wrappedVaultKey } satisfies Account);
+    await this.saveAccount({ serverUrls: urls, lastServerUrl: url, kdf, wrappedVaultKey: session.wrappedVaultKey });
     await this.startSession(vaultKey, keys.authKey, emptyVault());
     await this.rememberToken(session);
     await this.sync();
@@ -228,10 +281,12 @@ export class VaultStore {
     const keys = this.requireKeys();
     const account = await this.getAccount();
     if (!account) throw new Error(LOCKED);
-    const client = this.makeClient(account.serverUrl);
+    // The session token stays valid at any address: it is the same server.
+    const { url, client } = await pickServer(account.serverUrls, this.makeClient, account.lastServerUrl);
     const vaultKey = fromBase64(keys.vaultKey);
     await this.withFreshToken(client, (token) => syncVault(vault, vaultKey, (request) => client.sync(token, request)));
     await this.save();
+    if (url !== account.lastServerUrl) await this.saveAccount({ ...account, lastServerUrl: url });
   }
 
   /**
@@ -260,6 +315,10 @@ export class VaultStore {
   private async rememberToken(session: SessionResponse): Promise<void> {
     this.keys = { ...this.requireKeys(), token: session.token, tokenExpiresAt: session.expiresAt };
     await this.session.set(STORAGE_KEYS.sessionKeys, this.keys);
+  }
+
+  private async saveAccount(account: Account): Promise<void> {
+    await this.local.set(STORAGE_KEYS.account, account);
   }
 
   private requireVault(): LocalVault {
