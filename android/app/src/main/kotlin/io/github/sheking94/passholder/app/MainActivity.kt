@@ -26,6 +26,16 @@ class MainActivity : FragmentActivity() {
         viewModel.checkAutoLock()
     }
 
+    /**
+     * The app left the screen: Home, the recent apps list, another app on top, the screen turned off, or the
+     * activity closed with Back. Lock right away, so every return asks for the fingerprint or the master
+     * password. A screen rotation also stops the activity, but it comes straight back: no lock then.
+     */
+    override fun onStop() {
+        super.onStop()
+        if (!isChangingConfigurations) viewModel.lockOnLeave()
+    }
+
     /** Any touch or key press counts as activity for the auto-lock. */
     override fun onUserInteraction() {
         super.onUserInteraction()

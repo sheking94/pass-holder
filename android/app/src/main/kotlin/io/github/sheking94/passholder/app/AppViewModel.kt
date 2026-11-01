@@ -21,6 +21,7 @@ import kotlinx.serialization.SerializationException
 import java.text.DateFormat
 import java.util.Date
 import java.util.UUID
+import kotlin.concurrent.thread
 
 sealed interface Screen {
     data object Connect : Screen
@@ -71,6 +72,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      */
     private var fingerprintOnLockedScreen = true
 
+    private val _fingerprintRequests = MutableStateFlow(0)
+    /** Goes up each time the app leaves the screen; the locked screen then offers the fingerprint dialog again. */
+    val fingerprintRequests: StateFlow<Int> = _fingerprintRequests.asStateFlow()
+
+    /** The app left the screen while a vault operation (e.g. a sync) was running: lock as soon as it ends. */
+    private var lockWhenDone = false
+
     init {
         // Auto-lock also while the app sits in the background, as long as the process lives.
         viewModelScope.launch {
@@ -89,6 +97,32 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun touch() = store.touch()
+
+    /**
+     * Called when the app leaves the screen (MainActivity.onStop, not for a rotation). Locks the vault, so that
+     * opening the app again always asks for the fingerprint or the master password. The keys live in
+     * VaultStore, which belongs to the process, not to this ViewModel or the activity: without this they
+     * stayed in memory after closing the app, until Android killed the process.
+     *
+     * Runs on the main thread: lock() only zeroes two arrays. If an operation is running, it holds the vault's
+     * lock (a sync can take seconds), so the lock waits until it ends instead of blocking the main thread.
+     */
+    fun lockOnLeave() {
+        fingerprintOnLockedScreen = true
+        _fingerprintRequests.update { it + 1 }
+        if (!store.isUnlocked) return
+        if (_state.value.busy) {
+            lockWhenDone = true
+            return
+        }
+        store.lock()
+        _state.value = UiState(Screen.Locked)
+    }
+
+    /** The activity is closed for good. If a running operation still waits to be followed by the lock, lock off the main thread. */
+    override fun onCleared() {
+        if (lockWhenDone) thread(name = "passholder-lock") { store.lock() }
+    }
 
     fun checkAutoLock() {
         val screen = _state.value.screen
@@ -324,6 +358,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 _state.update { it.copy(status = Status(message, isError = true)) }
             } finally {
                 _state.update { it.copy(busy = false) }
+                if (lockWhenDone) {
+                    lockWhenDone = false
+                    lockOnLeave()
+                }
             }
         }
     }
