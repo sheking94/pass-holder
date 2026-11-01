@@ -60,7 +60,11 @@ class ServerClient(baseUrl: String, certificatePin: String?, base: OkHttpClient 
         http = builder.build()
     }
 
-    fun status(): ServerStatus = request("GET", "/api/v1/status", null)
+    /** With [timeoutMs], gives up (as "unreachable", status 0) when the whole call takes longer. */
+    fun status(timeoutMs: Long? = null): ServerStatus {
+        val client = if (timeoutMs == null) http else http.newBuilder().callTimeout(timeoutMs, TimeUnit.MILLISECONDS).build()
+        return request("GET", "/api/v1/status", null, client = client)
+    }
 
     fun setup(body: SetupRequest) {
         request<JsonObject>("POST", "/api/v1/setup", json.encodeToString(body))
@@ -74,14 +78,20 @@ class ServerClient(baseUrl: String, certificatePin: String?, base: OkHttpClient 
     fun sync(token: String, body: SyncRequest): SyncResponse =
         request("POST", "/api/v1/sync", json.encodeToString(body), token)
 
-    private inline fun <reified T> request(method: String, path: String, body: String?, token: String? = null): T {
+    private inline fun <reified T> request(
+        method: String,
+        path: String,
+        body: String?,
+        token: String? = null,
+        client: OkHttpClient = http,
+    ): T {
         val builder = Request.Builder().url(baseUrl + path)
         if (token != null) builder.header("Authorization", "Bearer $token")
         builder.method(method, body?.toRequestBody("application/json".toMediaType()))
         val text: String
         val code: Int
         try {
-            http.newCall(builder.build()).execute().use { response ->
+            client.newCall(builder.build()).execute().use { response ->
                 code = response.code
                 text = response.body?.string().orEmpty()
             }

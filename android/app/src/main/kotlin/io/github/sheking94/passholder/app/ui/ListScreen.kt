@@ -64,6 +64,7 @@ fun ListScreen(state: UiState, vm: AppViewModel) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = vm::sync, enabled = !state.busy) { Text("Synchronizuj") }
             OutlinedButton(onClick = vm::lock, enabled = !state.busy) { Text("Zablokuj") }
+            TextButton(onClick = vm::openAddresses, enabled = !state.busy) { Text("Adresy") }
         }
         StatusLine(state.status, state.busy)
     }
