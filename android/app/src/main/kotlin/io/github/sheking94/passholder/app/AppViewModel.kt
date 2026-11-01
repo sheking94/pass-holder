@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.sheking94.passholder.core.CertificatePin
 import io.github.sheking94.passholder.core.Credentials
+import io.github.sheking94.passholder.core.ServerPicker
 import io.github.sheking94.passholder.core.GeneratorOptions
 import io.github.sheking94.passholder.core.LiveEntry
 import kotlinx.coroutines.Dispatchers
@@ -24,6 +25,7 @@ sealed interface Screen {
     data object Connect : Screen
     data object Locked : Screen
     data object List : Screen
+    data object Addresses : Screen
     /** [id] is null for a new entry. */
     data class Edit(val id: String?) : Screen
 }
@@ -36,11 +38,15 @@ data class UiState(
     val status: Status? = null,
     val entries: List<LiveEntry> = emptyList(),
     val pending: Int = 0,
-    /** Server address the user wants to pair with, and the fingerprint of its certificate, waiting for confirmation. */
+    /** Server addresses the user wants to pair with, and the fingerprint of its certificate, waiting for confirmation. */
     val pairing: Pairing? = null,
 )
 
-data class Pairing(val url: String, val fingerprint: String?)
+/**
+ * [urls]: every address of the server, in the order typed. [fingerprint]: of the certificate read from
+ * [certificateFrom], the first address that answered; null for a local http:// server (debug only).
+ */
+data class Pairing(val urls: List<String>, val fingerprint: String?, val certificateFrom: String? = null)
 
 /**
  * The single source of UI state. Every operation on the vault runs on Dispatchers.IO (Argon2id, disk,
@@ -84,18 +90,36 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     // --- Connecting -------------------------------------------------------------------------------
 
-    /** Step 1 of pairing: read the server's certificate so the user can compare its fingerprint with the Pi. */
-    fun inspectServer(rawUrl: String) {
-        val url = rawUrl.trim().trimEnd('/')
-        if (url.startsWith("http://") && BuildConfig.DEBUG) {
-            _state.update { it.copy(pairing = Pairing(url, null), status = Status("Serwer deweloperski bez HTTPS (tylko wersja debug).")) }
+    /**
+     * Step 1 of pairing: read the server's certificate so the user can compare its fingerprint with the Pi.
+     * The certificate comes from the first address that answers; the other address (e.g. Tailscale while
+     * the VPN is off) does not have to be reachable now. One pin covers both: it is the same certificate.
+     */
+    fun inspectServer(rawUrl: String, rawSecondUrl: String = "") {
+        val urls = ServerPicker.normalize(listOf(rawUrl, rawSecondUrl))
+        if (urls.isNotEmpty() && urls.all { it.startsWith("http://") } && BuildConfig.DEBUG) {
+            _state.update { it.copy(pairing = Pairing(urls, null), status = Status("Serwer deweloperski bez HTTPS (tylko wersja debug).")) }
             return
         }
-        if (!url.startsWith("https://")) return fail("Podaj pełny adres, np. https://passholder.local:8443")
+        val valid = runCatching { ServerPicker.validate(urls, https = true) }
+        if (valid.isFailure) return fail(valid.exceptionOrNull()?.message ?: "Podaj pełny adres, np. https://passholder.local:8443")
         launchVaultOperation("Pobieram certyfikat serwera…") {
-            val fingerprint = CertificatePin.fingerprint(CertificatePin.fetchServerCertificate(url))
-            _state.update { it.copy(pairing = Pairing(url, fingerprint), status = null) }
+            val (from, fingerprint) = firstCertificate(urls)
+            _state.update { it.copy(pairing = Pairing(urls, fingerprint, from), status = null) }
         }
+    }
+
+    /** The address and certificate fingerprint of the first address that answers; the last error if none does. */
+    private fun firstCertificate(urls: List<String>): Pair<String, String> {
+        var error: Exception? = null
+        for (url in urls) {
+            try {
+                return url to CertificatePin.fingerprint(CertificatePin.fetchServerCertificate(url))
+            } catch (e: Exception) {
+                error = e
+            }
+        }
+        throw error ?: IllegalArgumentException("Podaj adres serwera")
     }
 
     fun cancelPairing() = _state.update { it.copy(pairing = null, status = null) }
@@ -104,10 +128,22 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun connect(isNew: Boolean, setupToken: String, masterPassword: String) {
         val pairing = _state.value.pairing ?: return
         launchVaultOperation("Liczę klucze z hasła głównego… (to celowo trwa kilka sekund)") {
-            if (isNew) store.createVault(pairing.url, pairing.fingerprint, setupToken.trim(), masterPassword)
-            else store.connectExisting(pairing.url, pairing.fingerprint, masterPassword)
+            if (isNew) store.createVault(pairing.urls, pairing.fingerprint, setupToken.trim(), masterPassword)
+            else store.connectExisting(pairing.urls, pairing.fingerprint, masterPassword)
             showList("Połączono z serwerem.")
         }
+    }
+
+    // --- Server addresses ------------------------------------------------------------------------
+
+    fun openAddresses() = _state.update { it.copy(screen = Screen.Addresses, status = null) }
+
+    fun serverUrls(): List<String> = store.account()?.serverUrls.orEmpty()
+
+    /** Saves new addresses for the paired server; the certificate pin stays, so no new pairing is needed. */
+    fun saveServerUrls(urls: List<String>) = launchVaultOperation("Zapisuję adresy…") {
+        store.setServerUrls(urls)
+        showList("Zapisano adresy serwera. Przy synchronizacji telefon sam wybierze ten, który odpowiada.")
     }
 
     // --- Lock and unlock --------------------------------------------------------------------------
