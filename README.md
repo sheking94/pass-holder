@@ -20,6 +20,7 @@ odcisk palca na Androidzie.
 | Dokument | Dla kogo i po co |
 |---|---|
 | [docs/INSTALACJA.md](docs/INSTALACJA.md) | Instalacja krok po kroku: Raspberry Pi, Chrome, Android, aktualizacje, kopie zapasowe |
+| [docs/DEZINSTALACJA.md](docs/DEZINSTALACJA.md) | Całkowite usunięcie serwera z Raspberry Pi oraz sprzątanie na Ubuntu i telefonie |
 | [docs/ARCHITEKTURA.md](docs/ARCHITEKTURA.md) | Mapa kodu: który plik za co odpowiada, przepływ synchronizacji, spis wszystkich dokumentów |
 | [docs/SPEC.md](docs/SPEC.md) | Kryptografia, model danych, protokół synchronizacji, API serwera |
 | [docs/TESTY.md](docs/TESTY.md) | Co testujemy, jak uruchomić testy, znalezione błędy |

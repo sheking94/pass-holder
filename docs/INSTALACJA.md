@@ -6,8 +6,8 @@ Instrukcja krok po kroku dla trzech części systemu:
 2. [Wtyczka do Chrome na Ubuntu](#część-2-wtyczka-do-chrome) – pierwszy klient, zakłada sejf.
 3. [Aplikacja na Androida](#część-3-aplikacja-na-androida) – drugi klient, łączy się z istniejącym sejfem.
 
-Na końcu: [aktualizacje](#aktualizacje), [kopia zapasowa](#kopia-zapasowa), [rozwiązywanie problemów](#rozwiązywanie-problemów)
-i [znane ograniczenia](#znane-ograniczenia).
+Na końcu: [aktualizacje](#aktualizacje), [kopia zapasowa](#kopia-zapasowa), [dezinstalacja](#dezinstalacja),
+[rozwiązywanie problemów](#rozwiązywanie-problemów) i [znane ograniczenia](#znane-ograniczenia).
 
 ## Zanim zaczniesz
 
@@ -544,6 +544,12 @@ postawieniu nowego, pustego serwera i założeniu nowego sejfu zaimportować je 
 Plik CSV zawiera hasła jawnym tekstem, więc to nie jest sposób na regularną kopię: trzymaj go tylko na czas
 przenosin i potem usuń. Telefon trzeba wtedy sparować z nowym sejfem od nowa („Odłącz ten telefon”, potem
 „Mam już sejf”).
+
+# Dezinstalacja
+
+Całkowite usunięcie serwera z Pi (usługa, baza, certyfikaty, użytkownik, zapora, Tailscale, Node.js) oraz
+sprzątanie na Ubuntu i telefonie opisuje osobny dokument: [DEZINSTALACJA.md](DEZINSTALACJA.md). Przed
+usunięciem bazy zrób kopię zapasową (sekcja wyżej): klienci nie wgrają swoich kopii na nowy, pusty serwer.
 
 # Szyfrowanie dysku (Ubuntu)
 

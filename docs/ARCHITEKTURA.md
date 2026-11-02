@@ -116,6 +116,7 @@ Dwa moduły Gradle: `core` (czysta JVM, testy bez emulatora) i `app` (Jetpack Co
 | Dokument | Treść |
 |---|---|
 | [INSTALACJA.md](INSTALACJA.md) | instalacja krok po kroku: Pi, Chrome, Android, aktualizacje, kopie |
+| [DEZINSTALACJA.md](DEZINSTALACJA.md) | całkowite usunięcie serwera z Raspberry Pi i sprzątanie na Ubuntu i telefonie |
 | [SPEC.md](SPEC.md) | kryptografia, format danych, protokół, API |
 | [TESTY.md](TESTY.md) | co testujemy i jak uruchomić testy |
 | [WTYCZKA_ZAKLADANIE_SEJFU.md](WTYCZKA_ZAKLADANIE_SEJFU.md) | formularz połączenia w karcie (PR #8) |
