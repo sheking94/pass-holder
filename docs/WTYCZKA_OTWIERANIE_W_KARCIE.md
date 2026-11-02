@@ -1,7 +1,5 @@
 # Wtyczka Chrome: przycisk „Otwórz w karcie”
 
-> Uwaga (2026-11-01): część nazw funkcji i plików opisanych niżej zmieniła się przy poprawkach po przeglądzie kodu, zob. [POPRAWKI_PRZEGLADU_2.md](POPRAWKI_PRZEGLADU_2.md).
-
 Dokument opisuje zmianę z gałęzi `claude/project-thread-borcs6`.
 
 ## Problem
@@ -30,11 +28,22 @@ Przycisk trzeba kliknąć przed rozpoczęciem pisania.
 
 ## Kod
 
-### `extension/src/open-in-tab.ts` (nowy)
+Stan po PR #16 (podział `popup.ts` na widoki). Przy PR #9 te same rzeczy były w `popup.ts` i
+`open-in-tab.ts` pod innymi nazwami (`IN_TAB`, `isTabPage`, `openSetupTab` …), patrz „Stare nazwy” w
+[ARCHITEKTURA.md](ARCHITEKTURA.md#stare-nazwy).
 
-- `TAB_PARAM = "tab"`, `SETUP_PARAM = "setup"`: parametry adresu oznaczające stronę w karcie.
-  `?setup` to karta łączenia z serwerem z PR #8, `?tab` to nowa karta z przycisku.
-- `isTabPage(search)`: `true`, gdy w adresie jest `?tab` albo `?setup`.
+### `extension/src/page-mode.ts`
+
+- `PageMode = "popup" | "tab" | "setup" | "addresses" | "transfer"`: która to strona. `?setup` to karta
+  łączenia z serwerem (PR #8), `?tab` to karta z przycisku, `?addresses` i `?transfer` to karty adresów
+  (PR #12) i CSV (PR #10).
+- `pageMode(location.search)`: odczytuje tryb z adresu.
+- `isInTab(mode)`: każda karta (wszystko poza popupem).
+- `isMainTab(mode)`: karta z całą wtyczką, czyli `tab` albo `setup`. Tylko na nią przełącza przycisk.
+- `modeQuery(mode)`: np. `"?tab"`.
+
+### `extension/src/open-in-tab.ts`
+
 - `TabApi`: trzy operacje na kartach, wydzielone, żeby dało się je podmienić w testach:
   `openTabs()` (otwarte karty z PassHolderem), `focus(tabId, windowId)`, `create(url)`.
 - `chromeTabApi()`: implementacja na `chrome.*`.
@@ -43,24 +52,26 @@ Przycisk trzeba kliknąć przed rozpoczęciem pisania.
     więc `manifest.json` się nie zmienia. Wymaga Chrome 116+, manifest i tak wymaga 120.
   - `focus()` to `chrome.tabs.update(tabId, { active: true })` i `chrome.windows.update(windowId, { focused: true })`.
   - `create()` to `chrome.tabs.create({ url })`.
-- `openInTab(api, pageUrl)`: szuka karty, której adres zaczyna się od `pageUrl` (`…/popup.html`) i ma
-  `?tab` lub `?setup`. Jest: przełącza na nią. Nie ma: otwiera `popup.html?tab`.
+- `openInTab(api, pageUrl)`: szuka karty, której adres zaczyna się od `pageUrl` (`…/popup.html`) i której
+  tryb spełnia `isMainTab`. Jest: przełącza na nią. Nie ma: otwiera `popup.html?tab`.
 
-### `extension/src/popup.ts`
+### `extension/src/ui/page.ts`
 
-- `IN_TAB = isTabPage(location.search) || PARAMS.has("addresses")` (karta `?addresses` pochodzi z PR #12
-  o wielu adresach serwera). Dzięki temu karta `?tab`
-  zachowuje się jak karta `?setup`: `body` dostaje klasę `tab`, a łączenie z serwerem (po
-  „Odłącz tę przeglądarkę”) odbywa się w niej bez przenoszenia do kolejnej karty.
-- `openInTabButton()`: zwraca pasek z przyciskiem albo `undefined` w każdej karcie, także `?transfer`
-  (import/eksport CSV z PR #10); `show()` pomija `undefined`.
+- `MODE = pageMode(location.search)` i `IN_TAB = isInTab(MODE)`. W każdej karcie `body` dostaje klasę `tab`
+  (`popup.ts`), a łączenie z serwerem (po „Odłącz tę przeglądarkę”) odbywa się w niej bez przenoszenia do
+  kolejnej karty.
+- `openInTabButton()`: zwraca pasek z przyciskiem albo `undefined` w każdej karcie; `show()` pomija `undefined`.
   Kliknięcie: `openInTab(chromeTabApi(), chrome.runtime.getURL("popup.html"))`, potem `window.close()`.
-- `lockedView`, `listView`, `editView`: `openInTabButton()` jako pierwszy element w `show(...)`.
-- `openSetupTab` używa stałej `SETUP_PARAM`; zachowanie bez zmian (zawsze nowa karta).
-- Współpraca z przyciskami z PR #10 i #12 w karcie `?tab`:
-  - **CSV** (`openTransferTab`) pokazuje import/eksport w tej samej karcie, bo w karcie okno wyboru pliku
-    działa (nie otwiera nowej karty).
-  - **Adresy serwera** (`openAddressesTab`) też pokazuje formularz w tej samej karcie (okno zgody Chrome
+- `showInTab(mode, view)`: w karcie pokazuje widok od razu, w popupie otwiera kartę w danym trybie i zamyka
+  popup. Używają jej `showConnect` (`"setup"`), `openAddresses` (`"addresses"`) i `openTransfer` (`"transfer"`).
+
+### Widoki (`extension/src/views/`)
+
+- `locked.ts`, `list.ts`, `edit.ts`: `openInTabButton()` jako pierwszy element w `show(...)`.
+- Współpraca z przyciskami z PR #10 i #12 w karcie:
+  - **CSV** (`openTransfer`) pokazuje import/eksport w tej samej karcie, bo w karcie okno wyboru pliku
+    działa.
+  - **Adresy serwera** (`openAddresses`) też pokazuje formularz w tej samej karcie (okno zgody Chrome
     nie zamyka karty). Pod formularzem jest wtedy przycisk **Wróć do listy**. Z popupu adresy dalej
     otwierają się w osobnej karcie `?addresses`, bez tego przycisku.
 
@@ -73,7 +84,8 @@ Przycisk trzeba kliknąć przed rozpoczęciem pisania.
 
 `extension/test/open-in-tab.test.ts` (z udawanym `TabApi`):
 
-- `isTabPage` rozpoznaje `?tab` i `?setup`, a pusty adres i inne parametry nie.
+- `pageMode` rozpoznaje każdy tryb, a pusty adres i inne parametry to `popup`.
+- Karta CSV albo adresów nie jest kartą główną: przycisk otwiera wtedy nową kartę `?tab`.
 - Bez otwartej karty: tworzy `popup.html?tab`.
 - Z otwartą kartą `?tab` albo `?setup`: przełącza na nią, nie tworzy nowej.
 - Inne strony wtyczki (np. `offscreen.html`) są ignorowane.

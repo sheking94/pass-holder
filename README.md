@@ -2,15 +2,29 @@
 
 Prywatny menedżer haseł z serwerem synchronizacji na Raspberry Pi, wtyczką do Chrome i aplikacją na Androida.
 
-| Katalog | Zawartość | Status |
-|---|---|---|
-| `docs/SPEC.md` | Kryptografia, model danych, protokół synchronizacji, API | gotowe |
-| `core/` | Wspólny rdzeń w TypeScript: szyfrowanie, generator haseł, logika sync, wektory testowe | gotowe |
-| `server/` | Serwer na Raspberry Pi (Node.js, Fastify, SQLite) | gotowe |
-| `deploy/` | Certyfikaty, usługa systemd, VPN | gotowe |
-| `docs/INSTALACJA.md` | Instalacja krok po kroku: Raspberry Pi, Chrome, Android | gotowe |
-| `extension/` | Wtyczka Chrome (Manifest V3) | gotowe |
-| `android/` | Aplikacja Android (Kotlin, Jetpack Compose) | gotowe |
+| Katalog | Zawartość |
+|---|---|
+| `core/` | Wspólny rdzeń w TypeScript: szyfrowanie, generator haseł, logika sync, wektory testowe |
+| `server/` | Serwer na Raspberry Pi (Node.js, Fastify, SQLite) |
+| `deploy/` | Certyfikaty, usługa systemd, VPN |
+| `extension/` | Wtyczka Chrome (Manifest V3) |
+| `android/` | Aplikacja Android (Kotlin, Jetpack Compose) |
+| `docs/` | Dokumentacja (spis niżej) |
+
+Wszystkie cztery części są gotowe. Poza podstawą (wpisy, generator, synchronizacja offline-first) są:
+kilka adresów serwera (LAN + Tailscale), automatyczna blokada, PIN i import/eksport CSV we wtyczce,
+odcisk palca na Androidzie.
+
+## Dokumentacja
+
+| Dokument | Dla kogo i po co |
+|---|---|
+| [docs/INSTALACJA.md](docs/INSTALACJA.md) | Instalacja krok po kroku: Raspberry Pi, Chrome, Android, aktualizacje, kopie zapasowe |
+| [docs/ARCHITEKTURA.md](docs/ARCHITEKTURA.md) | Mapa kodu: który plik za co odpowiada, przepływ synchronizacji, spis wszystkich dokumentów |
+| [docs/SPEC.md](docs/SPEC.md) | Kryptografia, model danych, protokół synchronizacji, API serwera |
+| [docs/TESTY.md](docs/TESTY.md) | Co testujemy, jak uruchomić testy, znalezione błędy |
+| `docs/WTYCZKA_*.md`, `docs/WIELE_ADRESOW_SERWERA.md`, `docs/ANDROID_ODCISK_PALCA.md` | Opisy poszczególnych funkcji (jak działają i dlaczego tak) |
+| `docs/PRZEGLAD_*.md`, `docs/POPRAWKI_BEZPIECZENSTWA.md` | Przeglądy kodu i bezpieczeństwa z otwartymi punktami |
 
 ## Uruchomienie testów
 

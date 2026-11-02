@@ -365,7 +365,18 @@ Adresy już połączonej przeglądarki zmienisz przyciskiem **Adresy serwera** n
 - **Synchronizuj:** wysyła lokalne zmiany na Pi i pobiera zmiany z innych urządzeń. Działa tylko, gdy Pi jest włączone.
   Bez Pi wtyczka działa offline na lokalnej kopii.
 - **Kopiowanie hasła:** schowek jest czyszczony po minucie.
-- **Blokada:** sejf blokuje się sam po 15 minutach bez aktywności i po zamknięciu przeglądarki.
+- **Blokada:** sejf blokuje się sam po 15 minutach bez kliknięcia i po zamknięciu przeglądarki, także gdy
+  strona wtyczki jest otwarta w karcie (pokazuje wtedy ekran blokady najpóźniej ok. 15 s po terminie).
+- **Otwórz w karcie ↗** (w okienku wtyczki): przenosi PassHoldera do zwykłej karty, która nie zamyka się po
+  kliknięciu na stronie. Przydatne, gdy przepisujesz dane między stroną a wtyczką. Szczegóły:
+  [WTYCZKA_OTWIERANIE_W_KARCIE.md](WTYCZKA_OTWIERANIE_W_KARCIE.md).
+- **PIN** (przycisk na liście): odblokowanie 4-6 cyframi zamiast hasła głównego, 5 prób, potem tylko hasło
+  główne. Domyślnie PIN działa do zamknięcia przeglądarki. Opcja „Pamiętaj PIN po zamknięciu przeglądarki”
+  zapisuje go na dysku i wymaga wtedy długiego PIN-u (co najmniej 8 znaków, nie same cyfry), patrz
+  „Szyfrowanie dysku” niżej i [WTYCZKA_PIN.md](WTYCZKA_PIN.md).
+- **CSV** (przycisk na liście): import z NordPass i eksport do pliku CSV w tym samym formacie. Eksport zawiera
+  hasła **jawnym tekstem**: usuń plik, gdy nie jest potrzebny. Zaimportowane wpisy trafią na Pi po
+  **Synchronizuj**. Szczegóły: [WTYCZKA_IMPORT_EKSPORT_CSV.md](WTYCZKA_IMPORT_EKSPORT_CSV.md).
 - **Odłącz tę przeglądarkę** (na ekranie blokady) usuwa z Chrome konto i lokalny sejf, **także
   niezsynchronizowane zmiany**. Zsynchronizuj przed odłączeniem.
 
@@ -462,6 +473,16 @@ Tak jak we wtyczce: dodawanie wpisów z generatorem, **Synchronizuj**, **Zabloku
 (schowek czyszczony po minucie), automatyczna blokada po 15 minutach bez aktywności, także gdy aplikacja jest w tle. Aplikacja nie robi kopii
 zapasowych w chmurze Google (`allowBackup=false`).
 
+**Odcisk palca:** przełącznik „Odblokowanie odciskiem palca” na dole listy wpisów. Po włączeniu okno odcisku
+otwiera się samo przy każdym powrocie do aplikacji; hasło główne działa zawsze („Użyj hasła głównego”).
+Dodanie nowego odcisku w ustawieniach telefonu wyłącza tę funkcję (trzeba ją włączyć ponownie po
+odblokowaniu hasłem).
+
+**Blokada po wyjściu z aplikacji:** domyślnie 60 s po przejściu do innej aplikacji, ekranu głównego albo
+wyłączeniu ekranu; krótki wypad (np. wklejenie hasła w przeglądarce) nie blokuje sejfu. Przełącznik
+„Blokuj dopiero po 60 s poza aplikacją” na liście wyłącza opóźnienie: wtedy sejf blokuje się od razu.
+Szczegóły: [ANDROID_ODCISK_PALCA.md](ANDROID_ODCISK_PALCA.md).
+
 **Adresy** (na liście wpisów) zmienia adresy serwera bez ponownego parowania. Przy synchronizacji telefon
 sam wybiera adres, który odpowiada.
 
@@ -518,6 +539,12 @@ scp <użytkownik>@passholder.local:kopia.db ~/passholder-kopia-$(date +%F).db
 Kopia zawiera tylko zaszyfrowane dane; bez hasła głównego jest bezużyteczna. Przywrócenie: zatrzymaj usługę,
 skopiuj plik na `/var/lib/passholder/passholder.db` (właściciel `passholder:passholder`), uruchom usługę.
 
+**Awaryjnie, bez kopii bazy:** wtyczka może wyeksportować wszystkie wpisy do CSV (przycisk **CSV**), a po
+postawieniu nowego, pustego serwera i założeniu nowego sejfu zaimportować je z powrotem i zsynchronizować.
+Plik CSV zawiera hasła jawnym tekstem, więc to nie jest sposób na regularną kopię: trzymaj go tylko na czas
+przenosin i potem usuń. Telefon trzeba wtedy sparować z nowym sejfem od nowa („Odłącz ten telefon”, potem
+„Mam już sejf”).
+
 # Szyfrowanie dysku (Ubuntu)
 
 Na dysku Ubuntu leżą: klucz urzędu `~/passholder-ca/ca.key` (1.5) i profil Chrome z zaszyfrowanym sejfem,
@@ -563,7 +590,8 @@ prób. Dlatego wtyczka wymaga wtedy długiego PIN-u (co najmniej 8 znaków, nie 
   (docs/WIELE_ADRESOW_SERWERA.md), ale formularze mają dwa pola. Gdy żaden adres nie odpowiada, czekanie
   trwa do ok. 4 s na adres.
 - **Brak odtwarzania serwera z klienta.** Gdy zginie baza na Pi i nie masz kopii, klienci mają dane, ale nie
-  wgrają ich na nowy, pusty serwer. Rób kopie (patrz wyżej).
+  wgrają ich na nowy, pusty serwer synchronizacją. Rób kopie bazy (patrz wyżej); awaryjnie zostaje eksport
+  i import CSV przez wtyczkę.
 - **Sesje w pamięci serwera.** Restart serwera wylogowuje klientów; ponowne logowanie dzieje się automatycznie.
 - **Wtyczka w trybie dewelopera.** Chrome może przy starcie przypominać o wtyczkach w trybie dewelopera.
 - **Klucz debug.** Aplikacja jest podpisana kluczem debug z Twojego komputera. Instalacja z innego komputera

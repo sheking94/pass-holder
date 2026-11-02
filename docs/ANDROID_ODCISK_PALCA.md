@@ -1,6 +1,6 @@
 # Android: odblokowanie odciskiem palca
 
-> Uwaga (2026-11-01): część nazw funkcji i plików opisanych niżej zmieniła się przy poprawkach po przeglądzie kodu, zob. [POPRAWKI_PRZEGLADU_2.md](POPRAWKI_PRZEGLADU_2.md).
+Nazwy klas i funkcji są aktualne po PR #16, w którym logika blokady przeszła z `AppViewModel` do `LockController`, a obsługa odcisku do `BiometricController` (stare nazwy: [ARCHITEKTURA.md](ARCHITEKTURA.md#stare-nazwy)).
 
 Ten dokument opisuje, jak działa odblokowanie sejfu odciskiem palca w aplikacji Android i dlaczego zrobiono to właśnie tak.
 
@@ -22,29 +22,29 @@ Zrzuty ekranu (z testów): `android/app/screenshots/12-odcisk-wylaczony.png` …
 
 **Dlaczego wcześniej nie trzeba było przykładać palca.** Klucze odblokowanego sejfu trzyma `VaultStore`, a ten należy do `PassHolderApp`, czyli do **procesu** aplikacji, a nie do ekranu (aktywności) ani do `AppViewModel`. Zamknięcie aplikacji (Wstecz, zamknięcie z listy ostatnich aplikacji) niszczy aktywność i ViewModel, ale Android zwykle zostawia proces w pamięci jeszcze przez dłuższy czas. Przy ponownym otwarciu nowy ViewModel widział `store.isUnlocked == true` i od razu pokazywał listę. Sejf blokowała tylko automatyczna blokada po 15 minutach albo zabicie procesu przez system.
 
-**Co jest teraz.** `MainActivity.onStop()` woła `AppViewModel.lockOnLeave()`. `onStop` przychodzi zawsze, gdy aktywność przestaje być widoczna, więc obejmuje wszystkie sposoby wyjścia z aplikacji. Wyjątek to obrót ekranu: Android też wtedy zatrzymuje i tworzy aktywność od nowa, ale `isChangingConfigurations` jest `true` i nic się nie dzieje. `MainActivity.onStart()` woła `AppViewModel.onReturn()`.
+**Co jest teraz.** `MainActivity.onStop()` woła `AppViewModel.onLeftApp()`, które przekazuje to do `LockController.onLeftApp()`. `onStop` przychodzi zawsze, gdy aktywność przestaje być widoczna, więc obejmuje wszystkie sposoby wyjścia z aplikacji. Wyjątek to obrót ekranu: Android też wtedy zatrzymuje i tworzy aktywność od nowa, ale `isChangingConfigurations` jest `true` i nic się nie dzieje. `MainActivity.onStart()` woła `AppViewModel.onReturn()` (→ `LockController.onReturn()`) i sprawdza blokadę po 15 minutach.
 
 ```
 MainActivity.onStop()  (nie przy obrocie ekranu)
-  → AppViewModel.lockOnLeave()
-      fingerprintOnLockedScreen = true       // po powrocie okno odcisku ma się otworzyć samo
-      fingerprintRequests += 1               // ekran blokady wie, że to nowy powrót
+  → AppViewModel.onLeftApp() → LockController.onLeftApp()
+      offerFingerprint = true                // po powrocie okno odcisku ma się otworzyć samo
+      timesLeftApp += 1                      // ekran blokady wie, że to nowy powrót
       sejf zablokowany?           → koniec
       opóźnienie włączone (domyślnie) → LeaveLock.schedule(60 s)   // minutnik w procesie aplikacji
       opóźnienie wyłączone        → lockNow()
 
 lockNow()
-      trwa operacja (np. sync) → lockWhenDone = true; zablokuje się zaraz po jej końcu
+      trwa operacja (np. sync) → lockWaitsForOperation = true; zablokuje się zaraz po jej końcu
       inaczej                  → VaultStore.lock() (zeruje klucze), ekran = Zablokowany
 
 Po 60 s poza aplikacją (minutnik LeaveLock)
   → VaultStore.lock() w osobnym wątku
 
 MainActivity.onStart()  (powrót)
-  → AppViewModel.onReturn()
+  → AppViewModel.onReturn() → LockController.onReturn()
       LeaveLock.cancel(): zatrzymuje minutnik; minęło już 60 s? → lockNow()
       sejf zablokowany, a ekran pokazuje wpisy? → ekran = Zablokowany
-  → LockedScreen: LaunchedEffect(fingerprintRequests)
+  → LockedScreen: LaunchedEffect(timesLeftApp)
       czeka, aż aktywność jest na wierzchu (RESUMED), bo okna odcisku nie da się pokazać z tła
       → okno odcisku palca (jeśli odcisk jest włączony)
 ```
@@ -55,8 +55,8 @@ Szczegóły:
 - **Dwa zabezpieczenia.** Android może „zamrozić” aplikację w tle i wtedy minutnik nie wystartuje na czas. Dlatego przy powrocie `LeaveLock.cancel()` porównuje zegar z terminem i, jeśli 60 s minęło, sejf jest blokowany od razu, zanim pokaże się jakikolwiek wpis.
 - **Ustawienie** jest zapisane w `SharedPreferences "settings"` jako `lockDelay` (domyślnie `true`, klasa `Settings` w `PassHolderApp.kt`). Przełącznik: `LockDelaySetting` w `ui/ListScreen.kt`.
 - **Blokada bez opóźnienia od razu, na głównym wątku.** `VaultStore.lock()` tylko zeruje dwie tablice bajtów, więc jest natychmiastowe. Robimy je synchronicznie w `onStop`, bo przy zamknięciu aplikacji zaraz potem znika ViewModel razem ze swoimi korutynami. Minutnik blokuje w osobnym wątku, bo może trafić na trwającą synchronizację.
-- **Gdy trwa operacja.** Metody `VaultStore` są `@Synchronized`; synchronizacja z serwerem może trwać kilka sekund i trzyma blokadę. `lock()` na głównym wątku czekałby na nią i zamroziłby aplikację. Dlatego wtedy ustawiamy `lockWhenDone`, a `launchVaultOperation` blokuje sejf w `finally`, zaraz po końcu operacji. Jeśli ViewModel zniknie wcześniej (aplikacja zamknięta w trakcie), `onCleared()` blokuje sejf w osobnym wątku.
-- **Okno odcisku przy każdym powrocie.** `LaunchedEffect` na ekranie blokady jest kluczowany licznikiem `fingerprintRequests`, więc uruchamia się ponownie przy każdym powrocie, także wtedy, gdy sejf był już zablokowany (np. okno odcisku zostało anulowane, bo wcześniej wyszedłeś z aplikacji).
+- **Gdy trwa operacja.** Metody `VaultStore` są `@Synchronized`; synchronizacja z serwerem może trwać kilka sekund i trzyma blokadę. `lock()` na głównym wątku czekałby na nią i zamroziłby aplikację. Dlatego wtedy `LockController` ustawia `lockWaitsForOperation`, a `launchVaultOperation` w ViewModelu woła w `finally` `LockController.onOperationFinished()`, który blokuje sejf zaraz po końcu operacji. Jeśli ViewModel zniknie wcześniej (aplikacja zamknięta w trakcie), `LockController.onCleared()` blokuje sejf w osobnym wątku.
+- **Okno odcisku przy każdym powrocie.** `LaunchedEffect` na ekranie blokady jest kluczowany licznikiem `timesLeftApp`, więc uruchamia się ponownie przy każdym powrocie, także wtedy, gdy sejf był już zablokowany (np. okno odcisku zostało anulowane, bo wcześniej wyszedłeś z aplikacji).
 - Systemowe okno odcisku palca nie zatrzymuje aktywności (tylko ją pauzuje, `onPause`), więc samo w sobie nie powoduje blokady.
 
 Koszt (świadomy):
@@ -109,7 +109,10 @@ Słabe punkty (świadomie zaakceptowane):
 |---|---|
 | `android/core/.../VaultStore.kt` | Nowe `exportUnlockKeys()` (kopia 64 bajtów kluczy z pamięci) i `unlockWithKeys(keys)` (odblokowanie bez Argon2id; poprawność kluczy sprawdza odszyfrowanie lokalnego sejfu). |
 | `android/app/.../BiometricUnlock.kt` | Cała obsługa odcisku: `BiometricUnlock` (zapis/odczyt w SharedPreferences, włącz/wyłącz), `KeystoreKeyProtector` (klucz w Android Keystore), `SystemFingerprintPrompt` (systemowe okno `BiometricPrompt` i sprawdzenie, czy telefon ma czytnik). Dwa interfejsy (`UnlockKeyProtector`, `FingerprintPrompt`) pozwalają w testach podmienić Keystore i czytnik. |
-| `android/app/.../AppViewModel.kt` | `enableBiometric`, `disableBiometric`, `unlockWithBiometric`, `biometricEnabled` (StateFlow dla ekranów), flaga „otwórz okno odcisku samo” (tak po starcie, po powrocie z tła i po auto-blokadzie, nie po „Zablokuj”). `lockOnLeave()` / `onReturn()` / `lockNow()`: blokada przy wyjściu z aplikacji (od razu albo przez `LeaveLock`, z odroczeniem, gdy trwa operacja), `fingerprintRequests` liczy powroty, `lockDelay` / `setLockDelay` obsługują przełącznik. `disconnect()` wyłącza też odcisk. |
+| `android/app/.../LockController.kt` | Kiedy sejf się blokuje i kiedy ekran blokady sam otwiera okno odcisku: `onLeftApp()` / `onReturn()` (blokada przy wyjściu z aplikacji, od razu albo przez `LeaveLock`), `checkIdle()` (15 minut), `onLockedByUser()` („Zablokuj”: bez samoczynnego okna), `takeFingerprintOffer()`, `onOperationFinished()` (blokada odroczona do końca operacji), `onCleared()`; licznik `timesLeftApp`. |
+| `android/app/.../BiometricController.kt` | `enabled` (StateFlow dla ekranów), `cipherToEnable` / `enable`, `cipherToUnlock` / `unlock`, `disable`; przygotowuje komunikaty błędów. `ByteArray.useAndWipe { }` zeruje klucze także przy wyjątku. |
+| `android/app/.../AppViewModel.kt` | Cienka warstwa nad dwoma kontrolerami: `cipherToEnableBiometric` + `onBiometricEnableAuthorized`, `cipherToUnlockBiometric` + `onBiometricUnlockAuthorized`, `disableBiometric`, `biometricEnabled`, `timesLeftApp`, `takeFingerprintOnLockedScreen`, `onLeftApp` / `onReturn`, `lockDelay` / `setLockDelay` (przełącznik). `disconnect()` wyłącza też odcisk. ViewModel nie zna `FragmentActivity`. |
+| `android/app/.../ui/FingerprintDialog.kt` | Pokazuje systemowe okno: `show(tytuł, prepare, onAuthorized)`, np. `fingerprint.show("Odblokuj PassHolder", vm::cipherToUnlockBiometric, vm::onBiometricUnlockAuthorized)`. |
 | `android/app/.../ui/ListScreen.kt` | Wiersze z przełącznikami odcisku palca i opóźnienia blokady (cały wiersz jest klikalny). |
 | `android/app/.../PassHolderApp.kt` | Trzyma `leaveLock`; `Settings.lockDelay` (domyślnie włączone). |
 | `android/app/.../ui/LockedScreen.kt` | Przycisk „Odblokuj odciskiem palca” i automatyczne otwarcie okna przy każdym powrocie do aplikacji (gdy aktywność jest już na wierzchu). |
@@ -122,13 +125,15 @@ Przepływ wywołań przy odblokowaniu:
 
 ```
 LockedScreen (LaunchedEffect lub przycisk)
-  → AppViewModel.unlockWithBiometric(activity)
-      → BiometricUnlock.cipherToUnlock()        // szyfr z kluczem Keystore, jeszcze bez palca
+  → FingerprintDialog.show("Odblokuj PassHolder", …)
+      → AppViewModel.cipherToUnlockBiometric()
+          → BiometricController.cipherToUnlock() → BiometricUnlock.cipherToUnlock()
+                                                // szyfr z kluczem Keystore, jeszcze bez palca
       → FingerprintPrompt.authenticate(...)     // systemowe okno
-          onSuccess(cipher) → [wątek IO]
-              BiometricUnlock.decrypt(cipher)   // 64 bajty
-              VaultStore.unlockWithKeys(keys)   // odszyfrowanie lokalnego sejfu
-              keys.fill(0)                      // zerowanie kopii w pamięci
+          onSuccess(cipher) → AppViewModel.onBiometricUnlockAuthorized(cipher) → [wątek IO]
+              BiometricController.unlock(cipher)
+                  BiometricUnlock.decrypt(cipher)          // 64 bajty
+                  useAndWipe { VaultStore.unlockWithKeys } // odszyfrowanie sejfu, potem zerowanie kopii
           → ekran listy
 ```
 

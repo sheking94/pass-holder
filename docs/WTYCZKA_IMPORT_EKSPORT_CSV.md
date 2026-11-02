@@ -29,8 +29,9 @@ karta zwykle nie pyta drugi raz o hasło (`store.resume()`).
 | Plik | Co robi |
 |---|---|
 | `extension/src/csv-transfer.ts` | Nowy. Parser i generator CSV oraz układ kolumn NordPass. Czyste funkcje bez Chrome, łatwe do testowania. |
-| `extension/src/vault-store.ts` | Nowa metoda `importEntries`. |
-| `extension/src/popup.ts` | Przycisk **CSV** na liście, widok `transferView`, obsługa `?transfer` przy starcie i po odblokowaniu. |
+| `extension/src/vault-store.ts` | Metoda `importEntries`; typ `EntryFields` i porównanie `sameEntry` (od PR #16 tutaj, a nie w `csv-transfer.ts`). |
+| `extension/src/views/transfer.ts` | Widok `transferView` (`exportSection` + `importSection`) i `openTransfer`, który pokazuje go w karcie `?transfer` (`showInTab`). Do PR #16 był to fragment `popup.ts`. |
+| `extension/src/views/list.ts`, `extension/src/views/locked.ts` | Przycisk **CSV** na liście; po odblokowaniu w karcie `?transfer` wraca do importu/eksportu (`showUnlocked`). |
 | `extension/static/popup.css` | Dwie klasy: `.warning` (czerwony tekst ostrzeżenia) i `label.check` (pole wyboru z opisem). |
 | `extension/test/csv-transfer.test.ts` | Nowe testy. |
 
