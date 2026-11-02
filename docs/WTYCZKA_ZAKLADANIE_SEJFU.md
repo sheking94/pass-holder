@@ -1,7 +1,5 @@
 # Wtyczka Chrome: naprawa zakładania sejfu, Enter i podgląd hasła
 
-> Uwaga (2026-11-01): część nazw funkcji i plików opisanych niżej zmieniła się przy poprawkach po przeglądzie kodu, zob. [POPRAWKI_PRZEGLADU_2.md](POPRAWKI_PRZEGLADU_2.md).
-
 Dokument opisuje poprawki z gałęzi `claude/project-thread-7gdpxw`.
 
 ## 1. Błąd: sejf nie był zakładany
@@ -14,7 +12,7 @@ kończyło się błędem serwera `Vault not set up`.
 
 ### Przyczyna
 
-W `connectView` (`extension/src/popup.ts`) cała reszta pracy była w callbacku:
+W `connectView` (wtedy w `extension/src/popup.ts`, dziś w `extension/src/views/connect.ts`) cała reszta pracy była w callbacku:
 
 ```ts
 chrome.permissions.request({ origins: [origin] }, (granted) => {
@@ -37,11 +35,16 @@ nie pokazuje okna zgody.
 Formularz połączenia działa teraz w zwykłej karcie (`popup.html?setup`), która nie zamyka się, gdy Chrome
 pyta o zgodę.
 
-- `IN_TAB`: `true`, gdy strona jest otwarta z parametrem `?setup`, czyli w karcie.
-- `showConnect()`: w karcie pokazuje formularz (`connectView`). W popupie pokazuje krótkie wyjaśnienie
-  i przycisk **Otwórz ustawienia połączenia**.
-- `openSetupTab()`: otwiera `chrome.runtime.getURL("popup.html?setup")` w nowej karcie
-  (`chrome.tabs.create` nie wymaga uprawnienia `tabs`) i zamyka popup.
+Nazwy poniżej są aktualne (po podziale `popup.ts` w PR #16); przy PR #8 były to `IN_TAB` liczone z `?setup`
+i `openSetupTab()` w `popup.ts`.
+
+- `IN_TAB` (`extension/src/ui/page.ts`): `true` w każdej karcie, także `?setup` (tryby stron opisuje
+  `extension/src/page-mode.ts`).
+- `showConnect()` (`extension/src/views/connect.ts`): w karcie pokazuje formularz (`connectView`). W popupie
+  pokazuje krótkie wyjaśnienie i przycisk **Otwórz ustawienia połączenia**.
+- Przycisk woła `showInTab("setup", connectView)`: otwiera `chrome.runtime.getURL("popup.html?setup")` w nowej
+  karcie (`chrome.tabs.create` nie wymaga uprawnienia `tabs`) i zamyka popup.
+- Prośbę o zgodę wysyła `requestHostPermission` (`extension/src/ui/server-url-fields.ts`).
 - `start()` i przycisk **Odłącz tę przeglądarkę** wołają `showConnect()` zamiast `connectView()`.
 - W karcie `body` dostaje klasę `tab` (wyśrodkowanie, `popup.css`).
 - Po udanym połączeniu karta pokazuje listę wpisów i komunikat, że można ją zamknąć.
@@ -57,7 +60,7 @@ zamiast angielskiego `Vault not set up`.
 
 ## 2. Enter klika „Połącz” / „Załóż sejf”
 
-Nowy pomocnik `form(onSubmit, ...children)` tworzy element `<form>`, którego zdarzenie `submit`
+Pomocnik `form(onSubmit, ...children)` (`extension/src/ui/dom.ts`) tworzy element `<form>`, którego zdarzenie `submit`
 (`preventDefault()` + `onSubmit()`) uruchamia przycisk główny. Przeglądarka sama wysyła formularz,
 gdy w dowolnym polu naciśniesz Enter.
 
@@ -69,7 +72,7 @@ gdy w dowolnym polu naciśniesz Enter.
 
 ## 3. Odsłanianie hasła kliknięciem
 
-Pomocnik `passwordField(input)` zwraca `{ row, setVisible }`:
+Pomocnik `passwordField(input)` (`extension/src/ui/dom.ts`) zwraca `{ row, setVisible }`:
 
 - `row`: wiersz z polem i przyciskiem **Pokaż**, który przełącza `input.type` między `password` a `text`.
   Napis zmienia się na **Ukryj**, a `aria-pressed` mówi czytnikom ekranu, czy hasło jest widoczne.

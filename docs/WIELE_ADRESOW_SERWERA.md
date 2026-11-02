@@ -1,7 +1,5 @@
 # Kilka adresów serwera (sieć domowa + Tailscale)
 
-> Uwaga (2026-11-01): część nazw funkcji i plików opisanych niżej zmieniła się przy poprawkach po przeglądzie kodu, zob. [POPRAWKI_PRZEGLADU_2.md](POPRAWKI_PRZEGLADU_2.md).
-
 Dokument opisuje zmiany z gałęzi `claude/project-thread-9shesd`: wtyczka Chrome i aplikacja na Androida
 pamiętają więcej niż jeden adres tego samego serwera i przy każdym połączeniu same wybierają ten, który
 odpowiada.
@@ -28,7 +26,7 @@ Konto (`Account`) ma teraz:
 | `lastServerUrl` | adres, który odpowiedział ostatnio; przy następnym połączeniu próbowany jako pierwszy |
 
 Konto zapisane przez wersję 1.0 (pole `serverUrl`) jest czytane dalej: przy odczycie staje się listą
-z jednym adresem (`upgradeAccount` we wtyczce, `VaultStore.account()` na Androidzie). Nic nie trzeba
+z jednym adresem (`StoredAccount`/`upgradeAccount` we wtyczce, prywatna klasa `StoredAccount` z `toAccount()` w `VaultStore.kt` na Androidzie). Nic nie trzeba
 łączyć od nowa.
 
 ### Wybór adresu
@@ -82,19 +80,20 @@ klient pominie ten adres. Hasło główne nigdy nie jest wysyłane, a dane na se
 
 ## 4. Interfejs
 
-### Wtyczka (`extension/src/popup.ts`)
+### Wtyczka (`extension/src/views/`, `extension/src/ui/server-url-fields.ts`)
 
-- Formularz połączenia ma drugie pole: **Drugi adres serwera (opcjonalnie, np. Tailscale)**
-  (`serverUrlFields`). Zgoda Chrome jest wymagana dla obu adresów naraz.
+- Formularz połączenia (`views/connect.ts`) ma drugie pole: **Drugi adres serwera (opcjonalnie, np. Tailscale)**
+  (`serverUrlFields` w `ui/server-url-fields.ts`). Zgoda Chrome jest wymagana dla obu adresów naraz.
 - Na liście wpisów jest przycisk **Adresy serwera**. Otwiera kartę `popup.html?addresses` z widokiem
-  `addressesView`, w którym zmienisz adresy już połączonej przeglądarki (`VaultStore.setServerUrls`).
+  `addressesView` (`views/addresses.ts`), w którym zmienisz adresy już połączonej przeglądarki (`VaultStore.setServerUrls`).
   To karta, nie okienko, z tego samego powodu co przy zakładaniu sejfu: okno zgody Chrome zamyka okienko
   wtyczki (docs/WTYCZKA_ZAKLADANIE_SEJFU.md).
 
 ### Android (`android/app/...`)
 
 - `ConnectScreen`: pole **Drugi adres (opcjonalnie)** pod adresem serwera; `AppViewModel.inspectServer`
-  pobiera certyfikat z pierwszego adresu, który odpowiada (`firstCertificate`).
+  pobiera certyfikat z pierwszego adresu, który odpowiada (wspólna pętla `ServerPicker.firstThatAnswers`, ta sama co w
+  `ServerPicker.pick`).
 - `ListScreen`: przycisk **Adresy** otwiera nowy ekran `AddressesScreen` (`Screen.Addresses`), w którym
   zmienisz adresy już sparowanego telefonu (`AppViewModel.saveServerUrls` → `VaultStore.setServerUrls`).
   Systemowy przycisk Wstecz wraca do listy.

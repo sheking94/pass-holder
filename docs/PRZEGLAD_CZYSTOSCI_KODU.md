@@ -2,6 +2,10 @@
 
 Data: 2026-10-31 · Stan: `main` @ `978814a` (PR #1–#5 zmergowane) · Narzędzie: skill `clean-code-reviewer`
 
+> Stan punktów (2026-11-02): 1, 4–7, 9–14 zrobione w PR #6 (opis na końcu); 3 (podział `popup.ts`) zrobiony
+> w PR #16; 18 (sprzątanie map na serwerze) w PR #18 (N3). Otwarte: 2 (podział `buildApp`), 8 (`ConnectScreen`,
+> `EditScreen`), 15, 16 (częściowo: `TOKEN_REFRESH_MARGIN_MS` jest od PR #6) i 17. Numery linii w raporcie odnoszą się do `978814a`.
+
 ## Podsumowanie
 
 Pliki źródłowe: 37 (core/, server/, extension/, android/core, android/app). Testy, skrypty i konfiguracja pominięte, zgodnie z zasadami skilla.

@@ -107,7 +107,7 @@ Klient:
 Reguła „ostatni zapis wygrywa” opiera się na zegarach urządzeń. Przy jednym użytkowniku i ręcznej
 synchronizacji to rozsądny kompromis; rozjechany zegar może sprawić, że wygra starsza zmiana.
 
-## 6. API serwera (wdrożenie w kroku 2)
+## 6. API serwera
 
 Wszystko przez HTTPS. Odpowiedzi JSON, binaria jako Base64.
 
@@ -122,8 +122,13 @@ Wszystko przez HTTPS. Odpowiedzi JSON, binaria jako Base64.
 - `setupToken` serwer wypisuje w konsoli przy pierwszym uruchomieniu, żeby nikt inny w sieci nie
   założył sejfu przed Tobą.
 - Serwer porównuje `SHA-256(authKey)` z `authHash` w stałym czasie. Token sesji: 32 losowe bajty,
-  ważny 15 minut, trzymany tylko w pamięci serwera.
-- Limit prób logowania (np. 5 na minutę), bo endpoint jest dostępny w sieci.
+  ważny 15 minut, trzymany tylko w pamięci serwera. Restart serwera unieważnia wszystkie tokeny; klient,
+  który dostanie 401 przy `/sync`, loguje się raz od nowa i powtarza synchronizację.
+- Limit nieudanych logowań: 5 na minutę z jednego adresu IP i 20 na minutę łącznie ze wszystkich adresów
+  (dużo adresów, np. IPv6). Po przekroczeniu `POST /session` zwraca 429. Udane logowanie zeruje licznik
+  tego IP. Wygasłe sesje i stare błędy są sprzątane przy każdym logowaniu (N3 z przeglądu bezpieczeństwa).
+- Kody błędów: 400 (zła treść żądania albo `baseRevision` nieznany serwerowi), 401 (zły `authKey` albo brak
+  ważnej sesji), 403 (zły `setupToken`), 404 (sejf nie istnieje), 409 (sejf już istnieje), 429 (limit prób).
 
 ## 7. Sieć i transport
 
@@ -137,6 +142,9 @@ Wszystko przez HTTPS. Odpowiedzi JSON, binaria jako Base64.
   zaufanych w systemie albo w Chrome.
 - Poza domem: VPN (WireGuard lub Tailscale) z jedną komendą do włączania i wyłączania. Bez VPN serwer
   jest osiągalny tylko w sieci lokalnej.
+- Klient pamięta kilka adresów tego samego serwera (`serverUrls`, np. LAN i Tailscale) oraz ostatnio
+  działający (`lastServerUrl`). Przy kilku adresach sprawdza je po kolei `GET /api/v1/status` z limitem 4 s
+  i używa pierwszego, który odpowie. Szczegóły: [WIELE_ADRESOW_SERWERA.md](WIELE_ADRESOW_SERWERA.md).
 - Treść wpisów jest szyfrowana end-to-end niezależnie od TLS; TLS chroni authKey i token sesji.
 
 ## 8. Generator haseł
@@ -146,6 +154,20 @@ Wszystko przez HTTPS. Odpowiedzi JSON, binaria jako Base64.
 - Co najmniej jeden znak z każdej wybranej grupy, reszta z sumy grup, potem tasowanie Fishera-Yatesa.
 - Losowanie z CSPRNG z odrzucaniem (bez przewagi żadnego znaku).
 
-## 9. Poza zakresem v1
+## 9. Funkcje klientów poza protokołem
 
-Zmiana hasła głównego, wiele kont, współdzielenie, TOTP, autouzupełnianie, eksport/import.
+Te funkcje działają tylko na urządzeniu i nie zmieniają formatu danych ani API serwera.
+
+| Funkcja | Gdzie | Opis |
+|---|---|---|
+| Automatyczna blokada po 15 minutach bez aktywności | wtyczka, Android | [POPRAWKI_BEZPIECZENSTWA.md](POPRAWKI_BEZPIECZENSTWA.md) (S1) |
+| Odblokowanie PIN-em | wtyczka | [WTYCZKA_PIN.md](WTYCZKA_PIN.md) |
+| Odblokowanie odciskiem palca, blokada 60 s po wyjściu z aplikacji | Android | [ANDROID_ODCISK_PALCA.md](ANDROID_ODCISK_PALCA.md) |
+| Import i eksport CSV w formacie NordPass | wtyczka | [WTYCZKA_IMPORT_EKSPORT_CSV.md](WTYCZKA_IMPORT_EKSPORT_CSV.md) |
+| Strona wtyczki w karcie (formularz połączenia, adresy, CSV) | wtyczka | [WTYCZKA_ZAKLADANIE_SEJFU.md](WTYCZKA_ZAKLADANIE_SEJFU.md), [WTYCZKA_OTWIERANIE_W_KARCIE.md](WTYCZKA_OTWIERANIE_W_KARCIE.md) |
+| Czyszczenie schowka po minucie | wtyczka, Android | `extension/src/clipboard.ts`, `android/app/.../SecureClipboard.kt` |
+
+## 10. Poza zakresem v1
+
+Zmiana hasła głównego, wiele kont, współdzielenie, TOTP, autouzupełnianie, odtworzenie serwera z kopii
+klienta. Import CSV pozwala jednak wgrać wpisy do nowego, pustego sejfu (patrz INSTALACJA.md, „Kopia zapasowa”).

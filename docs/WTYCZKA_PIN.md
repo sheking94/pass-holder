@@ -1,8 +1,6 @@
 # Wtyczka Chrome: logowanie PIN-em
 
-> Uwaga (2026-11-01): część nazw funkcji i plików opisanych niżej zmieniła się przy poprawkach po przeglądzie kodu, zob. [POPRAWKI_PRZEGLADU_2.md](POPRAWKI_PRZEGLADU_2.md).
->
-> Uwaga 2 (2026-11-01, poprawka S4 z [przeglądu bezpieczeństwa](PRZEGLAD_BEZPIECZENSTWA.md)): PIN zapisywany
+> Uwaga (2026-11-01, poprawka S4 z [przeglądu bezpieczeństwa](PRZEGLAD_BEZPIECZENSTWA.md)): PIN zapisywany
 > na dysku („Pamiętaj PIN po zamknięciu przeglądarki”) musi być **długi**: co najmniej 8 znaków i nie same
 > cyfry. Krótki PIN 4-6 cyfr działa tylko w trybie „w pamięci”. Krótki PIN zapisany na dysku przez starszą
 > wersję po pierwszym udanym odblokowaniu jest przenoszony do pamięci. Szczegóły w
@@ -59,34 +57,42 @@ innych urządzeniach.
 | `createPinLock(pin, keys)` | Tworzy `PinLock` (opis w punkcie 2). |
 | `openPinLock(pin, lock)` | Zwraca `{vaultKey, authKey}` albo rzuca `WrongPinError`. |
 
-### `extension/src/vault-store.ts`
+### `extension/src/pin-store.ts` i `extension/src/vault-store.ts`
 
-- `STORAGE_KEYS.pinLock = "pinLock"`. `PinLock` leży **albo** w `chrome.storage.session` (domyślnie),
-  **albo** w `chrome.storage.local` (opcja „Pamiętaj PIN…”), nigdy w obu naraz.
-- `enablePin(pin, rememberAfterRestart)`: wymaga odblokowanego sejfu, tworzy `PinLock` z bieżących kluczy,
-  kasuje poprzedni PIN i zapisuje nowy we właściwym miejscu.
-- `unlockWithPin(pin)`:
+Od PR #16 przechowywaniem PIN-u zajmuje się klasa `PinStore` (`pin-store.ts`); `VaultStore` tworzy ją w
+konstruktorze i tylko deleguje.
+
+- `STORAGE_KEYS.pinLock = "pinLock"` (`storage.ts`). `PinLock` leży **albo** w `chrome.storage.session`
+  (domyślnie), **albo** w `chrome.storage.local` (opcja „Pamiętaj PIN…”), nigdy w obu naraz.
+- `VaultStore.enablePin(pin, rememberAfterRestart)`: sprawdza kształt PIN-u, wymaga odblokowanego sejfu i woła
+  `PinStore.enable`, który tworzy `PinLock` z bieżących kluczy, kasuje poprzedni PIN i zapisuje nowy we
+  właściwym miejscu. PIN pamiętany po restarcie musi być długi (co najmniej 8 znaków, nie same cyfry,
+  `isLongPin`, poprawka S4, zob. [POPRAWKI_BEZPIECZENSTWA.md](POPRAWKI_BEZPIECZENSTWA.md)).
+- `VaultStore.unlockWithPin(pin)` → `PinStore.unlock(pin)`:
   1. odrzuca PIN w złym formacie **bez liczenia próby** (to literówka, nie zgadywanie),
   2. zwiększa `failedAttempts` i zapisuje go **przed** sprawdzeniem PIN-u. Argon2id trwa ok. sekundy;
      gdyby licznik był zapisywany dopiero po złym wyniku, zamknięcie okienka w trakcie liczenia dawałoby
      darmową próbę,
-  3. przy dobrym PIN-ie zeruje licznik i startuje sesję,
+  3. przy dobrym PIN-ie zeruje licznik i startuje sesję; stary krótki PIN zapisany na dysku (sprzed S4)
+     przenosi przy tym do pamięci (`movedToMemory`),
   4. przy złym PIN-ie zgłasza „Pozostało prób: N”, a po piątej próbie kasuje `PinLock`.
-- `pinStatus()`: `undefined`, gdy PIN jest wyłączony, w przeciwnym razie gdzie jest zapisany i ile prób zostało.
-- `disablePin()`: usuwa `PinLock` z obu miejsc.
-- `unlock(hasłoGłówne)` po sukcesie zeruje licznik błędnych PIN-ów (`resetPinAttempts`).
+- `pinStatus()` → `PinStore.status()`: `undefined`, gdy PIN jest wyłączony, w przeciwnym razie gdzie jest
+  zapisany i ile prób zostało.
+- `disablePin()` → `PinStore.disable()`: usuwa `PinLock` z obu miejsc.
+- `unlock(hasłoGłówne)` po sukcesie zeruje licznik błędnych PIN-ów (`PinStore.resetAttempts`).
 - `createVault`, `connectExisting` i `disconnect` kasują PIN, żeby PIN od poprzedniego konta nie został.
 
-### `extension/src/popup.ts`
+### Widoki (`extension/src/views/locked.ts`, `extension/src/views/pin-settings.ts`)
 
 - `showLocked()`: gdy PIN jest włączony, pokazuje ekran PIN-u (`pinLockedView`), w przeciwnym razie ekran
-  hasła głównego (`lockedView`). Wołane przy starcie i po kliknięciu **Zablokuj**.
-- `pinLockedView`: pole PIN (klawiatura numeryczna, maks. 6 znaków), **Odblokuj**, **Użyj hasła głównego**.
-  Po ostatniej błędnej próbie przechodzi sam na ekran hasła głównego z komunikatem.
-  Ma też przycisk **Otwórz w karcie**, a w karcie importu/eksportu CSV po odblokowaniu wraca do niej (tak jak ekran hasła głównego).
-- `pinSettingsView` (przycisk **PIN** na liście): gdy PIN jest wyłączony, formularz PIN + powtórzenie +
-  opcja „Pamiętaj PIN po zamknięciu przeglądarki” z ostrzeżeniem. Gdy włączony, informacja i **Wyłącz PIN**.
-- `lockedView(message)` przyjmuje teraz komunikat do pokazania.
+  hasła głównego (`lockedView`). Wołane przy starcie, po kliknięciu **Zablokuj** i po automatycznej blokadzie.
+- `pinLockedView`: pole PIN (klawiatura numeryczna, maks. 6 znaków; dłuższe pole dla długiego PIN-u),
+  **Odblokuj**, **Użyj hasła głównego**. Po ostatniej błędnej próbie przechodzi sam na ekran hasła głównego
+  z komunikatem. Ma też przycisk **Otwórz w karcie**, a w karcie importu/eksportu CSV po odblokowaniu wraca
+  do niej (`showUnlocked`, tak jak ekran hasła głównego).
+- `pinSettingsView` (przycisk **PIN** na liście) wybiera `pinSetupView()` (PIN wyłączony: formularz PIN +
+  powtórzenie + opcja „Pamiętaj PIN po zamknięciu przeglądarki” z ostrzeżeniem) albo
+  `pinEnabledView(status)` (informacja i **Wyłącz PIN**).
 - Komunikat po połączeniu z serwerem podpowiada, gdzie włączyć PIN.
 
 ### `extension/static/popup.css`

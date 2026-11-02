@@ -1,7 +1,8 @@
 # Testy PassHolder
 
-Przegląd testów całego monorepo (październik 2026): co jest testowane, jak to uruchomić, jakie luki
-znalazły nowe testy i co zostało poprawione.
+Przegląd testów całego monorepo: co jest testowane, jak to uruchomić, jakie luki znalazły testy i co
+zostało poprawione. Pierwsza wersja powstała 2026-10-31 (PR #5); liczby i listy plików zaktualizowane
+2026-11-02 na stanie po PR #18.
 
 ## Jak uruchomić
 
@@ -21,13 +22,16 @@ Pokrycie dla TypeScript (opcjonalnie, bez dopisywania zależności do projektu):
 
 ## Liczby
 
-| Pakiet | Przed | Po | Pokrycie linii (`src/`) |
-|---|---|---|---|
-| `core` | 19 | 64 | 100% |
-| `server` | 9 | 23 | `app.ts` 98,5%, `db.ts` 100% (`main.ts` to tylko start procesu) |
-| `extension` | 4 | 12 | `vault-store.ts` 91% (popup i service worker bez testów, patrz niżej) |
-| `android/core` | 33 | 45 | nie mierzone |
-| `android/app` | 6 | 6 | bez zmian |
+| Pakiet | Przed PR #5 | Po PR #5 | Teraz (po PR #18) | Pokrycie linii (`src/`, pomiar z PR #5) |
+|---|---|---|---|---|
+| `core` | 19 | 64 | 68 | 100% |
+| `server` | 9 | 23 | 24 | `app.ts` 98,5%, `db.ts` 100% (`main.ts` to tylko start procesu) |
+| `extension` | 4 | 12 | 53 | `vault-store.ts` 91% (widoki i service worker bez testów, patrz niżej) |
+| `android/core` | 33 | 45 | 55 (w tym `RealServerTest`, uruchamiany tylko z `PASSHOLDER_SERVER_TEST=1`) | nie mierzone |
+| `android/app` | 6 | 6 | 17 | nie mierzone |
+
+Liczby TypeScript to wynik `npm test` z 2026-11-02 (wszystkie zielone). Liczby Androida to liczba
+adnotacji `@Test` w plikach; w tym kontenerze nie uruchamiałem Gradle (wynik z PR #18: wszystkie zielone).
 
 ## Znalezione błędy i poprawki
 
@@ -61,7 +65,7 @@ z 64 MiB, więc niższa granica po stronie klienta niczego nie psuje.
 
 5 z 10 nowych przypadków w `core/test/edge-cases.test.ts` nie przechodziło przed poprawką.
 
-## Co testują nowe pliki
+## Co testują pliki z PR #5
 
 - `core/test/edge-cases.test.ts`: normalizacja NFC („ą” jako jeden znak i jako „a” + ogonek), Base64/hex
   dla wszystkich bajtów i złe dane wejściowe, AES-GCM: zły rozmiar klucza i nonce, ucięty blob, nieznana
@@ -86,6 +90,21 @@ z 64 MiB, więc niższa granica po stronie klienta niczego nie psuje.
 - `android/core/.../EdgeCaseTest.kt`: odpowiedniki powyższych w Kotlinie (restart serwera, zgubiona
   odpowiedź, usunięcie kontra edycja, podmiana blobu, limit rund, granice KDF, NFC, adres https bez odcisku).
 
+## Testy dodane później (PR #8–#18)
+
+| Plik | Co sprawdza | Opis funkcji |
+|---|---|---|
+| `extension/test/open-in-tab.test.ts` | tryby strony (`pageMode`), przełączanie na otwartą kartę zamiast otwierania nowej | [WTYCZKA_OTWIERANIE_W_KARCIE.md](WTYCZKA_OTWIERANIE_W_KARCIE.md) |
+| `extension/test/csv-transfer.test.ts` | parser i generator CSV NordPass, pomijanie duplikatów, podsumowanie importu | [WTYCZKA_IMPORT_EKSPORT_CSV.md](WTYCZKA_IMPORT_EKSPORT_CSV.md) |
+| `extension/test/pin.test.ts` | PIN: kształt, limit 5 prób, licznik zapisywany przed sprawdzeniem, długi PIN na dysku (S4) | [WTYCZKA_PIN.md](WTYCZKA_PIN.md) |
+| `extension/test/server-urls.test.ts` | kolejność prób adresów, limit czasu, komunikat, gdy nic nie odpowiada | [WIELE_ADRESOW_SERWERA.md](WIELE_ADRESOW_SERWERA.md) |
+| `extension/test/auto-lock.test.ts` | blokada po 15 minutach przy otwartej stronie i alarm service workera (S1) | [POPRAWKI_BEZPIECZENSTWA.md](POPRAWKI_BEZPIECZENSTWA.md) |
+| `core/test/malicious-server.test.ts`, `MaliciousServerTest.kt` | serwer nie usunie wpisu flagą `deleted`, nie wskrzesi nagrobka, nie cofnie wpisu do starszej wersji (S2) | [POPRAWKI_BEZPIECZENSTWA.md](POPRAWKI_BEZPIECZENSTWA.md) |
+| `server/test/api.test.ts` | dodatkowo globalny limit 20 błędnych logowań na minutę (N3) | [SPEC.md](SPEC.md) §6 |
+| `ServerPickerTest.kt` | wybór adresu na Androidzie, `firstThatAnswers` | [WIELE_ADRESOW_SERWERA.md](WIELE_ADRESOW_SERWERA.md) |
+| `BiometricScreenTests.kt` | odcisk palca, blokada przy wyjściu z aplikacji i opóźnienie 60 s | [ANDROID_ODCISK_PALCA.md](ANDROID_ODCISK_PALCA.md) |
+| `ScreenTests.kt` (`TwoAddressesTest`) | parowanie, gdy odpowiada tylko drugi adres, i edycja adresów | [WIELE_ADRESOW_SERWERA.md](WIELE_ADRESOW_SERWERA.md) |
+
 ## Zachowania sprawdzone, ale nie zmienione (do decyzji)
 
 - **Nieznane pola w JSON są usuwane, a nie odrzucane.** Schematy mają `additionalProperties: false`, ale
@@ -98,12 +117,12 @@ z 64 MiB, więc niższa granica po stronie klienta niczego nie psuje.
 - **Usunięty lokalnie wpis, którego odpowiedź z serwera zginęła**, może wrócić przy następnej
   synchronizacji (klient myśli, że wpis nigdy nie dotarł na serwer). Dane nie giną, wpis trzeba usunąć
   drugi raz.
-- **Mapa sesji i licznik prób logowania na serwerze nie są czyszczone** poza użyciem. Przy jednym
-  użytkowniku to kilkadziesiąt wpisów, bez znaczenia.
 
 ## Czego dalej brakuje
 
-- `extension/src/popup.ts`, `background.ts`, `offscreen.ts`, `clipboard.ts` nie mają testów (to kod
-  zależny od API Chrome). Sensowny następny krok to test w Playwright z załadowaną wtyczką.
+- Widoki wtyczki (`extension/src/views/`, `extension/src/ui/`), `offscreen.ts` i `clipboard.ts` nie mają
+  testów jednostkowych (to kod zależny od DOM i API Chrome). Przy PR #8 i #16 sprawdzałem je skryptem
+  Playwright w Chromium bez okna, ale ten skrypt nie jest w repozytorium. Sensowny następny krok to dodać
+  taki test na stałe.
 - Aplikacja Android nie była testowana na prawdziwym telefonie ani emulatorze, tylko na JVM (Robolectric).
 - Brak testu wydajności Argon2id na Raspberry Pi i na telefonie (domyślne 64 MiB, 3 iteracje).
