@@ -52,6 +52,9 @@ private data class FramesVector(
     val chunkLengths: List<Int>,
 )
 
+@Serializable
+private data class PagingVector(val MAX_CHANGES_PER_REQUEST: Int, val MAX_CHANGES_PER_RESPONSE: Int)
+
 /** Sections of v2.json grow with each module; unknown sections are ignored until their task adds them. */
 @Serializable
 private data class P2pVectors(
@@ -60,6 +63,7 @@ private data class P2pVectors(
     val pairingKey: List<PairingKeyVector>,
     val pairingMessage: List<PairingMessageVector>,
     val frames: FramesVector,
+    val paging: PagingVector,
 )
 
 /** The same core/test-vectors/v2.json the TypeScript core is tested against. */
@@ -121,6 +125,12 @@ class P2pVectorsTest {
                 assertEquals(value, Pairing.openVaultInfo(key, from, v.blob))
             }
         }
+    }
+
+    @Test
+    fun paging() {
+        assertEquals(vectors.paging.MAX_CHANGES_PER_REQUEST, HostSync.MAX_CHANGES_PER_REQUEST)
+        assertEquals(vectors.paging.MAX_CHANGES_PER_RESPONSE, HostSync.MAX_CHANGES_PER_RESPONSE)
     }
 
     @Test
