@@ -147,6 +147,22 @@ describe("p2p noise transport", () => {
     expect(liveEntriesV2(b)).toHaveLength(600);
   });
 
+  it("syncs 1300 entries to a fresh device through the host in pages", async () => {
+    const s = setup();
+    const vaultKey = newVaultKey();
+    const a = emptyVaultV2();
+    const b = emptyVaultV2();
+    const clockA = new HlcClock("a", () => 1000);
+    const clockB = new HlcClock("b", () => 1000);
+    // Too large for one 1 MiB request: only works with paging.
+    for (let i = 0; i < 1300; i++) upsertEntryV2(a, clockA, `id${i}`, { name: `n${i}`, username: "u", password: "p".repeat(800) });
+    await syncVaultV2(a, vaultKey, clockA, s.transportFor("a"));
+    expect(s.store.currentRevision()).toBe(1300);
+    await syncVaultV2(b, vaultKey, clockB, s.transportFor("b"));
+    expect(liveEntriesV2(b)).toHaveLength(1300);
+    expect(b.lastSyncRevision).toBe(1300);
+  });
+
   it("rejects a tampered middle frame and leaves the store unchanged", async () => {
     const s = setup();
     const h = await rawHandshake(s, "a");

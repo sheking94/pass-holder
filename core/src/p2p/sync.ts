@@ -8,7 +8,10 @@ import {
   type TombstoneDataV2,
 } from "./entry.ts";
 import { compareHlc, HlcClock, type Hlc } from "./hlc.ts";
-import type { P2pSyncRequest, P2pSyncResponse } from "./host-sync.ts";
+import { MAX_CHANGES_PER_REQUEST, type P2pSyncRequest, type P2pSyncResponse } from "./host-sync.ts";
+
+/** Safety limit on requests in one syncVaultV2 call, paging included. */
+export const MAX_SYNC_ROUNDS = 1000;
 
 export type LocalEntryV2 =
   | { id: string; revision: number; dirty: boolean; deleted: false; data: EntryDataV2 }
@@ -78,10 +81,13 @@ interface BuiltRequest {
   request: P2pSyncRequest;
   /** HLC of each change as it was sent, to tell whether the entry changed while the request was in flight. */
   sent: Map<string, Hlc>;
+  /** More dirty entries are waiting than fit in this request. */
+  capped: boolean;
 }
 
 async function buildRequest(vault: LocalVaultV2, vaultKey: Uint8Array): Promise<BuiltRequest> {
-  const dirty = [...vault.entries.values()].filter((e) => e.dirty);
+  const allDirty = [...vault.entries.values()].filter((e) => e.dirty);
+  const dirty = allDirty.slice(0, MAX_CHANGES_PER_REQUEST);
   const sent = new Map(dirty.map((e) => [e.id, { ...e.data.hlc }]));
   const changes = await Promise.all(
     dirty.map(async (e) => ({
@@ -92,7 +98,7 @@ async function buildRequest(vault: LocalVaultV2, vaultKey: Uint8Array): Promise<
     })),
   );
   // An unknown epoch is sent as "" and only serves to learn the phone's epoch.
-  return { request: { epoch: vault.epoch ?? "", sinceRevision: vault.lastSyncRevision, changes }, sent };
+  return { request: { epoch: vault.epoch ?? "", sinceRevision: vault.lastSyncRevision, changes }, sent, capped: allDirty.length > dirty.length };
 }
 
 async function decodeRemote(vaultKey: Uint8Array, record: RemoteRecord): Promise<LocalEntryV2> {
@@ -169,6 +175,8 @@ export type P2pTransport = (request: P2pSyncRequest) => Promise<P2pSyncResponse>
 
 /**
  * Full sync with the phone: push local changes, pull remote ones, repeat while local changes win conflicts.
+ * Changes go out at most MAX_CHANGES_PER_REQUEST per request and come back in pages (`more`); those extra
+ * rounds do not use the maxRounds conflict budget, but all rounds together are capped at MAX_SYNC_ROUNDS.
  * An epoch change (including learning the first epoch) restarts the loop with a fresh round budget, once.
  * A phone whose revision went backwards within the same epoch is treated the same way.
  */
@@ -180,9 +188,9 @@ export async function syncVaultV2(
   maxRounds = 3,
 ): Promise<void> {
   let epochChanged = false;
-  let rounds = 0;
-  while (rounds < maxRounds) {
-    const { request, sent } = await buildRequest(vault, vaultKey);
+  let resyncs = 0;
+  for (let round = 0; round < MAX_SYNC_ROUNDS; round++) {
+    const { request, sent, capped } = await buildRequest(vault, vaultKey);
     const response = await send(request);
     // Same epoch but the phone is behind what we already saw: its state was restored. Upload everything.
     const wentBack = response.epoch === vault.epoch && response.currentRevision < vault.lastSyncRevision;
@@ -191,10 +199,12 @@ export async function syncVaultV2(
       epochChanged = true;
       adoptEpoch(vault, response.epoch);
       vault.addresses = [...new Set(response.addresses)];
+      resyncs = 0;
       continue;
     }
-    if (!(await applyResponse(vault, clock, response, sent, vaultKey))) return;
-    rounds++;
+    const localWon = await applyResponse(vault, clock, response, sent, vaultKey);
+    if (localWon && ++resyncs >= maxRounds) throw new Error("Sync did not settle, try again");
+    if (!localWon && !capped && !response.more) return;
   }
-  throw new Error("Sync did not settle, try again");
+  throw new Error("Sync exceeded the round limit");
 }

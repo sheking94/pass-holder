@@ -8,12 +8,20 @@ export interface P2pSyncRequest {
 
 export interface P2pSyncResponse {
   epoch: string;
+  /** With more = true: the revision of the last record in changes, so the next sinceRevision continues there. */
   currentRevision: number;
   accepted: { id: string; revision: number }[];
   conflicts: RemoteRecord[];
   changes: RemoteRecord[];
   addresses: string[];
+  /** True when changes was cut at MAX_CHANGES_PER_RESPONSE and the client must ask again. */
+  more: boolean;
 }
+
+/** Most records in a response's changes (ordered by revision). */
+export const MAX_CHANGES_PER_RESPONSE = 500;
+/** Most changes in one request; the client sends the rest in later rounds. */
+export const MAX_CHANGES_PER_REQUEST = 500;
 
 export const MAX_ENTRY_ID_LENGTH = 128;
 
@@ -28,6 +36,7 @@ export function validateP2pSyncRequest(store: SyncStore, epoch: string, request:
   const r = request as Record<string, unknown>;
   if (typeof r.epoch !== "string" || !isRevision(r.sinceRevision) || !Array.isArray(r.changes))
     return "malformed sync request";
+  if (r.changes.length > MAX_CHANGES_PER_REQUEST) return "too many changes";
   const ids = new Set<string>();
   for (const c of r.changes as unknown[]) {
     if (typeof c !== "object" || c === null || Array.isArray(c)) return "malformed change";
@@ -61,8 +70,21 @@ export function processP2pSync(
   const error = validateP2pSyncRequest(store, epoch, request);
   if (error !== undefined) throw new Error(error);
   if (request.epoch !== epoch) {
-    return { epoch, currentRevision: store.currentRevision(), accepted: [], conflicts: [], changes: [], addresses };
+    return {
+      epoch,
+      currentRevision: store.currentRevision(),
+      accepted: [],
+      conflicts: [],
+      changes: [],
+      addresses,
+      more: false,
+    };
   }
   const { sinceRevision, changes } = request;
-  return { ...processSync(store, { sinceRevision, changes }), epoch, addresses };
+  const result = processSync(store, { sinceRevision, changes });
+  const all = [...result.changes].sort((a, b) => a.revision - b.revision);
+  if (all.length <= MAX_CHANGES_PER_RESPONSE) return { ...result, changes: all, epoch, addresses, more: false };
+  const page = all.slice(0, MAX_CHANGES_PER_RESPONSE);
+  // Records skipped below this revision were answered in accepted or conflicts, so nothing is lost.
+  return { ...result, changes: page, currentRevision: page[page.length - 1]!.revision, epoch, addresses, more: true };
 }

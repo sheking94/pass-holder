@@ -10,6 +10,9 @@ import {
   encryptPayloadV2,
   HlcClock,
   liveEntriesV2,
+  MAX_CHANGES_PER_REQUEST,
+  MAX_CHANGES_PER_RESPONSE,
+  MAX_SYNC_ROUNDS,
   processP2pSync,
   syncVaultV2,
   upsertEntryV2,
@@ -166,7 +169,7 @@ describe("p2p sync", () => {
 
     expect(store.currentRevision()).toBe(0);
     expect(store.get("1")).toBeUndefined();
-    expect(response).toEqual({ epoch, currentRevision: 0, accepted: [], conflicts: [], changes: [], addresses: [ADDRESS] });
+    expect(response).toEqual({ epoch, currentRevision: 0, accepted: [], conflicts: [], changes: [], addresses: [ADDRESS], more: false });
   });
 
   it("payloads are bound to their id and to v2", async () => {
@@ -322,5 +325,65 @@ describe("p2p sync: final review fixes", () => {
     );
     expect(restored.listSince(0).map((r) => r.id).sort()).toEqual(["a", "b", "c"]);
     expect(ext.lastSyncRevision).toBe(3);
+  });
+});
+
+describe("p2p sync: paging", () => {
+  it("host returns at most MAX_CHANGES_PER_RESPONSE records and continues from the last one", async () => {
+    const s = setup();
+    for (let i = 1; i <= 1300; i++) s.store.put({ id: `id${i}`, revision: i, deleted: false, blob: "x" });
+    const page = (since: number) => processP2pSync(s.store, s.epoch, [], { epoch: s.epoch, sinceRevision: since, changes: [] });
+    const first = page(0);
+    expect(first.changes).toHaveLength(MAX_CHANGES_PER_RESPONSE);
+    expect(first.more).toBe(true);
+    expect(first.currentRevision).toBe(500);
+    expect(first.changes.map((c) => c.revision)).toEqual(Array.from({ length: 500 }, (_, i) => i + 1));
+    expect(page(500)).toMatchObject({ more: true, currentRevision: 1000 });
+    const last = page(1000);
+    expect(last).toMatchObject({ more: false, currentRevision: 1300 });
+    expect(last.changes).toHaveLength(300);
+    expect(processP2pSync(s.store, s.epoch, [], { epoch: "", sinceRevision: 0, changes: [] }).more).toBe(false);
+  });
+
+  it("host rejects more than MAX_CHANGES_PER_REQUEST changes", () => {
+    const s = setup();
+    const changes = Array.from({ length: MAX_CHANGES_PER_REQUEST + 1 }, (_, i) => ({ id: `${i}`, baseRevision: 0, deleted: false, blob: "x" }));
+    expect(() => processP2pSync(s.store, s.epoch, [], { epoch: s.epoch, sinceRevision: 0, changes })).toThrow("too many changes");
+    expect(s.store.currentRevision()).toBe(0);
+  });
+
+  it("uploads 1300 dirty entries after an epoch reset in requests of at most 500 changes", async () => {
+    const first = setup();
+    const ext = emptyVaultV2();
+    const clock = new HlcClock("ext", () => 1000);
+    for (let i = 0; i < 1300; i++) upsertEntryV2(ext, clock, `id${i}`, entry(`n${i}`));
+    await first.sync(ext, clock);
+    expect(first.store.currentRevision()).toBe(1300);
+
+    const second = setup();
+    second.vaultKey.set(first.vaultKey);
+    const sizes: number[] = [];
+    await syncVaultV2(ext, second.vaultKey, clock, async (r) => {
+      sizes.push(r.changes.length);
+      return second.send(r);
+    });
+    expect(Math.max(...sizes)).toBeLessThanOrEqual(MAX_CHANGES_PER_REQUEST);
+    expect(second.store.listSince(0)).toHaveLength(1300);
+    expect([...ext.entries.values()].every((e) => !e.dirty)).toBe(true);
+    expect(ext.lastSyncRevision).toBe(1300);
+  });
+
+  it("throws after the safety limit of rounds when the host never finishes paging", async () => {
+    const s = setup();
+    const ext = emptyVaultV2();
+    const clock = new HlcClock("ext", () => 1000);
+    await s.sync(ext, clock);
+    let calls = 0;
+    const endless: P2pTransport = async () => {
+      calls++;
+      return { epoch: s.epoch, currentRevision: 0, accepted: [], conflicts: [], changes: [], addresses: [], more: true };
+    };
+    await expect(syncVaultV2(ext, s.vaultKey, clock, endless)).rejects.toThrow("Sync exceeded");
+    expect(calls).toBe(MAX_SYNC_ROUNDS);
   });
 });
