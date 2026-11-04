@@ -1,11 +1,10 @@
-import { fromBase64, fromUtf8, toBase64, utf8 } from "../encoding.ts";
+import { fromBase64, toBase64 } from "../encoding.ts";
+import { decryptFrames, encryptFrames, MAX_FRAMES } from "./frames.ts";
 import type { P2pSyncResponse } from "./host-sync.ts";
 import { NoiseKK, P2P_PROLOGUE, type KeyPair } from "./noise.ts";
 import type { P2pTransport } from "./sync.ts";
 
 export type FetchJson = (url: string, body: unknown) => Promise<{ status: number; body: unknown }>;
-
-const NO_AD = new Uint8Array();
 
 async function call(post: FetchJson, url: string, body: unknown): Promise<Record<string, unknown>> {
   const res = await post(url, body);
@@ -38,9 +37,11 @@ export function noiseTransport(o: {
     const hs = await call(o.post, `${base}/p2p/v1/handshake`, { deviceId: o.deviceId, message: toBase64(first) });
     await noise.readMessage(fromBase64(str(hs.message)));
     const { send, recv } = noise.split();
-    const ciphertext = toBase64(await send.encrypt(NO_AD, utf8(JSON.stringify(request))));
-    const res = await call(o.post, `${base}/p2p/v1/sync`, { session: str(hs.session), ciphertext });
-    const plain = await recv.decrypt(NO_AD, fromBase64(str(res.ciphertext)));
-    return JSON.parse(fromUtf8(plain)) as P2pSyncResponse;
+    const frames = await encryptFrames(send, request);
+    const res = await call(o.post, `${base}/p2p/v1/sync`, { session: str(hs.session), frames });
+    const incoming = res.frames;
+    if (!Array.isArray(incoming) || incoming.length < 1 || incoming.length > MAX_FRAMES || !incoming.every((f) => typeof f === "string"))
+      throw new Error("P2P host returned a malformed response");
+    return (await decryptFrames(recv, incoming)) as P2pSyncResponse;
   };
 }

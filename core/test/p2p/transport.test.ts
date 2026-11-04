@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { fromBase64, randomBytes, toBase64, utf8 } from "../../src/encoding.ts";
+import { fromBase64, randomBytes, toBase64 } from "../../src/encoding.ts";
 import { newVaultKey } from "../../src/vault.ts";
 import {
+  CipherState,
   emptyVaultV2,
   generateKeyPair,
   HlcClock,
@@ -15,6 +16,7 @@ import {
   type FetchJson,
   type PairedDevice,
 } from "../../src/p2p/index.ts";
+import { encryptFrames } from "../../src/p2p/frames.ts";
 import { MemorySyncStore } from "../../src/protocol.ts";
 
 const entry = (name: string) => ({ name, username: "u", password: "p" });
@@ -59,8 +61,8 @@ async function rawHandshake(s: ReturnType<typeof setup>, deviceId: string, key =
   return { session: body.session, ciphers: noise.split() };
 }
 
-const syncBody = async (ciphers: { send: { encrypt(ad: Uint8Array, pt: Uint8Array): Promise<Uint8Array> } }, epoch: string) =>
-  toBase64(await ciphers.send.encrypt(new Uint8Array(), utf8(JSON.stringify({ epoch, sinceRevision: 0, changes: [] }))));
+const syncBody = (ciphers: { send: CipherState }, epoch: string) =>
+  encryptFrames(ciphers.send, { epoch, sinceRevision: 0, changes: [] });
 
 describe("p2p noise transport", () => {
   it("syncs two vaults through the host", async () => {
@@ -104,33 +106,63 @@ describe("p2p noise transport", () => {
     const s = setup();
     const keyA = s.addDevice("a");
     const first = await rawHandshake(s, "a", keyA);
-    const ok = await s.host.handle("/p2p/v1/sync", { session: first.session, ciphertext: await syncBody(first.ciphers, s.epoch) });
+    const ok = await s.host.handle("/p2p/v1/sync", { session: first.session, frames: await syncBody(first.ciphers, s.epoch) });
     expect(ok.status).toBe(200);
-    const again = await s.host.handle("/p2p/v1/sync", { session: first.session, ciphertext: await syncBody(first.ciphers, s.epoch) });
+    const again = await s.host.handle("/p2p/v1/sync", { session: first.session, frames: await syncBody(first.ciphers, s.epoch) });
     expect(again.status).toBe(401);
 
     const second = await rawHandshake(s, "a", keyA);
     s.advance(61_000);
-    const expired = await s.host.handle("/p2p/v1/sync", { session: second.session, ciphertext: await syncBody(second.ciphers, s.epoch) });
+    const expired = await s.host.handle("/p2p/v1/sync", { session: second.session, frames: await syncBody(second.ciphers, s.epoch) });
     expect(expired.status).toBe(401);
 
-    const unknown = await s.host.handle("/p2p/v1/sync", { session: toBase64(randomBytes(16)), ciphertext: "AA==" });
+    const unknown = await s.host.handle("/p2p/v1/sync", { session: toBase64(randomBytes(16)), frames: ["AA=="] });
     expect(unknown.status).toBe(401);
   });
 
   it("rejects a tampered sync ciphertext", async () => {
     const s = setup();
     const h = await rawHandshake(s, "a");
-    const ct = fromBase64(await syncBody(h.ciphers, s.epoch));
+    const frames = await syncBody(h.ciphers, s.epoch);
+    const ct = fromBase64(frames[0]!);
     ct[ct.length - 1]! ^= 1;
-    const res = await s.host.handle("/p2p/v1/sync", { session: h.session, ciphertext: toBase64(ct) });
+    const res = await s.host.handle("/p2p/v1/sync", { session: h.session, frames: [toBase64(ct)] });
+    expect(res.status).toBe(400);
+    expect(s.store.currentRevision()).toBe(0);
+  });
+
+  it("syncs a vault whose request exceeds 200 KiB across many frames", async () => {
+    const s = setup();
+    const vaultKey = newVaultKey();
+    const a = emptyVaultV2();
+    const b = emptyVaultV2();
+    const clockA = new HlcClock("a", () => 1000);
+    const clockB = new HlcClock("b", () => 1000);
+    for (let i = 0; i < 600; i++)
+      upsertEntryV2(a, clockA, `id${i}`, { name: `n${i}`, username: "u", password: "p".repeat(300) });
+    await syncVaultV2(a, vaultKey, clockA, s.transportFor("a"));
+    expect(s.store.currentRevision()).toBe(600);
+    await syncVaultV2(b, vaultKey, clockB, s.transportFor("b"));
+    expect(liveEntriesV2(b)).toHaveLength(600);
+  });
+
+  it("rejects a tampered middle frame and leaves the store unchanged", async () => {
+    const s = setup();
+    const h = await rawHandshake(s, "a");
+    const changes = Array.from({ length: 400 }, (_, i) => ({ id: `x${i}`, junk: "z".repeat(400) }));
+    const frames = await encryptFrames(h.ciphers.send, { epoch: s.epoch, sinceRevision: 0, changes });
+    expect(frames.length).toBeGreaterThan(2);
+    const mid = fromBase64(frames[1]!);
+    mid[5]! ^= 1;
+    frames[1] = toBase64(mid);
+    const res = await s.host.handle("/p2p/v1/sync", { session: h.session, frames });
     expect(res.status).toBe(400);
     expect(s.store.currentRevision()).toBe(0);
   });
 
   it("rejects an oversized body", async () => {
     const s = setup();
-    const res = await s.host.handle("/p2p/v1/sync", { session: "x", ciphertext: "A".repeat(1024 * 1024) });
+    const res = await s.host.handle("/p2p/v1/sync", { session: "x", frames: ["A".repeat(1024 * 1024)] });
     expect(res.status).toBe(413);
   });
 
