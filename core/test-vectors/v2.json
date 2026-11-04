@@ -123,22 +123,38 @@
   },
   "pairingMessage": [
     {
-      "description": "Device identity",
+      "description": "Device identity sent by the phone (responder)",
       "key": "14fbf8209d1d042b48ed2ea7035315cb82ec8006c224827ce5e05af5c5057f71",
       "kind": "identity",
+      "from": "responder",
       "value": {
         "deviceId": "phone-1",
         "name": "Pixel",
         "staticPublicKey": "MOAwP9ZBHS+MDni5HyLoyu0PvkhlbPz3Z+SDT3Abj2I="
       },
-      "aad": "passholder/v2/pair/identity",
+      "aad": "passholder/v2/pair/identity/responder",
       "nonce": "a0a1a2a3a4a5a6a7a8a9aaab",
-      "blob": "AaChoqOkpaanqKmqqxq20nddGF4kuJNT27/JLt1MZP2ze8q3kCO2dajVQLCbd7SW5KJ3f21bV3LlaXy7eawsUo/wxU9XCQ3lYqvq6XTxOfBDchaRCekeea4nbwBA4rsNIXhJfM1vQ5kcOKxCe7ASEZFCr0S43eDIXr0DCTk1asAGOuU="
+      "blob": "AaChoqOkpaanqKmqqxq20nddGF4kuJNT27/JLt1MZP2ze8q3kCO2dajVQLCbd7SW5KJ3f21bV3LlaXy7eawsUo/wxU9XCQ3lYqvq6XTxOfBDchaRCekeea4nbwBA4rsNIXhJfM1vQ5kcOKxCe7ASEZFCr1ImT0XtGlcR28ap51cKXFY="
     },
     {
-      "description": "Vault info",
+      "description": "Device identity sent by the extension (initiator)",
+      "key": "14fbf8209d1d042b48ed2ea7035315cb82ec8006c224827ce5e05af5c5057f71",
+      "kind": "identity",
+      "from": "initiator",
+      "value": {
+        "deviceId": "ext-1",
+        "name": "Chrome",
+        "staticPublicKey": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+      },
+      "aad": "passholder/v2/pair/identity/initiator",
+      "nonce": "c0c1c2c3c4c5c6c7c8c9cacb",
+      "blob": "AcDBwsPExcbHyMnKy18aM+yILwdOUjHDmNlz/Hzy2YxaH/thOS7VO2nwHKG1t3YZvpwadbKQf8gofum+7ujzMZtPEiL7OvUc6t5He7sNKgF5Uyetyy1pea+5kt68TiBZ3lTRMnT/G5ZIjICg1e/sowUyztglHSxiSgW0fsjcFroNQA=="
+    },
+    {
+      "description": "Vault info sent by the phone (responder)",
       "key": "14fbf8209d1d042b48ed2ea7035315cb82ec8006c224827ce5e05af5c5057f71",
       "kind": "vault-info",
+      "from": "responder",
       "value": {
         "epoch": "AAECAwQFBgcICQoLDA0ODw==",
         "kdf": {
@@ -153,9 +169,9 @@
           "192.168.1.5:8443"
         ]
       },
-      "aad": "passholder/v2/pair/vault-info",
+      "aad": "passholder/v2/pair/vault-info/responder",
       "nonce": "b0b1b2b3b4b5b6b7b8b9babb",
-      "blob": "AbCxsrO0tba3uLm6u7g+6QwjNo9HQZP8Ay7dS1OEEjjtC+/yxwHq8l2BlRau6QOMTAV2RvJH7OTtFeKlfKXirjS/lAspFMGBTzNB7fQ1OVj79MhlpLPPTBFSUcrSq7lzQXsCP+/XSD99HUTt9XVSgpBgjALPyjsnDsHyZ0ZgncSrFHXq5Cu61nzwxADYjvSobqfCn6Au6VlYzbKcpf03zE7IFLViWyVadYXiOaNFSgUNarqiq9mxyF2qYmvb/F1e0dEP+uOx1k+SQszSE+YXMQ7B5ymbwSFoTcJz/HNFQFqMhzSlkHMRcI9Z51FRK35aUkb8bJ0b5xQNM2OgdKWYmyiXjDdhpgOriZre4mFrwRNFJ38t1BsbyzIkBDHf0U8vhldVpRb3Sat9HOxYL/eQft8d7L6c6kKcUjhe"
+      "blob": "AbCxsrO0tba3uLm6u7g+6QwjNo9HQZP8Ay7dS1OEEjjtC+/yxwHq8l2BlRau6QOMTAV2RvJH7OTtFeKlfKXirjS/lAspFMGBTzNB7fQ1OVj79MhlpLPPTBFSUcrSq7lzQXsCP+/XSD99HUTt9XVSgpBgjALPyjsnDsHyZ0ZgncSrFHXq5Cu61nzwxADYjvSobqfCn6Au6VlYzbKcpf03zE7IFLViWyVadYXiOaNFSgUNarqiq9mxyF2qYmvb/F1e0dEP+uOx1k+SQszSE+YXMQ7B5ymbwSFoTcJz/HNFQFqMhzSlkHMRcI9Z51FRK35aUkb8bJ0b5xQNM2OgdKWYmyiXjDdhpgOriZre4mFrwRNFJ38t1BsbyzIkBDHf0U8vhldVpRb3Sat9HOxf+b61HDFRd5unwIWI89F4"
     }
   ],
   "frames": {
@@ -169,5 +185,9 @@
       65519,
       10
     ]
+  },
+  "paging": {
+    "MAX_CHANGES_PER_REQUEST": 500,
+    "MAX_CHANGES_PER_RESPONSE": 500
   }
 }

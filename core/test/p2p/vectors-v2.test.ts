@@ -6,15 +6,22 @@ import {
   compareHlc,
   decryptPayloadV2,
   encryptPayloadV2,
+  entryAadV2,
+  MAX_CHANGES_PER_REQUEST,
+  MAX_CHANGES_PER_RESPONSE,
+  MAX_FRAMES,
+  MAX_FRAME_PLAINTEXT,
   openPairingMessage,
+  pairingAad,
   pairingKey,
   sealPairingMessage,
   type EntryDataV2,
   type Hlc,
   type PairingKind,
+  type PairingRole,
   type TombstoneDataV2,
 } from "../../src/p2p/index.ts";
-import { encryptFrames, MAX_FRAMES, MAX_FRAME_PLAINTEXT } from "../../src/p2p/frames.ts";
+import { encryptFrames } from "../../src/p2p/frames.ts";
 
 interface Vectors {
   hlcCompare: { description: string; a: Hlc; b: Hlc; expected: -1 | 0 | 1 }[];
@@ -30,7 +37,17 @@ interface Vectors {
   pairingKey: { description: string; isk: string; key: string }[];
   cpace: { file: string };
   noiseKk: { file: string };
-  pairingMessage: { description: string; key: string; kind: PairingKind; value: unknown; aad: string; nonce: string; blob: string }[];
+  pairingMessage: {
+    description: string;
+    key: string;
+    kind: PairingKind;
+    from: PairingRole;
+    value: unknown;
+    aad: string;
+    nonce: string;
+    blob: string;
+  }[];
+  paging: { MAX_CHANGES_PER_REQUEST: number; MAX_CHANGES_PER_RESPONSE: number };
   frames: {
     MAX_FRAME_PLAINTEXT: number;
     MAX_FRAMES: number;
@@ -56,6 +73,7 @@ describe("test vectors v2", () => {
   for (const e of v.entryPayload) {
     it(`entryPayload: ${e.description}`, async () => {
       const key = fromHex(e.vaultKey);
+      expect(entryAadV2(e.id)).toBe(e.aad);
       expect(await encryptPayloadV2(key, e.id, e.data, fromHex(e.nonce))).toBe(e.blob);
       expect(await decryptPayloadV2(key, e.id, e.blob)).toEqual(e.data);
     });
@@ -76,10 +94,17 @@ describe("test vectors v2", () => {
   for (const m of v.pairingMessage) {
     it(`pairingMessage: ${m.description}`, async () => {
       const key = fromHex(m.key);
-      expect(await sealPairingMessage(key, m.kind, m.value as never, fromHex(m.nonce))).toBe(m.blob);
-      expect(await openPairingMessage(key, m.kind, m.blob)).toEqual(m.value);
+      expect(pairingAad(m.kind, m.from)).toBe(m.aad);
+      expect(await sealPairingMessage(key, m.kind, m.from, m.value as never, fromHex(m.nonce))).toBe(m.blob);
+      expect(await openPairingMessage(key, m.kind, m.from, m.blob)).toEqual(m.value);
     });
   }
+
+  it("paging: constants", () => {
+    expect(v.paging).toEqual({ MAX_CHANGES_PER_REQUEST, MAX_CHANGES_PER_RESPONSE });
+    expect(v.paging.MAX_CHANGES_PER_REQUEST).toBe(500);
+    expect(v.paging.MAX_CHANGES_PER_RESPONSE).toBe(500);
+  });
 
   it("frames: constants and chunking", async () => {
     expect(v.frames.MAX_FRAME_PLAINTEXT).toBe(MAX_FRAME_PLAINTEXT);

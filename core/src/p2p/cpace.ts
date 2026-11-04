@@ -75,10 +75,14 @@ function generatorString(prs: Uint8Array, ci: Uint8Array, sid: Uint8Array): Uint
   return lvCat(DSI, prs, new Uint8Array(zpad), ci, sid);
 }
 
+/** Hash of generator_string truncated to 2 * field size (draft 8.3); the input of the element derivation. */
+function generatorHash(prs: Uint8Array, ci: Uint8Array, sid: Uint8Array): Uint8Array {
+  return sha512(generatorString(prs, ci, sid)).subarray(0, 2 * FIELD_SIZE_BYTES);
+}
+
 /** G_Ristretto255.calculate_generator (draft 8.3). */
 function calculateGenerator(prs: Uint8Array, ci: Uint8Array, sid: Uint8Array) {
-  const genStrHash = sha512(generatorString(prs, ci, sid)).subarray(0, 2 * FIELD_SIZE_BYTES);
-  return elementDerivation(genStrHash);
+  return elementDerivation(generatorHash(prs, ci, sid));
 }
 
 function bytesToScalarLE(bytes: Uint8Array): bigint {
@@ -95,6 +99,20 @@ function sampleScalar(): bigint {
     const y = bytesToScalarLE(bytes);
     if (y !== 0n) return y;
   }
+}
+
+/** scalar_mult_vfy (draft 8.3): decode failure or a neutral result means abort (K == G.I). */
+function scalarMultVfy(y: bigint, Yp: Uint8Array): Uint8Array {
+  let peer;
+  try {
+    peer = Point.fromBytes(Yp);
+  } catch {
+    throw new Error(INVALID);
+  }
+  if (peer.is0()) throw new Error(INVALID);
+  const Kp = peer.multiply(y);
+  if (Kp.is0()) throw new Error(INVALID);
+  return Kp.toBytes();
 }
 
 /**
@@ -134,17 +152,7 @@ export function cpaceFinish(
   const [Yp, adp] = fields as [Uint8Array, Uint8Array];
   if (Yp.length !== FIELD_SIZE_BYTES) throw new Error(INVALID);
 
-  // scalar_mult_vfy: decode failure or a neutral result means abort (K == G.I).
-  let peer;
-  try {
-    peer = Point.fromBytes(Yp);
-  } catch {
-    throw new Error(INVALID);
-  }
-  if (peer.is0()) throw new Error(INVALID);
-  const Kp = peer.multiply(state.ya);
-  if (Kp.is0()) throw new Error(INVALID);
-  const K = Kp.toBytes();
+  const K = scalarMultVfy(state.ya, Yp);
 
   const transcript =
     role === "initiator"
@@ -152,3 +160,13 @@ export function cpaceFinish(
       : concat(lvCat(Yp, adp), lvCat(state.Ya, state.ad));
   return sha512(concat(lvCat(DSI_ISK, state.sid, K), transcript));
 }
+
+/** Test-only access to intermediate values of the draft vector. Not part of the protocol API. */
+export const _cpaceInternals = {
+  generatorString,
+  generatorHash,
+  calculateGenerator: (prs: Uint8Array, ci: Uint8Array, sid: Uint8Array): Uint8Array =>
+    calculateGenerator(prs, ci, sid).toBytes(),
+  /** K = scalar_mult_vfy(y, Y_peer), with y as 32 little-endian bytes. */
+  sharedPoint: (y: Uint8Array, peer: Uint8Array): Uint8Array => scalarMultVfy(bytesToScalarLE(y), peer),
+};

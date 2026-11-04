@@ -8,14 +8,20 @@ import {
   compareHlc,
   encryptPayloadV2,
   entryAadV2,
+  MAX_CHANGES_PER_REQUEST,
+  MAX_CHANGES_PER_RESPONSE,
+  MAX_FRAMES,
+  MAX_FRAME_PLAINTEXT,
+  pairingAad,
   pairingKey,
   sealPairingMessage,
   type EntryDataV2,
   type Hlc,
   type PairingKind,
+  type PairingRole,
   type TombstoneDataV2,
 } from "../src/p2p/index.ts";
-import { encryptFrames, MAX_FRAMES, MAX_FRAME_PLAINTEXT } from "../src/p2p/frames.ts";
+import { encryptFrames } from "../src/p2p/frames.ts";
 
 const hlc = (ms: number, c: number, d: string): Hlc => ({ ms, c, d });
 
@@ -73,28 +79,44 @@ const pairingKeys = [
 
 const pairKey = toHex(pairingKey(fromHex(isk)));
 
-async function pairingVector(description: string, kind: PairingKind, value: object, nonceHex: string) {
+async function pairingVector(
+  description: string,
+  kind: PairingKind,
+  from: PairingRole,
+  value: object,
+  nonceHex: string,
+) {
   return {
     description,
     key: pairKey,
     kind,
+    from,
     value,
-    aad: `passholder/v2/pair/${kind}`,
+    aad: pairingAad(kind, from),
     nonce: nonceHex,
-    blob: await sealPairingMessage(fromHex(pairKey), kind, value as never, fromHex(nonceHex)),
+    blob: await sealPairingMessage(fromHex(pairKey), kind, from, value as never, fromHex(nonceHex)),
   };
 }
 
 const pairingMessage = [
   await pairingVector(
-    "Device identity",
+    "Device identity sent by the phone (responder)",
     "identity",
+    "responder",
     { deviceId: "phone-1", name: "Pixel", staticPublicKey: "MOAwP9ZBHS+MDni5HyLoyu0PvkhlbPz3Z+SDT3Abj2I=" },
     "a0a1a2a3a4a5a6a7a8a9aaab",
   ),
   await pairingVector(
-    "Vault info",
+    "Device identity sent by the extension (initiator)",
+    "identity",
+    "initiator",
+    { deviceId: "ext-1", name: "Chrome", staticPublicKey: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=" },
+    "c0c1c2c3c4c5c6c7c8c9cacb",
+  ),
+  await pairingVector(
+    "Vault info sent by the phone (responder)",
     "vault-info",
+    "responder",
     {
       epoch: "AAECAwQFBgcICQoLDA0ODw==",
       kdf: { alg: "argon2id", salt: "AAECAwQFBgcICQoLDA0ODw==", memoryKiB: 65536, iterations: 3, parallelism: 4 },
@@ -130,6 +152,7 @@ const out = {
   noiseKk: { file: "noise-kk.json" },
   pairingMessage,
   frames,
+  paging: { MAX_CHANGES_PER_REQUEST, MAX_CHANGES_PER_RESPONSE },
 };
 writeFileSync(new URL("../test-vectors/v2.json", import.meta.url), JSON.stringify(out, null, 2) + "\n");
 console.log("Wrote test-vectors/v2.json");

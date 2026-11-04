@@ -1,12 +1,13 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { concat, fromHex, randomBytes, toHex, utf8 } from "../../src/encoding.ts";
-import { cpaceFinish, cpaceStart, lvCat, PAIRING_CI } from "../../src/p2p/cpace.ts";
+import { _cpaceInternals, cpaceFinish, cpaceStart, lvCat, PAIRING_CI } from "../../src/p2p/cpace.ts";
 
 const raw = JSON.parse(
   readFileSync(new URL("../../test-vectors/cpace-ristretto255.json", import.meta.url), "utf8"),
 ) as Record<
-  "PRS" | "CI" | "sid" | "ADa" | "ADb" | "ya" | "yb" | "Ya" | "Yb" | "ISK_IR" | "invalid_Y1" | "invalid_Y2_identity",
+  | "PRS" | "CI" | "sid" | "ADa" | "ADb" | "ya" | "yb" | "g" | "Ya" | "Yb" | "K" | "ISK_IR"
+  | "generator_string" | "generator_hash" | "invalid_Y1" | "invalid_Y2_identity",
   string
 >;
 
@@ -55,6 +56,15 @@ describe("cpace", () => {
     expect(toHex(b.message)).toBe(toHex(lvCat(v.Yb, v.ADb)));
     expect(toHex(cpaceFinish(a.state, b.message, "initiator"))).toBe(v.ISK_IR);
     expect(toHex(cpaceFinish(b.state, a.message, "responder"))).toBe(v.ISK_IR);
+  });
+
+  it("reproduces the draft's intermediate values (generator_string, generator_hash, g, K)", () => {
+    const { generatorString, generatorHash, calculateGenerator, sharedPoint } = _cpaceInternals;
+    expect(toHex(generatorString(v.PRS, v.CI, v.sid))).toBe(raw.generator_string);
+    expect(toHex(generatorHash(v.PRS, v.CI, v.sid))).toBe(raw.generator_hash);
+    expect(toHex(calculateGenerator(v.PRS, v.CI, v.sid))).toBe(raw.g);
+    expect(toHex(sharedPoint(v.ya, v.Yb))).toBe(raw.K);
+    expect(toHex(sharedPoint(v.yb, v.Ya))).toBe(raw.K);
   });
 
   it("two parties with the same code agree on a 64-byte key", () => {
