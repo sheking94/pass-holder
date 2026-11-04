@@ -32,13 +32,15 @@ private data class NoiseVector(
     val messages: List<NoiseVectorMessage>,
 )
 
+private val noiseJson = Json { ignoreUnknownKeys = true }
+
 class NoiseTest {
     private val empty = ByteArray(0)
     private fun utf8(s: String) = Encoding.utf8(s)
     private fun hex(b: ByteArray) = Encoding.toHex(b)
     private fun unhex(s: String) = Encoding.fromHex(s)
 
-    private val raw: NoiseVector = Json { ignoreUnknownKeys = true }.decodeFromString(
+    private val raw: NoiseVector = noiseJson.decodeFromString(
         File(System.getProperty("passholder.repoRoot"), "core/test-vectors/noise-kk.json").readText(),
     )
 
