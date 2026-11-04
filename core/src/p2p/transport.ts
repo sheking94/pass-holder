@@ -1,0 +1,47 @@
+import { fromBase64, toBase64 } from "../encoding.ts";
+import { decryptFrames, encryptFrames, MAX_FRAMES } from "./frames.ts";
+import type { P2pSyncResponse } from "./host-sync.ts";
+import { NoiseKK, P2P_PROLOGUE, type KeyPair } from "./noise.ts";
+import type { P2pTransport } from "./sync.ts";
+
+export type FetchJson = (url: string, body: unknown) => Promise<{ status: number; body: unknown }>;
+
+async function call(post: FetchJson, url: string, body: unknown): Promise<Record<string, unknown>> {
+  const res = await post(url, body);
+  const b = res.body as Record<string, unknown> | null;
+  if (res.status !== 200) {
+    const detail = b && typeof b.error === "string" ? b.error : "no error message";
+    throw new Error(`P2P host returned ${res.status}: ${detail}`);
+  }
+  if (typeof b !== "object" || b === null) throw new Error("P2P host returned a malformed response");
+  return b;
+}
+
+const str = (v: unknown): string => {
+  if (typeof v !== "string") throw new Error("P2P host returned a malformed response");
+  return v;
+};
+
+/** Noise-over-HTTP client: every call of the returned transport is one handshake plus one sync request. */
+export function noiseTransport(o: {
+  baseUrl: string;
+  deviceId: string;
+  staticKey: KeyPair;
+  peerPublicKey: Uint8Array;
+  post: FetchJson;
+}): P2pTransport {
+  const base = o.baseUrl.replace(/\/+$/, "");
+  return async (request) => {
+    const noise = NoiseKK.initiator({ s: o.staticKey, rs: o.peerPublicKey, prologue: P2P_PROLOGUE });
+    const first = await noise.writeMessage(new Uint8Array());
+    const hs = await call(o.post, `${base}/p2p/v1/handshake`, { deviceId: o.deviceId, message: toBase64(first) });
+    await noise.readMessage(fromBase64(str(hs.message)));
+    const { send, recv } = noise.split();
+    const frames = await encryptFrames(send, request);
+    const res = await call(o.post, `${base}/p2p/v1/sync`, { session: str(hs.session), frames });
+    const incoming = res.frames;
+    if (!Array.isArray(incoming) || incoming.length < 1 || incoming.length > MAX_FRAMES || !incoming.every((f) => typeof f === "string"))
+      throw new Error("P2P host returned a malformed response");
+    return (await decryptFrames(recv, incoming)) as P2pSyncResponse;
+  };
+}

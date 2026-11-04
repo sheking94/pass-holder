@@ -1,0 +1,193 @@
+{
+  "format": "passholder-test-vectors",
+  "version": 2,
+  "hlcCompare": [
+    {
+      "description": "ms decides",
+      "a": {
+        "ms": 1000,
+        "c": 9,
+        "d": "z"
+      },
+      "b": {
+        "ms": 1001,
+        "c": 0,
+        "d": "a"
+      },
+      "expected": -1
+    },
+    {
+      "description": "counter decides when ms is equal",
+      "a": {
+        "ms": 1000,
+        "c": 1,
+        "d": "z"
+      },
+      "b": {
+        "ms": 1000,
+        "c": 2,
+        "d": "a"
+      },
+      "expected": -1
+    },
+    {
+      "description": "device id decides when ms and counter are equal",
+      "a": {
+        "ms": 1000,
+        "c": 3,
+        "d": "device-a"
+      },
+      "b": {
+        "ms": 1000,
+        "c": 3,
+        "d": "device-b"
+      },
+      "expected": -1
+    },
+    {
+      "description": "equal clocks",
+      "a": {
+        "ms": 1000,
+        "c": 3,
+        "d": "device-a"
+      },
+      "b": {
+        "ms": 1000,
+        "c": 3,
+        "d": "device-a"
+      },
+      "expected": 0
+    },
+    {
+      "description": "d compared by UTF-16 code units, not code points: U+1F600 (surrogate D83D) sorts before U+FF5E",
+      "a": {
+        "ms": 1000,
+        "c": 0,
+        "d": "😀"
+      },
+      "b": {
+        "ms": 1000,
+        "c": 0,
+        "d": "～"
+      },
+      "expected": -1
+    }
+  ],
+  "entryPayload": [
+    {
+      "description": "Live entry with non-ASCII text",
+      "vaultKey": "5f9d1c3a7b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7",
+      "id": "3f2a8c1e-6b4d-4e9a-9c7f-1a2b3c4d5e6f",
+      "aad": "passholder/v2/entry/3f2a8c1e-6b4d-4e9a-9c7f-1a2b3c4d5e6f",
+      "data": {
+        "name": "example.com",
+        "username": "jan@example.com",
+        "password": "p@ss wörd!",
+        "hlc": {
+          "ms": 1793404800000,
+          "c": 2,
+          "d": "device-a"
+        }
+      },
+      "nonce": "0102030405060708090a0b0c",
+      "blob": "AQECAwQFBgcICQoLDLmAb1eYoSGxN/Z4ZfH8qA2jhJ6igzLUoY5y+dLat+4DDQIiUHCL9ng+ZNnio893EDWbQMbDDeX7qMgehz6sXo+5WKJW+T9zBx3RHEeq5JUoQSEwnS3txHvj8C9vXyYQfQbePKuZnXq3Dp3ReVNX6wVyy3eClckjSyWhfJf5hPvMRdWu0xSOnlyj3kE6"
+    },
+    {
+      "description": "Tombstone",
+      "vaultKey": "5f9d1c3a7b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7",
+      "id": "3f2a8c1e-6b4d-4e9a-9c7f-1a2b3c4d5e6f",
+      "aad": "passholder/v2/entry/3f2a8c1e-6b4d-4e9a-9c7f-1a2b3c4d5e6f",
+      "data": {
+        "hlc": {
+          "ms": 1793404900000,
+          "c": 0,
+          "d": "device-b"
+        }
+      },
+      "nonce": "0c0b0a090807060504030201",
+      "blob": "AQwLCgkIBwYFBAMCAdbRlOh5OxuqzB5RMv3FjK9Mg7xer3UuYoeibEs0bFFf5MrfYnp9VPZoHL4F7olBWPassXxmgpospnmM2dRatG7C"
+    }
+  ],
+  "pairingKey": [
+    {
+      "description": "ISK_IR from the CPace draft vector (cpace-ristretto255.json) -> HKDF-SHA256, info passholder/v2/pair-key",
+      "isk": "b69effbf61b51d56401c0f65601abe428de8206feaaf0e32198896dcae7b35cd2b38950a39dfd5d4a79164614c2984f7daa460b588c1e80c3fa2068af7900447",
+      "key": "14fbf8209d1d042b48ed2ea7035315cb82ec8006c224827ce5e05af5c5057f71"
+    }
+  ],
+  "cpace": {
+    "file": "cpace-ristretto255.json"
+  },
+  "noiseKk": {
+    "file": "noise-kk.json"
+  },
+  "pairingMessage": [
+    {
+      "description": "Device identity sent by the phone (responder)",
+      "key": "14fbf8209d1d042b48ed2ea7035315cb82ec8006c224827ce5e05af5c5057f71",
+      "kind": "identity",
+      "from": "responder",
+      "value": {
+        "deviceId": "phone-1",
+        "name": "Pixel",
+        "staticPublicKey": "MOAwP9ZBHS+MDni5HyLoyu0PvkhlbPz3Z+SDT3Abj2I="
+      },
+      "aad": "passholder/v2/pair/identity/responder",
+      "nonce": "a0a1a2a3a4a5a6a7a8a9aaab",
+      "blob": "AaChoqOkpaanqKmqqxq20nddGF4kuJNT27/JLt1MZP2ze8q3kCO2dajVQLCbd7SW5KJ3f21bV3LlaXy7eawsUo/wxU9XCQ3lYqvq6XTxOfBDchaRCekeea4nbwBA4rsNIXhJfM1vQ5kcOKxCe7ASEZFCr1ImT0XtGlcR28ap51cKXFY="
+    },
+    {
+      "description": "Device identity sent by the extension (initiator)",
+      "key": "14fbf8209d1d042b48ed2ea7035315cb82ec8006c224827ce5e05af5c5057f71",
+      "kind": "identity",
+      "from": "initiator",
+      "value": {
+        "deviceId": "ext-1",
+        "name": "Chrome",
+        "staticPublicKey": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+      },
+      "aad": "passholder/v2/pair/identity/initiator",
+      "nonce": "c0c1c2c3c4c5c6c7c8c9cacb",
+      "blob": "AcDBwsPExcbHyMnKy18aM+yILwdOUjHDmNlz/Hzy2YxaH/thOS7VO2nwHKG1t3YZvpwadbKQf8gofum+7ujzMZtPEiL7OvUc6t5He7sNKgF5Uyetyy1pea+5kt68TiBZ3lTRMnT/G5ZIjICg1e/sowUyztglHSxiSgW0fsjcFroNQA=="
+    },
+    {
+      "description": "Vault info sent by the phone (responder)",
+      "key": "14fbf8209d1d042b48ed2ea7035315cb82ec8006c224827ce5e05af5c5057f71",
+      "kind": "vault-info",
+      "from": "responder",
+      "value": {
+        "epoch": "AAECAwQFBgcICQoLDA0ODw==",
+        "kdf": {
+          "alg": "argon2id",
+          "salt": "AAECAwQFBgcICQoLDA0ODw==",
+          "memoryKiB": 65536,
+          "iterations": 3,
+          "parallelism": 4
+        },
+        "wrappedVaultKey": "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QA==",
+        "addresses": [
+          "192.168.1.5:8443"
+        ]
+      },
+      "aad": "passholder/v2/pair/vault-info/responder",
+      "nonce": "b0b1b2b3b4b5b6b7b8b9babb",
+      "blob": "AbCxsrO0tba3uLm6u7g+6QwjNo9HQZP8Ay7dS1OEEjjtC+/yxwHq8l2BlRau6QOMTAV2RvJH7OTtFeKlfKXirjS/lAspFMGBTzNB7fQ1OVj79MhlpLPPTBFSUcrSq7lzQXsCP+/XSD99HUTt9XVSgpBgjALPyjsnDsHyZ0ZgncSrFHXq5Cu61nzwxADYjvSobqfCn6Au6VlYzbKcpf03zE7IFLViWyVadYXiOaNFSgUNarqiq9mxyF2qYmvb/F1e0dEP+uOx1k+SQszSE+YXMQ7B5ymbwSFoTcJz/HNFQFqMhzSlkHMRcI9Z51FRK35aUkb8bJ0b5xQNM2OgdKWYmyiXjDdhpgOriZre4mFrwRNFJ38t1BsbyzIkBDHf0U8vhldVpRb3Sat9HOxf+b61HDFRd5unwIWI89F4"
+    }
+  ],
+  "frames": {
+    "MAX_FRAME_PLAINTEXT": 65519,
+    "MAX_FRAMES": 18,
+    "cipherKey": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "payloadChar": "a",
+    "payloadStringLength": 65527,
+    "plaintextLength": 65529,
+    "chunkLengths": [
+      65519,
+      10
+    ]
+  },
+  "paging": {
+    "MAX_CHANGES_PER_REQUEST": 500,
+    "MAX_CHANGES_PER_RESPONSE": 500
+  }
+}
