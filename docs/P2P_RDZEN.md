@@ -131,6 +131,10 @@ tekstem. Powtórzone `id` daje `"duplicate change"`. Przy tej samej epoce każda
 `baseRevision != 0` dla `id`, którego host nie zna, daje `"unknown base revision"`. Wszystkie zmiany są
 sprawdzane przed pierwszym zapisem, więc zła zmiana nie zostawia wcześniejszych zapisanych.
 
+Gdy `sinceRevision` jest większe niż `currentRevision` hosta (telefon odtworzono z kopii), host po walidacji kształtu
+nie sprawdza zmian względem sklepu i niczego nie zapisuje: odpowiada pustym `accepted`/`conflicts`/`changes`
+i swoim `currentRevision`, a wtyczka wykrywa cofnięcie i wysyła wszystko od nowa (wersja Kotlin musi to powielić).
+
 Sesja:
 
 - żyje w pamięci **60 s** (`SESSION_TTL_MS`),

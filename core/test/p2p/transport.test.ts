@@ -263,6 +263,42 @@ describe("p2p host: final review fixes", () => {
     expect(s.store.currentRevision()).toBe(0);
   });
 
+  it("processP2pSync ignores a request whose sinceRevision is ahead of the store: no validation against the store, no writes", () => {
+    const s = setup();
+    s.store.put({ id: "known", revision: 1, deleted: false, blob });
+    const res = processP2pSync(s.store, s.epoch, ["a:1"], {
+      epoch: s.epoch,
+      sinceRevision: 5,
+      changes: [change("ghost", 3), change("fresh")],
+    });
+    expect(res).toEqual({ epoch: s.epoch, currentRevision: 1, accepted: [], conflicts: [], changes: [], addresses: ["a:1"], more: false });
+    expect(s.store.currentRevision()).toBe(1);
+    expect(s.store.get("fresh")).toBeUndefined();
+    // Malformed requests are still refused.
+    expect(() => processP2pSync(s.store, s.epoch, [], { epoch: s.epoch, sinceRevision: 5, changes: [change("a"), change("a")] })).toThrow();
+  });
+
+  it("a restored phone with an unknown id edited by the client does not leave the client stuck", async () => {
+    const s = setup();
+    const vaultKey = newVaultKey();
+    const ext = emptyVaultV2();
+    const clock = new HlcClock("ext", () => 1000);
+    const send = s.transportFor("ext");
+    upsertEntryV2(ext, clock, "early", entry("E"));
+    await syncVaultV2(ext, vaultKey, clock, send);
+    const backup = new MemorySyncStore();
+    for (const r of s.store.listSince(0)) backup.put(r);
+    upsertEntryV2(ext, clock, "late", entry("L"));
+    await syncVaultV2(ext, vaultKey, clock, send);
+    // The phone is restored from the older backup, which does not know "late".
+    Object.assign(s.store, { records: new Map((backup as any).records), revision: backup.currentRevision() });
+    upsertEntryV2(ext, clock, "late", { ...entry("L"), password: "p2" });
+    await syncVaultV2(ext, vaultKey, clock, send);
+    const phone = emptyVaultV2();
+    await syncVaultV2(phone, vaultKey, new HlcClock("p", () => 1000), s.transportFor("phone"));
+    expect(liveEntriesV2(phone).map((e) => [e.id, e.data.password]).sort()).toEqual([["early", "p"], ["late", "p2"]]);
+  });
+
   it("holds at most 32 live sessions and answers 503 when full", async () => {
     const s = setup();
     const key = s.addDevice("a");

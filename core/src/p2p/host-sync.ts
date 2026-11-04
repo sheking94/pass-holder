@@ -51,6 +51,8 @@ export function validateP2pSyncRequest(store: SyncStore, epoch: string, request:
   }
   // A request from another epoch is not processed, so its base revisions do not matter.
   if (r.epoch !== epoch) return undefined;
+  // A client ahead of this store sees a restored phone and starts over; its changes are not processed either.
+  if ((r.sinceRevision as number) > store.currentRevision()) return undefined;
   for (const c of r.changes as ChangeRequest[]) {
     if (c.baseRevision !== 0 && store.get(c.id) === undefined) return "unknown base revision";
   }
@@ -58,7 +60,8 @@ export function validateP2pSyncRequest(store: SyncStore, epoch: string, request:
 }
 
 /**
- * Host side of P2P sync. A request from another epoch is not processed: the client only learns the epoch.
+ * Host side of P2P sync. A request from another epoch, or with sinceRevision ahead of the store, is not processed:
+ * the client only learns the epoch and revision.
  * Throws (before any write) when validateP2pSyncRequest rejects the request.
  */
 export function processP2pSync(
@@ -69,7 +72,8 @@ export function processP2pSync(
 ): P2pSyncResponse {
   const error = validateP2pSyncRequest(store, epoch, request);
   if (error !== undefined) throw new Error(error);
-  if (request.epoch !== epoch) {
+  // sinceRevision ahead of the store: the phone was restored, so the client resets itself (see syncVaultV2).
+  if (request.epoch !== epoch || request.sinceRevision > store.currentRevision()) {
     return {
       epoch,
       currentRevision: store.currentRevision(),
