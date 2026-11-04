@@ -46,8 +46,10 @@ export async function sealPairingMessage(
   key: Uint8Array,
   kind: PairingKind,
   value: DeviceIdentity | VaultInfo,
+  /** Only for test vectors; normal callers leave it out and get a random nonce. */
+  nonce?: Uint8Array,
 ): Promise<string> {
-  return seal(key, utf8(JSON.stringify(value)), aad(kind));
+  return seal(key, utf8(JSON.stringify(value)), aad(kind), nonce);
 }
 
 /** Strict Base64: must decode and re-encode to the same text, with an exact decoded length when given. */
