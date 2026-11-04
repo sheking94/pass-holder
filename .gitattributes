@@ -1,0 +1,7 @@
+# Keep line endings stable when the repo is cloned on Windows (core.autocrlf=true).
+* text=auto
+*.sh text eol=lf
+android/gradlew text eol=lf
+*.bat -text
+*.png binary
+*.jar binary
