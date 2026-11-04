@@ -7,6 +7,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.decodeFromJsonElement
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.DynamicTest
+import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
 import java.io.File
 import kotlin.math.sign
@@ -40,6 +41,17 @@ private data class PairingMessageVector(
     val blob: String,
 )
 
+@Serializable
+private data class FramesVector(
+    val MAX_FRAME_PLAINTEXT: Int,
+    val MAX_FRAMES: Int,
+    val cipherKey: String,
+    val payloadChar: String,
+    val payloadStringLength: Int,
+    val plaintextLength: Int,
+    val chunkLengths: List<Int>,
+)
+
 /** Sections of v2.json grow with each module; unknown sections are ignored until their task adds them. */
 @Serializable
 private data class P2pVectors(
@@ -47,11 +59,14 @@ private data class P2pVectors(
     val entryPayload: List<EntryPayloadVector>,
     val pairingKey: List<PairingKeyVector>,
     val pairingMessage: List<PairingMessageVector>,
+    val frames: FramesVector,
 )
 
 /** The same core/test-vectors/v2.json the TypeScript core is tested against. */
 class P2pVectorsTest {
-    private val vectors: P2pVectors = Json { ignoreUnknownKeys = true }.decodeFromString(
+    private val lenientJson = Json { ignoreUnknownKeys = true }
+
+    private val vectors: P2pVectors = lenientJson.decodeFromString(
         File(System.getProperty("passholder.repoRoot"), "core/test-vectors/v2.json").readText(),
     )
 
@@ -106,5 +121,16 @@ class P2pVectorsTest {
                 assertEquals(value, Pairing.openVaultInfo(key, from, v.blob))
             }
         }
+    }
+
+    @Test
+    fun frames() {
+        val f = vectors.frames
+        assertEquals(f.MAX_FRAME_PLAINTEXT, Frames.MAX_FRAME_PLAINTEXT)
+        assertEquals(f.MAX_FRAMES, Frames.MAX_FRAMES)
+        val json = "\"" + f.payloadChar.repeat(f.payloadStringLength) + "\""
+        assertEquals(f.plaintextLength, Encoding.utf8(json).size)
+        val frames = Frames.encrypt(CipherState(Encoding.fromHex(f.cipherKey)), json)
+        assertEquals(f.chunkLengths, frames.map { Encoding.fromBase64(it).size - 16 })
     }
 }
