@@ -22,6 +22,7 @@ interface SyncStore {
     fun currentRevision(): Long
 }
 
+/** In-memory store; not thread-safe, callers must hold synchronized(store). */
 class MemorySyncStore : SyncStore {
     private val records = HashMap<String, RemoteRecord>()
     private var revision = 0L

@@ -196,7 +196,10 @@ class HostSyncTest {
         )
         for ((c, message) in bad) {
             assertEquals(message, HostSync.validate(store, epoch, request(0, ok, c)), c.toString())
+            val e = assertThrows(IllegalArgumentException::class.java, { HostSync.process(store, epoch, emptyList(), request(0, ok, c)) }, c.toString())
+            assertEquals(message, e.message)
             assertEquals(0, store.currentRevision())
+            assertNull(store.get("ok"))
         }
         assertNull(HostSync.validate(store, epoch, request(0, changeJson("x".repeat(128)))))
     }
