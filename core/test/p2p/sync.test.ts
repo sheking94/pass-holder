@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { randomBytes, toBase64 } from "../../src/encoding.ts";
 import { encryptPayload, newVaultKey } from "../../src/vault.ts";
 import {
+  applyVaultInfo,
+  clockForVault,
   decryptPayloadV2,
   deleteEntryV2,
   emptyVaultV2,
@@ -176,5 +178,149 @@ describe("p2p sync", () => {
     await expect(decryptPayloadV2(key, "2", blob)).rejects.toThrow();
     const v1 = await encryptPayload(key, "1", { name: "x", username: "u", password: "p", modifiedAt: 1 });
     await expect(decryptPayloadV2(key, "1", v1)).rejects.toThrow();
+  });
+});
+
+describe("p2p sync: final review fixes", () => {
+  const password = async (s: ReturnType<typeof setup>, id: string) =>
+    ((await decryptPayloadV2(s.vaultKey, id, s.store.get(id)!.blob)) as { password?: string }).password;
+
+  it("an edit made while its push is in flight stays dirty and reaches the phone on the next sync", async () => {
+    const s = setup();
+    const ext = emptyVaultV2();
+    const clock = new HlcClock("ext", () => 1000);
+    upsertEntryV2(ext, clock, "1", { name: "Bank", username: "u", password: "old" });
+    let edited = false;
+    await syncVaultV2(ext, s.vaultKey, clock, async (r) => {
+      const res = await s.send(r);
+      if (!edited && r.epoch === s.epoch && r.changes.length > 0) {
+        edited = true;
+        upsertEntryV2(ext, clock, "1", { name: "Bank", username: "u", password: "NEW" });
+      }
+      return res;
+    });
+    expect(ext.entries.get("1")?.dirty).toBe(true);
+    expect(ext.entries.get("1")?.revision).toBe(1);
+    await s.sync(ext, clock);
+    expect(await password(s, "1")).toBe("NEW");
+    expect(ext.entries.get("1")?.dirty).toBe(false);
+  });
+
+  it("deleting an entry while its first push is in flight leaves a tombstone on the phone", async () => {
+    const s = setup();
+    const ext = emptyVaultV2();
+    const clock = new HlcClock("ext", () => 1000);
+    upsertEntryV2(ext, clock, "1", entry("Bank"));
+    let deleted = false;
+    await syncVaultV2(ext, s.vaultKey, clock, async (r) => {
+      const res = await s.send(r);
+      if (!deleted && r.epoch === s.epoch && r.changes.length > 0) {
+        deleted = true;
+        deleteEntryV2(ext, clock, "1");
+      }
+      return res;
+    });
+    expect(ext.entries.get("1")).toMatchObject({ deleted: true, dirty: true, revision: 1 });
+    await s.sync(ext, clock);
+    expect(s.store.get("1")?.deleted).toBe(true);
+    expect(ext.entries.get("1")).toMatchObject({ deleted: true, dirty: false });
+  });
+
+  it("a restarted clock still orders an edit after the version it overwrites", async () => {
+    const first = setup();
+    const phone = emptyVaultV2();
+    const phoneClock = new HlcClock("phone", () => 5_000_000);
+    const a = emptyVaultV2();
+    upsertEntryV2(phone, phoneClock, "x", { name: "X", username: "u", password: "phone-v1" });
+    await first.sync(phone, phoneClock);
+    await first.sync(a, new HlcClock("a", () => 1000));
+
+    const restarted = new HlcClock("a", () => 2000);
+    upsertEntryV2(a, restarted, "x", { name: "X", username: "u", password: "a-edit" });
+    const hlc = a.entries.get("x")!.data.hlc;
+    expect(hlc.ms).toBeGreaterThanOrEqual(5_000_000);
+
+    // The phone loses its state: both devices upload again into a new epoch.
+    const second = setup();
+    second.vaultKey.set(first.vaultKey);
+    await second.sync(phone, phoneClock);
+    await second.sync(a, restarted);
+    expect(await password(second, "x")).toBe("a-edit");
+  });
+
+  it("deleteEntryV2 also observes the overwritten HLC", () => {
+    const v = emptyVaultV2();
+    upsertEntryV2(v, new HlcClock("phone", () => 5_000_000), "x", entry("X"));
+    v.entries.set("x", { ...v.entries.get("x")!, revision: 3, dirty: false });
+    deleteEntryV2(v, new HlcClock("a", () => 2000), "x");
+    expect(v.entries.get("x")!.data.hlc.ms).toBe(5_000_000);
+  });
+
+  it("clockForVault seeds the clock with the largest HLC in the vault", () => {
+    const v = emptyVaultV2();
+    upsertEntryV2(v, new HlcClock("p", () => 7_000), "a", entry("A"));
+    upsertEntryV2(v, new HlcClock("q", () => 9_000), "b", entry("B"));
+    upsertEntryV2(v, new HlcClock("r", () => 8_000), "c", entry("C"));
+    const clock = clockForVault(v, "me", () => 10);
+    expect(clock.tick()).toEqual({ ms: 9_000, c: 1, d: "me" });
+    expect(clockForVault(emptyVaultV2(), "me", () => 10).tick()).toEqual({ ms: 10, c: 0, d: "me" });
+  });
+
+  it("applyVaultInfo with a new epoch resets the vault and replaces the addresses", async () => {
+    const first = setup();
+    const ext = emptyVaultV2();
+    const clock = new HlcClock("ext", () => 1000);
+    applyVaultInfo(ext, { epoch: first.epoch, addresses: ["10.0.0.1:1"] });
+    expect(ext.epoch).toBe(first.epoch);
+    expect(ext.addresses).toEqual(["10.0.0.1:1"]);
+    upsertEntryV2(ext, clock, "a", entry("A"));
+    upsertEntryV2(ext, clock, "b", entry("B"));
+    await first.sync(ext, clock);
+    expect(ext.addresses).toEqual(["10.0.0.1:1", ADDRESS]);
+
+    const second = setup();
+    second.vaultKey.set(first.vaultKey);
+    applyVaultInfo(ext, { epoch: second.epoch, addresses: ["10.0.0.2:2"] });
+    expect(ext.epoch).toBe(second.epoch);
+    expect(ext.lastSyncRevision).toBe(0);
+    expect(ext.addresses).toEqual(["10.0.0.2:2"]);
+    expect([...ext.entries.values()].every((e) => e.dirty && e.revision === 0)).toBe(true);
+    await second.sync(ext, clock);
+    expect(second.store.listSince(0).map((r) => r.id).sort()).toEqual(["a", "b"]);
+
+    // Same epoch: only the addresses change.
+    applyVaultInfo(ext, { epoch: second.epoch, addresses: ["10.0.0.3:3"] });
+    expect(ext.addresses).toEqual(["10.0.0.3:3"]);
+    expect([...ext.entries.values()].every((e) => !e.dirty && e.revision > 0)).toBe(true);
+  });
+
+  it("an epoch change during sync replaces the addresses", async () => {
+    const first = setup();
+    const ext = emptyVaultV2();
+    const clock = new HlcClock("ext", () => 1000);
+    await first.sync(ext, clock);
+    ext.addresses.push("stale:1");
+    const second = setup();
+    await syncVaultV2(ext, second.vaultKey, clock, async (r) =>
+      structuredClone(processP2pSync(second.store, second.epoch, ["new:2"], structuredClone(r))),
+    );
+    expect(ext.addresses).toEqual(["new:2"]);
+  });
+
+  it("re-uploads everything when the phone's revision went backwards in the same epoch", async () => {
+    const s = setup();
+    const ext = emptyVaultV2();
+    const clock = new HlcClock("ext", () => 1000);
+    for (const id of ["a", "b", "c"]) upsertEntryV2(ext, clock, id, entry(id));
+    await s.sync(ext, clock);
+    expect(ext.lastSyncRevision).toBe(3);
+
+    // Same epoch, but the phone's store was restored from an older (here: empty) state.
+    const restored = new MemorySyncStore();
+    await syncVaultV2(ext, s.vaultKey, clock, async (r) =>
+      structuredClone(processP2pSync(restored, s.epoch, [ADDRESS], structuredClone(r))),
+    );
+    expect(restored.listSince(0).map((r) => r.id).sort()).toEqual(["a", "b", "c"]);
+    expect(ext.lastSyncRevision).toBe(3);
   });
 });
