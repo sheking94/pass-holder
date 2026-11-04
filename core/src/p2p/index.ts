@@ -5,3 +5,5 @@ export * from "./sync.ts";
 export * from "./cpace.ts";
 export * from "./noise.ts";
 export * from "./pairing.ts";
+export * from "./transport.ts";
+export * from "./host.ts";
