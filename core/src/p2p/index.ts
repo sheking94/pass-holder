@@ -4,3 +4,4 @@ export * from "./host-sync.ts";
 export * from "./sync.ts";
 export * from "./cpace.ts";
 export * from "./noise.ts";
+export * from "./pairing.ts";
