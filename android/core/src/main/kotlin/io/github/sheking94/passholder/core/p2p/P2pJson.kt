@@ -17,7 +17,12 @@ object P2pJson {
     fun safeLong(e: JsonElement?): Long? {
         if (e !is JsonPrimitive || e.isString) return null
         val big = try {
-            BigDecimal(e.content).toBigIntegerExact()
+            val bd = BigDecimal(e.content)
+            // Bound the exponent first: BigDecimal accepts 1e999999999 and expanding it would exhaust memory.
+            if (bd.scale() < -16) return null
+            val stripped = bd.stripTrailingZeros()
+            if (stripped.scale() > 0 || stripped.precision() - stripped.scale() > 16) return null
+            stripped.toBigIntegerExact()
         } catch (_: ArithmeticException) {
             return null
         } catch (_: NumberFormatException) {
