@@ -1,7 +1,7 @@
 import { fromBase64, randomBytes, toBase64, utf8 } from "../encoding.ts";
 import { decryptFrames, encryptFrames, MAX_FRAMES } from "./frames.ts";
 import type { SyncStore } from "../protocol.ts";
-import { processP2pSync, type P2pSyncRequest } from "./host-sync.ts";
+import { processP2pSync, validateP2pSyncRequest, type P2pSyncRequest } from "./host-sync.ts";
 import { CipherState, NoiseKK, P2P_PROLOGUE, type KeyPair } from "./noise.ts";
 
 export interface PairedDevice {
@@ -20,6 +20,8 @@ export interface P2pHostOptions {
 }
 
 interface Session {
+  deviceId: string;
+  staticPublicKey: Uint8Array;
   send: CipherState;
   recv: CipherState;
   expiresAt: number;
@@ -29,9 +31,13 @@ type Reply = { status: number; body: unknown };
 
 const MAX_BODY_BYTES = 1024 * 1024;
 const SESSION_TTL_MS = 60_000;
+/** Most sessions alive at once; a handshake beyond that gets 503 until some expire or are used. */
+export const MAX_SESSIONS = 32;
 
 const fail = (status: number, error: string): Reply => ({ status, body: { error } });
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+
+const sameBytes = (a: Uint8Array, b: Uint8Array) => a.length === b.length && a.every((x, i) => x === b[i]);
 
 function decodeBase64(value: unknown): Uint8Array | undefined {
   if (typeof value !== "string") return undefined;
@@ -76,6 +82,8 @@ export class P2pHost {
       return fail(400, "malformed request");
     const device = this.#o.devices().find((d) => d.deviceId === body.deviceId);
     if (!device) return fail(403, "device not paired");
+    // handle() already pruned the expired sessions.
+    if (this.#sessions.size >= MAX_SESSIONS) return fail(503, "too many sessions");
     const message = decodeBase64(body.message);
     if (!message) return fail(400, "malformed request");
     const noise = NoiseKK.responder({
@@ -92,7 +100,13 @@ export class P2pHost {
     }
     const { send, recv } = noise.split();
     const session = toBase64(randomBytes(16));
-    this.#sessions.set(session, { send, recv, expiresAt: this.#now() + SESSION_TTL_MS });
+    this.#sessions.set(session, {
+      deviceId: device.deviceId,
+      staticPublicKey: device.staticPublicKey.slice(),
+      send,
+      recv,
+      expiresAt: this.#now() + SESSION_TTL_MS,
+    });
     return { status: 200, body: { session, message: toBase64(reply) } };
   }
 
@@ -110,14 +124,19 @@ export class P2pHost {
     // One attempt per session, whatever the outcome.
     this.#sessions.delete(body.session);
     if (!session || session.expiresAt <= this.#now()) return fail(401, "unknown or expired session");
+    // The device may have been removed (or re-paired with another key) after the handshake.
+    const stillPaired = this.#o.devices().some(
+      (d) => d.deviceId === session.deviceId && sameBytes(d.staticPublicKey, session.staticPublicKey),
+    );
+    if (!stillPaired) return fail(403, "device not paired");
     let request: P2pSyncRequest;
     try {
       request = (await decryptFrames(session.recv, body.frames as string[])) as P2pSyncRequest;
     } catch {
       return fail(400, "cannot decrypt request");
     }
-    if (!isRecord(request) || typeof request.epoch !== "string" || typeof request.sinceRevision !== "number" || !Array.isArray(request.changes))
-      return fail(400, "malformed sync request");
+    const invalid = validateP2pSyncRequest(this.#o.store, this.#o.epoch, request);
+    if (invalid !== undefined) return fail(400, invalid);
     try {
       const response = processP2pSync(this.#o.store, this.#o.epoch, this.#o.addresses(), request);
       return { status: 200, body: { frames: await encryptFrames(session.send, response) } };

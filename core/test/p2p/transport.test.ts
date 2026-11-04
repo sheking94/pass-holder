@@ -11,6 +11,7 @@ import {
   noiseTransport,
   P2P_PROLOGUE,
   P2pHost,
+  processP2pSync,
   syncVaultV2,
   upsertEntryV2,
   type FetchJson,
@@ -173,5 +174,90 @@ describe("p2p noise transport", () => {
     expect((await s.host.handle("/p2p/v1/sync", null)).status).toBe(400);
     s.addDevice("a");
     expect((await s.host.handle("/p2p/v1/handshake", { deviceId: "a", message: toBase64(randomBytes(48)) })).status).toBe(400);
+  });
+});
+
+describe("p2p host: final review fixes", () => {
+  const blob = toBase64(randomBytes(40));
+  const change = (id: string, baseRevision = 0) => ({ id, baseRevision, deleted: false, blob });
+
+  async function sendRaw(s: ReturnType<typeof setup>, request: unknown, key = s.addDevice(`d${Math.random()}`)) {
+    const h = await rawHandshake(s, s.devices.at(-1)!.deviceId, key);
+    return s.host.handle("/p2p/v1/sync", { session: h.session, frames: await encryptFrames(h.ciphers.send, request) });
+  }
+
+  it("a session opened before the device was removed cannot sync", async () => {
+    const s = setup();
+    const key = s.addDevice("a");
+    const h = await rawHandshake(s, "a", key);
+    s.devices.length = 0;
+    const res = await s.host.handle("/p2p/v1/sync", { session: h.session, frames: await syncBody(h.ciphers, s.epoch) });
+    expect(res).toEqual({ status: 403, body: { error: "device not paired" } });
+    // The session is consumed even though the device comes back.
+    s.devices.push({ deviceId: "a", name: "a", staticPublicKey: key.publicKey });
+    const again = await s.host.handle("/p2p/v1/sync", { session: h.session, frames: await syncBody(h.ciphers, s.epoch) });
+    expect(again.status).toBe(401);
+  });
+
+  it("a session opened before the device was re-paired with another key cannot sync", async () => {
+    const s = setup();
+    const h = await rawHandshake(s, "a");
+    s.devices[0] = { deviceId: "a", name: "a", staticPublicKey: generateKeyPair().publicKey };
+    const res = await s.host.handle("/p2p/v1/sync", { session: h.session, frames: await syncBody(h.ciphers, s.epoch) });
+    expect(res.status).toBe(403);
+  });
+
+  it("rejects malformed or duplicate changes with 400 and leaves the store unchanged", async () => {
+    const s = setup();
+    const bad: unknown[] = [
+      [change("ok"), { ...change("x"), id: 1 }],
+      [change("ok"), change("")],
+      [change("ok"), change("x".repeat(129))],
+      [change("ok"), change("x", -1)],
+      [change("ok"), change("x", 1.5)],
+      [change("ok"), { ...change("x"), deleted: "no" }],
+      [change("ok"), { ...change("x"), blob: 1 }],
+      [change("ok"), null],
+      [change("ok"), change("ok")],
+    ];
+    for (const changes of bad) {
+      const res = await sendRaw(s, { epoch: s.epoch, sinceRevision: 0, changes });
+      expect(res.status, JSON.stringify(changes)).toBe(400);
+      expect(s.store.currentRevision()).toBe(0);
+    }
+    expect((await sendRaw(s, { epoch: s.epoch, sinceRevision: -1, changes: [] })).status).toBe(400);
+    expect((await sendRaw(s, { epoch: s.epoch, sinceRevision: 0, changes: [change("x".repeat(128))] })).status).toBe(200);
+  });
+
+  it("an unknown base revision for an unknown id is a 400 before any write", async () => {
+    const s = setup();
+    const res = await sendRaw(s, { epoch: s.epoch, sinceRevision: 0, changes: [change("a"), change("ghost", 5)] });
+    expect(res).toEqual({ status: 400, body: { error: "unknown base revision" } });
+    expect(s.store.currentRevision()).toBe(0);
+    // From another epoch nothing is processed, so the base revision does not matter.
+    expect((await sendRaw(s, { epoch: "", sinceRevision: 0, changes: [change("ghost", 5)] })).status).toBe(200);
+  });
+
+  it("processP2pSync refuses an invalid request without writing", () => {
+    const s = setup();
+    expect(() => processP2pSync(s.store, s.epoch, [], { epoch: s.epoch, sinceRevision: 0, changes: [change("a"), change("a")] })).toThrow();
+    expect(() => processP2pSync(s.store, s.epoch, [], { epoch: s.epoch, sinceRevision: 0, changes: [change("a"), change("b", 2)] })).toThrow(
+      "unknown base revision",
+    );
+    expect(s.store.currentRevision()).toBe(0);
+  });
+
+  it("holds at most 32 live sessions and answers 503 when full", async () => {
+    const s = setup();
+    const key = s.addDevice("a");
+    for (let i = 0; i < 32; i++) await rawHandshake(s, "a", key);
+    const noise = NoiseKK.initiator({ s: key, rs: s.hostKey.publicKey, prologue: P2P_PROLOGUE });
+    const message = toBase64(await noise.writeMessage(new Uint8Array()));
+    expect(await s.host.handle("/p2p/v1/handshake", { deviceId: "a", message })).toEqual({
+      status: 503,
+      body: { error: "too many sessions" },
+    });
+    s.advance(61_000);
+    await rawHandshake(s, "a", key);
   });
 });
