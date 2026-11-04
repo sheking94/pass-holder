@@ -4,6 +4,7 @@ import kotlinx.serialization.Serializable
 import io.github.sheking94.passholder.core.Encoding
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.decodeFromJsonElement
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.TestFactory
@@ -24,9 +25,29 @@ private data class EntryPayloadVector(
     val blob: String,
 )
 
+@Serializable
+private data class PairingKeyVector(val description: String, val isk: String, val key: String)
+
+@Serializable
+private data class PairingMessageVector(
+    val description: String,
+    val key: String,
+    val kind: String,
+    val from: String,
+    val value: JsonElement,
+    val aad: String,
+    val nonce: String,
+    val blob: String,
+)
+
 /** Sections of v2.json grow with each module; unknown sections are ignored until their task adds them. */
 @Serializable
-private data class P2pVectors(val hlcCompare: List<HlcCompareVector>, val entryPayload: List<EntryPayloadVector>)
+private data class P2pVectors(
+    val hlcCompare: List<HlcCompareVector>,
+    val entryPayload: List<EntryPayloadVector>,
+    val pairingKey: List<PairingKeyVector>,
+    val pairingMessage: List<PairingMessageVector>,
+)
 
 /** The same core/test-vectors/v2.json the TypeScript core is tested against. */
 class P2pVectorsTest {
@@ -57,6 +78,33 @@ class P2pVectorsTest {
             val opened = EntryV2.decrypt(key, v.id, v.blob)
             assertEquals(v.data, opened)
             if (isEntry) EntryV2.parseEntry(opened) else EntryV2.parseTombstone(opened)
+        }
+    }
+
+    @TestFactory
+    fun pairingKey() = vectors.pairingKey.map { v ->
+        DynamicTest.dynamicTest("pairing key: ${v.description.take(60)}") {
+            assertEquals(v.key, Encoding.toHex(Pairing.key(Encoding.fromHex(v.isk))))
+        }
+    }
+
+    @TestFactory
+    fun pairingMessage() = vectors.pairingMessage.map { v ->
+        DynamicTest.dynamicTest("pairing message: ${v.description}") {
+            val key = Encoding.fromHex(v.key)
+            val nonce = Encoding.fromHex(v.nonce)
+            val kind = PairingKind.entries.single { it.wire == v.kind }
+            val from = CpaceRole.entries.single { it.wire == v.from }
+            assertEquals(v.aad, Pairing.aad(kind, from))
+            if (kind == PairingKind.IDENTITY) {
+                val value = P2pJson.json.decodeFromJsonElement<DeviceIdentity>(v.value)
+                assertEquals(v.blob, Pairing.sealIdentity(key, from, value, nonce))
+                assertEquals(value, Pairing.openIdentity(key, from, v.blob))
+            } else {
+                val value = P2pJson.json.decodeFromJsonElement<VaultInfo>(v.value)
+                assertEquals(v.blob, Pairing.sealVaultInfo(key, from, value, nonce))
+                assertEquals(value, Pairing.openVaultInfo(key, from, v.blob))
+            }
         }
     }
 }
