@@ -13,9 +13,12 @@ object P2pJson {
     /** Largest integer a JS number holds exactly (Number.MAX_SAFE_INTEGER). */
     const val MAX_SAFE_INTEGER = 9_007_199_254_740_991L
 
-    /** The value of a JSON number that is an integer in 0..MAX_SAFE_INTEGER; null for anything else (text, fractions, negatives). */
+    /**
+     * The value of a JSON number that is an integer in 0..MAX_SAFE_INTEGER; null for anything else (text, fractions, negatives).
+     * The raw number text is capped at 32 chars so hostile input never reaches BigDecimal arithmetic.
+     */
     fun safeLong(e: JsonElement?): Long? {
-        if (e !is JsonPrimitive || e.isString) return null
+        if (e !is JsonPrimitive || e.isString || e.content.length > 32) return null
         val big = try {
             val bd = BigDecimal(e.content)
             // Bound the exponent first: BigDecimal accepts 1e999999999 and expanding it would exhaust memory.

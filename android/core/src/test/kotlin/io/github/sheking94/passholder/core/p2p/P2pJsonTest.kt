@@ -3,7 +3,6 @@ package io.github.sheking94.passholder.core.p2p
 import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
-import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.time.Duration
 
@@ -16,6 +15,7 @@ class P2pJsonTest {
         assertEquals(1000L, safe("1e3"))
         assertEquals(0L, safe("0"))
         assertEquals(9007199254740991L, safe("9007199254740991"))
+        assertEquals(9007199254740991L, safe("9007199254740991.000000000000000")) // exactly 32 chars
     }
 
     @Test
@@ -35,7 +35,8 @@ class P2pJsonTest {
             assertNull(safe("1e999999999"))
             assertNull(safe("1e-999999999"))
             assertNull(safe("0e999999999"))
-            assertTrue(true)
+            assertNull(safe("1" + "0".repeat(100_000)))
+            assertNull(safe("1" + "0".repeat(100_000) + ".0"))
         }
     }
 }
