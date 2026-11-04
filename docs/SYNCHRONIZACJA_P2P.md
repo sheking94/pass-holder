@@ -29,9 +29,12 @@ jednak z istniejącego protokołu, żeby nie przepisywać działającego kodu.
 - **Wtyczka nie przypnie samopodpisanego certyfikatu.** TLS do telefonu wymagałby dodawania CA do
   systemu przy każdym telefonie. Zamiast tego transport jest zwykłym HTTP, a poufność i uwierzytelnienie
   zapewnia warstwa aplikacji (Noise, sekcja 4.2).
-- **Niezweryfikowane założenie:** Chrome pozwala wtyczce z uprawnieniem do hosta wysłać `fetch` pod
-  `http://<adres w sieci lokalnej>` (reguły Private Network Access). To pierwszy krok implementacji
-  (sekcja 8, krok 0). Jeśli się nie potwierdzi, transport trzeba przeprojektować.
+- **Założenie potwierdzone (2026-11-04):** Chrome pozwala wtyczce z uprawnieniem do hosta wysłać `fetch`
+  pod `http://<adres w sieci lokalnej>` (reguły Private Network Access). Sprawdzone w Google Chrome
+  156.0.8078.79: service worker wtyczki MV3 z `host_permissions` `"http://*/*"` wysłał do
+  `http://192.168.50.164:8787/` (inne urządzenie w tej samej sieci LAN) `GET` → 200 i `POST` → 501
+  (`python http.server` nie obsługuje POST, więc 501 dowodzi, że żądanie dotarło). Adresu Tailscale
+  jeszcze nie sprawdzono. Szczegóły w `P2P_RDZEN.md`, punkt 7.
 
 ## 3. Architektura
 
@@ -201,7 +204,9 @@ W tym trybie (i tylko w nim) telefon przyjmuje metadane sejfu od wtyczki zamiast
   wersja przepada. HLC wybiera ją tylko deterministycznie. Możliwe rozszerzenie: kopia konfliktu.
 - **Własna implementacja CPace i Noise** w dwóch językach to ryzyko subtelnych błędów. Łagodzą je
   wspólne wektory testowe, ale to nie audyt.
-- **Private Network Access w Chrome** (sekcja 2) jest niezweryfikowane.
+- **Private Network Access w Chrome** (sekcja 2) potwierdzone 2026-11-04 dla adresu w tej samej sieci
+  LAN (Chrome 156.0.8078.79, MV3, `"http://*/*"`). Niesprawdzone: adres Tailscale i przyszłe wersje
+  Chrome, które mogą zaostrzyć te reguły.
 - **Bez telefonu nie ma synchronizacji** między dwoma komputerami.
 - **Android może ubić serwer w tle**; dlatego tryb synchronizacji działa tylko z aplikacją na wierzchu.
 
