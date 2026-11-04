@@ -1,0 +1,154 @@
+// CPace PAKE, cipher suite CPACE-RISTR255-SHA512, initiator-responder setting.
+// Implements draft-irtf-cfrg-cpace-21 (23 April 2026):
+// https://www.ietf.org/archive/id/draft-irtf-cfrg-cpace-21.txt
+// Sections 6.3 (lv_cat, transcript_ir), 7.2 (protocol), 8.1 (generator_string)
+// and 8.3 (G_Ristretto255); test vectors from Appendix B.3.
+import { ristretto255, ristretto255_hasher } from "@noble/curves/ed25519.js";
+import { sha512 } from "@noble/hashes/sha2.js";
+import { concat, randomBytes, utf8 } from "../encoding.ts";
+
+/** Channel identifier for pairing a device with the phone. */
+export const PAIRING_CI = utf8("passholder/v2/pair");
+
+const Point = ristretto255.Point;
+const Fn = Point.Fn;
+/** RFC 9496 element derivation (one-way map from 64 uniform bytes). */
+const deriveToCurve = ristretto255_hasher.deriveToCurve;
+if (deriveToCurve === undefined) throw new Error("CPace: ristretto255 element derivation unavailable");
+const elementDerivation: (uniformBytes: Uint8Array) => InstanceType<typeof Point> = deriveToCurve;
+
+const DSI = utf8("CPaceRistretto255");
+const DSI_ISK = utf8("CPaceRistretto255_ISK");
+/** SHA-512 input block size (H.s_in_bytes). */
+const S_IN_BYTES = 128;
+const FIELD_SIZE_BYTES = 32;
+const INVALID = "CPace: invalid peer element";
+
+export interface CpaceState {
+  readonly ya: bigint;
+  readonly Ya: Uint8Array;
+  readonly ad: Uint8Array;
+  readonly sid: Uint8Array;
+}
+
+/** prepend_len (draft A.1.1): LEB128 length followed by the data. */
+function prependLen(data: Uint8Array): Uint8Array {
+  const len: number[] = [];
+  let n = data.length;
+  do {
+    const low = n & 0x7f;
+    n = Math.floor(n / 128);
+    len.push(n > 0 ? low | 0x80 : low);
+  } while (n > 0);
+  return concat(Uint8Array.from(len), data);
+}
+
+/** lv_cat (draft A.1.3): concatenation of prepend_len of every argument. */
+export function lvCat(...parts: Uint8Array[]): Uint8Array {
+  return concat(...parts.map(prependLen));
+}
+
+/** Inverse of lvCat for exactly `count` fields; null on any framing error. */
+function lvSplit(bytes: Uint8Array, count: number): Uint8Array[] | null {
+  const out: Uint8Array[] = [];
+  let pos = 0;
+  for (let i = 0; i < count; i++) {
+    let len = 0;
+    let shift = 1;
+    for (;;) {
+      if (pos >= bytes.length || shift > 2 ** 28) return null;
+      const b = bytes[pos++] as number;
+      len += (b & 0x7f) * shift;
+      shift *= 128;
+      if ((b & 0x80) === 0) break;
+    }
+    if (len > bytes.length - pos) return null;
+    out.push(bytes.subarray(pos, pos + len));
+    pos += len;
+  }
+  return pos === bytes.length ? out : null;
+}
+
+/** generator_string (draft A.2). */
+function generatorString(prs: Uint8Array, ci: Uint8Array, sid: Uint8Array): Uint8Array {
+  const zpad = Math.max(0, S_IN_BYTES - 1 - prependLen(prs).length - prependLen(DSI).length);
+  return lvCat(DSI, prs, new Uint8Array(zpad), ci, sid);
+}
+
+/** G_Ristretto255.calculate_generator (draft 8.3). */
+function calculateGenerator(prs: Uint8Array, ci: Uint8Array, sid: Uint8Array) {
+  const genStrHash = sha512(generatorString(prs, ci, sid)).subarray(0, 2 * FIELD_SIZE_BYTES);
+  return elementDerivation(genStrHash);
+}
+
+function bytesToScalarLE(bytes: Uint8Array): bigint {
+  let n = 0n;
+  for (let i = bytes.length - 1; i >= 0; i--) n = (n << 8n) | BigInt(bytes[i] as number);
+  return Fn.create(n);
+}
+
+/** G.sample_scalar (draft 8.3): 32 random bytes, bits above 252 cleared, little-endian. */
+function sampleScalar(): bigint {
+  for (;;) {
+    const bytes = randomBytes(32);
+    bytes[31] = (bytes[31] as number) & 0x0f;
+    const y = bytesToScalarLE(bytes);
+    if (y !== 0n) return y;
+  }
+}
+
+/**
+ * Starts a CPace run. `message` is lv_cat(Y, ad) and is sent to the peer.
+ * `ya` (32 bytes, little-endian) is only for reproducing test vectors.
+ */
+export function cpaceStart(
+  prs: Uint8Array,
+  ci: Uint8Array,
+  sid: Uint8Array,
+  ad: Uint8Array,
+  ya?: Uint8Array,
+): { state: CpaceState; message: Uint8Array } {
+  let y: bigint;
+  if (ya === undefined) {
+    y = sampleScalar();
+  } else {
+    if (ya.length !== 32) throw new Error("CPace: scalar must be 32 bytes");
+    y = bytesToScalarLE(ya);
+    if (y === 0n) throw new Error("CPace: zero scalar");
+  }
+  const Y = calculateGenerator(prs, ci, sid).multiply(y).toBytes();
+  return {
+    state: { ya: y, Ya: Y, ad: ad.slice(), sid: sid.slice() },
+    message: lvCat(Y, ad),
+  };
+}
+
+/** Finishes a CPace run and returns ISK (64 bytes); throws on an invalid peer message. */
+export function cpaceFinish(
+  state: CpaceState,
+  peerMessage: Uint8Array,
+  role: "initiator" | "responder",
+): Uint8Array {
+  const fields = lvSplit(peerMessage, 2);
+  if (fields === null) throw new Error(INVALID);
+  const [Yp, adp] = fields as [Uint8Array, Uint8Array];
+  if (Yp.length !== FIELD_SIZE_BYTES) throw new Error(INVALID);
+
+  // scalar_mult_vfy: decode failure or a neutral result means abort (K == G.I).
+  let peer;
+  try {
+    peer = Point.fromBytes(Yp);
+  } catch {
+    throw new Error(INVALID);
+  }
+  if (peer.is0()) throw new Error(INVALID);
+  const Kp = peer.multiply(state.ya);
+  if (Kp.is0()) throw new Error(INVALID);
+  const K = Kp.toBytes();
+
+  const transcript =
+    role === "initiator"
+      ? concat(lvCat(state.Ya, state.ad), lvCat(Yp, adp))
+      : concat(lvCat(Yp, adp), lvCat(state.Ya, state.ad));
+  return sha512(concat(lvCat(DSI_ISK, state.sid, K), transcript));
+}
