@@ -204,3 +204,24 @@ W tym trybie (i tylko w nim) telefon przyjmuje metadane sejfu od wtyczki zamiast
 - **Private Network Access w Chrome** (sekcja 2) jest niezweryfikowane.
 - **Bez telefonu nie ma synchronizacji** między dwoma komputerami.
 - **Android może ubić serwer w tle**; dlatego tryb synchronizacji działa tylko z aplikacją na wierzchu.
+
+## 11. Wariant produkcyjny (gdyby celem nie była nauka)
+
+Ten projekt świadomie wybiera rozwiązania ciekawe do nauki. Gdyby celem była wyłącznie jak najlepiej
+działająca i bezpieczna aplikacja, zmieniłoby się to:
+
+| Obszar | W tym projekcie | W wariancie produkcyjnym | Dlaczego |
+|---|---|---|---|
+| Parowanie | CPace pisany ręcznie, 8-cyfrowy kod | Noise XX z gotowej biblioteki + porównanie 6 cyfr wyprowadzonych z uzgadniania (jak w Signal i Bluetooth) | nie trzeba własnej implementacji PAKE; atak pośrodku daje inne cyfry |
+| Transport | Noise KK pisany w TS i Kotlinie | dojrzała implementacja Noise (np. z libp2p) | mniej miejsc na subtelny błąd kryptograficzny |
+| Konflikty | LWW z HLC, przegrana wersja przepada | historia wpisu lub kopia konfliktu | zgubione nowe hasło to poważny błąd w menedżerze haseł |
+| Odwołanie urządzenia | tylko usunięcie klucza | w zakresie: zmiana hasła głównego, nowy vaultKey, przeszyfrowanie | bez tego odwołanie nie odcina dostępu do skopiowanych danych |
+| Kopia awaryjna | eksport CSV ręcznie | wydrukowany klucz awaryjny + automatyczny, zaszyfrowany eksport | ochrona przed utratą telefonu i komputera jednocześnie |
+| Ochrona lokalna | sejf chroniony hasłem głównym | klucze zawinięte w Android Keystore/StrongBox | zgubionego telefonu nie da się łamać offline samym hasłem |
+| Weryfikacja | testy i wektory | model zagrożeń, testy fuzz, zewnętrzny przegląd | testy nie zastępują audytu |
+
+**Kwestia samej architektury.** Dla „najlepiej działa” synchronizacja P2P przegrywa z prostym magazynem
+zaszyfrowanych blobów (WebDAV, dysk w chmurze): jest zawsze dostępny i nie wymaga, żeby telefon był
+włączony w tej samej sieci. Najbezpieczniejsza w praktyce byłaby gotowa, audytowana aplikacja (np.
+Bitwarden z własnym Vaultwarden albo KeePassXC). Własny menedżer haseł ma sens przede wszystkim jako
+projekt do nauki.
