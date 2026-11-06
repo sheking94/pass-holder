@@ -295,3 +295,32 @@ class LockDelaySwitchOffTest : BiometricTestBase() {
         assertEquals(2, finger.shown)
     }
 }
+
+class StaleFingerprintKeysTest : BiometricTestBase() {
+    /** What an older version stored: 64 bytes (vault key + auth key of the v1 vault). */
+    private fun storeV1Keys() = app.biometric.enable(keys.newEncryptCipher(), ByteArray(64) { 7 })
+
+    override fun beforeLaunch(app: PassHolderApp) {
+        super.beforeLaunch(app)
+        storeV1Keys()
+    }
+
+    @Test
+    fun `keys left from another vault are cleared by a new vault and refused at unlock`() {
+        // A new vault turns off a fingerprint key that belongs to no vault on the phone.
+        createVault()
+        assertFalse(app.biometric.isEnabled)
+
+        // Keys that do not fit the vault (as after an upgrade from v1): the finger works, the keys do not.
+        click("Zablokuj")
+        waitFor("PassHolder jest zablokowany")
+        scenario.close()
+        storeV1Keys()
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        waitFor("Zapisane klucze nie pasują do sejfu", substring = true)
+        assertEquals(1, finger.shown)
+        assertFalse(app.biometric.isEnabled)
+        assertTrue(gone("Odblokuj odciskiem palca"))
+        assertFalse(app.phoneStore.isUnlocked)
+    }
+}

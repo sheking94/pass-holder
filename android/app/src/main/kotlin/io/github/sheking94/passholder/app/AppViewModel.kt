@@ -94,7 +94,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 checkAutoLock()
             }
         }
-        if (store.isUnlocked) refresh()
+        // The activity came back while the vault stayed unlocked (e.g. within the 60 s after Back).
+        if (store.isUnlocked) viewModelScope.launch { refresh() }
     }
 
     private fun initialScreen(): Screen = when {
@@ -133,6 +134,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         if (masterPassword != repeat) return fail("Hasła się różnią")
         launchVaultOperation("Liczę klucze z hasła głównego… (to celowo trwa kilka sekund)") {
             store.createVault(masterPassword)
+            // A fingerprint key left from an earlier vault would only fail.
+            forgetFingerprint()
             showList("Założono sejf na telefonie.")
         }
     }
@@ -140,6 +143,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** "Odtwórz z wtyczki": a new identity without a vault, waiting for the extension to send it. */
     fun startRestore() = launchVaultOperation("Przygotowuję odtwarzanie…") {
         store.startRestore()
+        forgetFingerprint()
         _state.value = UiState(Screen.Restore)
     }
 
@@ -159,9 +163,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** "Usuń sejf z telefonu" (after the confirmation on screen): the entries stay only on the paired extensions. */
     fun disconnect() = launchVaultOperation("Usuwam sejf z telefonu…") {
         store.disconnect()
-        // The stored key belongs to this vault; a vault created later gets a new one.
+        // The vault is gone: whatever happens to the fingerprint key below, the start screen is the only right one.
+        val warning = forgetFingerprint()?.let {
+            Status("Usunięto sejf, ale nie udało się usunąć klucza odcisku palca: ${it.message ?: it.javaClass.simpleName}", isError = true)
+        }
+        _state.value = UiState(Screen.Start, status = warning)
+    }
+
+    /**
+     * Turns fingerprint unlock off: the stored key belongs to the vault that is gone or replaced, and a vault
+     * created later needs its own. Returns the error instead of throwing; the encrypted key is forgotten even then
+     * (BiometricUnlock clears it before it deletes the Keystore key).
+     */
+    private fun forgetFingerprint(): Exception? = try {
         biometrics.disable()
-        _state.value = UiState(Screen.Start)
+        null
+    } catch (e: Exception) {
+        e
     }
 
     // --- Fingerprint ------------------------------------------------------------------------------
@@ -253,7 +271,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _state.value = UiState(Screen.List, entries = store.entries(), unreadable = store.unreadableIds().size, status = message?.let { Status(it) })
     }
 
-    private fun refresh() = _state.update { it.copy(entries = store.entries(), unreadable = store.unreadableIds().size) }
+    /** Reads the entries off the main thread (decrypting every record). Does nothing if the vault locked meanwhile. */
+    private suspend fun refresh() {
+        val read = withContext(Dispatchers.IO) { runCatching { store.entries() to store.unreadableIds().size } }
+        read.onSuccess { (entries, unreadable) -> _state.update { it.copy(entries = entries, unreadable = unreadable) } }
+    }
 
     /** Runs a blocking vault operation off the main thread, with a progress message and errors shown in the status line. */
     private fun launchVaultOperation(progress: String, action: () -> Unit) {

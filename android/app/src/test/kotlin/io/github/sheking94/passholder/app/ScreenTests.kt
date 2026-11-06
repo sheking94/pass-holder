@@ -262,6 +262,30 @@ class RemoveVaultTest : ScreenTestBase() {
     }
 }
 
+class RemoveVaultKeystoreFailureTest : ScreenTestBase() {
+    /** A Keystore that refuses to delete the fingerprint key. */
+    override fun beforeLaunch(app: PassHolderApp) {
+        app.biometric = BiometricUnlock(app, object : UnlockKeyProtector by SoftwareKeyProtector() {
+            override fun deleteKey() = throw IllegalStateException("Keystore niedostępny")
+        })
+    }
+
+    @Test
+    fun `a failing fingerprint key deletion still ends on the start screen`() {
+        createVault()
+        click("Zablokuj")
+        waitFor("Usuń sejf z telefonu")
+        click("Usuń sejf z telefonu")
+        waitFor("Usunąć sejf z tego telefonu?", substring = true)
+        click("Usuń")
+        waitFor("Załóż sejf")
+        waitFor("nie udało się usunąć klucza odcisku palca", substring = true)
+        val app = ApplicationProvider.getApplicationContext<PassHolderApp>()
+        assertFalse(app.phoneStore.hasVault)
+        assertFalse(app.biometric.isEnabled)
+    }
+}
+
 class UnreadableEntriesTest : ScreenTestBase() {
     /** A vault with one entry and one record the vault key cannot open (as if an extension of another vault sent it). */
     override fun beforeLaunch(app: PassHolderApp) {
@@ -274,8 +298,7 @@ class UnreadableEntriesTest : ScreenTestBase() {
             put(RemoteRecord("obcy", currentRevision() + 1, false, "bm90IGEgcmVhbCBibG9i"))
         }
         // The app's store read the (then empty) disk at start; a new one sees the vault.
-        app.phoneStore = PhoneVaultStore(app.filesDir, TestSecretWrapper)
-        app.leaveLock = LeaveLock(app.phoneStore)
+        app.replacePhoneStore(PhoneVaultStore(app.filesDir, TestSecretWrapper))
     }
 
     @Test

@@ -11,8 +11,9 @@ import kotlinx.serialization.json.Json
 
 /** Lives as long as the app process. Holds the one PhoneVaultStore, so the vault stays unlocked across screen rotations. */
 class PassHolderApp : Application() {
-    /** The vault the phone owns (and serves to the extension). Replaced only in tests. */
+    /** The vault the phone owns (and serves to the extension). Tests replace it with [replacePhoneStore]. */
     lateinit var phoneStore: PhoneVaultStore
+        private set
     /**
      * Wraps the phone's identity key on disk. Replaced in tests (Robolectric has no Android Keystore); the store
      * reads this property on every use, so replacing it after onCreate works.
@@ -39,6 +40,12 @@ class PassHolderApp : Application() {
         settings = Settings(this)
         biometric = BiometricUnlock(this)
         leaveLock = LeaveLock(phoneStore)
+    }
+
+    /** For tests: another store, with a [LeaveLock] that locks that store and not the old one. */
+    internal fun replacePhoneStore(store: PhoneVaultStore) {
+        phoneStore = store
+        leaveLock = LeaveLock(store)
     }
 }
 

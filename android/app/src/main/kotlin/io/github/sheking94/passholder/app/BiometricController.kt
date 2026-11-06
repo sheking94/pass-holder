@@ -53,9 +53,13 @@ class BiometricController(private val biometric: BiometricUnlock) {
         }
     }
 
+    /** The stored keys are forgotten even when deleting the Keystore key throws, so the switch goes off either way. */
     fun disable() {
-        biometric.disable()
-        _enabled.value = false
+        try {
+            biometric.disable()
+        } finally {
+            _enabled.value = false
+        }
     }
 }
 
