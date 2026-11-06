@@ -34,5 +34,7 @@ tasks.test {
     systemProperty("passholder.repoRoot", rootDir.parentFile.absolutePath)
     // Opt-in test against the real Node.js server: PASSHOLDER_SERVER_TEST=1 ./gradlew :core:test
     environment("PASSHOLDER_SERVER_TEST", System.getenv("PASSHOLDER_SERVER_TEST") ?: "")
+    // Opt-in interop test with the TypeScript extension client: PASSHOLDER_INTEROP_TEST=1
+    environment("PASSHOLDER_INTEROP_TEST", System.getenv("PASSHOLDER_INTEROP_TEST") ?: "")
     testLogging { events("passed", "skipped", "failed") }
 }

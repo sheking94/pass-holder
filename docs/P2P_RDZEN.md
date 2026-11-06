@@ -2,8 +2,9 @@
 
 Dokument opisuje krok z gałęzi `claude/p2p-sync-design`: transportowo-niezależny rdzeń synchronizacji
 bez Pi (projekt w `SYNCHRONIZACJA_P2P.md`). Telefon jest kotwicą, wtyczka paruje się z nim kodem
-(CPace) i synchronizuje przez Noise KK. Kod to TypeScript w `core/`; wersję Kotlinową piszemy w
-następnym planie, a `core/test-vectors/v2.json` pozwala sprawdzić, że wynik jest bit w bit ten sam.
+(CPace) i synchronizuje przez Noise KK. Kod to TypeScript w `core/`; wersja Kotlinowa (strona telefonu)
+powstała w planie 2 i jest opisana w [`P2P_ANDROID_RDZEN.md`](P2P_ANDROID_RDZEN.md), a
+`core/test-vectors/v2.json` sprawdza, że wynik jest bit w bit ten sam.
 
 Pliki v1 (`core/src/sync.ts`, `protocol.ts`, `vault.ts`, `server/`, `extension/`, `android/`) nie
 zostały zmienione. Nowy kod używa tylko `processSync` i `SyncStore` z `protocol.ts`.
@@ -198,8 +199,12 @@ pracę, gdy `compareHlc` się z nimi nie zgadza.
   bajtowego.
 - **Cofnięcie stanu telefonu wykrywamy tylko częściowo.** Wtyczka widzi je, gdy `currentRevision` spadnie
   poniżej jej `lastSyncRevision`. Jeśli odtworzony telefon zdąży przyjąć tyle nowych zapisów, że
-  `currentRevision` znów jest wyższe, numery rewizji się zderzą. **Do planu 2 (Android):** wyłączyć bazę
-  hosta z Android Auto Backup albo przy odtworzeniu z kopii zawsze tworzyć nową epokę.
+  `currentRevision` znów jest wyższe, numery rewizji się zderzą. **Do planu 3 (aplikacja Android):**
+  wyłączyć bazę hosta z Android Auto Backup albo przy odtworzeniu z kopii zawsze tworzyć nową epokę.
+  Plan 2 przeniósł do Kotlina tylko rdzeń (bez trwałej bazy), więc zalecenie przechodzi do planu 3; patrz
+  [`P2P_ANDROID_RDZEN.md`](P2P_ANDROID_RDZEN.md) §7.
+- Ograniczenia samej wersji Kotlin (ristretto255 bez stałego czasu, ostrzejsze `safeLong`, wyjątki z
+  `devices()`) opisuje [`P2P_ANDROID_RDZEN.md`](P2P_ANDROID_RDZEN.md) §6.
 - Pełne odcięcie urządzenia (nowy vaultKey) pozostaje poza zakresem, jak w `SYNCHRONIZACJA_P2P.md`.
 
 ## 7. Spike z Task 0: potwierdzony
