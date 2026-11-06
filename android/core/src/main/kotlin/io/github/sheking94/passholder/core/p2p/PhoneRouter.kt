@@ -23,6 +23,8 @@ class PhoneRouter(
     private val host: () -> P2pHost?,
     /** Called on every request to a known path (after the 404 check); sync mode counts idle time from it. */
     private val onRequest: () -> Unit,
+    /** Gets the cause of every 500 answer; e.g. to log it. */
+    private val onError: (Throwable) -> Unit = {},
 ) {
     private companion object {
         const val PING = "/p2p/v1/ping"
@@ -49,7 +51,8 @@ class PhoneRouter(
                 HANDSHAKE, SYNC -> host()?.handle(path, body) ?: fail(503, "vault not ready")
                 else -> pairing.handle(path, obj) ?: fail(404, "not found")
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            reportError(onError, e)
             fail(500, "internal error")
         }
     }

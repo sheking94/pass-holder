@@ -34,6 +34,7 @@ class PairingHostTest {
         var savedKdf: KdfParams? = phoneKdf
         var savedWrapped: String? = phoneWrapped
         var failOnPaired = false
+        val errors = ArrayList<Throwable>()
         val host = PairingHost(
             identity = { phoneIdentity },
             vaultInfo = { restored ->
@@ -49,6 +50,7 @@ class PairingHostTest {
                 }
             },
             now = { time },
+            onError = { errors.add(it) },
         )
 
         fun post(path: String, body: JsonObject): HostReply = host.handle(path, body)!!
@@ -319,6 +321,8 @@ class PairingHostTest {
         val result = TestP2pClient.pair(s.host, offer.code, extIdentity)
         assertEquals(500, result.finish!!.status)
         assertEquals(404, s.hello().status)
+        // The 500 hides the cause from the extension; the app's log gets it.
+        assertEquals(listOf("disk full"), s.errors.map { it.message })
     }
 
     @Test

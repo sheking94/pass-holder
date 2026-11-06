@@ -32,6 +32,8 @@ class PairingHost(
     private val vaultInfo: (restored: VaultInfo?) -> VaultInfo,
     private val onPaired: (device: StoredDevice, restored: VaultInfo?) -> Unit,
     private val now: () -> Long = System::currentTimeMillis,
+    /** Gets the cause of every 500 answer (the extension only sees "internal error"); e.g. to log it. */
+    private val onError: (Throwable) -> Unit = {},
 ) {
     private var offer: PairingOffer? = null
     private var consumed = false
@@ -167,8 +169,17 @@ class PairingHost(
                     put("vaultInfo", Pairing.sealVaultInfo(p.key, CpaceRole.RESPONDER, info))
                 }.toString(),
             )
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            reportError(onError, e)
             fail(500, "internal error")
         }
+    }
+}
+
+/** Passes [e] to [onError]; a failing [onError] must not change the answer. */
+internal fun reportError(onError: (Throwable) -> Unit, e: Throwable) {
+    try {
+        onError(e)
+    } catch (_: Exception) {
     }
 }

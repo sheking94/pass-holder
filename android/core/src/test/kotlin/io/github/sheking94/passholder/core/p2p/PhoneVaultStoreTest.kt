@@ -410,4 +410,67 @@ class PhoneVaultStoreTest {
         store.createVault("pw")
         assertEquals(emptyList<PhoneEntry>(), store.entries())
     }
+
+    @Test
+    fun corruptHostStateDoesNotThrowAndDisconnectClearsIt() {
+        File(dir, "p2p").mkdirs()
+        File(dir, "p2p/host.json").writeText("{ not a host state")
+        File(dir, "p2p/records.jsonl").writeText("garbage\n")
+        val store = newStore()
+        assertTrue(store.corruptState)
+        assertFalse(store.hasVault)
+        assertFalse(store.restoreInProgress)
+        assertFalse(store.isUnlocked)
+        assertEquals(emptyList<StoredDevice>(), store.devices())
+        // Nothing may silently overwrite what could still be recovered by hand: delete first.
+        assertThrows<IllegalStateException> { store.createVault("pw") }
+        assertThrows<IllegalStateException> { store.startRestore() }
+        assertThrows<IllegalStateException> { store.offerPairing() }
+        // Sync mode in this state: the router answers, the vault paths are not ready.
+        val http = serve(store)
+        assertEquals(200, http("/p2p/v1/ping", "{}".toByteArray()).status)
+        assertEquals(503, http("/p2p/v1/handshake", "{}".toByteArray()).status)
+        assertTrue(store.corruptState)
+
+        store.disconnect()
+        assertFalse(store.corruptState)
+        assertFalse(File(dir, "p2p").exists())
+        assertFalse(newStore().corruptState)
+        store.createVault("pw")
+        assertTrue(store.hasVault)
+        assertEquals(emptyList<PhoneEntry>(), store.entries())
+    }
+
+    @Test
+    fun aNewRouterDropsAStaleOffer() {
+        val store = newStore()
+        store.createVault("pw")
+        serve(store)
+        store.offerPairing()
+        assertTrue(store.currentOffer() != null)
+        // Sync mode stopped and started again (e.g. without the app's stop reaching cancelPairing).
+        val http = serve(store)
+        assertNull(store.currentOffer())
+        assertEquals(404, http("/p2p/v1/pair/hello", "{}".toByteArray()).status)
+    }
+
+    @Test
+    fun internalErrorsReachOnError() {
+        val errors = ArrayList<Throwable>()
+        var keystoreGone = false
+        val wrapper = object : SecretWrapper {
+            override fun wrap(secret: ByteArray) = PlainSecretWrapper.wrap(secret)
+            override fun unwrap(wrapped: String): ByteArray {
+                check(!keystoreGone) { "no Keystore key" }
+                return PlainSecretWrapper.unwrap(wrapped)
+            }
+        }
+        val store = PhoneVaultStore(dir, wrapper, { time }, onError = { errors.add(it) })
+        store.createVault("pw")
+        val http = serve(store)
+        keystoreGone = true
+        // The host's static key cannot be unwrapped: the extension sees only 500, the app's log the cause.
+        assertEquals(HostReply(500, """{"error":"internal error"}"""), http("/p2p/v1/handshake", "{}".toByteArray()))
+        assertEquals(listOf("no Keystore key"), errors.map { it.message })
+    }
 }

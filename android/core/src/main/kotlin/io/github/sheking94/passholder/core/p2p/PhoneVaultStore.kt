@@ -22,7 +22,8 @@ import javax.crypto.spec.SecretKeySpec
  * and `records.jsonl` ([FileSyncStore]: the encrypted entries, the same store the extension syncs with).
  * In memory, only while unlocked: the vault key. Lock semantics follow v1 [VaultStore].
  *
- * States: no vault ([hasVault] and [restoreInProgress] false), a restore from the extension in progress
+ * States: no vault ([hasVault] and [restoreInProgress] false), unreadable host state ([corruptState]: only
+ * [disconnect] gets out of it), a restore from the extension in progress
  * (host state without a key check: the extension may already have sent its KDF, wrapped key and entries,
  * but the master password has not been checked yet), and a vault ([hasVault]).
  *
@@ -40,6 +41,8 @@ class PhoneVaultStore(
     private val autoLockMs: Long = AUTO_LOCK_MS,
     /** The name the extension shows for this phone. */
     private val deviceName: String = DEFAULT_DEVICE_NAME,
+    /** Gets the cause of every 500 answer of sync mode (the extension only sees "internal error"); e.g. to log it. */
+    private val onError: (Throwable) -> Unit = {},
 ) {
     companion object {
         const val AUTO_LOCK_MS = VaultStore.AUTO_LOCK_MS
@@ -76,7 +79,14 @@ class PhoneVaultStore(
     private val stateLock = Any()
 
     // Guarded by stateLock.
-    private var state: HostState? = stateStore.load()
+    private var state: HostState? = null
+
+    /** host.json is there but cannot be read; guarded by [stateLock]. Never thrown from the constructor. */
+    private var corrupt = false
+
+    init {
+        synchronized(stateLock) { state = loadState() }
+    }
     private var records: ResettableStore? = null
     private var host: P2pHost? = null
     private var addresses: () -> List<String> = { emptyList() }
@@ -84,7 +94,7 @@ class PhoneVaultStore(
     /** (deviceId, Base64 static public key) of the current identity, so pairing does not unwrap the private key each time. */
     private var publicKeyCache: Pair<String, String>? = null
 
-    private val pairing = PairingHost(::identity, ::vaultInfo, ::onPaired, now)
+    private val pairing = PairingHost(::identity, ::vaultInfo, ::onPaired, now, onError)
 
     @Volatile
     private var session: Session? = null
@@ -100,12 +110,19 @@ class PhoneVaultStore(
 
     val isUnlocked: Boolean get() = session != null
 
+    /**
+     * host.json exists but is not a host state (damaged file): no vault, no restore, nothing to serve.
+     * Only [disconnect] clears it; creating or restoring refuses until then, so nothing overwrites it silently.
+     */
+    val corruptState: Boolean get() = synchronized(stateLock) { corrupt }
+
     // ---- Creating ----
 
     /** A new, empty vault with a new identity; unlocks it. */
     @Synchronized
     fun createVault(masterPassword: String) {
         check(!hasVault) { "Na telefonie już jest sejf" }
+        checkNotCorrupt()
         lock()
         val kdf = Kdf.newParams()
         val keys = Kdf.deriveKeys(masterPassword, kdf)
@@ -134,6 +151,7 @@ class PhoneVaultStore(
     @Synchronized
     fun startRestore() {
         check(!hasVault) { "Na telefonie już jest sejf" }
+        checkNotCorrupt()
         lock()
         pairing.cancel()
         synchronized(stateLock) {
@@ -240,6 +258,7 @@ class PhoneVaultStore(
         synchronized(stateLock) {
             resetRecords()
             state = null
+            corrupt = false
             stateStore.delete()
             if (p2pDir.exists() && !p2pDir.deleteRecursively()) throw IOException("Cannot delete $p2pDir")
         }
@@ -287,14 +306,16 @@ class PhoneVaultStore(
      * The handler for [SyncHttpServer], for one start of sync mode. It re-reads the host state from disk, and
      * every request sees the current state (devices, a vault created or restored since). [addresses] are the
      * phone's current addresses, sent to the extension in pairing and sync answers.
+     * A pairing code from an earlier start is dropped: each start of sync mode asks for its own.
      */
     fun router(onRequest: () -> Unit, addresses: () -> List<String>): PhoneRouter {
+        pairing.cancel()
         synchronized(stateLock) {
             this.addresses = addresses
-            state = stateStore.load()
+            state = loadState()
             host = null
         }
-        return PhoneRouter(pairing, ::currentHost, onRequest)
+        return PhoneRouter(pairing, ::currentHost, onRequest, onError)
     }
 
     /** A new pairing code; in restore mode while a restore is in progress. */
@@ -324,6 +345,7 @@ class PhoneVaultStore(
             addresses = { currentAddresses() },
             now = now,
             onSynced = ::onSynced,
+            onError = onError,
         ).also { host = it }
     }
 
@@ -387,6 +409,27 @@ class PhoneVaultStore(
         p2pDir.mkdirs()
         stateStore.save(s)
         state = s
+        corrupt = false
+    }
+
+    /** Caller holds [stateLock]. The state on disk; null (and [corrupt] set) when host.json cannot be read. */
+    private fun loadState(): HostState? = try {
+        stateStore.load().also { corrupt = false }
+    } catch (e: IllegalStateException) {
+        markCorrupt(e)
+    } catch (e: IOException) {
+        markCorrupt(e)
+    }
+
+    /** Caller holds [stateLock]. */
+    private fun markCorrupt(e: Exception): HostState? {
+        reportError(onError, e)
+        corrupt = true
+        return null
+    }
+
+    private fun checkNotCorrupt() = check(!corruptState) {
+        "Nie mogę odczytać danych sejfu na telefonie. Najpierw je usuń."
     }
 
     /** Caller holds [stateLock]. */
