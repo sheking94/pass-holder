@@ -3,7 +3,7 @@ package io.github.sheking94.passholder.app
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
-import io.github.sheking94.passholder.core.VaultStore
+import io.github.sheking94.passholder.core.p2p.PhoneVaultStore
 import kotlin.concurrent.thread
 
 /**
@@ -18,13 +18,13 @@ import kotlin.concurrent.thread
  * SystemClock.elapsedRealtime keeps counting while the phone sleeps and cannot be changed by the user.
  */
 class LeaveLock(
-    private val store: VaultStore,
+    private val store: PhoneVaultStore,
     private val now: () -> Long = SystemClock::elapsedRealtime,
     private val handler: Handler = Handler(Looper.getMainLooper()),
 ) {
     private var deadline: Long? = null
 
-    // A sync can hold the vault for seconds (VaultStore is synchronized): never wait for it on the main thread.
+    // An unlock (Argon2id) can hold the vault for seconds (PhoneVaultStore is synchronized): never wait for it on the main thread.
     private val lockTask = Runnable { thread(name = "passholder-leave-lock") { store.lock() } }
 
     /** The app left the screen: lock in [delayMs] unless it comes back sooner. */

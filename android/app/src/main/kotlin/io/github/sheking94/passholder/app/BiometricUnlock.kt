@@ -21,14 +21,16 @@ import javax.crypto.spec.GCMParameterSpec
 /**
  * Fingerprint unlock.
  *
- * The master password is never stored. When the user turns this on (vault unlocked), the two keys the
- * unlocked vault holds in memory (vault key + auth key, see VaultStore.exportUnlockKeys) are encrypted with
+ * The master password is never stored. When the user turns this on (vault unlocked), the key the unlocked
+ * vault holds in memory (the 32-byte vault key, see PhoneVaultStore.exportUnlockKeys) is encrypted with
  * an AES-256-GCM key that lives in the Android Keystore. That key never leaves the Keystore (on most phones
  * a separate secure chip) and the Keystore uses it only right after a strong biometric check, once per
  * operation. Adding a new fingerprint to the phone destroys the key, so someone who knows the screen PIN
  * cannot enroll their own finger and unlock the vault.
  *
- * On disk (SharedPreferences "biometric", excluded from backups): the GCM nonce and the encrypted keys.
+ * On disk (SharedPreferences "biometric", excluded from backups): the GCM nonce and the encrypted key. Works for
+ * keys of any length: keys stored by an older version (64 bytes) are refused by unlockWithKeys, and
+ * BiometricController then turns fingerprint unlock off.
  */
 class BiometricUnlock(context: Context, private val keys: UnlockKeyProtector = KeystoreKeyProtector()) {
     private val prefs = context.getSharedPreferences("biometric", Context.MODE_PRIVATE)
@@ -65,7 +67,7 @@ class BiometricUnlock(context: Context, private val keys: UnlockKeyProtector = K
         }
     }
 
-    /** [cipher] came back from a successful fingerprint check. Returns the keys for VaultStore.unlockWithKeys. */
+    /** [cipher] came back from a successful fingerprint check. Returns the keys for PhoneVaultStore.unlockWithKeys. */
     fun decrypt(cipher: Cipher): ByteArray {
         val data = prefs.getString(DATA, null) ?: throw BiometricKeyLostException()
         return cipher.doFinal(Base64.decode(data, Base64.NO_WRAP))

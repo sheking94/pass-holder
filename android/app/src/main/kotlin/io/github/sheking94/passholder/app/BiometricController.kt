@@ -22,7 +22,7 @@ class BiometricController(private val biometric: BiometricUnlock) {
         throw IllegalStateException("Nie udało się przygotować klucza: ${e.message ?: e.javaClass.simpleName}", e)
     }
 
-    /** Step 2: [cipher] came back from the dialog. Blocking (Keystore): run it as a vault operation. */
+    /** Step 2: [cipher] came back from the dialog; [unlockKeys] is the 32-byte vault key. Blocking (Keystore): run it as a vault operation. */
     fun enable(cipher: Cipher, unlockKeys: ByteArray) {
         biometric.enable(cipher, unlockKeys)
         _enabled.value = true

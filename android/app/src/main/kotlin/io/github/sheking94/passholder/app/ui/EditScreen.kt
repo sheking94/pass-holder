@@ -111,7 +111,7 @@ fun EditScreen(id: String?, state: UiState, vm: AppViewModel) {
         AlertDialog(
             onDismissRequest = { askDelete = false },
             title = { Text("Usunąć wpis?") },
-            text = { Text("Po synchronizacji zniknie też z innych urządzeń.") },
+            text = { Text("Po synchronizacji zniknie też z wtyczek.") },
             confirmButton = { TextButton(onClick = { askDelete = false; vm.delete(id) }) { Text("Usuń", color = MaterialTheme.colorScheme.error) } },
             dismissButton = { TextButton(onClick = { askDelete = false }) { Text("Anuluj") } },
         )

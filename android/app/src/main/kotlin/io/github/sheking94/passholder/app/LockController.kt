@@ -1,6 +1,6 @@
 package io.github.sheking94.passholder.app
 
-import io.github.sheking94.passholder.core.VaultStore
+import io.github.sheking94.passholder.core.p2p.PhoneVaultStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -18,16 +18,16 @@ import kotlin.concurrent.thread
  *  - the app comes back after those 60 s ran out ([onReturn]), in case the timer was late,
  *  - nothing was touched for 15 minutes ([checkIdle]),
  *  - the user presses "Zablokuj" (the ViewModel's lock(), which then calls [onLockedByUser]).
- * A lock that comes while a vault operation runs (a sync can take seconds) waits for it to end ([onOperationFinished]).
+ * A lock that comes while a vault operation runs (an unlock or a new vault can take seconds) waits for it to end ([onOperationFinished]).
  *
  * The fingerprint dialog opens by itself on the locked screen when the app starts, after the idle lock and
  * after every return to the app; not after "Zablokuj", because the user would get it straight back.
  *
  * Belongs to the ViewModel (one per activity), like the screen state it changes; [LeaveLock] and the
- * [VaultStore] belong to the process.
+ * [PhoneVaultStore] belong to the process.
  */
 class LockController(
-    private val store: VaultStore,
+    private val store: PhoneVaultStore,
     /** Read on each use, not kept: it belongs to the process (PassHolderApp), which may replace it. */
     private val leaveLock: () -> LeaveLock,
     private val lockDelay: () -> Boolean,
@@ -46,7 +46,7 @@ class LockController(
     val timesLeftApp: StateFlow<Int> = _timesLeftApp.asStateFlow()
 
     /**
-     * The app left the screen (MainActivity.onStop, not for a rotation). The keys live in VaultStore, which
+     * The app left the screen (MainActivity.onStop, not for a rotation). The keys live in PhoneVaultStore, which
      * belongs to the process, not to the ViewModel or the activity: without a lock they stayed in memory after
      * closing the app, until Android killed the process.
      *
@@ -103,7 +103,7 @@ class LockController(
     }
 
     /**
-     * Locks the vault and shows the locked screen. lock() only zeroes two arrays, so it runs on the main
+     * Locks the vault and shows the locked screen. lock() only zeroes the vault key, so it runs on the main
      * thread; but while an operation is running it holds the vault, so the lock waits until the operation
      * ends instead of blocking the main thread.
      */
