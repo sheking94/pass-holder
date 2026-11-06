@@ -14,8 +14,39 @@ npm run typecheck
 cd android
 ./gradlew :core:test                              # Kotlin: krypto, sync, klient HTTP, VaultStore
 PASSHOLDER_SERVER_TEST=1 ./gradlew :core:test     # + prawdziwy serwer Node.js przez HTTPS
+PASSHOLDER_INTEROP_TEST=1 ./gradlew :core:test    # + klient P2P wtyczki (TypeScript) przeciw hostowi w Kotlinie
 ./gradlew :app:testDebugUnitTest                  # ekrany (Robolectric + Roborazzi)
 ```
+
+### Rdzeń P2P w Kotlinie i test współpracy na Windows
+
+Rdzeń P2P telefonu (`android/core`, pakiet `core.p2p`, opis w [P2P_ANDROID_RDZEN.md](P2P_ANDROID_RDZEN.md))
+ma testy w `android/core/src/test/kotlin/io/github/sheking94/passholder/core/p2p/`; uruchamia je zwykłe
+`:core:test`. W PowerShellu, w katalogu `android/`:
+
+```powershell
+$env:JAVA_HOME="$HOME\.jdks\jbr-21.0.11"    # JDK 21; JBR 25 z Android Studio nie działa z Gradle 8.14.3
+.\gradlew.bat :core:test :app:testDebugUnitTest --console=plain
+.\gradlew.bat :core:test --tests "io.github.sheking94.passholder.core.p2p.*" --console=plain   # tylko P2P
+```
+
+Test współpracy `P2pInteropTest` uruchamia w Node prawdziwego klienta wtyczki (`syncVaultV2` i
+`noiseTransport` z `core/src/p2p`, skrypt `android/core/src/test/resources/p2p-interop.ts`) przeciw
+`P2pHost` w Kotlinie. Bez `PASSHOLDER_INTEROP_TEST=1` jest pomijany. Potrzebuje `npm install` w katalogu
+głównym i Node na PATH (na Windows przez `fnm`):
+
+```powershell
+fnm env --shell powershell | Out-String | Invoke-Expression
+$env:PASSHOLDER_INTEROP_TEST="1"
+.\gradlew.bat :core:test --tests "*P2pInteropTest*" --console=plain
+Remove-Item Env:PASSHOLDER_INTEROP_TEST
+```
+
+Skrypt działa bez `--experimental-transform-types` (Node 26.13 odrzuca ten przełącznik; wystarcza domyślne
+usuwanie typów z Node >= 22.18). Uwaga: `RealServerTest` z v1 nadal podaje ten przełącznik, więc z
+`PASSHOLDER_SERVER_TEST=1` na Node 26 nie przejdzie; kodu v1 nie zmieniamy, zniknie w planie 4. Drugie
+ograniczenie: gdy `node` się zawiesi, `P2pInteropTest` czeka do przerwania Gradle, bo czytanie wyjścia
+procesu blokuje i limit 5 minut nie zadziała.
 
 Pokrycie dla TypeScript (opcjonalnie, bez dopisywania zależności do projektu):
 `npm i --no-save @vitest/coverage-v8 && npx vitest run --coverage` w katalogu pakietu.
@@ -104,6 +135,8 @@ z 64 MiB, więc niższa granica po stronie klienta niczego nie psuje.
 | `ServerPickerTest.kt` | wybór adresu na Androidzie, `firstThatAnswers` | [WIELE_ADRESOW_SERWERA.md](WIELE_ADRESOW_SERWERA.md) |
 | `BiometricScreenTests.kt` | odcisk palca, blokada przy wyjściu z aplikacji i opóźnienie 60 s | [ANDROID_ODCISK_PALCA.md](ANDROID_ODCISK_PALCA.md) |
 | `ScreenTests.kt` (`TwoAddressesTest`) | parowanie, gdy odpowiada tylko drugi adres, i edycja adresów | [WIELE_ADRESOW_SERWERA.md](WIELE_ADRESOW_SERWERA.md) |
+| `core/test/p2p/*.test.ts` | rdzeń P2P w TypeScripcie: HLC, ristretto255, CPace, Noise KK, parowanie, host i transport, synchronizacja wtyczki, wektory v2 | [P2P_RDZEN.md](P2P_RDZEN.md) |
+| `android/core/.../p2p/*Test.kt` | rdzeń P2P w Kotlinie: te same wektory bit w bit, host HTTP, `PhoneVault`, wiele wątków, `P2pInteropTest` (opcjonalny) | [P2P_ANDROID_RDZEN.md](P2P_ANDROID_RDZEN.md) §5 |
 
 ## Zachowania sprawdzone, ale nie zmienione (do decyzji)
 
