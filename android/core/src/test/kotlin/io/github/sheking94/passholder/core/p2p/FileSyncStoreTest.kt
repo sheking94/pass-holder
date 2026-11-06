@@ -52,6 +52,19 @@ class FileSyncStoreTest {
     }
 
     @Test
+    fun fragmentLeftByFailedAppendDoesNotBrickTheStore() {
+        val a = FileSyncStore(file())
+        a.put(RemoteRecord("a", 1, false, "x"))
+        // Simulates a partial append (e.g. disk full) on the same instance.
+        file().appendText("""{"id":"b","rev""")
+        a.put(RemoteRecord("c", 2, false, "y"))
+        val b = FileSyncStore(file())
+        assertEquals(2, b.currentRevision())
+        assertEquals(listOf("a", "c"), b.listSince(0).map { it.id })
+        assertEquals(2, file().readLines().size)
+    }
+
+    @Test
     fun garbageInTheMiddleIsCorrupt() {
         file().writeText(
             """{"id":"a","revision":1,"deleted":false,"blob":"x"}""" + "\n" + "garbage\n" +

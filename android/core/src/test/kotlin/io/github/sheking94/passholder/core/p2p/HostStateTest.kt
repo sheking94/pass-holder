@@ -87,7 +87,9 @@ class HostStateTest {
     fun deleteRemovesFileAndToPairedDeviceDecodesKey() {
         val s = store()
         s.save(s.newState(null, null))
+        File(dir, "host.json.tmp").writeText("stale")
         s.delete()
+        assertTrue(!File(dir, "host.json").exists())
         assertNull(s.load())
         assertTrue(!File(dir, "host.json.tmp").exists())
         val p = StoredDevice("d1", "Laptop", Encoding.toBase64(byteArrayOf(1, 2, 3)), 5L).toPairedDevice()

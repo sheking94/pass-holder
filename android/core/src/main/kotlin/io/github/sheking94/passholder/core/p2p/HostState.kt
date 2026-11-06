@@ -81,7 +81,7 @@ class HostStateStore(private val file: File, private val wrapper: SecretWrapper)
     )
 
     fun delete() {
-        file.delete()
-        File(file.path + ".tmp").delete()
+        Files.deleteIfExists(File(file.path + ".tmp").toPath())
+        Files.deleteIfExists(file.toPath())
     }
 }

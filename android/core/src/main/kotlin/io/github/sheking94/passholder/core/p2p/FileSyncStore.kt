@@ -18,6 +18,9 @@ class FileSyncStore(private val file: File) : SyncStore {
     private val records = HashMap<String, RemoteRecord>()
     private var revision = 0L
 
+    /** File length after the last complete write; anything beyond it is a torn fragment from a failed append. */
+    private var knownLength = 0L
+
     init {
         load()
     }
@@ -28,6 +31,12 @@ class FileSyncStore(private val file: File) : SyncStore {
         null
     }
 
+    private fun parseOrThrow(line: String): RemoteRecord = try {
+        P2pJson.json.decodeFromString(RemoteRecord.serializer(), line)
+    } catch (e: Exception) {
+        throw IllegalStateException("Corrupt sync store", e)
+    }
+
     private fun load() {
         if (!file.exists()) return
         val text = file.readText(Charsets.UTF_8)
@@ -35,9 +44,8 @@ class FileSyncStore(private val file: File) : SyncStore {
         var needsRewrite = text.isNotEmpty() && !text.endsWith("\n")
         var validLines = 0
         for ((index, line) in lines.withIndex()) {
-            val record = parse(line)
+            val record = if (index == lines.lastIndex) parse(line) else parseOrThrow(line)
             if (record == null) {
-                if (index != lines.lastIndex) throw IllegalStateException("Corrupt sync store")
                 needsRewrite = true
                 continue
             }
@@ -46,6 +54,7 @@ class FileSyncStore(private val file: File) : SyncStore {
             revision = maxOf(revision, record.revision)
         }
         if (needsRewrite || validLines > 2 * records.size + 100) rewrite()
+        knownLength = file.length()
     }
 
     private fun rewrite() {
@@ -65,10 +74,13 @@ class FileSyncStore(private val file: File) : SyncStore {
     override fun put(record: RemoteRecord) {
         val line = P2pJson.json.encodeToString(RemoteRecord.serializer(), record) + "\n"
         FileOutputStream(file, true).use { out ->
+            // A failed earlier append may have left a fragment; cut it off so it never becomes a middle line.
+            if (out.channel.size() != knownLength) out.channel.truncate(knownLength)
             out.write(line.toByteArray(Charsets.UTF_8))
             out.flush()
             out.fd.sync()
         }
+        knownLength += line.toByteArray(Charsets.UTF_8).size
         records[record.id] = record
         revision = maxOf(revision, record.revision)
     }
