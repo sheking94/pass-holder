@@ -394,4 +394,24 @@ class P2pHostTest {
         }
         assertEquals(40, s.store.currentRevision())
     }
+
+    @Test
+    fun callsOnSyncedOnlyAfterASuccessfulSync() {
+        val store = MemorySyncStore()
+        val epoch = Encoding.toBase64(Encoding.randomBytes(16))
+        val hostKey = NoiseKeys.generate()
+        val key = NoiseKeys.generate()
+        val synced = ArrayList<String>()
+        val host = P2pHost(
+            hostKey, { listOf(PairedDevice("a", "a", key.publicKey)) }, store, epoch, { emptyList() },
+            onSynced = { synced.add(it) },
+        )
+        val client = TestP2pClient("a", key, hostKey.publicKey, host)
+        client.syncResponse(P2pSyncRequest(epoch, 0, emptyList()))
+        assertEquals(listOf("a"), synced)
+        // A request the host rejects (unknown base revision) is not a sync.
+        assertEquals(400, client.sync(req(epoch, 0, change("x", 5))).status)
+        client.handshake()
+        assertEquals(listOf("a"), synced)
+    }
 }
