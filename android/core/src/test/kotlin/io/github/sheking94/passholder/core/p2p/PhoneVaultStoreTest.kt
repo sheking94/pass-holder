@@ -222,16 +222,79 @@ class PhoneVaultStoreTest {
         assertEquals(3, reopened.entries().size)
     }
 
+    /** An extension vault (weakest KDF) ready to be sent in a restore. */
+    private inner class ExtVault(password: String) {
+        val vaultKey = VaultCrypto.newVaultKey()
+        val info = VaultInfo(
+            Encoding.toBase64(Encoding.randomBytes(16)), weakestKdf,
+            VaultCrypto.wrapVaultKey(Kdf.deriveKeys(password, weakestKdf).encKey, vaultKey), emptyList(),
+        )
+    }
+
     @Test
     fun finishRestoreNeedsAPairedDevice() {
+        val ext = ExtVault("hasło wtyczki")
         val store = newStore()
         store.startRestore()
-        // Records without any paired device (and without kdf) are not a restore.
-        File(dir, "p2p/records.jsonl").writeText("""{"id":"x","revision":1,"deleted":false,"blob":"AA=="}""" + "\n")
+        val http = serve(store)
+        val pair = TestP2pClient.pair(http, store.offerPairing().code, extIdentity, ext.info)
+        assertEquals(200, pair.finish!!.status)
+        val res = clientFor(http, pair).syncResponse(
+            P2pSyncRequest(pair.phoneVaultInfo!!.epoch, 0, listOf(ChangeRequest("a", 0, false, blob(ext.vaultKey, "a", "A")))),
+        )
+        assertEquals(1, res.accepted.size)
+        // kdf, wrapped key and records are there, but the device that sent them is gone.
+        store.removeDevice(extIdentity.deviceId)
         assertEquals(
             "Wtyczka jeszcze nie przesłała sejfu",
-            assertThrows<IllegalStateException> { newStore().finishRestore("pw") }.message,
+            assertThrows<IllegalStateException> { store.finishRestore("hasło wtyczki") }.message,
         )
+        assertTrue(store.restoreInProgress)
+        assertFalse(store.isUnlocked)
+    }
+
+    @Test
+    fun anotherDeviceCannotTakeOverAStartedRestore() {
+        val ext = ExtVault("hasło wtyczki")
+        val store = newStore()
+        store.startRestore()
+        val http = serve(store)
+        assertEquals(200, TestP2pClient.pair(http, store.offerPairing().code, extIdentity, ext.info).finish!!.status)
+
+        // A second extension with another vault is refused and changes nothing.
+        val other = ExtVault("inne hasło")
+        val otherIdentity = DeviceIdentity("ext-2", "Firefox", Encoding.toBase64(NoiseKeys.generate().publicKey))
+        val refused = TestP2pClient.pair(http, store.offerPairing().code, otherIdentity, other.info)
+        assertEquals(500, refused.finish!!.status)
+        assertEquals(listOf("ext-1"), store.devices().map { it.deviceId })
+
+        // The same extension may pair again.
+        val again = TestP2pClient.pair(http, store.offerPairing().code, extIdentity, ext.info)
+        assertEquals(200, again.finish!!.status)
+        assertEquals(ext.info.wrappedVaultKey, again.phoneVaultInfo!!.wrappedVaultKey)
+        clientFor(http, again).syncResponse(
+            P2pSyncRequest(again.phoneVaultInfo!!.epoch, 0, listOf(ChangeRequest("a", 0, false, blob(ext.vaultKey, "a", "A")))),
+        )
+        assertThrows<IllegalArgumentException> { store.finishRestore("inne hasło") }
+        store.finishRestore("hasło wtyczki")
+        assertEquals(listOf("A"), store.entries().map { it.credentials.name })
+    }
+
+    @Test
+    fun pairingIdentityIsStable() {
+        val store = newStore()
+        store.createVault("pw")
+        val http = serve(store)
+        val first = TestP2pClient.pair(http, store.offerPairing().code, extIdentity).phoneIdentity!!
+        val second = TestP2pClient.pair(http, store.offerPairing().code, extIdentity).phoneIdentity!!
+        assertEquals(first, second)
+        // A new identity after disconnect gets a new key.
+        store.disconnect()
+        store.createVault("pw")
+        val http2 = serve(store)
+        val third = TestP2pClient.pair(http2, store.offerPairing().code, extIdentity).phoneIdentity!!
+        assertNotEquals(first.deviceId, third.deviceId)
+        assertNotEquals(first.staticPublicKey, third.staticPublicKey)
     }
 
     @Test

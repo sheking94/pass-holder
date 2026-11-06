@@ -15,13 +15,13 @@ object PhoneSync {
 
 /**
  * Every request the phone's HTTP server gets: ping, pairing ([pairing]) and Noise sync ([host]).
- * Checks in order: unknown path 404, body not a JSON object 400, then the path's own handler.
+ * Checks in order: unknown path 404, then [onRequest], body not a JSON object 400, then the path's own handler.
  * [host] is null until the phone has a vault (or a restore in progress): handshake and sync then answer 503.
  */
 class PhoneRouter(
     private val pairing: PairingHost,
     private val host: () -> P2pHost?,
-    /** Called on every request, before anything else; sync mode counts idle time from it. */
+    /** Called on every request to a known path (after the 404 check); sync mode counts idle time from it. */
     private val onRequest: () -> Unit,
 ) {
     private companion object {
@@ -35,8 +35,9 @@ class PhoneRouter(
         HostReply(status, buildJsonObject { put("error", error) }.toString())
 
     fun handle(path: String, body: ByteArray): HostReply {
-        onRequest()
         if (path != PING && path != HANDSHAKE && path != SYNC && path !in PAIRING_PATHS) return fail(404, "not found")
+        // Only known paths count as activity, so a LAN scanner cannot keep sync mode awake.
+        onRequest()
         val obj = try {
             P2pJson.json.parseToJsonElement(Encoding.fromUtf8(body)) as? JsonObject
         } catch (_: Exception) {

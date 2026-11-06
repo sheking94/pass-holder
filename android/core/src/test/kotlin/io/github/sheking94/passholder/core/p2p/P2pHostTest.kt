@@ -414,4 +414,20 @@ class P2pHostTest {
         client.handshake()
         assertEquals(listOf("a"), synced)
     }
+
+    @Test
+    fun failingOnSyncedStillAnswers200() {
+        val store = MemorySyncStore()
+        val epoch = Encoding.toBase64(Encoding.randomBytes(16))
+        val hostKey = NoiseKeys.generate()
+        val key = NoiseKeys.generate()
+        val host = P2pHost(
+            hostKey, { listOf(PairedDevice("a", "a", key.publicKey)) }, store, epoch, { emptyList() },
+            onSynced = { throw IllegalStateException("disk full") },
+        )
+        val client = TestP2pClient("a", key, hostKey.publicKey, host)
+        val res = client.syncResponse(P2pSyncRequest(epoch, 0, listOf(ChangeRequest("x", 0, false, blob))))
+        assertEquals(1, res.accepted.size)
+        assertEquals(1, store.currentRevision())
+    }
 }

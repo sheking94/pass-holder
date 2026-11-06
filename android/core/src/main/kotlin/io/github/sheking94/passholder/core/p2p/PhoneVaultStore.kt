@@ -81,6 +81,9 @@ class PhoneVaultStore(
     private var host: P2pHost? = null
     private var addresses: () -> List<String> = { emptyList() }
 
+    /** (deviceId, Base64 static public key) of the current identity, so pairing does not unwrap the private key each time. */
+    private var publicKeyCache: Pair<String, String>? = null
+
     private val pairing = PairingHost(::identity, ::vaultInfo, ::onPaired, now)
 
     @Volatile
@@ -113,13 +116,18 @@ class PhoneVaultStore(
             keys.encKey.fill(0)
             keys.authKey.fill(0)
         }
-        val fresh = stateStore.newState(kdf, wrapped).copy(keyCheck = keyCheck(vaultKey))
-        pairing.cancel()
-        synchronized(stateLock) {
-            resetRecords()
-            saveState(fresh)
+        try {
+            val fresh = stateStore.newState(kdf, wrapped).copy(keyCheck = keyCheck(vaultKey))
+            pairing.cancel()
+            synchronized(stateLock) {
+                resetRecords()
+                saveState(fresh)
+            }
+            start(vaultKey)
+        } catch (e: Throwable) {
+            vaultKey.fill(0)
+            throw e
         }
-        start(vaultKey)
     }
 
     /** Starts "restore from the extension": a new identity without a vault; earlier records are deleted. */
@@ -150,15 +158,19 @@ class PhoneVaultStore(
         val store = synchronized(stateLock) { openRecords() }
         check(synchronized(store) { store.currentRevision() > 0 }) { notSent }
         val vaultKey = unwrap(masterPassword, kdf, wrapped)
-        synchronized(stateLock) {
-            val current = state
-            if (current == null || current.epoch != s.epoch || current.wrappedVaultKey != wrapped) {
-                vaultKey.fill(0)
-                throw IllegalStateException("Odtwarzanie zmieniło się w trakcie, spróbuj jeszcze raz")
+        try {
+            synchronized(stateLock) {
+                val current = state
+                if (current == null || current.epoch != s.epoch || current.wrappedVaultKey != wrapped) {
+                    throw IllegalStateException("Odtwarzanie zmieniło się w trakcie, spróbuj jeszcze raz")
+                }
+                saveState(current.copy(keyCheck = keyCheck(vaultKey)))
             }
-            saveState(current.copy(keyCheck = keyCheck(vaultKey)))
+            start(vaultKey)
+        } catch (e: Throwable) {
+            vaultKey.fill(0)
+            throw e
         }
-        start(vaultKey)
     }
 
     // ---- Locking ----
@@ -168,11 +180,15 @@ class PhoneVaultStore(
     fun unlock(masterPassword: String) {
         val s = requireVault()
         val vaultKey = unwrap(masterPassword, s.kdf!!, s.wrappedVaultKey!!)
-        if (!MessageDigest.isEqual(Encoding.utf8(keyCheck(vaultKey)), Encoding.utf8(s.keyCheck!!))) {
+        try {
+            if (!MessageDigest.isEqual(Encoding.utf8(keyCheck(vaultKey)), Encoding.utf8(s.keyCheck!!))) {
+                throw IllegalArgumentException("Złe hasło główne")
+            }
+            start(vaultKey)
+        } catch (e: Throwable) {
             vaultKey.fill(0)
-            throw IllegalArgumentException("Złe hasło główne")
+            throw e
         }
-        start(vaultKey)
     }
 
     /** The vault key (32 bytes) for the fingerprint unlock. Returns a copy; the caller should zero it once encrypted. */
@@ -187,7 +203,13 @@ class PhoneVaultStore(
         if (!MessageDigest.isEqual(Encoding.utf8(keyCheck(keys)), Encoding.utf8(s.keyCheck!!))) {
             throw IllegalArgumentException("Złe klucze odblokowania")
         }
-        start(keys.copyOf())
+        val vaultKey = keys.copyOf()
+        try {
+            start(vaultKey)
+        } catch (e: Throwable) {
+            vaultKey.fill(0)
+            throw e
+        }
     }
 
     /** Forgets the vault key (zeroed). */
@@ -315,7 +337,13 @@ class PhoneVaultStore(
 
     private fun identity(): DeviceIdentity = synchronized(stateLock) {
         val s = state ?: throw IllegalStateException("No host state")
-        DeviceIdentity(s.deviceId, deviceName, Encoding.toBase64(stateStore.staticKey(s).publicKey))
+        val cached = publicKeyCache?.takeIf { it.first == s.deviceId }?.second
+        val publicKey = cached ?: run {
+            val pair = stateStore.staticKey(s)
+            pair.privateKey.fill(0)
+            Encoding.toBase64(pair.publicKey).also { publicKeyCache = s.deviceId to it }
+        }
+        DeviceIdentity(s.deviceId, deviceName, publicKey)
     }
 
     private fun vaultInfo(@Suppress("UNUSED_PARAMETER") restored: VaultInfo?): VaultInfo {
@@ -337,6 +365,10 @@ class PhoneVaultStore(
         val restoring = s.keyCheck == null
         // The offer's mode was fixed when it was made; refuse if the phone's state changed since.
         check(restoring == (restored != null)) { "Pairing mode no longer matches the vault" }
+        // Once an extension sent its vault for the restore, only that extension may pair again (and resend it).
+        if (restored != null && s.kdf != null) {
+            check(s.devices.any { it.deviceId == device.deviceId }) { "Restore already started by another device" }
+        }
         val devices = s.devices.filter { it.deviceId != device.deviceId } + device
         saveState(
             if (restored == null) {

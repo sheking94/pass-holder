@@ -62,15 +62,19 @@ class PhoneRouterTest {
     }
 
     @Test
-    fun everyRequestCallsOnRequest() {
+    fun everyRequestToAKnownPathCallsOnRequest() {
         var count = 0
         val router = PhoneRouter(pairing, { null }, { count++ })
         post(router, "/p2p/v1/ping")
-        post(router, "/p2p/v1/nope")
         post(router, "/p2p/v1/ping", "[]")
         post(router, "/p2p/v1/handshake")
         post(router, "/p2p/v1/pair/hello")
-        assertEquals(5, count)
+        assertEquals(4, count)
+        // A scanner probing unknown paths does not keep sync mode awake.
+        post(router, "/p2p/v1/nope")
+        post(router, "/")
+        post(router, "/index.html", "[]")
+        assertEquals(4, count)
     }
 
     @Test
