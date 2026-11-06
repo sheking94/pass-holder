@@ -48,6 +48,8 @@ class SyncController(
 
     private val lock = Any()
     private var server: SyncHttpServer? = null
+    /** How many times [stop] was called. Guarded by [lock]; see [startTicket]. */
+    private var stops = 0L
     /** The devices as last seen, to tell a new pairing or sync apart. Guarded by [lock]. */
     private var known: Map<String, StoredDevice> = emptyMap()
     @Volatile
@@ -59,12 +61,23 @@ class SyncController(
 
     val running: Boolean get() = synchronized(lock) { server != null }
 
-    /** Starts the server (nothing if it runs). Throws IllegalStateException with a message for the user. */
-    fun start() {
+    /**
+     * Taken when sync mode is asked for (on the main thread), before [start] runs in the background: a [stop]
+     * in between (leaving the app, locking, "Zakończ") makes that [start] do nothing, so no server is left
+     * running behind a screen that already moved on.
+     */
+    fun startTicket(): Long = synchronized(lock) { stops }
+
+    /**
+     * Starts the server, unless it already runs or [stop] was called since [ticket] was taken. Returns true only
+     * when it bound a new server. Throws IllegalStateException with a message for the user.
+     */
+    fun start(ticket: Long = startTicket()): Boolean {
         synchronized(lock) {
-            if (server != null) return
+            if (server != null || ticket != stops) return false
             val router = store.router(onRequest = { lastRequestAt.set(now()) }, addresses = { currentAddresses })
-            val http = SyncHttpServer(port, { path, body -> router.handle(path, body).also { afterRequest() } })
+            lateinit var http: SyncHttpServer
+            http = SyncHttpServer(port, { path, body -> router.handle(path, body).also { afterRequest(http) } })
             val bound = try {
                 http.start()
             } catch (e: BindException) {
@@ -78,6 +91,7 @@ class SyncController(
             val devices = store.devices()
             known = devices.associateBy { it.deviceId }
             _state.value = SyncUiState(running = true, addresses = currentAddresses, devices = devices)
+            return true
         }
     }
 
@@ -85,9 +99,11 @@ class SyncController(
      * Stops the server and drops the pairing code. [reason] is shown on screen; a stop with a reason does
      * nothing when sync mode is already off, so it does not replace an earlier reason.
      */
-    fun stop(reason: String?) {
-        val stopped = synchronized(lock) { server.also { server = null } }
-        if (stopped == null && reason != null) return
+    fun stop(reason: String?) = synchronized(lock) {
+        stops++
+        val stopped = server
+        server = null
+        if (stopped == null && reason != null) return@synchronized
         stopped?.stop()
         store.cancelPairing()
         _state.update {
@@ -132,9 +148,13 @@ class SyncController(
         _state.update { it.copy(devices = devices) }
     }
 
-    /** After every request: a new pairing or a finished sync shows up as [SyncUiState.lastEvent]. */
-    private fun afterRequest() {
-        val (devices, event) = synchronized(lock) {
+    /**
+     * After every request to [http]: a new pairing or a finished sync shows up as [SyncUiState.lastEvent].
+     * Ignored once [http] was stopped (a request still in flight must not touch the state of a later start).
+     */
+    private fun afterRequest(http: SyncHttpServer) {
+        synchronized(lock) {
+            if (server !== http) return
             val devices = store.devices()
             var event: String? = null
             for (d in devices) {
@@ -146,9 +166,8 @@ class SyncController(
                 }
             }
             known = devices.associateBy { it.deviceId }
-            devices to event
+            _state.update { it.copy(devices = devices, lastEvent = event ?: it.lastEvent) }
         }
-        _state.update { it.copy(devices = devices, lastEvent = event ?: it.lastEvent) }
         refreshOffer()
     }
 }

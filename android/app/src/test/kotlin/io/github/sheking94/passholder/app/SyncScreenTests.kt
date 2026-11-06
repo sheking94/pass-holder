@@ -38,9 +38,9 @@ abstract class SyncScreenTestBase : ScreenTestBase() {
     /** The port the sync server is listening on (the app asks for any free one). */
     @Volatile
     protected var port = -1
-    /** The app's clock (vault store and sync mode), starting at the real time. */
+    /** The app's clock (vault store and sync mode); a fixed start keeps the dates on the screenshots the same. */
     @Volatile
-    protected var clock = System.currentTimeMillis()
+    protected var clock = 1_794_000_000_000L
 
     protected val extKey = NoiseKeys.generate()
     protected val extIdentity = DeviceIdentity("ext-1", "test-ext", Encoding.toBase64(extKey.publicKey))
@@ -250,4 +250,65 @@ class AbortRestoreTest : SyncScreenTestBase() {
         assertFalse(app.phoneStore.restoreInProgress)
         assertNotListening(port)
     }
+}
+
+class StartStopRaceTest : SyncScreenTestBase() {
+    @Test
+    fun `a stop that comes before the background start leaves no server running`() {
+        createVault()
+        val vm = viewModel()
+        // Both on the main thread, before the start on Dispatchers.IO gets to run.
+        scenario.onActivity {
+            vm.openSync()
+            vm.onLeftApp()
+        }
+        scenario.onActivity {
+            vm.openSync()
+            vm.closeSync()
+        }
+        compose.waitForIdle()
+        Thread.sleep(1_000)
+        compose.waitForIdle()
+        assertFalse(vm.syncState.value.running)
+        assertEquals("no server was bound", -1, port)
+        assertFalse(keepsScreenOn())
+    }
+}
+
+class RestoreRestartTest : SyncScreenTestBase() {
+    @Test
+    fun `restore keeps its spent code across a rotation and gets a new one after the idle stop`() {
+        click("Odtwórz z wtyczki")
+        click("Rozpocznij odtwarzanie")
+        waitFor("http://127.0.0.1:", substring = true)
+        val first = shownCode()
+
+        // A rotation (onStart again) keeps the same code.
+        scenario.recreate()
+        assertEquals(first, shownCode())
+
+        // A wrong code spends it; the hint stays after another onStart, no new code comes by itself.
+        assertEquals(403, TestP2pClient.pair(http(), if (first == "00000000") "11111111" else "00000000", extIdentity, kdfLessInfo()).finish?.status)
+        waitFor("Kod wygasł lub został użyty. Weź nowy kod.")
+        scenario.recreate()
+        waitFor("Kod wygasł lub został użyty. Weź nowy kod.")
+        assertTrue(gone("Ważny jeszcze"))
+
+        // The idle stop, then "Włącz ponownie" brings the server back with a fresh code.
+        clock += 300_001
+        viewModel().checkAutoLock()
+        waitFor("Tryb synchronizacji wyłączony po 5 min bez połączeń.")
+        assertNotListening(port)
+        click("Włącz ponownie")
+        waitFor("Ważny jeszcze 02:00", substring = true)
+        shownCode()
+        assertEquals(200, ping())
+    }
+
+    /** Any acceptable vault info: the pairing fails on the wrong code before it is opened. */
+    private fun kdfLessInfo() = VaultInfo(
+        Encoding.toBase64(Encoding.randomBytes(16)),
+        KdfParams("argon2id", Encoding.toBase64(Encoding.randomBytes(16)), Kdf.MIN_MEMORY_KIB, Kdf.MIN_ITERATIONS, Kdf.MIN_PARALLELISM),
+        "AA==", emptyList(),
+    )
 }

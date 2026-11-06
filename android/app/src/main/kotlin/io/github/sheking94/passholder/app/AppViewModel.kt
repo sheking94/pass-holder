@@ -7,6 +7,7 @@ import io.github.sheking94.passholder.core.Credentials
 import io.github.sheking94.passholder.core.GeneratorOptions
 import io.github.sheking94.passholder.core.p2p.PairingOffer
 import io.github.sheking94.passholder.core.p2p.PhoneEntry
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import javax.crypto.Cipher
 import kotlinx.coroutines.delay
@@ -180,14 +181,26 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** "Przerwij odtwarzanie": forget the restore (and the extensions paired for it) and go back to the start. */
     fun abortRestore() = disconnect()
 
-    /** Restore mode: the server runs from the start, and offers a code until an extension paired. */
-    private fun startRestoreSync() {
+    /**
+     * Restore mode: the server runs from the start and, until an extension paired, a fresh server comes with a
+     * fresh code. A server that was already running (e.g. after a rotation) keeps its code, or its
+     * "Kod wygasł…" hint.
+     */
+    private fun startRestoreSync() = launchSync(offerCodeUntilPaired = true)
+
+    /**
+     * Starts sync mode in the background. The ticket is taken now, on the main thread: a stop that comes before
+     * the start runs (leaving the app, locking, "Zakończ") cancels it.
+     */
+    private fun launchSync(offerCodeUntilPaired: Boolean) {
+        val ticket = sync.startTicket()
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) {
-                    sync.start()
-                    if (store.devices().isEmpty() && sync.state.value.offer == null) sync.offerPairing()
+                    if (sync.start(ticket) && offerCodeUntilPaired && store.devices().isEmpty()) sync.offerPairing()
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 fail(e.message ?: e.javaClass.simpleName)
             }
@@ -301,16 +314,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         startSync()
     }
 
-    /** Sync mode again after it turned itself off (idle, leaving the app), or after a failed start. */
+    /**
+     * Sync mode again after it turned itself off (idle, leaving the app), or after a failed start ("Włącz
+     * ponownie"). On the restore screen it also brings a new code.
+     */
     fun startSync() {
         _state.update { it.copy(status = null) }
-        viewModelScope.launch {
-            try {
-                withContext(Dispatchers.IO) { sync.start() }
-            } catch (e: Exception) {
-                fail(e.message ?: e.javaClass.simpleName)
-            }
-        }
+        launchSync(offerCodeUntilPaired = _state.value.screen == Screen.Restore)
     }
 
     /** "Zakończ": the server stops, back to the list. */
@@ -324,6 +334,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) { sync.offerPairing() }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 fail(e.message ?: e.javaClass.simpleName)
             }
@@ -349,6 +361,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 withContext(Dispatchers.IO) { store.removeDevice(id) }
                 sync.refreshDevices()
                 showStatus("Usunięto urządzenie $name.")
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 fail(e.message ?: e.javaClass.simpleName)
             }
@@ -392,6 +406,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) { action() }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _state.update { it.copy(status = Status(e.message ?: e.javaClass.simpleName, isError = true)) }
             } finally {
