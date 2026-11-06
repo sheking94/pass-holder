@@ -64,11 +64,18 @@ object Pairing {
     /** AAD binds the message to its kind and to the sender's role, so a reflected message does not open. */
     fun aad(kind: PairingKind, from: CpaceRole): String = "passholder/v2/pair/${kind.wire}/${from.wire}"
 
-    /** [from] is the role of the caller (the sealer). [nonce] is only for test vectors. */
-    fun sealIdentity(key: ByteArray, from: CpaceRole, value: DeviceIdentity, nonce: ByteArray? = null): String =
+    /** [from] is the role of the caller (the sealer). */
+    fun sealIdentity(key: ByteArray, from: CpaceRole, value: DeviceIdentity): String =
+        seal(key, PairingKind.IDENTITY, from, P2pJson.json.encodeToString(value), null)
+
+    fun sealVaultInfo(key: ByteArray, from: CpaceRole, value: VaultInfo): String =
+        seal(key, PairingKind.VAULT_INFO, from, P2pJson.json.encodeToString(value), null)
+
+    /** [nonce] is only for test vectors. */
+    internal fun sealIdentity(key: ByteArray, from: CpaceRole, value: DeviceIdentity, nonce: ByteArray?): String =
         seal(key, PairingKind.IDENTITY, from, P2pJson.json.encodeToString(value), nonce)
 
-    fun sealVaultInfo(key: ByteArray, from: CpaceRole, value: VaultInfo, nonce: ByteArray? = null): String =
+    internal fun sealVaultInfo(key: ByteArray, from: CpaceRole, value: VaultInfo, nonce: ByteArray?): String =
         seal(key, PairingKind.VAULT_INFO, from, P2pJson.json.encodeToString(value), nonce)
 
     /** [from] is the role of the side that sealed the message (the peer of the caller). */

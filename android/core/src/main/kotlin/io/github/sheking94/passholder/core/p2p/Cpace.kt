@@ -132,7 +132,9 @@ object Cpace {
      * Starts a CPace run. `message` is lv_cat(Y, ad) and is sent to the peer.
      * [ya] (32 bytes, little-endian) is only for reproducing test vectors.
      */
-    fun start(prs: ByteArray, ci: ByteArray, sid: ByteArray, ad: ByteArray, ya: ByteArray? = null): CpaceStart {
+    fun start(prs: ByteArray, ci: ByteArray, sid: ByteArray, ad: ByteArray): CpaceStart = start(prs, ci, sid, ad, null)
+
+    internal fun start(prs: ByteArray, ci: ByteArray, sid: ByteArray, ad: ByteArray, ya: ByteArray?): CpaceStart {
         val y = if (ya == null) {
             sampleScalar()
         } else {

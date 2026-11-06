@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import java.util.concurrent.atomic.AtomicInteger
 
 class PhoneVaultTest {
@@ -18,6 +19,21 @@ class PhoneVaultTest {
 
     private fun readEntry(id: String): EntryDataV2 =
         EntryV2.parseEntry(EntryV2.decrypt(key, id, store.get(id)!!.blob))
+
+    @Test
+    fun rejectsOutOfRangeDeviceAndEntryIds() {
+        assertThrows<IllegalArgumentException> { vault(device = "") }
+        assertThrows<IllegalArgumentException> { vault(device = "d".repeat(65)) }
+        vault(device = "d".repeat(64))
+        val v = vault()
+        assertThrows<IllegalArgumentException> { v.upsert("", cred("A")) }
+        assertThrows<IllegalArgumentException> { v.upsert("i".repeat(129), cred("A")) }
+        assertThrows<IllegalArgumentException> { v.delete("") }
+        assertThrows<IllegalArgumentException> { v.delete("i".repeat(129)) }
+        assertEquals(0L, store.currentRevision())
+        v.upsert("i".repeat(128), cred("A"))
+        assertEquals(1L, store.currentRevision())
+    }
 
     @Test
     fun upsertWritesRevisionOneWithDeviceHlc() {

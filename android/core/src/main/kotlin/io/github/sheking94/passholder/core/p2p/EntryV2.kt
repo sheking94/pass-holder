@@ -18,11 +18,17 @@ data class TombstoneDataV2(val hlc: Hlc)
 object EntryV2 {
     fun aad(id: String): String = "passholder/v2/entry/$id"
 
+    fun encrypt(vaultKey: ByteArray, id: String, data: EntryDataV2): String =
+        seal(vaultKey, id, P2pJson.json.encodeToString(data), null)
+
+    fun encryptTombstone(vaultKey: ByteArray, id: String, data: TombstoneDataV2): String =
+        seal(vaultKey, id, P2pJson.json.encodeToString(data), null)
+
     /** [nonce] is only for test vectors. */
-    fun encrypt(vaultKey: ByteArray, id: String, data: EntryDataV2, nonce: ByteArray? = null): String =
+    internal fun encrypt(vaultKey: ByteArray, id: String, data: EntryDataV2, nonce: ByteArray?): String =
         seal(vaultKey, id, P2pJson.json.encodeToString(data), nonce)
 
-    fun encryptTombstone(vaultKey: ByteArray, id: String, data: TombstoneDataV2, nonce: ByteArray? = null): String =
+    internal fun encryptTombstone(vaultKey: ByteArray, id: String, data: TombstoneDataV2, nonce: ByteArray?): String =
         seal(vaultKey, id, P2pJson.json.encodeToString(data), nonce)
 
     /** Throws [javax.crypto.AEADBadTagException] for a wrong key, id or changed blob. */

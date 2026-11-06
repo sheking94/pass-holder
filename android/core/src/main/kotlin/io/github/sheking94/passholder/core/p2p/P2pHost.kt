@@ -85,10 +85,10 @@ class P2pHost(
         } catch (_: IllegalArgumentException) {
             return fail(400, "malformed request")
         }
-        val noise = NoiseKK.responder(staticKey, device.staticPublicKey, P2P_PROLOGUE)
         val reply: ByteArray
         val ciphers: TransportCiphers
         try {
+            val noise = NoiseKK.responder(staticKey, device.staticPublicKey, P2P_PROLOGUE)
             noise.readMessage(message)
             reply = noise.writeMessage(ByteArray(0))
             ciphers = noise.split()

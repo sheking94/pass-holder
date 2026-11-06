@@ -211,6 +211,14 @@ class P2pHostTest {
     }
 
     @Test
+    fun aStoredDeviceKeyOfTheWrongLengthIsAHandshakeFailureNotAnException() {
+        val s = Setup()
+        val key = NoiseKeys.generate()
+        s.devices.add(PairedDevice("a", "a", ByteArray(31)))
+        assertError(400, "handshake failed", s.post("/p2p/v1/handshake", s.handshakeBody("a", key)))
+    }
+
+    @Test
     fun badSyncShapesAre400() {
         val s = Setup()
         val frames18 = (1..18).joinToString(",") { "\"AA==\"" }
