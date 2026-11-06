@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import androidx.core.content.edit
 import io.github.sheking94.passholder.core.GeneratorOptions
+import io.github.sheking94.passholder.core.p2p.LocalAddresses
 import io.github.sheking94.passholder.core.p2p.PhoneSync
 import io.github.sheking94.passholder.core.p2p.PhoneVaultStore
 import io.github.sheking94.passholder.core.p2p.SecretWrapper
@@ -21,6 +22,13 @@ class PassHolderApp : Application() {
     var secretWrapper: SecretWrapper = KeystoreSecretWrapper()
     /** The port of sync mode; tests set 0 (any free port). */
     var syncPort: Int = PhoneSync.PORT
+    /**
+     * The clock of the vault store and of sync mode (idle stop, code expiry and countdown); tests move it forward.
+     * One clock for both, so the code's expiry time (set by the store) and the countdown agree.
+     */
+    var clock: () -> Long = System::currentTimeMillis
+    /** The phone's addresses shown in sync mode, for the port actually bound; tests use loopback only. */
+    var syncAddresses: (boundPort: Int) -> List<String> = { LocalAddresses.list(it) }
     lateinit var settings: Settings
         private set
     /** Replaced in tests: Robolectric has neither the Android Keystore nor a fingerprint reader. */
@@ -33,10 +41,14 @@ class PassHolderApp : Application() {
         super.onCreate()
         // filesDir is private to the app; other apps cannot read it (and the vault is encrypted anyway).
         // Constructing the store reads host.json but does not unwrap anything, so the Keystore is not touched here.
-        phoneStore = PhoneVaultStore(filesDir, object : SecretWrapper {
-            override fun wrap(secret: ByteArray) = secretWrapper.wrap(secret)
-            override fun unwrap(wrapped: String) = secretWrapper.unwrap(wrapped)
-        })
+        phoneStore = PhoneVaultStore(
+            filesDir,
+            object : SecretWrapper {
+                override fun wrap(secret: ByteArray) = secretWrapper.wrap(secret)
+                override fun unwrap(wrapped: String) = secretWrapper.unwrap(wrapped)
+            },
+            now = { clock() },
+        )
         settings = Settings(this)
         biometric = BiometricUnlock(this)
         leaveLock = LeaveLock(phoneStore)

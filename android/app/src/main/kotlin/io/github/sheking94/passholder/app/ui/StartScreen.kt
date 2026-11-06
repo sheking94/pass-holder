@@ -36,7 +36,7 @@ fun StartScreen(state: UiState, vm: AppViewModel) {
 
         if (!restore) {
             Text(
-                "Sejf będzie na tym telefonie. Wtyczkę w przeglądarce sparujesz potem przyciskiem „Synchronizuj”.",
+                "Sejf będzie na tym telefonie. Wtyczkę w przeglądarce sparujesz potem przyciskiem „Synchronizacja”.",
                 style = MaterialTheme.typography.bodyMedium,
             )
             PasswordField(password, { password = it }, "Hasło główne")

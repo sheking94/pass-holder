@@ -1,13 +1,9 @@
 package io.github.sheking94.passholder.app.ui
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -27,21 +23,11 @@ fun PassHolderUi(viewModel: AppViewModel) {
                     Screen.Locked -> LockedScreen(state, viewModel)
                     Screen.List -> ListScreen(state, viewModel)
                     is Screen.Edit -> EditScreen(screen.id, state, viewModel)
-                    Screen.Sync -> Placeholder("Synchronizacja", viewModel::backToList)
-                    Screen.Devices -> Placeholder("Urządzenia", viewModel::backToList)
-                    Screen.Restore -> Placeholder("Odtwarzanie z wtyczki", onBack = null)
+                    Screen.Sync -> SyncScreen(state, viewModel)
+                    Screen.Devices -> DevicesScreen(state, viewModel)
+                    Screen.Restore -> RestoreScreen(state, viewModel)
                 }
             }
         }
-    }
-}
-
-/** Stand-in for the sync, devices and restore screens until they are built (Task 7). */
-@Composable
-private fun Placeholder(title: String, onBack: (() -> Unit)?) {
-    if (onBack != null) BackHandler(onBack = onBack)
-    FormColumn {
-        Text(title, style = MaterialTheme.typography.headlineSmall)
-        if (onBack != null) TextButton(onClick = onBack) { Text("Wróć") }
     }
 }

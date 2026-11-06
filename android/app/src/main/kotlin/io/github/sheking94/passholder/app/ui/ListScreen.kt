@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -74,8 +75,10 @@ fun ListScreen(state: UiState, vm: AppViewModel) {
                 HorizontalDivider()
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = vm::openSync, enabled = !state.busy) { Text("Synchronizuj") }
+        // Three buttons do not fit one row on a narrow phone: the last one moves to the next row.
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = vm::openSync, enabled = !state.busy) { Text("Synchronizacja") }
+            OutlinedButton(onClick = vm::openDevices, enabled = !state.busy) { Text("Urządzenia") }
             OutlinedButton(onClick = vm::lock, enabled = !state.busy) { Text("Zablokuj") }
         }
         FingerprintSetting(state, vm)

@@ -308,6 +308,9 @@ class PhoneVaultStore(
 
     fun cancelPairing() = pairing.cancel()
 
+    /** The offered code while it can still be used: null once it expired, was spent by /pair/start or cancelled. */
+    fun currentOffer(): PairingOffer? = pairing.current()
+
     // ---- Internals ----
 
     /** Null before the first createVault/startRestore. Works while locked: the host only moves opaque blobs. */

@@ -298,6 +298,27 @@ class PhoneVaultStoreTest {
     }
 
     @Test
+    fun currentOfferIsGoneOnceSpentOrExpired() {
+        val store = newStore()
+        store.createVault("pw")
+        assertNull(store.currentOffer())
+        val offer = store.offerPairing()
+        assertEquals(offer, store.currentOffer())
+        // The first /pair/start spends it, even with the wrong code.
+        val http = serve(store)
+        TestP2pClient.pair(http, "00000000", extIdentity)
+        assertNull(store.currentOffer())
+
+        store.offerPairing()
+        time += PAIRING_CODE_TTL_MS
+        assertNull(store.currentOffer())
+
+        store.offerPairing()
+        store.cancelPairing()
+        assertNull(store.currentOffer())
+    }
+
+    @Test
     fun unlockWithExportedKeysOnly() {
         val store = newStore()
         store.createVault("pw")

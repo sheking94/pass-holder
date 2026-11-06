@@ -194,9 +194,9 @@ class FullFlowScreensTest : ScreenTestBase() {
         compose.onAllNodes(hasText("Usuń"))[1].performClick()
         waitFor("Usunięto na telefonie. Wtyczka dostanie zmianę przy następnej synchronizacji.")
 
-        click("Synchronizuj")
-        waitFor("Synchronizacja")
-        click("Wróć")
+        click("Synchronizacja")
+        waitFor("Czekam na wtyczkę…")
+        click("Zakończ")
 
         lockAndUnlock()
         waitFor("bank.pl")
