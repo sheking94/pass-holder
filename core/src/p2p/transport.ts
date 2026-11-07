@@ -6,10 +6,21 @@ import type { P2pTransport } from "./sync.ts";
 
 export type FetchJson = (url: string, body: unknown) => Promise<{ status: number; body: unknown }>;
 
-async function call(post: FetchJson, url: string, body: unknown): Promise<Record<string, unknown>> {
+/**
+ * POSTs to the P2P host and returns the JSON object of a 200 answer. A non-200 status throws `messages[status]`
+ * when given, otherwise an error with the host's error text.
+ */
+export async function callP2pHost(
+  post: FetchJson,
+  url: string,
+  body: unknown,
+  messages: Partial<Record<number, string>> = {},
+): Promise<Record<string, unknown>> {
   const res = await post(url, body);
   const b = res.body as Record<string, unknown> | null;
   if (res.status !== 200) {
+    const message = messages[res.status];
+    if (message !== undefined) throw new Error(message);
     const detail = b && typeof b.error === "string" ? b.error : "no error message";
     throw new Error(`P2P host returned ${res.status}: ${detail}`);
   }
@@ -34,11 +45,11 @@ export function noiseTransport(o: {
   return async (request) => {
     const noise = NoiseKK.initiator({ s: o.staticKey, rs: o.peerPublicKey, prologue: P2P_PROLOGUE });
     const first = await noise.writeMessage(new Uint8Array());
-    const hs = await call(o.post, `${base}/p2p/v1/handshake`, { deviceId: o.deviceId, message: toBase64(first) });
+    const hs = await callP2pHost(o.post, `${base}/p2p/v1/handshake`, { deviceId: o.deviceId, message: toBase64(first) });
     await noise.readMessage(fromBase64(str(hs.message)));
     const { send, recv } = noise.split();
     const frames = await encryptFrames(send, request);
-    const res = await call(o.post, `${base}/p2p/v1/sync`, { session: str(hs.session), frames });
+    const res = await callP2pHost(o.post, `${base}/p2p/v1/sync`, { session: str(hs.session), frames });
     const incoming = res.frames;
     if (!Array.isArray(incoming) || incoming.length < 1 || incoming.length > MAX_FRAMES || !incoming.every((f) => typeof f === "string"))
       throw new Error("P2P host returned a malformed response");
