@@ -1,9 +1,10 @@
 // Generates test-vectors/v1.json. Every client (TypeScript, Kotlin) must reproduce these values exactly.
 // Run: npm run gen-vectors -w core
+// The committed v1.json also has an authHash field per KDF vector, from the removed Pi server; nothing checks it.
 import { writeFileSync } from "node:fs";
-import { authHash, deriveMasterKey, splitMasterKey, type KdfParams } from "../src/kdf.ts";
+import { deriveMasterKey, splitMasterKey, type KdfParams } from "../src/kdf.ts";
 import { seal } from "../src/cipher.ts";
-import { entryAad, VAULT_KEY_AAD } from "../src/vault.ts";
+import { VAULT_KEY_AAD } from "../src/vault.ts";
 import { fromHex, toBase64, toHex, utf8 } from "../src/encoding.ts";
 
 async function kdfVector(description: string, password: string, saltHex: string, cost: Omit<KdfParams, "alg" | "salt">) {
@@ -18,9 +19,11 @@ async function kdfVector(description: string, password: string, saltHex: string,
     masterKey: toHex(masterKey),
     encKey: toHex(encKey),
     authKey: toHex(authKey),
-    authHash: toHex(authHash(authKey)),
   };
 }
+
+// AAD of a v1 entry (the removed Pi sync). The vectors still check AES-GCM with it.
+const entryAad = (id: string) => `passholder/v1/entry/${id}`;
 
 async function sealVector(description: string, keyHex: string, plaintext: Uint8Array, aad: string, nonceHex: string) {
   return {

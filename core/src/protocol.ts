@@ -1,4 +1,4 @@
-/** Wire format of POST /api/v1/sync. See docs/SPEC.md. */
+/** Records and revisions the phone (the host) keeps. The P2P protocol in p2p/host-sync.ts builds on them. */
 
 export interface RemoteRecord {
   id: string;
@@ -9,7 +9,7 @@ export interface RemoteRecord {
 
 export interface ChangeRequest {
   id: string;
-  /** Revision the client last saw for this entry, 0 for a new entry. */
+  /** Revision the device last saw for this entry, 0 for a new entry. */
   baseRevision: number;
   deleted: boolean;
   blob: string;
@@ -23,13 +23,13 @@ export interface SyncRequest {
 export interface SyncResponse {
   currentRevision: number;
   accepted: { id: string; revision: number }[];
-  /** Server's version of each entry whose baseRevision was out of date. */
+  /** Host's version of each entry whose baseRevision was out of date. */
   conflicts: RemoteRecord[];
   /** Records changed after sinceRevision, except those in accepted and conflicts. */
   changes: RemoteRecord[];
 }
 
-/** Storage the server needs. The Raspberry Pi server implements it with SQLite. */
+/** Storage the host needs. The phone keeps it in its own database; tests use MemorySyncStore. */
 export interface SyncStore {
   get(id: string): RemoteRecord | undefined;
   put(record: RemoteRecord): void;
@@ -37,7 +37,7 @@ export interface SyncStore {
   currentRevision(): number;
 }
 
-/** Server-side sync logic. The server cannot read entries; it only orders revisions and detects conflicts. */
+/** Host-side sync logic. The host does not read entries here; it only orders revisions and detects conflicts. */
 export function processSync(store: SyncStore, request: SyncRequest): SyncResponse {
   const accepted: SyncResponse["accepted"] = [];
   const conflicts: RemoteRecord[] = [];

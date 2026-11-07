@@ -3,7 +3,7 @@ import { open, seal } from "../src/cipher.ts";
 import { concat, fromBase64, fromHex, fromUtf8, randomBytes, toBase64, toHex, utf8 } from "../src/encoding.ts";
 import { CHARACTER_GROUPS, generatePassword, MAX_LENGTH, MIN_LENGTH, randomIndex } from "../src/generator.ts";
 import { assertKdfParamsAcceptable, deriveKeys, MAX_KDF, MIN_KDF, newKdfParams, type KdfParams } from "../src/kdf.ts";
-import { parseEntryData, parseTombstoneData, unwrapVaultKey, wrapVaultKey, newVaultKey } from "../src/vault.ts";
+import { unwrapVaultKey, wrapVaultKey, newVaultKey } from "../src/vault.ts";
 
 describe("encoding", () => {
   it("normalizes passwords to NFC, so 'ą' typed two ways gives the same bytes", () => {
@@ -72,7 +72,7 @@ describe("master password", () => {
     expect(await unwrapVaultKey(right.encKey, wrapped)).toEqual(vaultKey);
   });
 
-  it("enc and auth keys differ, so the server's auth key says nothing about the encryption key", async () => {
+  it("enc and auth keys differ (the split is part of the data format)", async () => {
     const keys = await deriveKeys("x", params);
     expect(toHex(keys.encKey)).not.toBe(toHex(keys.authKey));
   });
@@ -80,7 +80,7 @@ describe("master password", () => {
   it("a different salt gives different keys for the same password", async () => {
     const a = await deriveKeys("same", params);
     const b = await deriveKeys("same", { ...params, salt: toBase64(new Uint8Array(16).fill(2)) });
-    expect(toHex(a.authKey)).not.toBe(toHex(b.authKey));
+    expect(toHex(a.encKey)).not.toBe(toHex(b.encKey));
   });
 
   it("refuses to unwrap something that is not a 32-byte key", async () => {
@@ -90,7 +90,7 @@ describe("master password", () => {
   });
 });
 
-describe("KDF parameters from the server", () => {
+describe("KDF parameters from another device", () => {
   const ok = newKdfParams();
   const bad: [string, Partial<KdfParams> | Record<string, unknown>][] = [
     ["another algorithm", { alg: "pbkdf2" }],
@@ -98,7 +98,7 @@ describe("KDF parameters from the server", () => {
     ["too little memory", { memoryKiB: MIN_KDF.memoryKiB - 1 }],
     ["too few iterations", { iterations: 1 }],
     ["no parallelism", { parallelism: 0 }],
-    // A malicious server must not be able to make the browser allocate gigabytes either.
+    // A malicious peer must not be able to make the browser allocate gigabytes either.
     ["too much memory", { memoryKiB: MAX_KDF.memoryKiB + 1 }],
     ["memory that is not a number", { memoryKiB: "lots" }],
     ["NaN iterations", { iterations: Number.NaN }],
@@ -148,25 +148,5 @@ describe("generator edge cases", () => {
   it("rejects an invalid range for randomIndex", () => {
     for (const max of [0, -1, 1.5, 2 ** 32 + 1]) expect(() => randomIndex(max)).toThrow();
     expect(randomIndex(1)).toBe(0);
-  });
-});
-
-describe("decrypted payload validation", () => {
-  it("rejects payloads with missing or wrongly typed fields", () => {
-    expect(() => parseEntryData(null)).toThrow();
-    expect(() => parseEntryData({ name: "a", username: "b", modifiedAt: 1 })).toThrow();
-    expect(() => parseEntryData({ name: "a", username: "b", password: 3, modifiedAt: 1 })).toThrow();
-    expect(() => parseEntryData({ name: "a", username: "b", password: "c", modifiedAt: 1.5 })).toThrow();
-    expect(() => parseTombstoneData({})).toThrow();
-    expect(() => parseTombstoneData("x")).toThrow();
-  });
-
-  it("drops unknown fields", () => {
-    expect(parseEntryData({ name: "a", username: "b", password: "c", modifiedAt: 1, extra: true })).toEqual({
-      name: "a",
-      username: "b",
-      password: "c",
-      modifiedAt: 1,
-    });
   });
 });
