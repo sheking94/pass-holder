@@ -1,9 +1,10 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { fromHex } from "../../src/encoding.ts";
+import { seal } from "../../src/cipher.ts";
+import { fromHex, utf8 } from "../../src/encoding.ts";
 import {
   decryptPayloadV2,
-  encryptPayloadV2,
+  entryAadV2,
   MAX_BLOB_BYTES_PER_ROUND,
   MAX_CHANGES_PER_REQUEST,
   MAX_CHANGES_PER_RESPONSE,
@@ -16,6 +17,7 @@ import {
 interface Vectors {
   format: string;
   version: number;
+  notes: string;
   limits: {
     MAX_ENTRY_BLOB_LENGTH: number;
     MAX_BLOB_BYTES_PER_ROUND: number;
@@ -69,14 +71,10 @@ describe("test-vectors/v3.json", () => {
         expect(data).toEqual(e.parsed);
         if (e.payload.startsWith('{"v":3')) expect(serializeEntryData(data)).toBe(e.payload);
       }
-      // The blob carries the payload text exactly as written (for legacy v2: the old key order).
-      expect(JSON.stringify(await decryptPayloadV2(key, e.id, e.blob))).toBe(JSON.stringify(JSON.parse(e.payload)));
+      // The blob is the seal of the exact payload text.
+      expect(await seal(key, utf8(e.payload), entryAadV2(e.id), fromHex(e.nonce))).toBe(e.blob);
       const opened = await decryptPayloadV2(key, e.id, e.blob);
-      const reparsed = e.deleted ? parseTombstoneData(opened) : parseEntryData(opened);
-      expect(reparsed).toEqual(data);
-      if (e.payload.startsWith('{"v":3') || e.deleted) {
-        expect(await encryptPayloadV2(key, e.id, data, fromHex(e.nonce))).toBe(e.blob);
-      }
+      expect(e.deleted ? parseTombstoneData(opened) : parseEntryData(opened)).toEqual(data);
     });
   }
 

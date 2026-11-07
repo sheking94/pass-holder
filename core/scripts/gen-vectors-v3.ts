@@ -24,15 +24,16 @@ const idOf = (n: number) => `3f2a8c1e-6b4d-4e9a-9c7f-1a2b3c4d5e${n.toString(16).
 const nonceOf = (n: number) => Array.from({ length: 12 }, (_, i) => ((n * 16 + i + 1) & 0xff).toString(16).padStart(2, "0")).join("");
 
 // Contains JSON-escape-sensitive characters (newline, tab, quote, backslash) and a non-BMP emoji.
-const trickyNote = "Linia 1\nLinia\t2 \"cudzysłów\" i \\ ukośnik; zażółć gęślą jaźń 🙂🔐";
+const controls = "\r\b\f\u0001\u001f\u007f\u2028\u2029<>&'=";
+const trickyNote = "Linia 1\nLinia\t2 \"cudzysłów\" i \\ ukośnik; zażółć gęślą jaźń 🙂🔐 " + controls;
 
-const common = (n: number) => ({ note: trickyNote, custom: [{ label: "PIN \"awaryjny\"", value: "12\\34\n🙂", hidden: true }, { label: "Dział", value: "Źródło", hidden: false }], hlc: hlc(1793404800000 + n, n, `device-${n}`) });
+const common = (n: number) => ({ note: trickyNote, custom: [{ label: "PIN \"awaryjny\"", value: "12\\34\n🙂" + controls, hidden: true }, { label: "Dział", value: "Źródło", hidden: false }], hlc: hlc(1793404800000 + n, n, `device-${n}`) });
 
-const login: EntryDataV3 = {
+const rawLogin: EntryDataV3 = {
   v: 3, type: "login", name: "Poczta żółć 🙂", ...common(1),
   fields: { username: "jan.kowalski@example.com", password: "p@ss wörd!\"\\\t", totp: "JBSWY3DPEHPK3PXP", urls: ["https://example.com/login", "https://mail.example.org"], androidApps: ["com.example.mail", "pl.example.app"] },
 };
-const contact: EntryDataV3 = {
+const rawContact: EntryDataV3 = {
   v: 3, type: "contact", name: "Anna Nowak", ...common(2),
   fields: {
     firstName: "Anna", lastName: "Nowak-Żółkiewska", birthDate: "1990-02-03",
@@ -41,15 +42,22 @@ const contact: EntryDataV3 = {
     addresses: [{ label: "dom", street: "ul. Łąkowa 5/7", postalCode: "00-001", city: "Łódź", country: "Polska" }, { label: "praca", street: "Main St 1", postalCode: "10001", city: "New York", country: "USA" }],
   },
 };
-const card: EntryDataV3 = {
+const rawCard: EntryDataV3 = {
   v: 3, type: "card", name: "Karta główna", ...common(3),
   fields: { holder: "JAN KOWALSKI", number: "4111111111111111", expiry: "01/30", cvc: "123", pin: "4321" },
 };
-const note: EntryDataV3 = { v: 3, type: "note", name: "Notatka", ...common(4), fields: {} };
-const document: EntryDataV3 = {
+const rawNote: EntryDataV3 = { v: 3, type: "note", name: "Notatka", ...common(4), fields: {} };
+const rawDocument: EntryDataV3 = {
   v: 3, type: "document", name: "Paszport", ...common(5),
   fields: { kind: "passport", number: "AB1234567", fullName: "Jan Kowalski", issueDate: "2020-05-06", expiryDate: "2030-05-05", issuer: "Wojewoda Mazowiecki" },
 };
+// Canonical key order (v, type, name, note, fields, custom, hlc) for everything that ends up in the file.
+const canon = (d: EntryDataV3) => JSON.parse(serializeEntryData(d)) as EntryDataV3;
+const login = canon(rawLogin);
+const contact = canon(rawContact);
+const card = canon(rawCard);
+const note = canon(rawNote);
+const document = canon(rawDocument);
 const legacyText = JSON.stringify({ name: "example.com", username: "jan@example.com", password: "p@ss wörd!", hlc: hlc(1793404800000, 2, "device-a") });
 const tombstone = { hlc: hlc(1793404900000, 0, "device-b") };
 
@@ -75,7 +83,7 @@ const entries = [
   await v3Entry(3, "card with every field filled", card),
   await v3Entry(4, "note (empty fields object)", note),
   await v3Entry(5, "document (passport) with every field filled", document),
-  await entry(6, "legacy v2 entry (old key order, no v), read as a login", false, legacyText, parseEntryData(JSON.parse(legacyText))),
+  await entry(6, "legacy v2 entry (old key order, no v), read as a login", false, legacyText, canon(parseEntryData(JSON.parse(legacyText)))),
   await entry(7, "tombstone", true, serializeEntryData(tombstone), null),
 ];
 for (const e of entries) {
@@ -143,6 +151,8 @@ const rejected = [
 const out = {
   format: "passholder-test-vectors",
   version: 3,
+  notes:
+    "AAD is passholder/v2/entry/<id>; blob = Base64(0x01 || nonce(12) || ciphertext || tag(16)), AES-256-GCM; payload is the exact UTF-8 plaintext. Entry payloads are compact JSON in canonical key order, escaped as JS JSON.stringify does.",
   limits: { MAX_ENTRY_BLOB_LENGTH, MAX_BLOB_BYTES_PER_ROUND, MAX_CHANGES_PER_REQUEST, MAX_CHANGES_PER_RESPONSE },
   entries,
   rejected,
