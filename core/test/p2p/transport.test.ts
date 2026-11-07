@@ -3,7 +3,9 @@ import { fromBase64, randomBytes, toBase64 } from "../../src/encoding.ts";
 import { newVaultKey } from "../../src/vault.ts";
 import {
   CipherState,
+  emptyLogin,
   emptyVaultV2,
+  type EntryContentV3,
   generateKeyPair,
   HlcClock,
   liveEntriesV2,
@@ -20,7 +22,11 @@ import {
 import { encryptFrames } from "../../src/p2p/frames.ts";
 import { MemorySyncStore } from "../../src/protocol.ts";
 
-const entry = (name: string) => ({ name, username: "u", password: "p" });
+const login = (name: string, password = "p"): EntryContentV3 => ({
+  ...emptyLogin(name),
+  fields: { username: "u", password, totp: "", urls: [], androidApps: [] },
+});
+const entry = (name: string) => login(name);
 
 function setup() {
   const store = new MemorySyncStore();
@@ -140,7 +146,7 @@ describe("p2p noise transport", () => {
     const clockA = new HlcClock("a", () => 1000);
     const clockB = new HlcClock("b", () => 1000);
     for (let i = 0; i < 600; i++)
-      upsertEntryV2(a, clockA, `id${i}`, { name: `n${i}`, username: "u", password: "p".repeat(300) });
+      upsertEntryV2(a, clockA, `id${i}`, login(`n${i}`, "p".repeat(300)));
     await syncVaultV2(a, vaultKey, clockA, s.transportFor("a"));
     expect(s.store.currentRevision()).toBe(600);
     await syncVaultV2(b, vaultKey, clockB, s.transportFor("b"));
@@ -155,7 +161,7 @@ describe("p2p noise transport", () => {
     const clockA = new HlcClock("a", () => 1000);
     const clockB = new HlcClock("b", () => 1000);
     // Too large for one 1 MiB request: only works with paging.
-    for (let i = 0; i < 1300; i++) upsertEntryV2(a, clockA, `id${i}`, { name: `n${i}`, username: "u", password: "p".repeat(800) });
+    for (let i = 0; i < 1300; i++) upsertEntryV2(a, clockA, `id${i}`, login(`n${i}`, "p".repeat(800)));
     await syncVaultV2(a, vaultKey, clockA, s.transportFor("a"));
     expect(s.store.currentRevision()).toBe(1300);
     await syncVaultV2(b, vaultKey, clockB, s.transportFor("b"));
@@ -292,11 +298,11 @@ describe("p2p host: final review fixes", () => {
     await syncVaultV2(ext, vaultKey, clock, send);
     // The phone is restored from the older backup, which does not know "late".
     Object.assign(s.store, { records: new Map((backup as any).records), revision: backup.currentRevision() });
-    upsertEntryV2(ext, clock, "late", { ...entry("L"), password: "p2" });
+    upsertEntryV2(ext, clock, "late", login("L", "p2"));
     await syncVaultV2(ext, vaultKey, clock, send);
     const phone = emptyVaultV2();
     await syncVaultV2(phone, vaultKey, new HlcClock("p", () => 1000), s.transportFor("phone"));
-    expect(liveEntriesV2(phone).map((e) => [e.id, e.data.password]).sort()).toEqual([["early", "p"], ["late", "p2"]]);
+    expect(liveEntriesV2(phone).map((e) => [e.id, (e.data.fields as { password: string }).password]).sort()).toEqual([["early", "p"], ["late", "p2"]]);
   });
 
   it("holds at most 32 live sessions and answers 503 when full", async () => {

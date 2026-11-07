@@ -1,3 +1,4 @@
+import { MAX_ENTRY_BLOB_LENGTH } from "./entry.ts";
 import { processSync, type ChangeRequest, type RemoteRecord, type SyncStore } from "../protocol.ts";
 
 export interface P2pSyncRequest {
@@ -8,13 +9,16 @@ export interface P2pSyncRequest {
 
 export interface P2pSyncResponse {
   epoch: string;
-  /** With more = true: the revision of the last record in changes, so the next sinceRevision continues there. */
+  /**
+   * With more = true: the revision of the last record in changes (the request's sinceRevision when none was
+   * included), so the next sinceRevision continues there.
+   */
   currentRevision: number;
   accepted: { id: string; revision: number }[];
   conflicts: RemoteRecord[];
   changes: RemoteRecord[];
   addresses: string[];
-  /** True when changes was cut at MAX_CHANGES_PER_RESPONSE and the client must ask again. */
+  /** True when conflicts or changes were cut (MAX_CHANGES_PER_RESPONSE or MAX_BLOB_BYTES_PER_ROUND): ask again. */
   more: boolean;
 }
 
@@ -22,6 +26,13 @@ export interface P2pSyncResponse {
 export const MAX_CHANGES_PER_RESPONSE = 500;
 /** Most changes in one request; the client sends the rest in later rounds. */
 export const MAX_CHANGES_PER_REQUEST = 500;
+
+/**
+ * Most blob characters (conflicts plus changes) in one response and in one request. The first record always goes
+ * in, even when it alone is larger. Kept below 768 KiB because a request body is Base64 of the frames (x4/3)
+ * and must stay under MAX_BODY_BYTES.
+ */
+export const MAX_BLOB_BYTES_PER_ROUND = 524288;
 
 export const MAX_ENTRY_ID_LENGTH = 128;
 
@@ -46,6 +57,7 @@ export function validateP2pSyncRequest(store: SyncStore, epoch: string, request:
       !isRevision(baseRevision) || typeof deleted !== "boolean" || typeof blob !== "string"
     )
       return "malformed change";
+    if (blob.length > MAX_ENTRY_BLOB_LENGTH) return "blob too large";
     if (ids.has(id)) return "duplicate change";
     ids.add(id);
   }
@@ -86,9 +98,33 @@ export function processP2pSync(
   }
   const { sinceRevision, changes } = request;
   const result = processSync(store, { sinceRevision, changes });
-  const all = [...result.changes].sort((a, b) => a.revision - b.revision);
-  if (all.length <= MAX_CHANGES_PER_RESPONSE) return { ...result, changes: all, epoch, addresses, more: false };
-  const page = all.slice(0, MAX_CHANGES_PER_RESPONSE);
-  // Records skipped below this revision were answered in accepted or conflicts, so nothing is lost.
-  return { ...result, changes: page, currentRevision: page[page.length - 1]!.revision, epoch, addresses, more: true };
+  const sorted = [...result.changes].sort((a, b) => a.revision - b.revision);
+  // Conflicts first, then changes; the first record always goes in, then while the running sum fits the budget.
+  let budget = MAX_BLOB_BYTES_PER_ROUND;
+  let included = 0;
+  const fits = (r: RemoteRecord): boolean => {
+    if (included > 0 && r.blob.length > budget) return false;
+    budget -= r.blob.length;
+    included++;
+    return true;
+  };
+  const conflicts: RemoteRecord[] = [];
+  for (const r of result.conflicts) {
+    if (!fits(r)) break;
+    conflicts.push(r);
+  }
+  const page: RemoteRecord[] = [];
+  if (conflicts.length === result.conflicts.length) {
+    for (const r of sorted) {
+      if (page.length >= MAX_CHANGES_PER_RESPONSE || !fits(r)) break;
+      page.push(r);
+    }
+  }
+  if (conflicts.length === result.conflicts.length && page.length === sorted.length) {
+    return { ...result, conflicts, changes: page, epoch, addresses, more: false };
+  }
+  // Records skipped below this revision were answered in accepted or conflicts, so nothing is lost. Omitted
+  // conflicts leave their changes dirty on the client, which sends them again.
+  const currentRevision = page.length > 0 ? page[page.length - 1]!.revision : sinceRevision;
+  return { ...result, conflicts, changes: page, currentRevision, epoch, addresses, more: true };
 }

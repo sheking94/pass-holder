@@ -2,6 +2,7 @@
 // All randomness is replaced by fixed keys and nonces. cpace and noiseKk only point at their own vector files.
 // Run: npm run gen-vectors-v2 -w core
 import { writeFileSync } from "node:fs";
+import { seal } from "../src/cipher.ts";
 import { fromBase64, fromHex, toHex, utf8 } from "../src/encoding.ts";
 import {
   CipherState,
@@ -15,7 +16,6 @@ import {
   pairingAad,
   pairingKey,
   sealPairingMessage,
-  type EntryDataV2,
   type Hlc,
   type PairingKind,
   type PairingRole,
@@ -47,7 +47,15 @@ const hlcCompare = [
 const vaultKey = "5f9d1c3a7b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7";
 const entryId = "3f2a8c1e-6b4d-4e9a-9c7f-1a2b3c4d5e6f";
 
-async function entryVector(description: string, data: EntryDataV2 | TombstoneDataV2, nonceHex: string) {
+// The old v2 live entry content (no "v"): kept as a vector so readers keep accepting it.
+interface LegacyEntryData {
+  name: string;
+  username: string;
+  password: string;
+  hlc: Hlc;
+}
+
+async function entryVector(description: string, data: LegacyEntryData | TombstoneDataV2, nonceHex: string) {
   return {
     description,
     vaultKey,
@@ -55,7 +63,9 @@ async function entryVector(description: string, data: EntryDataV2 | TombstoneDat
     aad: entryAadV2(entryId),
     data,
     nonce: nonceHex,
-    blob: await encryptPayloadV2(fromHex(vaultKey), entryId, data, fromHex(nonceHex)),
+    blob: "name" in data
+      ? await seal(fromHex(vaultKey), utf8(JSON.stringify(data)), entryAadV2(entryId), fromHex(nonceHex))
+      : await encryptPayloadV2(fromHex(vaultKey), entryId, data, fromHex(nonceHex)),
   };
 }
 

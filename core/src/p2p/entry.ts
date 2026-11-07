@@ -2,13 +2,6 @@ import { open, seal } from "../cipher.ts";
 import { fromUtf8, utf8 } from "../encoding.ts";
 import { parseHlc, type Hlc } from "./hlc.ts";
 
-export interface EntryDataV2 {
-  name: string;
-  username: string;
-  password: string;
-  hlc: Hlc;
-}
-
 export type EntryType = "login" | "contact" | "card" | "note" | "document";
 export type DocumentKind = "id_card" | "passport" | "driving_license" | "student_id" | "other";
 
@@ -58,7 +51,6 @@ const DOCUMENT_KINDS: readonly string[] = ["id_card", "passport", "driving_licen
 export function entryAadV2(id: string): string {
   return `passholder/v2/entry/${id}`;
 }
-
 
 function hlcJson(h: Hlc): Hlc {
   return { ms: h.ms, c: h.c, d: h.d };
@@ -131,12 +123,10 @@ export function emptyLogin(name = ""): EntryContentV3 & { type: "login" } {
 export function encryptPayloadV2(
   vaultKey: Uint8Array,
   id: string,
-  data: EntryDataV3 | TombstoneDataV2 | EntryDataV2,
+  data: EntryDataV3 | TombstoneDataV2,
   nonce?: Uint8Array,
 ): Promise<string> {
-  // EntryDataV2 keeps the legacy encoding until sync.ts moves to v3.
-  const json = "v" in data || !("name" in data) ? serializeEntryData(data as EntryDataV3 | TombstoneDataV2) : JSON.stringify(data);
-  return seal(vaultKey, utf8(json), entryAadV2(id), nonce);
+  return seal(vaultKey, utf8(serializeEntryData(data)), entryAadV2(id), nonce);
 }
 
 export async function decryptPayloadV2(vaultKey: Uint8Array, id: string, blob: string): Promise<unknown> {
@@ -153,6 +143,14 @@ function record(value: unknown, keys: readonly string[]): Record<string, unknown
   const own = Object.keys(obj);
   if (own.length !== keys.length || !keys.every((k) => Object.hasOwn(obj, k))) fail();
   return obj;
+}
+
+/** parseHlc ignores extra keys, so entries and tombstones check that the hlc object has exactly ms, c, d. */
+function strictHlc(value: unknown, error: string): Hlc {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error(error);
+  const keys = Object.keys(value);
+  if (keys.length !== 3 || !["ms", "c", "d"].every((k) => keys.includes(k))) throw new Error(error);
+  return parseHlc(value);
 }
 
 function str(value: unknown): string {
@@ -244,7 +242,7 @@ export function parseEntryData(value: unknown): EntryDataV3 {
       note: "",
       fields: { username: str(o.username), password: str(o.password), totp: "", urls: [], androidApps: [] },
       custom: [],
-      hlc: parseHlc(o.hlc),
+      hlc: strictHlc(o.hlc, INVALID_ENTRY),
     };
   }
   const o = record(value, ["v", "type", "name", "note", "fields", "custom", "hlc"]);
@@ -257,7 +255,7 @@ export function parseEntryData(value: unknown): EntryDataV3 {
     note: str(o.note),
     fields: content.fields,
     custom: list(o.custom, customField),
-    hlc: parseHlc(o.hlc),
+    hlc: strictHlc(o.hlc, INVALID_ENTRY),
   } as EntryDataV3;
 }
 
@@ -265,30 +263,5 @@ export function parseTombstoneData(value: unknown): TombstoneDataV2 {
   if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error(INVALID_TOMBSTONE);
   const keys = Object.keys(value);
   if (keys.length !== 1 || keys[0] !== "hlc") throw new Error(INVALID_TOMBSTONE);
-  return { hlc: parseHlc((value as Record<string, unknown>).hlc) };
-}
-
-// Legacy v2 helpers, removed once sync.ts moves to v3.
-export interface EntryDataV2 {
-  name: string;
-  username: string;
-  password: string;
-  hlc: Hlc;
-}
-
-export function parseEntryDataV2(value: unknown): EntryDataV2 {
-  const v = value as Record<string, unknown>;
-  if (
-    typeof v !== "object" || v === null ||
-    typeof v.name !== "string" || typeof v.username !== "string" || typeof v.password !== "string"
-  ) {
-    throw new Error(INVALID_ENTRY);
-  }
-  return { name: v.name, username: v.username, password: v.password, hlc: parseHlc(v.hlc) };
-}
-
-export function parseTombstoneDataV2(value: unknown): TombstoneDataV2 {
-  const v = value as Record<string, unknown>;
-  if (typeof v !== "object" || v === null) throw new Error(INVALID_TOMBSTONE);
-  return { hlc: parseHlc(v.hlc) };
+  return { hlc: strictHlc((value as Record<string, unknown>).hlc, INVALID_TOMBSTONE) };
 }

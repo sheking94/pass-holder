@@ -2,19 +2,23 @@ import type { RemoteRecord } from "../protocol.ts";
 import {
   decryptPayloadV2,
   encryptPayloadV2,
-  parseEntryDataV2,
-  parseTombstoneDataV2,
-  type EntryDataV2,
+  ENTRY_TOO_LARGE,
+  entryBlobLength,
+  MAX_ENTRY_BLOB_LENGTH,
+  parseEntryData,
+  parseTombstoneData,
+  type EntryContentV3,
+  type EntryDataV3,
   type TombstoneDataV2,
 } from "./entry.ts";
 import { compareHlc, HlcClock, type Hlc } from "./hlc.ts";
-import { MAX_CHANGES_PER_REQUEST, type P2pSyncRequest, type P2pSyncResponse } from "./host-sync.ts";
+import { MAX_BLOB_BYTES_PER_ROUND, MAX_CHANGES_PER_REQUEST, type P2pSyncRequest, type P2pSyncResponse } from "./host-sync.ts";
 
 /** Safety limit on requests in one syncVaultV2 call, paging included. */
 export const MAX_SYNC_ROUNDS = 1000;
 
 export type LocalEntryV2 =
-  | { id: string; revision: number; dirty: boolean; deleted: false; data: EntryDataV2 }
+  | { id: string; revision: number; dirty: boolean; deleted: false; data: EntryDataV3 }
   | { id: string; revision: number; dirty: boolean; deleted: true; data: TombstoneDataV2 };
 
 export interface LocalVaultV2 {
@@ -37,13 +41,19 @@ export function upsertEntryV2(
   vault: LocalVaultV2,
   clock: HlcClock,
   id: string,
-  data: Omit<EntryDataV2, "hlc">,
+  content: EntryContentV3,
 ): void {
   const existing = vault.entries.get(id);
+  // Size check on a copy of the clock first: a rejected entry changes neither the vault nor the clock.
+  const probe = clock.clone();
+  if (existing) probe.observe(existing.data.hlc);
+  if (entryBlobLength({ ...content, v: 3, hlc: probe.tick() }) > MAX_ENTRY_BLOB_LENGTH) throw new Error(ENTRY_TOO_LARGE);
   // A restarted clock must still order this edit after the version it overwrites.
   if (existing) clock.observe(existing.data.hlc);
   const revision = existing?.revision ?? 0;
-  vault.entries.set(id, { id, revision, dirty: true, deleted: false, data: { ...data, hlc: clock.tick() } });
+  vault.entries.set(id, {
+    id, revision, dirty: true, deleted: false, data: { ...content, v: 3, hlc: clock.tick() },
+  });
 }
 
 export function deleteEntryV2(vault: LocalVaultV2, clock: HlcClock, id: string): void {
@@ -87,7 +97,16 @@ interface BuiltRequest {
 
 async function buildRequest(vault: LocalVaultV2, vaultKey: Uint8Array): Promise<BuiltRequest> {
   const allDirty = [...vault.entries.values()].filter((e) => e.dirty);
-  const dirty = allDirty.slice(0, MAX_CHANGES_PER_REQUEST);
+  // Up to MAX_CHANGES_PER_REQUEST entries and MAX_BLOB_BYTES_PER_ROUND blob characters; the first always goes in.
+  const dirty: LocalEntryV2[] = [];
+  let budget = MAX_BLOB_BYTES_PER_ROUND;
+  for (const e of allDirty) {
+    if (dirty.length >= MAX_CHANGES_PER_REQUEST) break;
+    const length = entryBlobLength(e.data);
+    if (dirty.length > 0 && length > budget) break;
+    budget -= length;
+    dirty.push(e);
+  }
   const sent = new Map(dirty.map((e) => [e.id, { ...e.data.hlc }]));
   const changes = await Promise.all(
     dirty.map(async (e) => ({
@@ -104,8 +123,8 @@ async function buildRequest(vault: LocalVaultV2, vaultKey: Uint8Array): Promise<
 async function decodeRemote(vaultKey: Uint8Array, record: RemoteRecord): Promise<LocalEntryV2> {
   const payload = await decryptPayloadV2(vaultKey, record.id, record.blob);
   return record.deleted
-    ? { id: record.id, revision: record.revision, dirty: false, deleted: true, data: parseTombstoneDataV2(payload) }
-    : { id: record.id, revision: record.revision, dirty: false, deleted: false, data: parseEntryDataV2(payload) };
+    ? { id: record.id, revision: record.revision, dirty: false, deleted: true, data: parseTombstoneData(payload) }
+    : { id: record.id, revision: record.revision, dirty: false, deleted: false, data: parseEntryData(payload) };
 }
 
 /** Starts over with a phone that knows none of our records (new epoch, or the phone's state went backwards). */
@@ -175,8 +194,9 @@ export type P2pTransport = (request: P2pSyncRequest) => Promise<P2pSyncResponse>
 
 /**
  * Full sync with the phone: push local changes, pull remote ones, repeat while local changes win conflicts.
- * Changes go out at most MAX_CHANGES_PER_REQUEST per request and come back in pages (`more`); those extra
- * rounds do not use the maxRounds conflict budget, but all rounds together are capped at MAX_SYNC_ROUNDS.
+ * Changes go out at most MAX_CHANGES_PER_REQUEST (and MAX_BLOB_BYTES_PER_ROUND blob characters) per request and
+ * come back in pages (`more`); those extra rounds, including rounds where local changes won conflicts but the
+ * answer was cut, do not use the maxRounds conflict budget, but all rounds together are capped at MAX_SYNC_ROUNDS.
  * An epoch change (including learning the first epoch) restarts the loop with a fresh round budget, once.
  * A phone whose revision went backwards within the same epoch is treated the same way.
  */
@@ -203,7 +223,8 @@ export async function syncVaultV2(
       continue;
     }
     const localWon = await applyResponse(vault, clock, response, sent, vaultKey);
-    if (localWon && ++resyncs >= maxRounds) throw new Error("Sync did not settle, try again");
+    // A round whose answer was cut (more) resolves at least one record, so it is paging, not a conflict ping-pong.
+    if (localWon && !response.more && ++resyncs >= maxRounds) throw new Error("Sync did not settle, try again");
     if (!localWon && !capped && !response.more) return;
   }
   throw new Error("Sync exceeded the round limit");

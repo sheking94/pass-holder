@@ -70,6 +70,9 @@ describe("entry v3", () => {
     ["note with fields", mutate(() => structuredClone(samples[3]), (x) => { x.fields = { x: "" }; })],
     ["bad document kind", mutate(() => structuredClone(samples[4]), (x) => { x.fields.kind = "visa"; })],
     ["v2 extra deleted", () => ({ name: "a", username: "u", password: "p", hlc, deleted: true })],
+    ["hlc extra key", mutate(login, (x) => { x.hlc.extra = 1; })],
+    ["hlc missing key", mutate(login, (x) => { delete x.hlc.d; x.hlc.z = 1; })],
+    ["v2 hlc extra key", () => ({ name: "a", username: "u", password: "p", hlc: { ...hlc, extra: 1 } })],
     ["v2 no password", () => ({ name: "a", username: "u", hlc })],
   ];
   it.each(rejects)("rejects %s", (_n, make) => {
@@ -89,6 +92,7 @@ describe("entry v3", () => {
     expect(parseTombstoneData({ hlc })).toEqual({ hlc });
     expect(() => parseTombstoneData({ hlc, name: "x" })).toThrow("Invalid tombstone payload");
     expect(() => parseTombstoneData({ hlc, deleted: true })).toThrow("Invalid tombstone payload");
+    expect(() => parseTombstoneData({ hlc: { ...hlc, extra: 1 } })).toThrow("Invalid tombstone payload");
   });
 
   it("serializes in fixed key order", () => {
