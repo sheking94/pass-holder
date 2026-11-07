@@ -3,9 +3,11 @@
 Status: rdzeń zaimplementowany w TypeScripcie (plan 1, [`P2P_RDZEN.md`](P2P_RDZEN.md)) i w Kotlinie po
 stronie telefonu (plan 2, [`P2P_ANDROID_RDZEN.md`](P2P_ANDROID_RDZEN.md)); plan 3 gotowy: telefon jako host
 ([`P2P_TELEFON.md`](P2P_TELEFON.md)) i wtyczka sparowana z telefonem ([`P2P_WTYCZKA.md`](P2P_WTYCZKA.md));
-usunięcie Pi (plan 4) jeszcze **bez implementacji**. Dokument opisuje, jak PassHolder ma działać bez
+usunięcie Pi (plan 4) zrobione ([`P2P_USUNIECIE_SERWERA.md`](P2P_USUNIECIE_SERWERA.md)). Dokument opisuje, jak PassHolder ma działać bez
 Raspberry Pi: telefon z Androidem przejmuje rolę punktu wymiany, a wtyczka Chrome łączy się bezpośrednio
-z telefonem. Zmienia sekcje 5–7 z `SPEC.md`; reszta (klucze, format szyfrogramu, generator) zostaje.
+z telefonem. Zastąpił sekcje 5–7 dawnego `SPEC.md` (synchronizacja przez Pi); reszta (klucze, format
+szyfrogramu, generator) zostaje. Projekt opisuje też punkt wyjścia (Pi), więc nazwy z v1 (`api.ts`,
+`pickServer`, `server/`) są tu celowo.
 
 ## 1. Cel i wymagania
 
@@ -60,7 +62,7 @@ jednak z istniejącego protokołu, żeby nie przepisywać działającego kodu.
   przenosząca żądanie, nie sama synchronizacja.
 - **Wtyczka** zmienia tylko transport (`api.ts`): zamiast HTTPS do Pi rozmawia z telefonem przez Noise.
   Pamięta listę adresów telefonu i wybiera adres istniejącym mechanizmem `pickServer`
-  (`WIELE_ADRESOW_SERWERA.md`).
+  (`archive/WIELE_ADRESOW_SERWERA.md`; dziś `pickPhone` w `extension/src/phone-urls.ts`).
 - **Telefon jest też klientem własnego sejfu:** jego lokalne zmiany idą bezpośrednio do własnej bazy
   z nowym `revision`, bez sieci.
 

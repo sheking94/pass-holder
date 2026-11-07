@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { randomBytes, toBase64 } from "../../src/encoding.ts";
-import { encryptPayload, newVaultKey } from "../../src/vault.ts";
+import { seal } from "../../src/cipher.ts";
+import { randomBytes, toBase64, utf8 } from "../../src/encoding.ts";
+import { newVaultKey } from "../../src/vault.ts";
 import {
   applyVaultInfo,
   clockForVault,
@@ -179,7 +180,8 @@ describe("p2p sync", () => {
 
     expect(await decryptPayloadV2(key, "1", blob)).toEqual(data);
     await expect(decryptPayloadV2(key, "2", blob)).rejects.toThrow();
-    const v1 = await encryptPayload(key, "1", { name: "x", username: "u", password: "p", modifiedAt: 1 });
+    // A v1 payload, sealed the way the removed Pi sync did it.
+    const v1 = await seal(key, utf8(JSON.stringify({ name: "x", username: "u", password: "p", modifiedAt: 1 })), "passholder/v1/entry/1");
     await expect(decryptPayloadV2(key, "1", v1)).rejects.toThrow();
   });
 });

@@ -2,8 +2,3 @@ node_modules/
 dist/
 *.log
 .env
-
-# Local server database (npm start -w server)
-*.db
-*.db-wal
-*.db-shm

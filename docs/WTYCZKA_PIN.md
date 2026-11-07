@@ -1,10 +1,13 @@
 # Wtyczka Chrome: logowanie PIN-em
 
-> Uwaga (2026-11-01, poprawka S4 z [przeglądu bezpieczeństwa](PRZEGLAD_BEZPIECZENSTWA.md)): PIN zapisywany
+> Uwaga (2026-11-01, poprawka S4 z [przeglądu bezpieczeństwa](archive/PRZEGLAD_BEZPIECZENSTWA.md)): PIN zapisywany
 > na dysku („Pamiętaj PIN po zamknięciu przeglądarki”) musi być **długi**: co najmniej 8 znaków i nie same
 > cyfry. Krótki PIN 4-6 cyfr działa tylko w trybie „w pamięci”. Krótki PIN zapisany na dysku przez starszą
 > wersję po pierwszym udanym odblokowaniu jest przenoszony do pamięci. Szczegóły w
-> [POPRAWKI_BEZPIECZENSTWA.md](POPRAWKI_BEZPIECZENSTWA.md), punkt S4.
+> [archive/POPRAWKI_BEZPIECZENSTWA.md](archive/POPRAWKI_BEZPIECZENSTWA.md), punkt S4.
+>
+> Od planu 3 PIN owija tylko klucz sejfu (`{vaultKey}`), bo wtyczka nie loguje się już do serwera; format
+> i AAD się nie zmieniły ([P2P_WTYCZKA.md](P2P_WTYCZKA.md) §5). Opis niżej uwzględnia tę zmianę.
 
 Dokument opisuje funkcję z gałęzi `claude/project-thread-qagvkj`: odblokowanie sejfu we wtyczce
 PIN-em z 4-6 cyfr zamiast hasła głównego.
@@ -12,7 +15,7 @@ PIN-em z 4-6 cyfr zamiast hasła głównego.
 ## 1. Jak to działa w skrócie
 
 - PIN **nie zastępuje** hasła głównego. Hasło główne dalej działa zawsze, PIN jest tylko skrótem.
-- PIN działa **tylko lokalnie, w tej jednej przeglądarce**. Serwer nic o nim nie wie, Android też nie.
+- PIN działa **tylko lokalnie, w tej jednej przeglądarce**. Telefon nic o nim nie wie.
 - PIN włącza się przyciskiem **PIN** na liście wpisów, czyli dopiero po dodaniu (lub połączeniu) sejfu
   i odblokowaniu go hasłem głównym.
 - Po **5 błędnych PIN-ach z rzędu** PIN jest kasowany i trzeba podać hasło główne.
@@ -22,27 +25,26 @@ PIN-em z 4-6 cyfr zamiast hasła głównego.
 
 ## 2. Kryptografia
 
-Po odblokowaniu hasłem głównym wtyczka ma w pamięci dwa klucze (`SessionKeys` w `vault-store.ts`):
-
-- `vaultKey`: szyfruje i odszyfrowuje wpisy,
-- `authKey`: loguje do serwera przy synchronizacji.
+Po odblokowaniu hasłem głównym wtyczka ma w pamięci klucz sejfu `vaultKey` (`UnlockKeys` w `pin-lock.ts`),
+który szyfruje i odszyfrowuje wpisy i lokalny sejf. (Do planu 3 był tu też `authKey` do logowania na
+serwerze Pi.)
 
 Włączenie PIN-u (`createPinLock` w `extension/src/pin-lock.ts`) robi tak:
 
 ```
 salt     = 16 losowych bajtów (nowa sól, niezwiązana z solą hasła głównego)
 pinKey   = Argon2id(PIN, salt, 64 MiB, 3 iteracje, 4 wątki)   ← te same parametry co hasło główne
-wrapped  = AES-256-GCM(pinKey, JSON {vaultKey, authKey}, AAD = "passholder/v1/pin-lock")
+wrapped  = AES-256-GCM(pinKey, JSON {vaultKey}, AAD = "passholder/v1/pin-lock")
 PinLock  = { kdf: {alg, salt, memoryKiB, iterations, parallelism}, wrappedKeys: wrapped, failedAttempts: 0 }
 ```
 
 Odblokowanie PIN-em (`openPinLock`) liczy `pinKey` z wpisanego PIN-u i soli z `PinLock`, a potem
 odszyfrowuje `wrappedKeys`. Zły PIN daje inny klucz, tag GCM się nie zgadza i `open` rzuca wyjątek,
-który zamieniamy na `WrongPinError`. Z odzyskanych kluczy wtyczka startuje sesję tak samo, jak po haśle
+który zamieniamy na `WrongPinError`. Z odzyskanego klucza wtyczka startuje sesję tak samo, jak po haśle
 głównym, więc działa też synchronizacja.
 
-Dlaczego owijamy oba klucze, a nie samo hasło główne? Hasła głównego wtyczka nigdy nie zapisuje. Klucze
-wystarczą do wszystkiego, co wtyczka robi, a hasło główne mogłoby się przydać atakującemu także na
+Dlaczego owijamy klucz, a nie samo hasło główne? Hasła głównego wtyczka nigdy nie zapisuje. Klucz
+wystarcza do wszystkiego, co wtyczka robi, a hasło główne mogłoby się przydać atakującemu także na
 innych urządzeniach.
 
 ## 3. Pliki i zmiany
@@ -55,7 +57,7 @@ innych urządzeniach.
 | `MAX_PIN_ATTEMPTS = 5` | Ile błędnych prób z rzędu, zanim PIN zostanie skasowany. |
 | `PinLock` | Co jest zapisane w `chrome.storage`: parametry Argon2id, zaszyfrowane klucze, licznik błędów. |
 | `createPinLock(pin, keys)` | Tworzy `PinLock` (opis w punkcie 2). |
-| `openPinLock(pin, lock)` | Zwraca `{vaultKey, authKey}` albo rzuca `WrongPinError`. |
+| `openPinLock(pin, lock)` | Zwraca `{vaultKey}` albo rzuca `WrongPinError`. |
 
 ### `extension/src/pin-store.ts` i `extension/src/vault-store.ts`
 
@@ -67,7 +69,7 @@ konstruktorze i tylko deleguje.
 - `VaultStore.enablePin(pin, rememberAfterRestart)`: sprawdza kształt PIN-u, wymaga odblokowanego sejfu i woła
   `PinStore.enable`, który tworzy `PinLock` z bieżących kluczy, kasuje poprzedni PIN i zapisuje nowy we
   właściwym miejscu. PIN pamiętany po restarcie musi być długi (co najmniej 8 znaków, nie same cyfry,
-  `isLongPin`, poprawka S4, zob. [POPRAWKI_BEZPIECZENSTWA.md](POPRAWKI_BEZPIECZENSTWA.md)).
+  `isLongPin`, poprawka S4, zob. [archive/POPRAWKI_BEZPIECZENSTWA.md](archive/POPRAWKI_BEZPIECZENSTWA.md)).
 - `VaultStore.unlockWithPin(pin)` → `PinStore.unlock(pin)`:
   1. odrzuca PIN w złym formacie **bez liczenia próby** (to literówka, nie zgadywanie),
   2. zwiększa `failedAttempts` i zapisuje go **przed** sprawdzeniem PIN-u. Argon2id trwa ok. sekundy;
@@ -93,7 +95,7 @@ konstruktorze i tylko deleguje.
 - `pinSettingsView` (przycisk **PIN** na liście) wybiera `pinSetupView()` (PIN wyłączony: formularz PIN +
   powtórzenie + opcja „Pamiętaj PIN po zamknięciu przeglądarki” z ostrzeżeniem) albo
   `pinEnabledView(status)` (informacja i **Wyłącz PIN**).
-- Komunikat po połączeniu z serwerem podpowiada, gdzie włączyć PIN.
+- Komunikat po sparowaniu z telefonem podpowiada, gdzie włączyć PIN.
 
 ### `extension/static/popup.css`
 
@@ -127,23 +129,23 @@ pomaga, bo Argon2id wymaga dużo pamięci na każdą próbę.
   menedżery haseł („wymagaj hasła głównego po ponownym uruchomieniu”).
 - **„Pamiętaj PIN po zamknięciu przeglądarki”**: `PinLock` leży w profilu Chrome na dysku. Kto skopiuje
   profil (kopia zapasowa, skradziony dysk bez szyfrowania), ten w minuty-godziny odgadnie PIN i otworzy
-  sejf **bez znajomości hasła głównego**. Włączaj to tylko, jeśli dysk jest zaszyfrowany (np. LUKS na Ubuntu).
+  sejf **bez znajomości hasła głównego**. Włączaj to tylko, jeśli dysk jest zaszyfrowany (np. BitLocker na Windows, LUKS na Linuksie).
   **Od poprawki S4** ten tryb wymaga długiego PIN-u (8+ znaków, nie same cyfry), co zamienia minuty-godziny
-  na lata (patrz POPRAWKI_BEZPIECZENSTWA.md).
+  na lata (patrz archive/POPRAWKI_BEZPIECZENSTWA.md).
 - Dłuższy PIN (6 cyfr) jest 100 razy trudniejszy do odgadnięcia niż 4-cyfrowy.
 
 **Czego nie zrobiłem i dlaczego:** prawdziwy limit prób wymaga kogoś, kto pilnuje licznika i nie da się
-go obejść: serwera (ale Pi jest zwykle wyłączone, a wtyczka ma działać offline) albo sprzętowego modułu
+go obejść: drugiego urządzenia (ale telefon nie zawsze jest w pobliżu, a wtyczka ma działać offline) albo sprzętowego modułu
 (TPM, klucz sprzętowy), do którego wtyczka Chrome nie ma dostępu. Klucz WebCrypto „nieeksportowalny”
 w IndexedDB też leży w profilu na dysku, więc nie poprawiłby sytuacji w istotny sposób.
 
 ## 5. Testy
 
-`extension/test/pin.test.ts` (z prawdziwym serwerem w pamięci, jak pozostałe testy wtyczki):
+`extension/test/pin.test.ts` (z udawanym telefonem `fake-phone.ts`, jak pozostałe testy wtyczki):
 
 | Test | Co sprawdza |
 |---|---|
-| unlocks with the PIN… | PIN odblokowuje sejf offline, a odzyskany `authKey` pozwala zsynchronizować. |
+| unlocks with the PIN… | PIN odblokowuje sejf offline, a odzyskany klucz pozwala zsynchronizować. |
 | counts wrong PINs… | „Pozostało prób: 4…1”, po piątej próbie PIN skasowany, hasło główne działa. |
 | resets the counter… | Dobry PIN i hasło główne zerują licznik. |
 | does not count input… | Zły format nie zużywa prób; `enablePin` odrzuca 8 cyfr. |

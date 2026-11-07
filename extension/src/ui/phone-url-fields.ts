@@ -1,4 +1,4 @@
-import { normalizePhoneUrls, PHONE_PORT } from "../server-urls.ts";
+import { normalizePhoneUrls, PHONE_PORT } from "../phone-urls.ts";
 import { h, setStatus } from "./dom.ts";
 
 const URL_EXAMPLE = `http://192.168.1.5:${PHONE_PORT}`;
@@ -15,7 +15,7 @@ export function originPattern(url: string): string {
  * One input per phone address (the home network IP, the Tailscale IP…), plus "+ Dodaj adres".
  * The vault tries them all and remembers the one that answered.
  */
-export function serverUrlFields(current: readonly string[] = []) {
+export function phoneUrlFields(current: readonly string[] = []) {
   const box = h("div", { class: "url-list" });
   const add = (value = "") => {
     const first = box.childElementCount === 0;

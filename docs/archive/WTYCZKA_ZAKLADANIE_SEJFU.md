@@ -1,5 +1,7 @@
 # Wtyczka Chrome: naprawa zakładania sejfu, Enter i podgląd hasła
 
+> Dokument historyczny: dotyczy wersji z serwerem na Raspberry Pi (przed planem 4).
+
 Dokument opisuje poprawki z gałęzi `claude/project-thread-7gdpxw`.
 
 ## 1. Błąd: sejf nie był zakładany

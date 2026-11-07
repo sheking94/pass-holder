@@ -3,11 +3,10 @@ package io.github.sheking94.passholder.core
 import kotlinx.serialization.Serializable
 import org.bouncycastle.crypto.generators.Argon2BytesGenerator
 import org.bouncycastle.crypto.params.Argon2Parameters
-import java.security.MessageDigest
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
-/** Argon2id parameters. Stored on the server in plain text so a new device can derive the same keys. */
+/** Argon2id parameters. Stored in plain text next to the vault so another device can derive the same keys. */
 @Serializable
 data class KdfParams(
     val alg: String,
@@ -22,7 +21,10 @@ data class KdfParams(
 class DerivedKeys(
     /** Wraps and unwraps the vault key. Never leaves the device. */
     val encKey: ByteArray,
-    /** Proves knowledge of the master password to the server. */
+    /**
+     * Unused since the Pi server was removed. Still derived because the split is part of the data format:
+     * changing it would change encKey and make existing vaults unreadable.
+     */
     val authKey: ByteArray,
 )
 
@@ -32,12 +34,12 @@ object Kdf {
     const val DEFAULT_ITERATIONS = 3
     const val DEFAULT_PARALLELISM = 4
 
-    /** Lower bounds a client accepts from the server, so a malicious server cannot downgrade the KDF. */
+    /** Lower bounds a device accepts from another one, so a malicious peer cannot downgrade the KDF. */
     const val MIN_MEMORY_KIB = 19456
     const val MIN_ITERATIONS = 2
     const val MIN_PARALLELISM = 1
 
-    /** Upper bounds so a malicious server cannot make the phone run out of memory (1 GiB) or hash for minutes. Same as core/src/kdf.ts. */
+    /** Upper bounds so a malicious peer cannot make the phone run out of memory (1 GiB) or hash for minutes. Same as core/src/kdf.ts. */
     const val MAX_MEMORY_KIB = 1_048_576
     const val MAX_ITERATIONS = 100
     const val MAX_PARALLELISM = 64
@@ -96,9 +98,6 @@ object Kdf {
             masterKey.fill(0)
         }
     }
-
-    /** What the server stores instead of the auth key. */
-    fun authHash(authKey: ByteArray): ByteArray = MessageDigest.getInstance("SHA-256").digest(authKey)
 
     /**
      * HKDF-SHA256 (RFC 5869) with an empty salt and 32 bytes of output. 32 bytes is exactly one HMAC block,

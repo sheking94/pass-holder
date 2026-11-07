@@ -6,7 +6,6 @@ import io.github.sheking94.passholder.core.Kdf
 import io.github.sheking94.passholder.core.KdfParams
 import io.github.sheking94.passholder.core.RemoteRecord
 import io.github.sheking94.passholder.core.VaultCrypto
-import io.github.sheking94.passholder.core.VaultStore
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
@@ -20,7 +19,7 @@ import javax.crypto.spec.SecretKeySpec
  *
  * On disk, in `dir/p2p/`: `host.json` ([HostStateStore]: identity, epoch, KDF, wrapped vault key, paired devices)
  * and `records.jsonl` ([FileSyncStore]: the encrypted entries, the same store the extension syncs with).
- * In memory, only while unlocked: the vault key. Lock semantics follow v1 [VaultStore].
+ * In memory, only while unlocked: the vault key. It locks on [lock] and after [autoLockMs] without activity ([touch]).
  *
  * States: no vault ([hasVault] and [restoreInProgress] false), unreadable host state ([corruptState]: only
  * [disconnect] gets out of it), a restore from the extension in progress
@@ -45,7 +44,7 @@ class PhoneVaultStore(
     private val onError: (Throwable) -> Unit = {},
 ) {
     companion object {
-        const val AUTO_LOCK_MS = VaultStore.AUTO_LOCK_MS
+        const val AUTO_LOCK_MS = 15 * 60_000L
         const val DEFAULT_DEVICE_NAME = "Telefon"
         private const val KEY_LENGTH = 32
         private val KEY_CHECK_INFO = Encoding.utf8("passholder/v2/key-check")
@@ -99,7 +98,7 @@ class PhoneVaultStore(
     @Volatile
     private var session: Session? = null
 
-    /** Outside the lock on purpose, as in v1: the UI calls [touch] on every tap. */
+    /** Outside the lock on purpose: the UI calls [touch] on every tap and must never wait for a running Argon2id. */
     private val lastActivity = AtomicLong(0)
 
     /** There is a vault: created here, or restored from the extension and checked with the master password. */

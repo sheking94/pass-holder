@@ -15,7 +15,7 @@ import {
 import { PhoneClient, phoneErrorInPolish } from "./phone-client.ts";
 import { invalidPinMessage, isValidPin } from "./pin-lock.ts";
 import { PinStore, type PinStatus } from "./pin-store.ts";
-import { learnedPhoneUrls, normalizePhoneUrls, pickServer } from "./server-urls.ts";
+import { learnedPhoneUrls, normalizePhoneUrls, pickPhone } from "./phone-urls.ts";
 import { STORAGE_KEYS, type KeyValueStore } from "./storage.ts";
 
 export { chromeStore, memoryStore, STORAGE_KEYS, type KeyValueStore } from "./storage.ts";
@@ -328,7 +328,7 @@ export class VaultStore {
       throw new Error(`Podaj nazwę tego urządzenia (do ${p2p.MAX_DEVICE_NAME_LENGTH} znaków)`);
     }
     if (await this.getAccount()) throw new Error("Ta przeglądarka jest już sparowana. Użyj „Sparuj z innym telefonem”.");
-    const { url: baseUrl, client } = await pickServer(typed, this.makeClient);
+    const { url: baseUrl, client } = await pickPhone(typed, this.makeClient);
     // pairWithPhone refuses restore mode too, but only with a short message; this one says what to do.
     if ((await talkToPhone(() => p2p.phoneHello(baseUrl, client.post))).mode === "restore") throw new Error(PHONE_WAITS_FOR_RESTORE);
 
@@ -453,7 +453,7 @@ export class VaultStore {
       wrappedVaultKey: account.wrappedVaultKey,
       addresses: [],
     };
-    const { url: baseUrl, client } = await pickServer(typed, this.makeClient);
+    const { url: baseUrl, client } = await pickPhone(typed, this.makeClient);
     // In pair mode pairWithPhone does not send `restore`: the phone keeps its own vault.
     const res = await talkToPhone(() => p2p.pairWithPhone({ baseUrl, code, identity, post: client.post, restore }));
 
@@ -602,7 +602,7 @@ export class VaultStore {
     const skipped: string[] = [];
     for (const u of account.phoneUrls) ((await this.canReach(u)) ? allowed : skipped).push(u);
     if (allowed.length === 0) throw new Error(NO_ALLOWED_ADDRESS);
-    const { url, client } = await pickServer(allowed, this.makeClient, account.lastPhoneUrl);
+    const { url, client } = await pickPhone(allowed, this.makeClient, account.lastPhoneUrl);
     const staticKey = p2p.keyPairFromPrivateKey(await open(vaultKey, account.sealedStaticKey, STATIC_KEY_AAD));
     const send = p2p.noiseTransport({
       baseUrl: url,

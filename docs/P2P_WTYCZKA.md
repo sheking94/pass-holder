@@ -11,7 +11,8 @@ Od tej wersji wtyczka nie łączy się z Pi. Sejf jest na telefonie, a wtyczka t
 
 **Wyeksportuj hasła do CSV w starej wtyczce (v1, z Pi), zanim ją zaktualizujesz.** Nowa wtyczka nie czyta
 kluczy v1 (`account`, `vault` w `chrome.storage.local`) i nie ma migracji. Po aktualizacji stare dane leżą
-tam nadal, nieczytane, aż do planu 4; z nowej wtyczki nie da się ich już wyeksportować.
+tam nadal, nieczytane (także po planie 4; usuwa je dopiero usunięcie wtyczki); z nowej wtyczki nie da się
+ich już wyeksportować.
 
 Przeniesienie haseł: eksport CSV w starej wtyczce → aktualizacja → „Nowy sejf” na telefonie → parowanie
 wtyczki (punkt 2) → „CSV” → import we wtyczce → „Synchronizuj”. Zaimportowane wpisy są zmianami lokalnymi,
@@ -24,17 +25,18 @@ więc pierwsza synchronizacja wysyła je na telefon.
 | `core/src/p2p/pair-client.ts` | Klient parowania po HTTP: `pingPhone`, `phoneHello`, `pairWithPhone`. Wtyczka jest inicjatorem CPace. Kod musi mieć 8 cyfr (spacje są usuwane), inaczej błąd przed `/pair/start`, więc literówka nie spala kodu. |
 | `core/src/p2p/transport.ts` (zmiana) | Prywatne `call` stało się eksportowanym `callP2pHost(post, url, body, messages)`; `messages[status]` podmienia komunikat błędu. |
 | `extension/src/phone-client.ts` | `PhoneClient`: JSON `POST`, limit 30 s na całą wymianę (`POST_TIMEOUT_MS`), błąd sieci i przekroczenie czasu to „Telefon nie odpowiada…”. `phoneErrorInPolish` tłumaczy angielskie błędy rdzenia. |
-| `extension/src/server-urls.ts` | `normalizePhoneUrl`: tylko `http://<IPv4>:<port>` albo `localhost` (domyślny port 8787, bez zer wiodących w oktetach). `learnedPhoneUrls` po cichu pomija adresy, których wtyczka nie użyje. `pickServer` próbuje adresy po kolei (ping 4 s, `PROBE_TIMEOUT_MS`). |
+| `extension/src/phone-urls.ts` (do planu 4 `server-urls.ts`) | `normalizePhoneUrl`: tylko `http://<IPv4>:<port>` albo `localhost` (domyślny port 8787, bez zer wiodących w oktetach). `learnedPhoneUrls` po cichu pomija adresy, których wtyczka nie użyje. `pickPhone` (do planu 4 `pickServer`) próbuje adresy po kolei (ping 4 s, `PROBE_TIMEOUT_MS`). |
 | `extension/src/vault-store.ts` | Cały sejf wtyczki na `LocalVaultV2`: `pairStart`, `pairFinish`, `repair`, `sync`, `disconnect`, blokada, PIN. |
 | `extension/src/storage.ts` | Klucze w pamięci (punkt 4). |
 | `extension/src/pin-lock.ts` | PIN owija tylko `{vaultKey}`. |
 | `extension/src/views/connect.ts` | „Sparuj z telefonem”: krok 1 (adresy, kod, nazwa), krok 2 (hasło główne). |
 | `extension/src/views/addresses.ts` | „Adresy telefonu”: lista adresów i „Sparuj z innym telefonem / odtwórz telefon”. |
-| `extension/src/ui/server-url-fields.ts` | Pola adresów, wzorzec zgody `http://<ip>:<port>/*`, prośby o zgodę Chrome. |
+| `extension/src/ui/phone-url-fields.ts` (do planu 4 `server-url-fields.ts`) | Pola adresów, wzorzec zgody `http://<ip>:<port>/*`, prośby o zgodę Chrome. |
 | `extension/src/views/list.ts`, `locked.ts` | „Zsynchronizowano z telefonem HH:MM”, „Adresy telefonu”, „Odłącz” z ostrzeżeniem. |
 | `extension/static/manifest.json` | `optional_host_permissions: ["http://*/*"]`, opis „…synchronizowany z telefonem”. |
 
-`extension/src/api.ts` (klient Pi) jest usunięty. Reszta v1 (`core/src/sync.ts`, `server/`) zostaje do planu 4.
+`extension/src/api.ts` (klient Pi) jest usunięty. Resztę v1 (`core/src/sync.ts`, `server/`) usunął plan 4
+([`P2P_USUNIECIE_SERWERA.md`](P2P_USUNIECIE_SERWERA.md)).
 
 ## 2. Parowanie nowej przeglądarki
 
@@ -45,7 +47,7 @@ Okienko wtyczki przenosi parowanie do karty `?setup`, bo Chrome zamyka okienko, 
    1..64 znaki). „Sparuj” najpierw prosi Chrome o zgodę na `http://<ip>:8787/*` dla każdego adresu (na
    kliknięciu, przed jakimkolwiek `await`), potem `pairStart`:
    - odmawia, gdy przeglądarka jest już sparowana („Użyj „Sparuj z innym telefonem””),
-   - przy kilku adresach `pickServer` pinguje je i paruje z pierwszym, który odpowie,
+   - przy kilku adresach `pickPhone` pinguje je i paruje z pierwszym, który odpowie,
    - `/pair/hello`: gdy telefon czeka na odtworzenie (`mode = "restore"`), błąd `PHONE_WAITS_FOR_RESTORE`
      bez spalenia kodu,
    - nowe `deviceId` (UUID) i klucz X25519, `pairWithPhone`, wynik jako `pendingPairing` w
@@ -72,7 +74,7 @@ niepoprawnie.”, inne → „Telefon odpowiedział błędem N (x).”
 
 1. Dzieli `phoneUrls` na dozwolone i bez zgody Chrome (`chrome.permissions.contains`). Bez żadnej
    dozwolonej: „Brak zgody Chrome…”, bez kontaktu z telefonem.
-2. `pickServer` (najpierw `lastPhoneUrl`; przy jednym adresie bez pingu), odpieczętowanie klucza
+2. `pickPhone` (najpierw `lastPhoneUrl`; przy jednym adresie bez pingu), odpieczętowanie klucza
    statycznego, `noiseTransport` i `syncVaultV2` z zegarem HLC sesji.
 3. Zapis sejfu. Potem konto czytane jest ponownie: jeśli w międzyczasie inna strona sparowała inny telefon
    (inny `staticPublicKey`) albo odłączyła przeglądarkę, konto nie jest nadpisywane. Inaczej dopisuje nowe
@@ -146,7 +148,7 @@ cd android && PASSHOLDER_INTEROP_TEST=1 ./gradlew :core:test --tests "*Interop*"
 | `core/test/p2p/pair-client.test.ts` | protokół z tabeli `P2P_TELEFON.md` §2 na udawanym telefonie z prawdziwym CPace: role, `ad`, tryb `restore`, błędy 403/404, zły format odpowiedzi, kod 8 cyfr. |
 | `android/core/.../PhoneInteropTest.kt` (z `PASSHOLDER_INTEROP_TEST=1`) | skrypt `phone-interop.ts` (prawdziwy `fetch`) przeciw prawdziwemu `PhoneVaultStore` i `SyncHttpServer` w Kotlinie: parowanie z wpisami w obie strony i odtworzenie 50 wpisów. |
 | `extension/test/vault-store.test.ts`, `pairing-flow.test.ts` | parowanie, złe hasło po zamknięciu okienka, wygaśnięcie po 10 min, inny sejf bez zmian, odtwarzanie, kilka adresów, brak zgody, `PairedButSyncFailed`, `disconnect` ze zmianami, równoległa zmiana konta. |
-| `edge-cases.test.ts`, `server-urls.test.ts` | konflikty HLC, limit 30 s, telefon, który zapomniał przeglądarkę, adresy (IPv4, zera wiodące, porty), `pickServer` z 4 s. |
+| `edge-cases.test.ts`, `phone-urls.test.ts` | konflikty HLC, limit 30 s, telefon, który zapomniał przeglądarkę, adresy (IPv4, zera wiodące, porty), `pickPhone` z 4 s. |
 | `pin.test.ts`, `csv-transfer.test.ts`, `auto-lock.test.ts` | PIN z samym `vaultKey`, import CSV trafia na telefon, auto-blokada. |
 
 Testy wtyczki używają `extension/test/fake-phone.ts`: tabela parowania z prawdziwym CPace przed
@@ -168,6 +170,6 @@ referencyjnym `P2pHost`. Testy ręczne z prawdziwym Chrome i telefonem: `P2P_TEL
   sprawdza je test ręczny T7 (`P2P_TELEFON.md` §11).
 - **Brak testów widoków** (DOM): kroki parowania i „zapytaj raz” po złym haśle sprawdzono tylko czytaniem
   kodu i testem dymnym poza repozytorium.
-- **Dane v1** zostają w `chrome.storage.local` (punkt 0). `extension/package.json` nadal ma
-  `@passholder/server` w `devDependencies`. Oba znikną w planie 4.
+- **Dane v1** zostają w `chrome.storage.local` (punkt 0), także po planie 4. `@passholder/server` w
+  `devDependencies` usunął plan 4.
 - Wtyczka nie sprawdza, że `ad` w wiadomości CPace telefonu to jego `deviceId`; klucz i tak wiąże transkrypt.

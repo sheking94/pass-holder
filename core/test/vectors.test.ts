@@ -1,11 +1,11 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { authHash, deriveMasterKey, splitMasterKey, type KdfParams } from "../src/kdf.ts";
+import { deriveMasterKey, splitMasterKey, type KdfParams } from "../src/kdf.ts";
 import { open, seal } from "../src/cipher.ts";
 import { fromHex, toHex, utf8 } from "../src/encoding.ts";
 
 const vectors = JSON.parse(readFileSync(new URL("../test-vectors/v1.json", import.meta.url), "utf8")) as {
-  kdf: { description: string; password: string; passwordUtf8Nfc: string; kdf: KdfParams; masterKey: string; encKey: string; authKey: string; authHash: string }[];
+  kdf: { description: string; password: string; passwordUtf8Nfc: string; kdf: KdfParams; masterKey: string; encKey: string; authKey: string }[];
   seal: { description: string; key: string; plaintextHex: string; aad: string; nonce: string; blob: string }[];
 };
 
@@ -18,7 +18,6 @@ describe("test vectors v1", () => {
       expect(toHex(masterKey)).toBe(v.masterKey);
       expect(toHex(encKey)).toBe(v.encKey);
       expect(toHex(authKey)).toBe(v.authKey);
-      expect(toHex(authHash(authKey))).toBe(v.authHash);
     }, 30_000);
   }
 

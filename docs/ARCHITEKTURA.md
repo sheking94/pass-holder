@@ -1,83 +1,79 @@
 # Architektura PassHolder
 
-Mapa kodu po PR #18 (listopad 2026): które pliki za co odpowiadają i jak części systemu ze sobą rozmawiają.
-Format danych, kryptografię i API opisuje [SPEC.md](SPEC.md); tu jest tylko „gdzie to jest w kodzie”.
+Mapa kodu po planie 4 (listopad 2026, bez serwera na Raspberry Pi): które pliki za co odpowiadają i jak
+części systemu ze sobą rozmawiają. Kryptografię i format danych opisuje [SPEC.md](SPEC.md), synchronizację
+[SYNCHRONIZACJA_P2P.md](SYNCHRONIZACJA_P2P.md); tu jest tylko „gdzie to jest w kodzie”.
 
 ## Całość
 
 ```
- Chrome (wtyczka, TypeScript)            Android (Kotlin)
- extension/  ──używa──► core/            android/app ──używa──► android/core
-        │                 ▲                                         │
-        │ HTTPS, JSON     │ ten sam kod                             │ HTTPS + przypięty certyfikat
-        ▼                 │                                         ▼
- ┌──────────────────────────────── Raspberry Pi ────────────────────────────────┐
- │ server/ (Node.js, Fastify, SQLite)  – widzi tylko szyfrogramy i numery rewizji │
- └──────────────────────────────────────────────────────────────────────────────┘
+ Chrome: wtyczka (TypeScript)                     Android: aplikacja (Kotlin)
+ extension/ ──używa──► core/                      android/app ──używa──► android/core
+ pełna zaszyfrowana kopia sejfu                   sejf (kotwica), tryb „Synchronizacja”
+        │                                                      ▲
+        │  POST http://<IPv4 telefonu>:8787/p2p/v1/...          │ SyncHttpServer (tylko w trybie
+        │  parowanie: CPace z 8-cyfrowym kodem                  │ Synchronizacja)
+        │  synchronizacja: Noise KK, w środku zaszyfrowane wpisy│
+        └───────────────────── LAN albo Tailscale ─────────────┘
 ```
 
-- `core/` to implementacja referencyjna: szyfrowanie, generator, logika synchronizacji po obu stronach.
-  Używają go serwer i wtyczka. `android/core` to ten sam algorytm przepisany na Kotlina; zgodność pilnują
-  wektory testowe `core/test-vectors/v1.json` i test na prawdziwym serwerze (`RealServerTest`).
-- Klienci działają offline: sejf jest zaszyfrowany na urządzeniu, serwer to tylko punkt wymiany.
-
-Telefon jako host P2P (w trakcie, plan 3 z 4): aplikacja Android ma własny sejf i serwer HTTP na porcie 8787
-(`android/core/.../core/p2p/`: `SyncHttpServer`, `PhoneRouter`, `PairingHost`, `PhoneVaultStore`), a wtyczka ma
-synchronizować się z nim bezpośrednio, bez Pi. Raspberry Pi i kod v1 są w trakcie wycofywania (plan 4); opis
-telefonu w [P2P_TELEFON.md](P2P_TELEFON.md), projekt całości w [SYNCHRONIZACJA_P2P.md](SYNCHRONIZACJA_P2P.md). Tabele
-poniżej opisują jeszcze stan z v1.
+- `core/` to implementacja referencyjna w TypeScripcie: szyfrowanie, generator, parowanie, Noise,
+  synchronizacja po stronie wtyczki i referencyjny host (`P2pHost`). `android/core` to strona telefonu w
+  Kotlinie (te same algorytmy); zgodność pilnują wektory w `core/test-vectors/` i testy współpracy
+  (`P2pInteropTest`, `PhoneInteropTest`).
+- Telefon jest **hostem**: trzyma rekordy z numerami `revision` i przyjmuje zmiany wtyczek. Jest też
+  klientem własnego sejfu (zmiany z telefonu idą prosto do tej samej bazy).
+- Wtyczka działa offline na swojej kopii i synchronizuje się tylko z telefonem.
 
 ## `core/` (TypeScript, wspólny)
 
 | Plik | Co robi |
 |---|---|
-| `src/encoding.ts` | UTF-8 z normalizacją NFC, Base64, hex |
-| `src/kdf.ts` | Argon2id, HKDF (`encKey`, `authKey`), `authHash`, granice parametrów `MIN_KDF` / `MAX_KDF` |
-| `src/cipher.ts` | AES-256-GCM w formacie `0x01 ‖ nonce ‖ szyfrogram ‖ tag` |
-| `src/vault.ts` | zawijanie klucza sejfu, szyfrowanie wpisów i nagrobków, sprawdzanie ich kształtu |
-| `src/sync.ts` | synchronizacja po stronie klienta: wysyłka `dirty`, konflikty, „ostatni zapis wygrywa” |
-| `src/protocol.ts` | typy żądań `/sync` i `processSync`, czyli logika serwera niezależna od bazy |
+| `src/encoding.ts` | UTF-8 z normalizacją NFC, Base64, hex, `randomBytes` |
+| `src/kdf.ts` | Argon2id, HKDF (`encKey`; `authKey` liczony, ale nieużywany, bo podział klucza to część formatu), granice `MIN_KDF` / `MAX_KDF` |
+| `src/cipher.ts` | AES-256-GCM w formacie `0x01 ‖ nonce ‖ szyfrogram ‖ tag` (`seal`, `open`) |
+| `src/vault.ts` | klucz sejfu: `newVaultKey`, `wrapVaultKey`, `unwrapVaultKey` |
+| `src/protocol.ts` | `RemoteRecord`, `SyncStore`, `processSync`, `MemorySyncStore`: logika hosta (numery `revision`, `baseRevision`) |
 | `src/generator.ts` | generator haseł (CSPRNG z odrzucaniem, Fisher-Yates) |
-| `scripts/gen-vectors.ts` | generuje `test-vectors/v1.json` (`npm run gen-vectors -w core`) |
+| `src/p2p/hlc.ts` | hybrydowy zegar logiczny (HLC) do rozstrzygania konfliktów |
+| `src/p2p/entry.ts` | treść wpisu v2 i nagrobka, AAD `passholder/v2/entry/<id>` |
+| `src/p2p/sync.ts` | sejf wtyczki (`LocalVaultV2`) i `syncVaultV2` |
+| `src/p2p/host-sync.ts` | strona hosta: `validateP2pSyncRequest`, `processP2pSync` (na `processSync`), epoka, stronicowanie |
+| `src/p2p/cpace.ts`, `pairing.ts`, `pair-client.ts` | parowanie: CPace, kod 8 cyfr, zapieczętowane tożsamości, klient HTTP parowania wtyczki |
+| `src/p2p/noise.ts`, `frames.ts`, `transport.ts` | Noise KK, ramki, `noiseTransport` i `callP2pHost` |
+| `src/p2p/host.ts` | `P2pHost`: referencyjny host (uzgadnianie, sesje, sync) |
+| `scripts/gen-vectors.ts`, `gen-vectors-v2.ts` | `test-vectors/v1.json` (KDF, klucz sejfu) i `v2.json` (P2P) |
 
-## `server/` (Raspberry Pi)
-
-| Plik | Co robi |
-|---|---|
-| `src/main.ts` | start procesu: konfiguracja, baza, losowanie tokenu zakładania sejfu, nasłuch HTTPS |
-| `src/config.ts` | zmienne `PASSHOLDER_*` (przykład: `deploy/passholder.env.example`) |
-| `src/app.ts` | `buildApp`: trasy `/status`, `/setup`, `/prelogin`, `/session`, `/sync`, sesje w pamięci, limity logowania |
-| `src/db.ts` | SQLite (wbudowany moduł `node:sqlite`): meta sejfu i rekordy, implementuje `SyncStore` z `core` |
-
-`deploy/`: `make-certs.sh` (CA z `nameConstraints` i certyfikat serwera, uruchamiany na Ubuntu),
-`passholder.service` (systemd), `passholder.env.example`, `vpn.sh` (Tailscale on/off).
+Opis rdzenia P2P: [P2P_RDZEN.md](P2P_RDZEN.md).
 
 ## `extension/` (Chrome, Manifest V3)
 
-Budowanie: `extension/build.mjs` (esbuild) skleja trzy punkty wejścia do `extension/dist/`:
+Budowanie: `extension/build.mjs` (esbuild) kopiuje `static/` i skleja trzy punkty wejścia do `extension/dist/`:
 `popup.ts` (strona `popup.html`), `background.ts` (service worker), `offscreen.ts` (czyszczenie schowka).
 
-`popup.html` działa w dwóch miejscach: w okienku przy ikonie i w zwykłej karcie. Okienko zamyka się, gdy
-traci fokus (okno zgody Chrome, wybór pliku), dlatego część widoków pokazuje się tylko w karcie. Tryb strony
-odczytuje `page-mode.ts` z adresu: `popup`, `tab`, `setup`, `addresses`, `transfer`.
+`popup.html` działa w okienku przy ikonie i w zwykłej karcie. Okienko zamyka się, gdy traci fokus (okno zgody
+Chrome, wybór pliku), dlatego parowanie, adresy i CSV pokazują się w karcie. Tryb strony odczytuje
+`page-mode.ts` z adresu: `popup`, `tab`, `setup`, `addresses`, `transfer`.
 
 | Plik | Co robi |
 |---|---|
 | `src/popup.ts` | `start()`: wybiera pierwszy widok i włącza automatyczną blokadę strony |
-| `src/vault-store.ts` | `VaultStore`: konto, lokalny sejf, odblokowanie, synchronizacja, import, adresy; serce wtyczki |
+| `src/vault-store.ts` | `VaultStore`: konto, lokalny sejf, parowanie (`pairStart`, `pairFinish`, `repair`), `sync`, adresy, PIN, CSV; serce wtyczki |
 | `src/storage.ts` | klucze `chrome.storage` (`STORAGE_KEYS`), `chromeStore`, `memoryStore` do testów |
-| `src/api.ts` | `ServerClient`: zapytania HTTP do serwera |
-| `src/server-urls.ts` | wybór działającego adresu serwera (`pickServer`) |
+| `src/phone-client.ts` | `PhoneClient`: JSON `POST` do telefonu z limitem 30 s, polskie komunikaty błędów |
+| `src/phone-urls.ts` | adresy telefonu: `normalizePhoneUrl` (tylko IPv4), `learnedPhoneUrls`, `pickPhone` (wybór działającego adresu, ping 4 s) |
 | `src/auto-lock.ts` | blokada po 15 minutach: `watchIdle` na stronie i alarm w service workerze |
-| `src/pin-lock.ts`, `src/pin-store.ts` | PIN: kryptografia (`createPinLock`, `openPinLock`) i przechowywanie z licznikiem prób (`PinStore`) |
+| `src/pin-lock.ts`, `src/pin-store.ts` | PIN: kryptografia (`createPinLock`, `openPinLock`) i przechowywanie z licznikiem prób |
 | `src/csv-transfer.ts` | CSV w układzie NordPass: parser, eksport, podsumowanie importu |
 | `src/clipboard.ts`, `src/background.ts`, `src/offscreen.ts` | czyszczenie schowka po minucie (alarm + dokument offscreen) |
-| `src/page-mode.ts`, `src/open-in-tab.ts` | tryby strony, przycisk „Otwórz w karcie” |
+| `src/page-mode.ts`, `src/open-in-tab.ts` | tryby strony, przycisk „Otwórz w karcie ↗” |
 | `src/ui/dom.ts` | pomocniki DOM: `h`, `show`, `form`, `passwordField`, `pinInput`, `confirmButton`, `busy` |
 | `src/ui/page.ts` | `MODE`, `IN_TAB`, `showInTab(tryb, widok)`, `openInTabButton` |
-| `src/ui/server-url-fields.ts` | dwa pola adresu serwera i prośba o zgodę Chrome (`requestHostPermission`) |
+| `src/ui/phone-url-fields.ts` | pola adresów telefonu (`phoneUrlFields`), wzorzec zgody, prośby o zgodę Chrome |
 | `src/ui/state.ts` | jeden `VaultStore` strony, wspólny dla widoków |
-| `src/views/*.ts` | ekrany: `connect`, `locked`, `list`, `edit`, `addresses`, `pin-settings`, `transfer` |
+| `src/views/*.ts` | ekrany: `connect` (parowanie), `locked`, `list`, `edit`, `addresses`, `pin-settings`, `transfer` |
+
+Opis: [P2P_WTYCZKA.md](P2P_WTYCZKA.md).
 
 ## `android/`
 
@@ -85,73 +81,80 @@ Dwa moduły Gradle: `core` (czysta JVM, testy bez emulatora) i `app` (Jetpack Co
 
 | Plik (`android/core/.../core/`) | Co robi |
 |---|---|
-| `Encoding.kt`, `Kdf.kt`, `Cipher.kt`, `Vault.kt`, `Generator.kt` | odpowiedniki plików z `core/src/` |
-| `Sync.kt`, `Protocol.kt` | synchronizacja po stronie klienta, typy protokołu |
-| `ServerClient.kt` | klient HTTP (OkHttp) |
-| `CertificatePin.kt` | przypięcie odcisku SHA-256 certyfikatu serwera |
-| `ServerPicker.kt` | wybór działającego adresu (`pick`, `firstThatAnswers`) |
-| `VaultStore.kt` | konto, lokalny sejf w plikach, odblokowanie (hasłem albo kluczami z odcisku), sync |
+| `Encoding.kt`, `Kdf.kt`, `Cipher.kt`, `Vault.kt`, `Generator.kt` | odpowiedniki plików z `core/src/` (`Vault.kt`: `Credentials`, `VaultCrypto` do klucza sejfu) |
+| `Protocol.kt` | `RemoteRecord`, `ChangeRequest`, `Accepted`, `SyncResponse` |
+| `p2p/Hlc.kt`, `EntryV2.kt`, `P2pJson.kt` | HLC, wpisy v2, wspólny `Json` |
+| `p2p/Ristretto255.kt`, `Cpace.kt`, `Pairing.kt`, `PairingHost.kt` | parowanie: grupa, CPace, kod i zapieczętowane wiadomości, strona telefonu po HTTP |
+| `p2p/Noise.kt`, `Frames.kt`, `P2pHost.kt`, `HostSync.kt` | Noise KK, ramki, host synchronizacji, `processSync` i `MemorySyncStore` |
+| `p2p/SyncHttpServer.kt`, `PhoneRouter.kt`, `LocalAddresses.kt` | serwer HTTP na porcie 8787 z limitami, trasy `/p2p/v1/*`, adresy telefonu |
+| `p2p/PhoneVaultStore.kt`, `PhoneVault.kt`, `FileSyncStore.kt`, `HostState.kt` | sejf telefonu: tworzenie, odtwarzanie, blokada (15 min), wpisy, urządzenia; pliki `records.jsonl` i `host.json` |
 
 | Plik (`android/app/.../app/`) | Co robi |
 |---|---|
-| `PassHolderApp.kt` | obiekt procesu: jeden `VaultStore`, `LeaveLock`, ustawienia, odcisk |
-| `MainActivity.kt` | `onStart` / `onStop` → powrót i wyjście z aplikacji, aktywność użytkownika, blokada zrzutów ekranu |
+| `PassHolderApp.kt` | obiekt procesu: jeden `PhoneVaultStore`, `LeaveLock`, ustawienia, odcisk |
+| `MainActivity.kt` | `onStart` / `onStop` (powrót i wyjście z aplikacji), ekran nie gaśnie w trybie Synchronizacja, blokada zrzutów ekranu |
 | `AppViewModel.kt` | stan ekranów (`UiState`) i operacje na sejfie w tle (`launchVaultOperation`) |
+| `SyncController.kt` | tryb Synchronizacja: start i stop serwera, kod parowania, zdarzenia, zatrzymanie po 5 min bez połączeń |
+| `KeystoreSecretWrapper.kt` | zawija klucz tożsamości telefonu kluczem z Android Keystore |
 | `LockController.kt` | kiedy sejf się blokuje (wyjście z aplikacji, 15 minut, „Zablokuj”) i kiedy samo otwiera się okno odcisku |
 | `LeaveLock.kt` | minutnik blokady 60 s po wyjściu z aplikacji |
-| `BiometricController.kt`, `BiometricUnlock.kt` | odcisk palca: klucz w Android Keystore, zapisane klucze sejfu |
+| `BiometricController.kt`, `BiometricUnlock.kt` | odcisk palca: klucz w Android Keystore, zapisany klucz sejfu |
 | `SecureClipboard.kt` | kopiowanie i czyszczenie schowka po minucie (WorkManager) |
-| `ui/*.kt` | ekrany Compose: `ConnectScreen`, `LockedScreen`, `ListScreen`, `EditScreen`, `AddressesScreen`, `FingerprintDialog`, `PassHolderUi` (wybór ekranu) |
+| `ui/*.kt` | ekrany Compose: `StartScreen`, `LockedScreen`, `ListScreen`, `EditScreen`, `SyncScreen`, `DevicesScreen`, `RestoreScreen`, `FingerprintDialog`, `Common`, `PassHolderUi` (wybór ekranu) |
 
-## Przepływ synchronizacji (oba klienty)
+Opis: [P2P_ANDROID_RDZEN.md](P2P_ANDROID_RDZEN.md) (rdzeń), [P2P_TELEFON.md](P2P_TELEFON.md) (serwer, ekrany).
+
+## Przepływ synchronizacji
 
 ```
-[Synchronizuj]
+Telefon: [Synchronizacja] → SyncController.start → SyncHttpServer :8787 (PhoneRouter)
+Wtyczka: [Synchronizuj]
   → VaultStore.sync()
-      wybierz adres (pickServer / ServerPicker.pick)
-      token ważny? nie → POST /session (authKey) → token
-      POST /sync { sinceRevision, changes = wpisy dirty }
-         401? → zaloguj ponownie raz i powtórz (restart Pi kasuje sesje)
-      odszyfruj i sprawdź wszystkie rekordy z odpowiedzi, zanim cokolwiek zmienisz
-      rozstrzygnij konflikty po modifiedAt, zapisz sejf, lastSyncRevision = currentRevision
-      lokalny wpis wygrał? → kolejna runda (maks. 3)
+      adresy z zgodą Chrome → pickPhone (najpierw lastPhoneUrl, ping 4 s)
+      noiseTransport: POST /p2p/v1/handshake (Noise KK, klucze z parowania)
+                      POST /p2p/v1/sync { epoch, sinceRevision, changes = wpisy dirty } w ramkach Noise
+  → telefon: P2pHost → HostSync.process (epoka, processSync, stronicowanie po 500) → FileSyncStore
+  ← accepted, conflicts, changes, addresses, more
+      odszyfruj i sprawdź rekordy, konflikty po HLC, zapisz sejf, dopisz nowe adresy
+      more albo lokalny wpis wygrał → kolejna runda
 ```
+
+Parowanie (`/p2p/v1/pair/hello`, `start`, `finish`) i odtwarzanie z wtyczki: [P2P_TELEFON.md](P2P_TELEFON.md) §2 i §8.
 
 ## Dokumentacja
 
 | Dokument | Treść |
 |---|---|
-| [INSTALACJA.md](INSTALACJA.md) | instalacja krok po kroku: Pi, Chrome, Android, aktualizacje, kopie |
-| [DEZINSTALACJA.md](DEZINSTALACJA.md) | całkowite usunięcie serwera z Raspberry Pi i sprzątanie na Ubuntu i telefonie |
-| [SPEC.md](SPEC.md) | kryptografia, format danych, protokół, API |
+| [INSTALACJA.md](INSTALACJA.md) | instalacja na Windows: telefon, wtyczka, parowanie, Tailscale, aktualizacje, kopie |
+| [DEZINSTALACJA.md](DEZINSTALACJA.md) | usunięcie wtyczki, aplikacji i narzędzi |
+| [SPEC.md](SPEC.md) | kryptografia, format danych, generator |
+| [SYNCHRONIZACJA_P2P.md](SYNCHRONIZACJA_P2P.md) | projekt synchronizacji telefon–wtyczka |
+| [P2P_RDZEN.md](P2P_RDZEN.md), [P2P_ANDROID_RDZEN.md](P2P_ANDROID_RDZEN.md) | rdzeń P2P w TypeScripcie i Kotlinie (plany 1–2) |
+| [P2P_TELEFON.md](P2P_TELEFON.md), [P2P_WTYCZKA.md](P2P_WTYCZKA.md) | telefon jako host i wtyczka sparowana z telefonem (plan 3) |
+| [P2P_USUNIECIE_SERWERA.md](P2P_USUNIECIE_SERWERA.md) | usunięcie serwera Pi i kodu v1 (plan 4) |
 | [TESTY.md](TESTY.md) | co testujemy i jak uruchomić testy |
-| [WTYCZKA_ZAKLADANIE_SEJFU.md](WTYCZKA_ZAKLADANIE_SEJFU.md) | formularz połączenia w karcie (PR #8) |
 | [WTYCZKA_OTWIERANIE_W_KARCIE.md](WTYCZKA_OTWIERANIE_W_KARCIE.md) | przycisk „Otwórz w karcie” (PR #9) |
 | [WTYCZKA_IMPORT_EKSPORT_CSV.md](WTYCZKA_IMPORT_EKSPORT_CSV.md) | import i eksport CSV (PR #10) |
 | [WTYCZKA_PIN.md](WTYCZKA_PIN.md) | PIN we wtyczce (PR #11) |
-| [WIELE_ADRESOW_SERWERA.md](WIELE_ADRESOW_SERWERA.md) | kilka adresów serwera (PR #12) |
-| [P2P_TELEFON.md](P2P_TELEFON.md) | telefon jako host synchronizacji P2P (plan 3a) |
 | [ANDROID_ODCISK_PALCA.md](ANDROID_ODCISK_PALCA.md) | odcisk palca i blokada po wyjściu z aplikacji (PR #13, #14) |
-| [PRZEGLAD_CZYSTOSCI_KODU.md](PRZEGLAD_CZYSTOSCI_KODU.md) | przegląd czystości kodu nr 1 (część punktów otwarta) |
-| [PRZEGLAD_BEZPIECZENSTWA.md](PRZEGLAD_BEZPIECZENSTWA.md), [POPRAWKI_BEZPIECZENSTWA.md](POPRAWKI_BEZPIECZENSTWA.md) | przegląd bezpieczeństwa i poprawki S1–S4, N3 (punkty N1, N2, N4–N7, I1–I5 otwarte) |
-| [ZMIANY_DOKUMENTACJI_2026-11-02.md](ZMIANY_DOKUMENTACJI_2026-11-02.md) | co zmieniła aktualizacja dokumentacji i czyszczenie |
+| [archive/](archive/README.md) | dokumenty z wersji z Pi: przeglądy, poprawki bezpieczeństwa, kilka adresów serwera, zakładanie sejfu we wtyczce, przeniesienie na Windows |
 
 ## Stare nazwy
 
-Przy PR #16 (poprawki z przeglądu czystości kodu nr 2) część plików i funkcji zmieniła nazwy. W historii
-gita i w starszych PR-ach spotkasz jeszcze te z lewej kolumny.
+Nazwy z historii gita i starszych PR-ów, których już nie ma w kodzie.
 
 | Było | Jest |
 |---|---|
-| widoki w `extension/src/popup.ts` (695 linii) | `extension/src/views/*.ts` i `extension/src/ui/*.ts` |
-| `IN_TAB`, `TRANSFER_TAB`, `isTabPage`, `TAB_PARAM`, `SETUP_PARAM` | `pageMode`, `isInTab`, `isMainTab`, `modeQuery` (`page-mode.ts`); `IN_TAB` w `ui/page.ts` |
-| `openSetupTab`, `openAddressesTab`, `openTransferTab` | `showInTab("setup" \| "addresses" \| "transfer", widok)` |
-| `VaultStore.findPinLock`, `resetPinAttempts` | `PinStore.find` (prywatna), `PinStore.resetAttempts` |
-| `ImportedEntry` (`csv-transfer.ts`) | `EntryFields` (`vault-store.ts`) |
-| `AppViewModel.lockOnLeave` | `AppViewModel.onLeftApp` → `LockController.onLeftApp` |
-| `AppViewModel.fingerprintRequests` | `timesLeftApp` |
-| `fingerprintOnLockedScreen`, `lockWhenDone` | `LockController.offerFingerprint`, `lockWaitsForOperation` |
-| `AppViewModel.enableBiometric(activity)` | `cipherToEnableBiometric` + `onBiometricEnableAuthorized` |
-| `AppViewModel.unlockWithBiometric(activity)` | `cipherToUnlockBiometric` + `onBiometricUnlockAuthorized` |
-| `AppViewModel.firstCertificate` | `ServerPicker.firstThatAnswers` |
-| `Account.serverUrl` (wersja 1.0) | `serverUrls` + `lastServerUrl`; stary zapis czyta `StoredAccount` |
+| `extension/src/server-urls.ts`, `pickServer` | `extension/src/phone-urls.ts`, `pickPhone` (plan 4) |
+| `extension/src/ui/server-url-fields.ts`, `serverUrlFields` | `extension/src/ui/phone-url-fields.ts`, `phoneUrlFields` (plan 4) |
+| `extension/src/api.ts` (`ServerClient`) | `extension/src/phone-client.ts` (`PhoneClient`, plan 3) |
+| `android/core/.../VaultStore.kt`, `Sync.kt`, `ServerClient.kt`, `ServerPicker.kt`, `CertificatePin.kt` | `p2p/PhoneVaultStore.kt` i serwer na telefonie; reszta usunięta (plan 4) |
+| `core/src/sync.ts` (klient v1), `server/`, `deploy/` | usunięte (plan 4); host: `core/src/p2p/host-sync.ts` i `HostSync.kt` |
+| ekrany `ConnectScreen`, `AddressesScreen` (Android) | `StartScreen`, `SyncScreen`, `DevicesScreen`, `RestoreScreen` (plan 3) |
+| widoki w `extension/src/popup.ts` (695 linii) | `extension/src/views/*.ts` i `extension/src/ui/*.ts` (PR #16) |
+| `IN_TAB`, `TRANSFER_TAB`, `isTabPage`, `TAB_PARAM`, `SETUP_PARAM` | `pageMode`, `isInTab`, `isMainTab`, `modeQuery` (`page-mode.ts`); `IN_TAB` w `ui/page.ts` (PR #16) |
+| `openSetupTab`, `openAddressesTab`, `openTransferTab` | `showInTab("setup" \| "addresses" \| "transfer", widok)` (PR #16) |
+| `VaultStore.findPinLock`, `resetPinAttempts` | `PinStore.find` (prywatna), `PinStore.resetAttempts` (PR #16) |
+| `AppViewModel.lockOnLeave`, `fingerprintRequests` | `onLeftApp` → `LockController.onLeftApp`, `timesLeftApp` (PR #16) |
+| `fingerprintOnLockedScreen`, `lockWhenDone` | `LockController.offerFingerprint`, `lockWaitsForOperation` (PR #16) |
+| `AppViewModel.enableBiometric(activity)`, `unlockWithBiometric(activity)` | `cipherToEnableBiometric` + `onBiometricEnableAuthorized`, `cipherToUnlockBiometric` + `onBiometricUnlockAuthorized` (PR #16) |

@@ -3,7 +3,7 @@ import { hkdf } from "@noble/hashes/hkdf.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { fromBase64, randomBytes, toBase64, utf8 } from "./encoding.ts";
 
-/** Argon2id parameters. Stored on the server in plain text so a new device can derive the same keys. */
+/** Argon2id parameters. Stored in plain text next to the vault so another device can derive the same keys. */
 export interface KdfParams {
   alg: "argon2id";
   /** Base64, 16 bytes. */
@@ -16,10 +16,10 @@ export interface KdfParams {
 
 export const DEFAULT_KDF = { memoryKiB: 65536, iterations: 3, parallelism: 4 } as const;
 
-/** Lower bounds a client accepts from the server, so a malicious server cannot downgrade the KDF. */
+/** Lower bounds a device accepts from another one, so a malicious peer cannot downgrade the KDF. */
 export const MIN_KDF = { memoryKiB: 19456, iterations: 2, parallelism: 1 } as const;
 
-/** Upper bounds, so a malicious server cannot make the device allocate gigabytes or hash for minutes. */
+/** Upper bounds, so a malicious peer cannot make the device allocate gigabytes or hash for minutes. */
 export const MAX_KDF = { memoryKiB: 1_048_576, iterations: 100, parallelism: 64 } as const;
 
 function inRange(value: unknown, min: number, max: number): boolean {
@@ -43,7 +43,10 @@ export function assertKdfParamsAcceptable(params: KdfParams): void {
 export interface DerivedKeys {
   /** Wraps and unwraps the vault key. Never leaves the device. */
   encKey: Uint8Array;
-  /** Proves knowledge of the master password to the server. */
+  /**
+   * Unused since the Pi server was removed. Still derived because the split is part of the data format:
+   * changing it would change encKey and make existing vaults unreadable.
+   */
   authKey: Uint8Array;
 }
 
@@ -68,9 +71,4 @@ export function splitMasterKey(masterKey: Uint8Array): DerivedKeys {
 
 export async function deriveKeys(masterPassword: string, params: KdfParams): Promise<DerivedKeys> {
   return splitMasterKey(await deriveMasterKey(masterPassword, params));
-}
-
-/** What the server stores instead of the auth key. */
-export function authHash(authKey: Uint8Array): Uint8Array {
-  return sha256(authKey);
 }

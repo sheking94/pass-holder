@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { open, seal } from "../src/cipher.ts";
 import { fromBase64, randomBytes, toBase64, utf8 } from "../src/encoding.ts";
-import { decryptPayload, encryptPayload, newVaultKey, unwrapVaultKey, wrapVaultKey } from "../src/vault.ts";
+import { newVaultKey, unwrapVaultKey, wrapVaultKey } from "../src/vault.ts";
 import { assertKdfParamsAcceptable, newKdfParams } from "../src/kdf.ts";
 
 describe("cipher", () => {
@@ -18,13 +18,6 @@ describe("cipher", () => {
     const bytes = fromBase64(blob);
     bytes[bytes.length - 1]! ^= 1;
     await expect(open(key, toBase64(bytes), "aad")).rejects.toThrow();
-  });
-
-  it("binds an entry to its id, so the server cannot swap entries", async () => {
-    const vaultKey = newVaultKey();
-    const blob = await encryptPayload(vaultKey, "a", { modifiedAt: 1 });
-    await expect(decryptPayload(vaultKey, "b", blob)).rejects.toThrow();
-    expect(await decryptPayload(vaultKey, "a", blob)).toEqual({ modifiedAt: 1 });
   });
 
   it("wraps and unwraps the vault key", async () => {

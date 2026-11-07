@@ -146,7 +146,7 @@ object HostSync {
             )
         }
 
-    /** Server-side sync logic (port of processSync in core/src/protocol.ts); the host never reads entries. */
+    /** Host-side sync logic (port of processSync in core/src/protocol.ts); the host never reads entries. */
     internal fun processSync(store: SyncStore, sinceRevision: Long, changes: List<ChangeRequest>): SyncResponse {
         val accepted = ArrayList<Accepted>()
         val conflicts = ArrayList<RemoteRecord>()

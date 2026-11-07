@@ -33,7 +33,7 @@ Sejf jest na telefonie, a wtyczka ma synchronizować się z nim bezpośrednio po
 | `MainActivity.kt` | `FLAG_KEEP_SCREEN_ON` na czas trybu synchronizacji, `onStop` zatrzymuje go. |
 | `ui/SyncScreen.kt`, `DevicesScreen.kt`, `RestoreScreen.kt`, `StartScreen.kt` | Ekrany z punktu 7. |
 
-Sejf telefonu to osobny byt od v1 (`VaultStore`): ma własną tożsamość, epokę i klucz. `PhoneVaultStore` używa
+Sejf telefonu był osobnym bytem od v1 (`VaultStore`, usunięty w planie 4): ma własną tożsamość, epokę i klucz. `PhoneVaultStore` używa
 `PhoneVault` i `FileSyncStore` jako jednego sklepu, więc zmiany z telefonu i z wtyczki idą tą samą drogą.
 
 ## 2. Protokół parowania po HTTP
@@ -267,8 +267,8 @@ przy każdym uruchomieniu.
 - **Wiele wywołań `router()`** (każdy start trybu) nadpisuje wspólne adresy i hosta; stara oferta jest
   odrzucana, ale oferta w trybie `restore` może po zmianie stanu dać 500.
 - **Komunikat wyjątku parsera w logcat** (punkt 6).
-- **Pozostałości v1**: `filesDir/vault` starego sejfu v1 zostaje na dysku, w `network_security_config.xml`
-  jest komentarz o certyfikacie Pi, a w testach aplikacji została zależność `okhttp.tls`. Znikną w planie 4.
+- **Pozostałości v1**: `filesDir/vault` starego sejfu v1 zostaje na dysku (nieczytany; znika przy
+  odinstalowaniu). Komentarz w `network_security_config.xml` i zależność `okhttp.tls` usunął plan 4.
 - **Testy**: brak testów zajętego portu, obrotu ekranu przy działającym serwerze, wygasania kodu przez zegar
   i „Anuluj”/„jeszcze nie”; brak testu, że „Synchronizacja” i „Urządzenia” znikają po blokadzie.
   `SyncController.stop` bywa wołane z głównego wątku (ryzyko ANR przy zablokowanym kontrolerze), a `start`
@@ -302,7 +302,7 @@ przy każdym uruchomieniu.
 ### 11.2 Telefon z wtyczką
 
 Przygotowanie: `npm run build -w extension`, w `chrome://extensions` „Załaduj rozpakowane” → `extension/dist`
-(prawdziwy Chrome, nie Chromium z testów). Stara wtyczka v1: najpierw eksport CSV (`P2P_WTYCZKA.md` §0).
+(prawdziwy Chrome, nie Chromium z testów). Wtyczka z wersji z Pi: najpierw eksport CSV (`P2P_WTYCZKA.md` §0).
 Telefon i komputer w tej samej sieci Wi-Fi. Wynik każdego testu zapisz.
 
 **T7. Bramka przed scaleniem (zrób najpierw).** Dlaczego: test dymny w chmurze dał zgody na hosty z góry

@@ -1,5 +1,7 @@
 # Poprawki z przeglądu bezpieczeństwa
 
+> Dokument historyczny: dotyczy wersji z serwerem na Raspberry Pi (przed planem 4).
+
 - Data: 2026-11-01
 - Podstawa: [PRZEGLAD_BEZPIECZENSTWA.md](PRZEGLAD_BEZPIECZENSTWA.md) (`main` @ `f5e69e4`)
 - Gałąź: `claude/project-thread-6l2990`, start z `main` @ `4cbf7c5`

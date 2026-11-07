@@ -1,5 +1,7 @@
 # Aktualizacja dokumentacji i czyszczenie (2026-11-02)
 
+> Dokument historyczny: dotyczy wersji z serwerem na Raspberry Pi (przed planem 4).
+
 Podstawa: `main` @ `3b30d6e` (po PR #18). Kod się nie zmienił; zmieniły się dokumenty i `.gitignore`.
 
 ## Co wiem na pewno, a co zakładam

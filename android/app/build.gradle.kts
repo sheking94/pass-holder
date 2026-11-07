@@ -81,7 +81,6 @@ dependencies {
     debugImplementation(libs.compose.ui.test.manifest)
 
     testImplementation(testFixtures(project(":core")))
-    testImplementation(libs.okhttp.tls)
     testImplementation(libs.junit4)
     testImplementation(libs.robolectric)
     testImplementation(libs.roborazzi)

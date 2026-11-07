@@ -21,7 +21,7 @@ class CryptoTest {
     fun `wrong key, wrong aad or a changed byte fail`() {
         val blob = Aead.seal(key, byteArrayOf(1, 2, 3), "passholder/v1/entry/a")
         assertThrows<AEADBadTagException> { Aead.open(Encoding.randomBytes(32), blob, "passholder/v1/entry/a") }
-        // The server cannot move a blob to another entry: the id is part of the AAD.
+        // A blob cannot be moved to another entry: the id is part of the AAD.
         assertThrows<AEADBadTagException> { Aead.open(key, blob, "passholder/v1/entry/b") }
         val bytes = Encoding.fromBase64(blob).also { it[20] = (it[20] + 1).toByte() }
         assertThrows<AEADBadTagException> { Aead.open(key, Encoding.toBase64(bytes), "passholder/v1/entry/a") }

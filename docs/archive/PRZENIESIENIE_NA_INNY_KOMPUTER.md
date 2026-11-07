@@ -1,5 +1,7 @@
 # Przeniesienie projektu na inny komputer (Ubuntu → Windows 11 Pro)
 
+> Dokument historyczny: dotyczy wersji z serwerem na Raspberry Pi (przed planem 4).
+
 Stan sprawdzony na Ubuntu 4 listopada 2026, w folderze `/home/sheking/Projekty/PassHolder`.
 Niczego nie skopiowano ani nie usunięto; to tylko inwentaryzacja i instrukcja.
 

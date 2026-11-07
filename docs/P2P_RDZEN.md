@@ -7,7 +7,8 @@ powstała w planie 2 i jest opisana w [`P2P_ANDROID_RDZEN.md`](P2P_ANDROID_RDZEN
 `core/test-vectors/v2.json` sprawdza, że wynik jest bit w bit ten sam.
 
 Pliki v1 (`core/src/sync.ts`, `protocol.ts`, `vault.ts`, `server/`, `extension/`, `android/`) nie
-zostały zmienione. Nowy kod używa tylko `processSync` i `SyncStore` z `protocol.ts`.
+zostały w tym kroku zmienione. Nowy kod używa tylko `processSync` i `SyncStore` z `protocol.ts`; reszta v1
+zniknęła w planie 4 ([`P2P_USUNIECIE_SERWERA.md`](P2P_USUNIECIE_SERWERA.md)).
 
 ## 1. Moduły
 

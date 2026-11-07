@@ -1,161 +1,131 @@
 # Testy PassHolder
 
-Przegląd testów całego monorepo: co jest testowane, jak to uruchomić, jakie luki znalazły testy i co
-zostało poprawione. Pierwsza wersja powstała 2026-10-31 (PR #5); liczby i listy plików zaktualizowane
-2026-11-02 na stanie po PR #18.
+Przegląd testów całego monorepo: co jest testowane, jak to uruchomić, jakie luki znalazły testy. Pierwsza
+wersja powstała 2026-10-31 (PR #5); stan opisany niżej to wersja po planie 4 (2026-11-07, bez serwera Pi).
 
 ## Jak uruchomić
 
-```sh
-npm install
-npm test                 # core, server, extension (Vitest)
-npm run typecheck
-
-cd android
-./gradlew :core:test                              # Kotlin: krypto, sync, klient HTTP, VaultStore
-PASSHOLDER_SERVER_TEST=1 ./gradlew :core:test     # + prawdziwy serwer Node.js przez HTTPS
-PASSHOLDER_INTEROP_TEST=1 ./gradlew :core:test    # + klient P2P wtyczki (TypeScript) przeciw hostowi w Kotlinie
-./gradlew :app:testDebugUnitTest                  # ekrany (Robolectric + Roborazzi)
-```
-
-### Rdzeń P2P w Kotlinie i test współpracy na Windows
-
-Rdzeń P2P telefonu (`android/core`, pakiet `core.p2p`, opis w [P2P_ANDROID_RDZEN.md](P2P_ANDROID_RDZEN.md))
-ma testy w `android/core/src/test/kotlin/io/github/sheking94/passholder/core/p2p/`; uruchamia je zwykłe
-`:core:test`. W PowerShellu, w katalogu `android/`:
+### Windows (PowerShell)
 
 ```powershell
+cd C:\Users\krzys\Projekty\PassHolder
+fnm env --shell powershell | Out-String | Invoke-Expression
+npm ci
+npm test                 # core i extension (Vitest)
+npm run typecheck
+npm run build            # wtyczka do extension\dist
+
+cd android
 $env:JAVA_HOME="$HOME\.jdks\jbr-21.0.11"    # JDK 21; JBR 25 z Android Studio nie działa z Gradle 8.14.3
 .\gradlew.bat :core:test :app:testDebugUnitTest --console=plain
 .\gradlew.bat :core:test --tests "io.github.sheking94.passholder.core.p2p.*" --console=plain   # tylko P2P
 ```
 
-Test współpracy `P2pInteropTest` uruchamia w Node prawdziwego klienta wtyczki (`syncVaultV2` i
-`noiseTransport` z `core/src/p2p`, skrypt `android/core/src/test/resources/p2p-interop.ts`) przeciw
-`P2pHost` w Kotlinie. Bez `PASSHOLDER_INTEROP_TEST=1` jest pomijany. Potrzebuje `npm install` w katalogu
-głównym i Node na PATH (na Windows przez `fnm`):
+Testy współpracy (`P2pInteropTest`, `PhoneInteropTest`) uruchamiają w Node prawdziwy kod wtyczki z
+`core/src/p2p` przeciw hostowi w Kotlinie. Bez `PASSHOLDER_INTEROP_TEST=1` są pomijane. Potrzebują
+`npm ci` w katalogu głównym i Node na PATH:
 
 ```powershell
 fnm env --shell powershell | Out-String | Invoke-Expression
 $env:PASSHOLDER_INTEROP_TEST="1"
-.\gradlew.bat :core:test --tests "*P2pInteropTest*" --console=plain
+.\gradlew.bat :core:test --tests "*Interop*" --console=plain
 Remove-Item Env:PASSHOLDER_INTEROP_TEST
 ```
 
-Skrypt działa bez `--experimental-transform-types` (Node 26.13 odrzuca ten przełącznik; wystarcza domyślne
-usuwanie typów z Node >= 22.18). Uwaga: `RealServerTest` z v1 nadal podaje ten przełącznik, więc z
-`PASSHOLDER_SERVER_TEST=1` na Node 26 nie przejdzie; kodu v1 nie zmieniamy, zniknie w planie 4. Drugie
-ograniczenie: gdy `node` się zawiesi, `P2pInteropTest` czeka do przerwania Gradle, bo czytanie wyjścia
-procesu blokuje i limit 5 minut nie zadziała.
+Gdy `node` się zawiesi, test współpracy czeka do przerwania Gradle (czytanie wyjścia procesu blokuje, limit
+5 minut nie zadziała).
+
+### Linux (chmura, CI)
+
+```sh
+npm ci && npm test && npm run typecheck && npm run build
+cd android
+./gradlew :core:test :app:testDebugUnitTest --console=plain
+PASSHOLDER_INTEROP_TEST=1 ./gradlew :core:test --tests "*Interop*" --console=plain
+```
+
+Testy ekranów (`:app:testDebugUnitTest`, Robolectric + Roborazzi, ok. 5 min) zapisują zrzuty w
+`android/app/screenshots/`; kody i hasła na nich są losowe, więc zrzuty zmieniają się przy każdym uruchomieniu.
 
 Pokrycie dla TypeScript (opcjonalnie, bez dopisywania zależności do projektu):
 `npm i --no-save @vitest/coverage-v8 && npx vitest run --coverage` w katalogu pakietu.
 
 ## Liczby
 
-| Pakiet | Przed PR #5 | Po PR #5 | Teraz (po PR #18) | Pokrycie linii (`src/`, pomiar z PR #5) |
-|---|---|---|---|---|
-| `core` | 19 | 64 | 68 | 100% |
-| `server` | 9 | 23 | 24 | `app.ts` 98,5%, `db.ts` 100% (`main.ts` to tylko start procesu) |
-| `extension` | 4 | 12 | 53 | `vault-store.ts` 91% (widoki i service worker bez testów, patrz niżej) |
-| `android/core` | 33 | 45 | 55 (w tym `RealServerTest`, uruchamiany tylko z `PASSHOLDER_SERVER_TEST=1`) | nie mierzone |
-| `android/app` | 6 | 6 | 17 | nie mierzone |
+| Pakiet | Pliki | Testy (po planie 4) | Uwagi |
+|---|---|---|---|
+| `core` | 14 | 145 | w tym `core/test/p2p/` (rdzeń P2P) |
+| `extension` | 8 | 86 | widoki i service worker bez testów (patrz niżej) |
+| `android/core` | 25 | 298 | 4 pomijane bez `PASSHOLDER_INTEROP_TEST=1` |
+| `android/app` | 6 | 31 | Robolectric, zrzuty ekranów |
 
-Liczby TypeScript to wynik `npm test` z 2026-11-02 (wszystkie zielone). Liczby Androida to liczba
-adnotacji `@Test` w plikach; w tym kontenerze nie uruchamiałem Gradle (wynik z PR #18: wszystkie zielone).
+Liczby TypeScript to wynik `npm test`; liczby Androida to wynik Gradle z planu 4. Zmiana względem planu 3:
+[P2P_USUNIECIE_SERWERA.md](P2P_USUNIECIE_SERWERA.md) §5.
 
-## Znalezione błędy i poprawki
+## Co testują pliki
 
-### 1. Po restarcie Raspberry Pi synchronizacja przestawała działać na 15 minut
+### `core/test/`
 
-Serwer trzyma tokeny sesji tylko w pamięci (`server/src/app.ts`, mapa `sessions`). Wtyczka
-(`extension/src/vault-store.ts`) i telefon (`android/core/.../VaultStore.kt`) pamiętały token razem z
-czasem wygaśnięcia i logowały się ponownie dopiero, gdy ten czas minął. Pi włącza się ręcznie, więc
-scenariusz „zsynchronizuj, wyłącz Pi, włącz, zsynchronizuj znowu” jest typowy: serwer odpowiadał
-401 „Log in first”, a klient pokazywał błąd, dopóki token nie wygasł albo użytkownik nie zablokował sejfu.
+| Plik | Co sprawdza |
+|---|---|
+| `edge-cases.test.ts` | NFC („ą” na dwa sposoby), Base64/hex dla wszystkich bajtów i złe dane, AES-GCM (zły klucz i nonce, ucięty blob, nieznana wersja, zmieniony nonce, pusty tekst), złe hasło nie odwija klucza sejfu, `encKey ≠ authKey`, inna sól daje inne klucze, granice KDF, generator |
+| `cipher.test.ts`, `generator.test.ts`, `vectors.test.ts` | szyfrowanie i zawijanie klucza sejfu, generator, wektory `test-vectors/v1.json` (KDF, klucz sejfu) |
+| `sync-edge.test.ts` | `processSync` (logika hosta): duplikaty w żądaniu, nieznana rewizja, rosnące rewizje, `sinceRevision` |
+| `p2p/*.test.ts` | HLC, ristretto255 (RFC 9496), CPace, Noise KK, parowanie, klient parowania, host i transport, synchronizacja wtyczki, wektory `v2.json` ([P2P_RDZEN.md](P2P_RDZEN.md)) |
 
-Poprawka (taka sama w TS i Kotlinie): gdy `/api/v1/sync` zwróci 401, klient loguje się raz od nowa
-(ma `authKey` w pamięci) i powtarza synchronizację. Powtórzenie jest bezpieczne, bo po każdej rundzie
-lokalny sejf jest spójny, a serwer i tak rozpoznaje już zapisane zmiany jako konflikt z samym sobą.
-
-Testy: `extension/test/edge-cases.test.ts` („logs in again when the server was restarted…”, prawdziwy
-serwer zamykany i uruchamiany na tym samym porcie i bazie) oraz `EdgeCaseTest.kt` (`FakeServer.forgetSessions()`).
-Oba testy nie przechodziły przed poprawką.
-
-### 2. Walidacja parametrów KDF we wtyczce przepuszczała `NaN`, napisy i ogromną pamięć
-
-`assertKdfParamsAcceptable` w `core/src/kdf.ts` sprawdzała tylko `memoryKiB < minimum`. Porównanie
-z `NaN` albo z napisem `"lots"` daje `false`, więc taka wartość przechodziła. Nie było też górnej
-granicy, którą Android już miał (1 GiB), więc złośliwy serwer mógł kazać wtyczce zaalokować gigabajty.
-
-Poprawka: każdy parametr musi być liczbą całkowitą w zakresie. Nowa stała `MAX_KDF`
-(`memoryKiB ≤ 1048576`, `iterations ≤ 100`, `parallelism ≤ 64`), te same granice w `Kdf.kt`
-(`MAX_ITERATIONS`, `MAX_PARALLELISM` doszły) i opis w `docs/SPEC.md` §2. Granice iteracji i równoległości są
-takie same jak w schemacie serwera; pamięć serwer dopuszcza do 4 GiB, ale nasi klienci zakładają sejf
-z 64 MiB, więc niższa granica po stronie klienta niczego nie psuje.
-
-5 z 10 nowych przypadków w `core/test/edge-cases.test.ts` nie przechodziło przed poprawką.
-
-## Co testują pliki z PR #5
-
-- `core/test/edge-cases.test.ts`: normalizacja NFC („ą” jako jeden znak i jako „a” + ogonek), Base64/hex
-  dla wszystkich bajtów i złe dane wejściowe, AES-GCM: zły rozmiar klucza i nonce, ucięty blob, nieznana
-  wersja, zmieniony nonce, pusty tekst; złe hasło główne nie rozpakowuje klucza sejfu, encKey ≠ authKey,
-  inny salt daje inne klucze; granice KDF; generator: tylko wybrane grupy, długość 4 i 128, powtórzona grupa,
-  niecałkowita długość, brak powtórzeń, `randomIndex` dla złych zakresów; walidacja odszyfrowanych wpisów.
-- `core/test/sync-edge.test.ts`: zgubiona odpowiedź serwera (Pi wyłączone w trakcie) i ponowienie bez
-  duplikatu; nowsze usunięcie wygrywa ze starszą edycją i odwrotnie; remis `modifiedAt` (wygrywa serwer na
-  obu urządzeniach); trzy urządzenia; ponowne utworzenie wpisu po usunięciu; pusta synchronizacja;
-  serwer podmienia blob jednego wpisu na blob innego (klient odmawia dzięki AAD z id) albo podaje dane
-  z innym kluczem; limit rund; `processSync`: duplikaty, nieznana rewizja, rosnące rewizje, `sinceRevision`.
-- `server/test/security.test.ts`: zakładanie sejfu bez tokenu po restarcie, zły `authKey` i KDF, nieznane
-  pola (Fastify je usuwa, nie zapisuje), serwer nie zwraca ani nie przechowuje `authKey`; zły format
-  `authKey` liczy się jako nieudana próba, udane logowanie zeruje licznik, każdy token inny, 404 przed
-  założeniem sejfu; nagłówek `Authorization` (bez „Bearer”, zmieniony token, „Basic”), utrata sesji po
-  restarcie, walidacja treści `/sync` (9 złych żądań, nic nie zapisane), konflikt zamiast błędu;
-  `loadConfig`: wymagane TLS i zły port.
-- `extension/test/edge-cases.test.ts`: restart serwera (błąd 1), konflikt dwóch przeglądarek przez
-  prawdziwy serwer, niezsynchronizowane zmiany po blokadzie, operacje na zablokowanym sejfie, odrzucenie
-  słabego KDF od fałszywego serwera (konto nie zapisane), odrzucony setup nie zapisuje konta; `ServerClient`:
-  końcowe ukośniki, nagłówki, błąd JSON, błąd HTML 502, brak sieci.
-- `android/core/.../EdgeCaseTest.kt`: odpowiedniki powyższych w Kotlinie (restart serwera, zgubiona
-  odpowiedź, usunięcie kontra edycja, podmiana blobu, limit rund, granice KDF, NFC, adres https bez odcisku).
-
-## Testy dodane później (PR #8–#18)
+### `extension/test/`
 
 | Plik | Co sprawdza | Opis funkcji |
 |---|---|---|
-| `extension/test/open-in-tab.test.ts` | tryby strony (`pageMode`), przełączanie na otwartą kartę zamiast otwierania nowej | [WTYCZKA_OTWIERANIE_W_KARCIE.md](WTYCZKA_OTWIERANIE_W_KARCIE.md) |
-| `extension/test/csv-transfer.test.ts` | parser i generator CSV NordPass, pomijanie duplikatów, podsumowanie importu | [WTYCZKA_IMPORT_EKSPORT_CSV.md](WTYCZKA_IMPORT_EKSPORT_CSV.md) |
-| `extension/test/pin.test.ts` | PIN: kształt, limit 5 prób, licznik zapisywany przed sprawdzeniem, długi PIN na dysku (S4) | [WTYCZKA_PIN.md](WTYCZKA_PIN.md) |
-| `extension/test/server-urls.test.ts` | kolejność prób adresów, limit czasu, komunikat, gdy nic nie odpowiada | [WIELE_ADRESOW_SERWERA.md](WIELE_ADRESOW_SERWERA.md) |
-| `extension/test/auto-lock.test.ts` | blokada po 15 minutach przy otwartej stronie i alarm service workera (S1) | [POPRAWKI_BEZPIECZENSTWA.md](POPRAWKI_BEZPIECZENSTWA.md) |
-| `core/test/malicious-server.test.ts`, `MaliciousServerTest.kt` | serwer nie usunie wpisu flagą `deleted`, nie wskrzesi nagrobka, nie cofnie wpisu do starszej wersji (S2) | [POPRAWKI_BEZPIECZENSTWA.md](POPRAWKI_BEZPIECZENSTWA.md) |
-| `server/test/api.test.ts` | dodatkowo globalny limit 20 błędnych logowań na minutę (N3) | [SPEC.md](SPEC.md) §6 |
-| `ServerPickerTest.kt` | wybór adresu na Androidzie, `firstThatAnswers` | [WIELE_ADRESOW_SERWERA.md](WIELE_ADRESOW_SERWERA.md) |
-| `BiometricScreenTests.kt` | odcisk palca, blokada przy wyjściu z aplikacji i opóźnienie 60 s | [ANDROID_ODCISK_PALCA.md](ANDROID_ODCISK_PALCA.md) |
-| `ScreenTests.kt` (`TwoAddressesTest`) | parowanie, gdy odpowiada tylko drugi adres, i edycja adresów | [WIELE_ADRESOW_SERWERA.md](WIELE_ADRESOW_SERWERA.md) |
-| `core/test/p2p/*.test.ts` | rdzeń P2P w TypeScripcie: HLC, ristretto255, CPace, Noise KK, parowanie, host i transport, synchronizacja wtyczki, wektory v2 | [P2P_RDZEN.md](P2P_RDZEN.md) |
-| `android/core/.../p2p/*Test.kt` | rdzeń P2P w Kotlinie: te same wektory bit w bit, host HTTP, `PhoneVault`, wiele wątków, `P2pInteropTest` (opcjonalny) | [P2P_ANDROID_RDZEN.md](P2P_ANDROID_RDZEN.md) §5 |
+| `vault-store.test.ts`, `pairing-flow.test.ts` | parowanie, złe hasło po zamknięciu okienka, wygaśnięcie po 10 min, inny sejf, odtwarzanie, kilka adresów, brak zgody Chrome, odłączanie | [P2P_WTYCZKA.md](P2P_WTYCZKA.md) |
+| `edge-cases.test.ts` | konflikt telefon–wtyczka po HLC, zmiany po blokadzie, zablokowany sejf, słaby KDF od telefonu, zły kod, telefon, który zapomniał przeglądarkę, `PhoneClient` (limit 30 s) | [P2P_WTYCZKA.md](P2P_WTYCZKA.md) |
+| `phone-urls.test.ts` | adresy IPv4, zera wiodące, porty, `pickPhone` z limitem 4 s | [P2P_WTYCZKA.md](P2P_WTYCZKA.md) |
+| `pin.test.ts` | PIN: kształt, limit 5 prób, licznik zapisywany przed sprawdzeniem, długi PIN na dysku | [WTYCZKA_PIN.md](WTYCZKA_PIN.md) |
+| `csv-transfer.test.ts` | parser i generator CSV NordPass, duplikaty, import trafia na telefon | [WTYCZKA_IMPORT_EKSPORT_CSV.md](WTYCZKA_IMPORT_EKSPORT_CSV.md) |
+| `open-in-tab.test.ts` | tryby strony, przełączanie na otwartą kartę | [WTYCZKA_OTWIERANIE_W_KARCIE.md](WTYCZKA_OTWIERANIE_W_KARCIE.md) |
+| `auto-lock.test.ts` | blokada po 15 minutach przy otwartej stronie i alarm service workera | |
 
-## Zachowania sprawdzone, ale nie zmienione (do decyzji)
+Testy wtyczki używają `extension/test/fake-phone.ts`: parowanie z prawdziwym CPace przed referencyjnym `P2pHost`.
 
-- **Nieznane pola w JSON są usuwane, a nie odrzucane.** Schematy mają `additionalProperties: false`, ale
-  Fastify domyślnie ma `removeAdditional`, więc `{"admin": true}` znika przed handlerem. Bezpieczne
-  (nic nie trafia do bazy), test to opisuje.
-- **Odtworzenie bazy serwera z kopii.** Jeśli `passholder.db` wróci do starszego stanu, klient z
-  `lastSyncRevision` większym niż na serwerze nie pobierze zmian o niższych numerach, a zmiana z
-  `baseRevision` nieznanym serwerowi kończy się 400 dla całej synchronizacji. Na razie nie ma kopii
-  zapasowych w instrukcji, więc tylko odnotowuję.
-- **Usunięty lokalnie wpis, którego odpowiedź z serwera zginęła**, może wrócić przy następnej
-  synchronizacji (klient myśli, że wpis nigdy nie dotarł na serwer). Dane nie giną, wpis trzeba usunąć
-  drugi raz.
+### `android/core` i `android/app`
+
+| Plik | Co sprawdza | Opis |
+|---|---|---|
+| `CryptoTest`, `GeneratorTest`, `VectorsTest`, `KdfBoundsTest` | szyfrowanie, generator, wektory `v1.json`, granice KDF i NFC | [SPEC.md](SPEC.md) |
+| `p2p/*Test.kt` (rdzeń) | te same wektory P2P bit w bit, CPace, Noise, `HostSync`, `P2pHost`, `PhoneVault`, wiele wątków | [P2P_ANDROID_RDZEN.md](P2P_ANDROID_RDZEN.md) §5 |
+| `SyncHttpServerTest`, `FileSyncStoreTest`, `HostStateTest`, `PairingHostTest`, `PhoneRouterTest`, `LocalAddressesTest`, `PhoneVaultStoreTest` | serwer HTTP i limity, trwała baza, parowanie po HTTP, sejf telefonu | [P2P_TELEFON.md](P2P_TELEFON.md) §9 |
+| `P2pInteropTest`, `PhoneInteropTest` (opcjonalne) | prawdziwy klient wtyczki w Node przeciw hostowi w Kotlinie | [P2P_WTYCZKA.md](P2P_WTYCZKA.md) §8 |
+| `ScreenTests`, `SyncScreenTests`, `SyncControllerTest` (app) | ekrany, tryb Synchronizacja, odświeżenie listy po synchronizacji | [P2P_TELEFON.md](P2P_TELEFON.md) |
+| `BiometricScreenTests` (app) | odcisk palca, blokada po wyjściu z aplikacji i opóźnienie 60 s | [ANDROID_ODCISK_PALCA.md](ANDROID_ODCISK_PALCA.md) |
+| `BackupRulesTest`, `ClearClipboardWorkerTest` (app) | brak kopii zapasowych w chmurze, czyszczenie schowka | |
+
+## Znalezione błędy i poprawki
+
+### 1. (historyczne, wersja z Pi) Po restarcie Raspberry Pi synchronizacja przestawała działać na 15 minut
+
+Serwer trzymał tokeny sesji tylko w pamięci, a klienci logowali się ponownie dopiero po wygaśnięciu
+zapamiętanego tokenu. Poprawka: po 401 przy synchronizacji klient logował się raz od nowa i powtarzał
+synchronizację. Serwer, logowanie i te testy usunął plan 4; opis zostaje dla historii.
+
+### 2. Walidacja parametrów KDF przepuszczała `NaN`, napisy i ogromną pamięć
+
+`assertKdfParamsAcceptable` w `core/src/kdf.ts` sprawdzała tylko `memoryKiB < minimum`. Porównanie
+z `NaN` albo z napisem `"lots"` daje `false`, więc taka wartość przechodziła. Nie było też górnej
+granicy, którą Android już miał (1 GiB), więc złośliwa druga strona (wtedy serwer, dziś telefon albo
+wtyczka przy parowaniu) mogła kazać zaalokować gigabajty.
+
+Poprawka: każdy parametr musi być liczbą całkowitą w zakresie. Stała `MAX_KDF`
+(`memoryKiB ≤ 1048576`, `iterations ≤ 100`, `parallelism ≤ 64`), te same granice w `Kdf.kt` i opis w
+[SPEC.md](SPEC.md) §2. Testy: `core/test/edge-cases.test.ts` („KDF parameters from another device”),
+`KdfBoundsTest.kt`, `extension/test/edge-cases.test.ts` (słaby KDF od telefonu).
 
 ## Czego dalej brakuje
 
 - Widoki wtyczki (`extension/src/views/`, `extension/src/ui/`), `offscreen.ts` i `clipboard.ts` nie mają
-  testów jednostkowych (to kod zależny od DOM i API Chrome). Przy PR #8 i #16 sprawdzałem je skryptem
-  Playwright w Chromium bez okna, ale ten skrypt nie jest w repozytorium. Sensowny następny krok to dodać
-  taki test na stałe.
-- Aplikacja Android nie była testowana na prawdziwym telefonie ani emulatorze, tylko na JVM (Robolectric).
-- Brak testu wydajności Argon2id na Raspberry Pi i na telefonie (domyślne 64 MiB, 3 iteracje).
+  testów jednostkowych (kod zależny od DOM i API Chrome). Sensowny następny krok: stały test w Chromium
+  (Playwright).
+- Prośba o zgodę Chrome i Private Network Access do adresu w LAN oraz Tailscale nie są pokryte testami
+  automatycznymi; sprawdzają je testy ręczne T4 i T7 w [P2P_TELEFON.md](P2P_TELEFON.md) §11.2.
+- Aplikacja Android jest testowana na JVM (Robolectric); prawdziwy Keystore, `BiometricPrompt` i serwer na
+  porcie 8787 tylko ręcznie na telefonie.
+- Brak testu wydajności Argon2id na telefonie (domyślne 64 MiB, 3 iteracje).

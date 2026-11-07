@@ -1,5 +1,7 @@
 # Kilka adresów serwera (sieć domowa + Tailscale)
 
+> Dokument historyczny: dotyczy wersji z serwerem na Raspberry Pi (przed planem 4).
+
 Dokument opisuje zmiany z gałęzi `claude/project-thread-9shesd`: wtyczka Chrome i aplikacja na Androida
 pamiętają więcej niż jeden adres tego samego serwera i przy każdym połączeniu same wybierają ten, który
 odpowiada.
