@@ -1,6 +1,6 @@
 import { busy, form, h, passwordField, setStatus, show, statusLine } from "../ui/dom.ts";
 import { MODE, showInTab } from "../ui/page.ts";
-import { requestHostPermission, serverUrlFields } from "../ui/server-url-fields.ts";
+import { requestHostPermission, phoneUrlFields } from "../ui/phone-url-fields.ts";
 import { store } from "../ui/state.ts";
 import { PairedButSyncFailed } from "../vault-store.ts";
 import { showConnect } from "./connect.ts";
@@ -27,7 +27,7 @@ export async function addressesView(message = "") {
   const ownTab = MODE === "addresses";
   const closeHint = ownTab ? " Możesz zamknąć tę kartę." : "";
 
-  const addresses = serverUrlFields(account.phoneUrls);
+  const addresses = phoneUrlFields(account.phoneUrls);
   const status = statusLine();
   setStatus(status, message);
   const save = () => {
@@ -41,7 +41,7 @@ export async function addressesView(message = "") {
     });
   };
 
-  const other = serverUrlFields();
+  const other = phoneUrlFields();
   const code = h("input", { type: "text", class: "mono", inputmode: "numeric", autocomplete: "off", maxLength: 9, placeholder: "12345678" });
   const password = h("input", { type: "password", autocomplete: "current-password" });
   const repairStatus = statusLine();

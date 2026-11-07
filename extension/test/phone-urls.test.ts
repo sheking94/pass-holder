@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../src/phone-client.ts";
-import { learnedPhoneUrls, normalizePhoneUrl, normalizePhoneUrls, orderForTrying, pickServer, PROBE_TIMEOUT_MS } from "../src/server-urls.ts";
+import { learnedPhoneUrls, normalizePhoneUrl, normalizePhoneUrls, orderForTrying, pickPhone, PROBE_TIMEOUT_MS } from "../src/phone-urls.ts";
 import { pairedBrowser, PHONE_URL, SECOND_URL } from "./fake-phone.ts";
 
 afterEach(() => {
@@ -46,10 +46,10 @@ describe("phone addresses", () => {
   });
 });
 
-describe("pickServer", () => {
+describe("pickPhone", () => {
   it("uses a single address without checking it first", async () => {
     const calls: string[] = [];
-    const { url } = await pickServer(["http://only"], (u) => probe("ok", calls, u));
+    const { url } = await pickPhone(["http://only"], (u) => probe("ok", calls, u));
     expect(url).toBe("http://only");
     expect(calls).toEqual([]);
   });
@@ -58,7 +58,7 @@ describe("pickServer", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const calls: string[] = [];
     const behaviours: Record<string, "ok" | "fail" | "hang"> = { a: "hang", b: "fail", c: "ok" };
-    const picking = pickServer(["a", "b", "c"], (u) => probe(behaviours[u]!, calls, u));
+    const picking = pickPhone(["a", "b", "c"], (u) => probe(behaviours[u]!, calls, u));
     await vi.advanceTimersByTimeAsync(PROBE_TIMEOUT_MS);
     const { url, client } = await picking;
     expect(url).toBe("c");
@@ -68,7 +68,7 @@ describe("pickServer", () => {
   });
 
   it("says which addresses it tried when none answers", async () => {
-    const error = await pickServer(["a", "b"], (u) => probe("fail", [], u)).catch((e: unknown) => e);
+    const error = await pickPhone(["a", "b"], (u) => probe("fail", [], u)).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(ApiError);
     expect((error as ApiError).status).toBe(0);
     expect((error as ApiError).message).toContain("a, b");

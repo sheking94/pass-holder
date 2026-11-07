@@ -1,6 +1,6 @@
 import { busy, form, h, passwordField, setStatus, show, statusLine } from "../ui/dom.ts";
 import { IN_TAB, showInTab } from "../ui/page.ts";
-import { originPattern, requestHostPermission, requestOptionalHostPermission, serverUrlFields } from "../ui/server-url-fields.ts";
+import { originPattern, requestHostPermission, requestOptionalHostPermission, phoneUrlFields } from "../ui/phone-url-fields.ts";
 import { store } from "../ui/state.ts";
 import { pairingCancelledMessage, pairingExpiredMessage, PairedButSyncFailed, type PendingPairingInfo } from "../vault-store.ts";
 import { listView, skippedNote } from "./list.ts";
@@ -40,7 +40,7 @@ async function connectView(message = "") {
 
 /** Step 1: the phone's address and the one-time code from its "Synchronizacja" screen. */
 function codeStep(message = "") {
-  const addresses = serverUrlFields();
+  const addresses = phoneUrlFields();
   const code = h("input", { type: "text", class: "mono", inputmode: "numeric", autocomplete: "off", maxLength: 9, placeholder: "12345678" });
   const name = h("input", { type: "text", value: defaultDeviceName(), maxLength: 64 });
   const status = statusLine();

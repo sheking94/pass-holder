@@ -64,7 +64,7 @@ export function orderForTrying(urls: readonly string[], lastWorking?: string): s
   return [lastWorking, ...urls.filter((u) => u !== lastWorking)];
 }
 
-/** What pickServer needs of a client: a quick check that the other side answers. */
+/** What pickPhone needs of a client: a quick check that the other side answers. */
 export interface Probe {
   status(timeoutMs?: number): Promise<unknown>;
 }
@@ -75,7 +75,7 @@ export interface Probe {
  * gets a ping with PROBE_TIMEOUT_MS in turn and the first that answers wins. Any failure (no route,
  * timeout, an error status) means "not here, try the next one".
  */
-export async function pickServer<C extends Probe>(
+export async function pickPhone<C extends Probe>(
   urls: readonly string[],
   makeClient: (url: string) => C,
   lastWorking?: string,
