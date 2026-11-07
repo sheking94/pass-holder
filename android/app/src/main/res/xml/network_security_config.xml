@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Release: HTTPS only. The app trusts the server through its own certificate pin (CertificatePin.kt),
-     not through Android's CA store. -->
+<!-- Release: no plain http:// for outgoing connections. The app makes none: the phone is the sync host.
+     Its own HTTP server (SyncHttpServer, Noise on top) only accepts connections from the extension,
+     and this setting does not apply to incoming connections. -->
 <network-security-config>
     <base-config cleartextTrafficPermitted="false" />
 </network-security-config>

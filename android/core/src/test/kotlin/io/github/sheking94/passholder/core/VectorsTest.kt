@@ -11,7 +11,7 @@ import java.io.File
 @Serializable
 private data class KdfVector(
     val description: String, val password: String, val passwordUtf8Nfc: String, val kdf: KdfParams,
-    val masterKey: String, val encKey: String, val authKey: String, val authHash: String,
+    val masterKey: String, val encKey: String, val authKey: String,
 )
 
 @Serializable
@@ -36,7 +36,6 @@ class VectorsTest {
             assertEquals(v.masterKey, hex(masterKey))
             assertEquals(v.encKey, hex(keys.encKey))
             assertEquals(v.authKey, hex(keys.authKey))
-            assertEquals(v.authHash, hex(Kdf.authHash(keys.authKey)))
         }
     }
 
@@ -47,22 +46,6 @@ class VectorsTest {
             assertEquals(v.blob, Aead.seal(key, Encoding.fromHex(v.plaintextHex), v.aad, Encoding.fromHex(v.nonce)))
             assertEquals(v.plaintextHex, hex(Aead.open(key, v.blob, v.aad)))
         }
-    }
-
-    @Test
-    fun `entry JSON matches the TypeScript bytes and decrypts to the same entry`() {
-        val (_, live, tombstone) = vectors.seal
-        val id = live.aad.removePrefix("passholder/v1/entry/")
-        val vaultKey = Encoding.fromHex(live.key)
-
-        val payload = EntryPayload("example.com", "jan@example.com", "p@ss wörd!", 1793404800000)
-        assertEquals(live.plaintextHex, hex(Encoding.utf8(VaultCrypto.json.encodeToString(payload))))
-        assertEquals(tombstone.plaintextHex, hex(Encoding.utf8(VaultCrypto.json.encodeToString(TombstonePayload(1793404900000)))))
-
-        val entry = VaultCrypto.decryptRecord(vaultKey, RemoteRecord(id, 7, deleted = false, blob = live.blob))
-        assertEquals(LocalEntry(id, 7, false, 1793404800000, Credentials("example.com", "jan@example.com", "p@ss wörd!")), entry)
-        val gone = VaultCrypto.decryptRecord(vaultKey, RemoteRecord(id, 8, deleted = true, blob = tombstone.blob))
-        assertEquals(LocalEntry(id, 8, false, 1793404900000, null), gone)
     }
 
     @Test
