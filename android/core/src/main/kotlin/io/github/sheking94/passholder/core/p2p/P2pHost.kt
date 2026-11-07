@@ -55,8 +55,10 @@ class P2pHost(
         if (body.size > MAX_BODY_BYTES) return fail(413, "body too large")
         synchronized(sessions) { prune() }
         return when (path) {
-            "/p2p/v1/handshake" -> handshake(body)
-            "/p2p/v1/sync" -> sync(body)
+            "/p2p/v2/handshake" -> handshake(body)
+            "/p2p/v2/sync" -> sync(body)
+            // The v1 sync protocol is gone; tell old clients to update instead of pretending the path is unknown.
+            "/p2p/v1/handshake", "/p2p/v1/sync" -> fail(410, "update required")
             else -> fail(404, "not found")
         }
     }

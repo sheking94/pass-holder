@@ -26,9 +26,8 @@ p2p.applyVaultInfo(vault, { epoch: config.epoch, addresses: [] });
 const clock = p2p.clockForVault(vault, config.deviceId);
 for (let i = 0; i < config.count; i++) {
   p2p.upsertEntryV2(vault, clock, crypto.randomUUID(), {
-    name: `${config.startPrefix}-${i}`,
-    username: "z TS",
-    password: i === 0 ? config.password : "p".repeat(100),
+    ...p2p.emptyLogin(`${config.startPrefix}-${i}`),
+    fields: { ...p2p.emptyLogin().fields, username: "z TS", password: i === 0 ? config.password : "p".repeat(100) },
   });
 }
 

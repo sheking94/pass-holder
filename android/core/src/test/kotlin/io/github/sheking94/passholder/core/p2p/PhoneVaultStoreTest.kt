@@ -368,7 +368,7 @@ class PhoneVaultStoreTest {
         val store = newStore()
         val http = serve(store)
         assertEquals(HostReply(200, """{"ok":true}"""), http("/p2p/v1/ping", "{}".toByteArray()))
-        assertEquals(503, http("/p2p/v1/handshake", "{}".toByteArray()).status)
+        assertEquals(503, http("/p2p/v2/handshake", "{}".toByteArray()).status)
         assertThrows<IllegalStateException> { store.offerPairing() }
         // The same router sees the vault created after it was built.
         store.createVault("pw")
@@ -429,7 +429,7 @@ class PhoneVaultStoreTest {
         // Sync mode in this state: the router answers, the vault paths are not ready.
         val http = serve(store)
         assertEquals(200, http("/p2p/v1/ping", "{}".toByteArray()).status)
-        assertEquals(503, http("/p2p/v1/handshake", "{}".toByteArray()).status)
+        assertEquals(503, http("/p2p/v2/handshake", "{}".toByteArray()).status)
         assertTrue(store.corruptState)
 
         store.disconnect()
@@ -470,7 +470,7 @@ class PhoneVaultStoreTest {
         val http = serve(store)
         keystoreGone = true
         // The host's static key cannot be unwrapped: the extension sees only 500, the app's log the cause.
-        assertEquals(HostReply(500, """{"error":"internal error"}"""), http("/p2p/v1/handshake", "{}".toByteArray()))
+        assertEquals(HostReply(500, """{"error":"internal error"}"""), http("/p2p/v2/handshake", "{}".toByteArray()))
         assertEquals(listOf("no Keystore key"), errors.map { it.message })
     }
 }

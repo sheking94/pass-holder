@@ -49,7 +49,10 @@ const vault = p2p.emptyVaultV2();
 if (config.restore) p2p.applyVaultInfo(vault, { epoch: (restore as { epoch: string }).epoch, addresses: [] });
 const clock = p2p.clockForVault(vault, deviceId);
 for (let i = 0; i < config.count; i++) {
-  p2p.upsertEntryV2(vault, clock, crypto.randomUUID(), { name: `${config.prefix}-${i}`, username: "z TS", password: `${config.password}-${i}` });
+  p2p.upsertEntryV2(vault, clock, crypto.randomUUID(), {
+    ...p2p.emptyLogin(`${config.prefix}-${i}`),
+    fields: { ...p2p.emptyLogin().fields, username: "z TS", password: `${config.password}-${i}` },
+  });
 }
 // The phone's epoch: every local entry becomes dirty and is uploaded.
 p2p.applyVaultInfo(vault, paired.vaultInfo);

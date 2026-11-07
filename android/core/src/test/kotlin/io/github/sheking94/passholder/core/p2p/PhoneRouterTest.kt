@@ -29,16 +29,16 @@ class PhoneRouterTest {
         val malformed = HostReply(400, """{"error":"malformed request"}""")
         assertEquals(malformed, post(router, "/p2p/v1/ping", "[]"))
         assertEquals(malformed, post(router, "/p2p/v1/pair/hello", "not json"))
-        assertEquals(malformed, router.handle("/p2p/v1/handshake", byteArrayOf(0xff.toByte(), 0xfe.toByte())))
-        assertEquals(malformed, post(router, "/p2p/v1/sync", "\"x\""))
+        assertEquals(malformed, router.handle("/p2p/v2/handshake", byteArrayOf(0xff.toByte(), 0xfe.toByte())))
+        assertEquals(malformed, post(router, "/p2p/v2/sync", "\"x\""))
     }
 
     @Test
     fun handshakeAndSyncAre503WithoutAHost() {
         val router = PhoneRouter(pairing, { null }, {})
         val notReady = HostReply(503, """{"error":"vault not ready"}""")
-        assertEquals(notReady, post(router, "/p2p/v1/handshake"))
-        assertEquals(notReady, post(router, "/p2p/v1/sync"))
+        assertEquals(notReady, post(router, "/p2p/v2/handshake"))
+        assertEquals(notReady, post(router, "/p2p/v2/sync"))
     }
 
     @Test
@@ -67,7 +67,7 @@ class PhoneRouterTest {
         val router = PhoneRouter(pairing, { null }, { count++ })
         post(router, "/p2p/v1/ping")
         post(router, "/p2p/v1/ping", "[]")
-        post(router, "/p2p/v1/handshake")
+        post(router, "/p2p/v2/handshake")
         post(router, "/p2p/v1/pair/hello")
         assertEquals(4, count)
         // A scanner probing unknown paths does not keep sync mode awake.
@@ -80,12 +80,36 @@ class PhoneRouterTest {
     @Test
     fun hostFailureIs500() {
         val router = PhoneRouter(pairing, { throw IllegalStateException("Corrupt host state") }, {})
-        assertEquals(HostReply(500, """{"error":"internal error"}"""), post(router, "/p2p/v1/handshake"))
+        assertEquals(HostReply(500, """{"error":"internal error"}"""), post(router, "/p2p/v2/handshake"))
     }
 
     @Test
     fun syncConstants() {
         assertEquals(8787, PhoneSync.PORT)
         assertEquals(300_000L, PhoneSync.SYNC_IDLE_MS)
+    }
+
+    @Test
+    fun v1SyncReaches410() {
+        val hostKey = NoiseKeys.generate()
+        val host = P2pHost(hostKey, { emptyList() }, MemorySyncStore(), "e", { emptyList() })
+        val router = PhoneRouter(pairing, { host }, {})
+        val gone = HostReply(410, """{"error":"update required"}""")
+        assertEquals(gone, post(router, "/p2p/v1/handshake"))
+        assertEquals(gone, post(router, "/p2p/v1/sync"))
+        // Without a vault the host does not exist, so even the old paths answer 503.
+        val notReady = HostReply(503, """{"error":"vault not ready"}""")
+        assertEquals(notReady, post(PhoneRouter(pairing, { null }, {}), "/p2p/v1/sync"))
+    }
+
+    @Test
+    fun v2SyncIsRouted() {
+        val hostKey = NoiseKeys.generate()
+        val host = P2pHost(hostKey, { emptyList() }, MemorySyncStore(), "e", { emptyList() })
+        val calls = java.util.concurrent.atomic.AtomicInteger()
+        val router = PhoneRouter(pairing, { host }, { calls.incrementAndGet() })
+        assertEquals(HostReply(400, """{"error":"malformed request"}"""), post(router, "/p2p/v2/sync"))
+        assertEquals(HostReply(400, """{"error":"malformed request"}"""), post(router, "/p2p/v2/handshake"))
+        assertEquals(2, calls.get())
     }
 }

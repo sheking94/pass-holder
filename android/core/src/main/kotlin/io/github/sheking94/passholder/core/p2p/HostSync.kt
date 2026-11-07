@@ -46,13 +46,13 @@ data class P2pSyncRequest(val epoch: String, val sinceRevision: Long, val change
 @Serializable
 data class P2pSyncResponse(
     val epoch: String,
-    /** With more = true: the revision of the last record in changes, so the next sinceRevision continues there. */
+    /** With more = true: the revision of the last record in changes (sinceRevision when none), so the next sinceRevision continues there. */
     val currentRevision: Long,
     val accepted: List<Accepted>,
     val conflicts: List<RemoteRecord>,
     val changes: List<RemoteRecord>,
     val addresses: List<String>,
-    /** True when changes was cut at MAX_CHANGES_PER_RESPONSE and the client must ask again. */
+    /** True when conflicts or changes were cut (MAX_CHANGES_PER_RESPONSE or MAX_BLOB_BYTES_PER_ROUND) and the client must ask again. */
     val more: Boolean,
 )
 
@@ -89,6 +89,7 @@ object HostSync {
             ) {
                 return "malformed change"
             }
+            if (c["blob"].string()!!.length > EntryV3.MAX_BLOB_LENGTH) return "blob too large"
             if (!ids.add(id)) return "duplicate change"
         }
         // A request from another epoch is not processed, so its base revisions do not matter.
@@ -134,17 +135,37 @@ object HostSync {
                 )
             }
             val result = processSync(store, parsed.sinceRevision, parsed.changes)
-            val all = result.changes.sortedBy { it.revision }
-            if (all.size <= MAX_CHANGES_PER_RESPONSE) {
+            val sorted = result.changes.sortedBy { it.revision }
+            // Conflicts first, then changes; the first record always goes in, then while the running sum fits.
+            var budget = MAX_BLOB_BYTES_PER_ROUND
+            var included = 0
+            fun fits(r: RemoteRecord): Boolean {
+                if (included > 0 && r.blob.length > budget) return false
+                budget -= r.blob.length
+                included++
+                return true
+            }
+            val conflicts = ArrayList<RemoteRecord>()
+            for (r in result.conflicts) {
+                if (!fits(r)) break
+                conflicts.add(r)
+            }
+            val page = ArrayList<RemoteRecord>()
+            if (conflicts.size == result.conflicts.size) {
+                for (r in sorted) {
+                    if (page.size >= MAX_CHANGES_PER_RESPONSE || !fits(r)) break
+                    page.add(r)
+                }
+            }
+            if (conflicts.size == result.conflicts.size && page.size == sorted.size) {
                 return@synchronized P2pSyncResponse(
-                    epoch, result.currentRevision, result.accepted, result.conflicts, all, addresses, false,
+                    epoch, result.currentRevision, result.accepted, conflicts, page, addresses, false,
                 )
             }
             // Records skipped below this revision were answered in accepted or conflicts, so nothing is lost.
-            val page = all.take(MAX_CHANGES_PER_RESPONSE)
-            P2pSyncResponse(
-                epoch, page.last().revision, result.accepted, result.conflicts, page, addresses, true,
-            )
+            // Omitted conflicts leave their changes dirty on the client, which sends them again.
+            val currentRevision = if (page.isNotEmpty()) page.last().revision else parsed.sinceRevision
+            P2pSyncResponse(epoch, currentRevision, result.accepted, conflicts, page, addresses, true)
         }
 
     /** Host-side sync logic (port of processSync in core/src/protocol.ts); the host never reads entries. */
