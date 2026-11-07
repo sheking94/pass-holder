@@ -60,14 +60,13 @@
 
 **Pliki:**
 - Przepisz: `docs/INSTALACJA.md` (bez Pi; części: 1. narzędzia na Windows, 2. telefon – instalacja i założenie sejfu, 3. wtyczka – budowa, załadowanie, parowanie kodem, 4. opcjonalnie Tailscale na telefonie i komputerze, aktualizacje, kopia zapasowa = wtyczka/„Odtwórz z wtyczki” + eksport CSV, problemy, ograniczenia).
-- Przepisz: `docs/DEZINSTALACJA.md` (część A: wtyczka i telefon; część B: „Wyłączenie starego Pi” – skrót obecnej instrukcji, bo Pi nadal stoi).
+- Przepisz: `docs/DEZINSTALACJA.md` (tylko wtyczka, telefon, Tailscale i narzędzia na Windows; **bez żadnej części o Pi** – decyzja właściciela).
 - Zmień: `docs/ARCHITEKTURA.md` (bez sekcji `server/`, nowy diagram telefon–wtyczka), `docs/TESTY.md` (bez testów serwera i `PASSHOLDER_SERVER_TEST`, aktualne liczby testów), `docs/SPEC.md` (sekcje 5–7 zastąpione odesłaniem do `SYNCHRONIZACJA_P2P.md`), `README.md`.
-- Usuń: `docs/WIELE_ADRESOW_SERWERA.md` (opisuje tylko wiele adresów Pi; P2P ma własny opis w `P2P_WTYCZKA.md`).
-- Dopisz notkę „dokument historyczny, dotyczy wersji z Pi” na górze: `PRZEGLAD_BEZPIECZENSTWA.md`, `POPRAWKI_BEZPIECZENSTWA.md`, `PRZEGLAD_CZYSTOSCI_KODU.md`, `ZMIANY_DOKUMENTACJI_2026-11-02.md`, `PRZENIESIENIE_NA_INNY_KOMPUTER.md` (tu też zaktualizować listę tajnych plików: bez `passholder-ca.*`).
+- Przenieś (`git mv`) do `docs/archive/` dokumenty historyczne (decyzja właściciela), z notką „dokument historyczny, dotyczy wersji z Pi” na górze: `WIELE_ADRESOW_SERWERA.md`, `PRZEGLAD_BEZPIECZENSTWA.md`, `POPRAWKI_BEZPIECZENSTWA.md`, `PRZEGLAD_CZYSTOSCI_KODU.md`, `ZMIANY_DOKUMENTACJI_2026-11-02.md`, `PRZENIESIENIE_NA_INNY_KOMPUTER.md` oraz każdy inny dokument kroku, który opisuje głównie mechanizm v1 (sprawdzić `WTYCZKA_*.md`, `ANDROID_ODCISK_PALCA.md`). `docs/archive/README.md` – jedno zdanie, co tu jest. Linki do przeniesionych plików poprawione.
 - Utwórz: `docs/P2P_USUNIECIE_SERWERA.md` – opis zmian (reguła projektu).
 
 - [ ] Sprawdzenie: `grep -rn "server/\|deploy/\|Raspberry\|PASSHOLDER_SERVER" docs README.md` – tylko notki historyczne i spec P2P.
-- [ ] Kopie w folderze projektu (`instalacja/`, `dokumentacja/`, `testy/`) zaktualizowane.
+- [ ] Kopie w folderze projektu (`instalacja/`, `dokumentacja/`, `testy/`) zaktualizowane; stare kopie przeglądów przeniesione do `archive/`.
 - [ ] Commit `docs: install and uninstall without the Pi`.
 
 ### Zadanie 5: przegląd i PR
