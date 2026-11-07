@@ -14,9 +14,11 @@ import io.github.sheking94.passholder.core.Kdf
 import io.github.sheking94.passholder.core.KdfParams
 import io.github.sheking94.passholder.core.VaultCrypto
 import io.github.sheking94.passholder.core.p2p.DeviceIdentity
-import io.github.sheking94.passholder.core.p2p.EntryDataV2
-import io.github.sheking94.passholder.core.p2p.EntryV2
+import io.github.sheking94.passholder.core.p2p.EntryContentV3
+import io.github.sheking94.passholder.core.p2p.EntryDataV3
+import io.github.sheking94.passholder.core.p2p.EntryV3
 import io.github.sheking94.passholder.core.p2p.Hlc
+import io.github.sheking94.passholder.core.p2p.LoginFields
 import io.github.sheking94.passholder.core.p2p.HttpTestTransport
 import io.github.sheking94.passholder.core.p2p.NoiseKeys
 import io.github.sheking94.passholder.core.p2p.P2pSyncRequest
@@ -76,6 +78,9 @@ abstract class SyncScreenTestBase : ScreenTestBase() {
         compose.waitUntil(30_000) { codeNodes(pattern).isNotEmpty() }
         return codeNodes(pattern).single().replace(" ", "")
     }
+
+    protected fun loginData(name: String, username: String, password: String, hlc: Hlc) =
+        EntryDataV3(EntryContentV3(name, "", LoginFields(username, password), emptyList()), hlc)
 
     private fun codeNodes(pattern: Regex) = compose.onAllNodes(hasText(" ", substring = true)).fetchSemanticsNodes()
         .flatMap { it.config.getOrNull(SemanticsProperties.Text).orEmpty().map { t -> t.text } }
@@ -217,7 +222,7 @@ class RestoreFlowTest : SyncScreenTestBase() {
         waitFor("Czekam, aż wtyczka prześle sejf", substring = true)
 
         val changes = listOf("a" to "allegro.pl", "b" to "bank.pl").map { (id, name) ->
-            ChangeRequest(id, 0, false, EntryV2.encrypt(vaultKey, id, EntryDataV2(name, "jan", "pw-$id", Hlc(clock, 0, extIdentity.deviceId))))
+            ChangeRequest(id, 0, false, EntryV3.encrypt(vaultKey, id, loginData(name, "jan", "pw-$id", Hlc(clock, 0, extIdentity.deviceId))))
         }
         val res = client(pair).syncResponse(P2pSyncRequest(pair.phoneVaultInfo!!.epoch, 0, changes))
         assertEquals(2, res.accepted.size)
@@ -330,8 +335,8 @@ class SyncRefreshesEntriesTest : SyncScreenTestBase() {
         assertEquals(pair.finish?.body, 200, pair.finish?.status)
 
         // The extension edited the same entry later than the phone did.
-        val blob = EntryV2.encrypt(
-            vaultKey, old.id, EntryDataV2("bank.pl", "jan.nowak", "nowe-haslo-456", Hlc(clock + 60_000, 0, extIdentity.deviceId)),
+        val blob = EntryV3.encrypt(
+            vaultKey, old.id, loginData("bank.pl", "jan.nowak", "nowe-haslo-456", Hlc(clock + 60_000, 0, extIdentity.deviceId)),
         )
         val res = client(pair).syncResponse(
             P2pSyncRequest(pair.phoneVaultInfo!!.epoch, 0, listOf(ChangeRequest(old.id, old.revision, false, blob))),

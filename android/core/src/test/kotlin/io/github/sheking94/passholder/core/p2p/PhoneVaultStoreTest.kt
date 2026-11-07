@@ -52,9 +52,12 @@ class PhoneVaultStoreTest {
         TestP2pClient(extIdentity.deviceId, extKey, Encoding.fromBase64(pair.phoneIdentity!!.staticPublicKey), transport)
 
     private fun blob(vaultKey: ByteArray, id: String, name: String) =
-        EntryV2.encrypt(vaultKey, id, EntryDataV2(name, "user-$id", "pass-$id", Hlc(time, 0, extIdentity.deviceId)))
+        EntryV3.encrypt(
+            vaultKey, id,
+            EntryDataV3(EntryContentV3(name, "", LoginFields("user-$id", "pass-$id"), emptyList()), Hlc(time, 0, extIdentity.deviceId)),
+        )
 
-    private fun nameOf(vaultKey: ByteArray, id: String, blob: String) = EntryV2.parseEntry(EntryV2.decrypt(vaultKey, id, blob)).name
+    private fun nameOf(vaultKey: ByteArray, id: String, blob: String) = EntryV3.parse(EntryV3.decrypt(vaultKey, id, blob)).content.name
 
     @Test
     fun createVaultPairSyncAndReopen() {

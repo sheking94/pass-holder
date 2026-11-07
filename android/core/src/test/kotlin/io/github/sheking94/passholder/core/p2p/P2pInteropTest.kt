@@ -116,12 +116,8 @@ class P2pInteropTest {
         assertEquals(listOf("z-przegladarki-0", "z-telefonu.pl"), out.names())
         assertEquals(f.epoch, out.getValue("epoch").jsonPrimitive.content)
         assertEquals(addresses, out.getValue("addresses").jsonArray.map { it.jsonPrimitive.content })
-        // The extension writes v3 entries, which PhoneVault (v2 only until the phone app moves to v3) cannot read yet,
-        // so they are checked on the stored records.
-        val fromBrowser = f.store.listSince(0).filter { !it.deleted }.map {
-            EntryV3.parse(EntryV3.decrypt(f.vaultKey, it.id, it.blob))
-        }.single { it.content.name == "z-przegladarki-0" }
-        assertEquals(password, (fromBrowser.content.fields as LoginFields).password)
+        val fromBrowser = f.vault.entries().single { it.credentials.name == "z-przegladarki-0" }
+        assertEquals(password, fromBrowser.credentials.password)
         assertEquals(f.deviceId, fromBrowser.hlc.d)
     }
 
@@ -136,9 +132,7 @@ class P2pInteropTest {
         val names = out.names()
         assertEquals(2500, names.size)
         assertEquals(names.sorted(), names)
-        // PhoneVault reads only the phone's own v2 entries for now; all 2500 records are stored.
-        assertEquals(1300, f.vault.entries().size)
-        assertEquals(2500, f.store.listSince(0).size)
+        assertEquals(2500, f.vault.entries().size)
         assertTrue(syncCalls.get() >= 3, "sync calls: ${syncCalls.get()}")
     }
 }
