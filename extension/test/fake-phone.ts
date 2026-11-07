@@ -92,15 +92,30 @@ export class FakePhone {
   /** Adds or changes an entry on the phone, as if typed into the app (its clock is the real time). */
   async addEntry(id: string, name: string, password = "p"): Promise<void> {
     await this.syncWriter();
-    p2p.upsertEntryV2(this.writer, this.writerClock, id, { name, username: "u", password });
+    const login = p2p.emptyLogin(name);
+    await this.addContent(id, { ...login, fields: { ...login.fields, username: "u", password } });
+  }
+
+  /** Adds or changes an entry of any type on the phone. */
+  async addContent(id: string, content: p2p.EntryContentV3): Promise<void> {
     await this.syncWriter();
+    p2p.upsertEntryV2(this.writer, this.writerClock, id, content);
+    await this.syncWriter();
+  }
+
+  /** The decrypted content of a live entry on the phone. */
+  async entryData(id: string, vaultKey = this.vaultKey!): Promise<p2p.EntryDataV3> {
+    const record = this.store.listSince(0).find((r) => r.id === id && !r.deleted)!;
+    return p2p.parseEntryData(await p2p.decryptPayloadV2(vaultKey, record.id, record.blob));
   }
 
   /** Passwords of the live entries on the phone by id. */
   async passwords(vaultKey = this.vaultKey!): Promise<Record<string, string>> {
     const out: Record<string, string> = {};
     for (const record of this.store.listSince(0)) {
-      if (!record.deleted) out[record.id] = p2p.parseEntryDataV2(await p2p.decryptPayloadV2(vaultKey, record.id, record.blob)).password;
+      if (record.deleted) continue;
+      const data = p2p.parseEntryData(await p2p.decryptPayloadV2(vaultKey, record.id, record.blob));
+      if (data.type === "login") out[record.id] = data.fields.password;
     }
     return out;
   }
@@ -116,7 +131,7 @@ export class FakePhone {
     const names: string[] = [];
     for (const record of this.store.listSince(0)) {
       if (record.deleted) continue;
-      names.push(p2p.parseEntryDataV2(await p2p.decryptPayloadV2(vaultKey, record.id, record.blob)).name);
+      names.push(p2p.parseEntryData(await p2p.decryptPayloadV2(vaultKey, record.id, record.blob)).name);
     }
     return names.sort();
   }

@@ -117,7 +117,7 @@ describe("PhoneClient", () => {
       const slowBody = new PhoneClient("http://x", async () => ({ status: 200, json: () => new Promise(() => {}) }) as unknown as Response);
       for (const client of [silent, slowBody]) {
         let result: unknown;
-        const call = client.post("http://x/p2p/v1/sync", {}).then((r) => r, (e: unknown) => e).then((r) => (result = r));
+        const call = client.post("http://x/p2p/v2/sync", {}).then((r) => r, (e: unknown) => e).then((r) => (result = r));
         await vi.advanceTimersByTimeAsync(POST_TIMEOUT_MS - 1);
         expect(result).toBeUndefined();
         await vi.advanceTimersByTimeAsync(1);
@@ -128,4 +128,18 @@ describe("PhoneClient", () => {
       vi.useRealTimers();
     }
   });
+});
+
+describe("phone that only speaks v1", () => {
+  it("asks to update the phone app when the v2 handshake is 404", async () => {
+    const { store, phone, local, session } = await pairedBrowser();
+    const oldPhone: typeof fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      const path = new URL(String(input)).pathname;
+      const reply = path === "/p2p/v2/handshake" ? { status: 404, body: { error: "not found" } } : await phone.handle(path, JSON.parse(String(init?.body ?? "{}")));
+      return Response.json(reply.body, { status: reply.status });
+    }) as typeof fetch;
+    const reopened = new VaultStore(local, session, (url) => new PhoneClient(url, oldPhone));
+    await reopened.unlock(PASSWORD);
+    await expect(reopened.sync()).rejects.toThrow("Zaktualizuj aplikację na telefonie");
+  }, 30_000);
 });

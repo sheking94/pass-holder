@@ -21,7 +21,7 @@ import { STORAGE_KEYS, type KeyValueStore } from "./storage.ts";
 export { chromeStore, memoryStore, STORAGE_KEYS, type KeyValueStore } from "./storage.ts";
 export type { PinStatus } from "./pin-store.ts";
 
-const LOCAL_VAULT_AAD = "passholder/v2/local-vault";
+export const LOCAL_VAULT_AAD = "passholder/v2/local-vault";
 const STATIC_KEY_AAD = "passholder/v2/ext-static-key";
 
 const LOCKED = "Sejf jest zablokowany";
@@ -160,21 +160,54 @@ async function talkToPhone<T>(call: () => Promise<T>): Promise<T> {
  */
 export const ACTIVITY_WRITE_INTERVAL_MS = 30_000;
 
-/** An entry that is not deleted, as the popup lists and edits it. */
-export type LiveEntry = p2p.LocalEntryV2 & { deleted: false };
+/** What the user sees of a login, e.g. one row of an imported file. */
+export interface EntryFields {
+  name: string;
+  username: string;
+  password: string;
+}
 
-/** What the user sees of an entry, e.g. one row of an imported file. */
-export type EntryFields = Pick<p2p.EntryDataV2, "name" | "username" | "password">;
+/** A login that is not deleted, as the popup lists and edits it. Other entry types are not shown here. */
+export interface LiveEntry {
+  id: string;
+  dirty: boolean;
+  data: EntryFields;
+}
 
-/** What importEntries() did: how many entries were added and how many were already in the vault. */
+/** What importEntries() did: how many entries were added, were already in the vault, or were too large. */
 export interface ImportResult {
   added: number;
   duplicates: number;
+  tooLarge: number;
+}
+
+const ENTRY_TOO_LARGE_PL = "Wpis jest za duży";
+
+function loginView(e: p2p.LocalEntryV2): LiveEntry | undefined {
+  if (e.deleted || e.data.type !== "login") return undefined;
+  return { id: e.id, dirty: e.dirty, data: { name: e.data.name, username: e.data.fields.username, password: e.data.fields.password } };
 }
 
 /** Same name, username and password: importing it again would only make a duplicate. */
 function sameEntry(a: EntryFields, b: EntryFields): boolean {
   return a.name === b.name && a.username === b.username && a.password === b.password;
+}
+
+/** The content to store for a login edited here: the existing login's other fields stay, a new one starts empty. */
+function loginContent(existing: p2p.LocalEntryV2 | undefined, fields: EntryFields): p2p.EntryContentV3 {
+  const base = existing && !existing.deleted && existing.data.type === "login" ? existing.data : p2p.emptyLogin();
+  if (base.type !== "login") throw new Error("Not a login");
+  return {
+    type: "login",
+    name: fields.name,
+    note: base.note,
+    custom: base.custom,
+    fields: { ...base.fields, username: fields.username, password: fields.password },
+  };
+}
+
+function tooLargeInPolish(error: unknown): unknown {
+  return error instanceof Error && error.message === p2p.ENTRY_TOO_LARGE ? new Error(ENTRY_TOO_LARGE_PL) : error;
 }
 
 function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
@@ -212,12 +245,23 @@ function serializeVault(vault: p2p.LocalVaultV2): string {
 }
 
 function deserializeVault(json: string): p2p.LocalVaultV2 {
-  const parsed = JSON.parse(json) as { epoch: string | null; lastSyncRevision: number; addresses: string[]; entries: p2p.LocalEntryV2[] };
+  const parsed = JSON.parse(json) as {
+    epoch: string | null;
+    lastSyncRevision: number;
+    addresses: string[];
+    entries: { id: string; revision: number; dirty: boolean; deleted: boolean; data: unknown }[];
+  };
+  // A vault saved by an older version holds v2 data (name, username, password, hlc): parseEntryData makes it a v3 login.
+  const entries = parsed.entries.map((e): p2p.LocalEntryV2 =>
+    e.deleted
+      ? { id: e.id, revision: e.revision, dirty: e.dirty, deleted: true, data: p2p.parseTombstoneData(e.data) }
+      : { id: e.id, revision: e.revision, dirty: e.dirty, deleted: false, data: p2p.parseEntryData(e.data) },
+  );
   return {
     epoch: parsed.epoch,
     lastSyncRevision: parsed.lastSyncRevision,
     addresses: parsed.addresses,
-    entries: new Map(parsed.entries.map((e) => [e.id, e])),
+    entries: new Map(entries.map((e) => [e.id, e])),
   };
 }
 
@@ -272,14 +316,14 @@ export class VaultStore {
     return this.vault !== undefined && !this.expired();
   }
 
-  /** Entries that are not deleted, in no particular order. */
+  /** Logins that are not deleted, in no particular order. */
   entries(): LiveEntry[] {
-    return p2p.liveEntriesV2(this.requireVault());
+    return [...this.requireVault().entries.values()].flatMap((e) => loginView(e) ?? []);
   }
 
   entry(id: string): LiveEntry | undefined {
     const entry = this.requireVault().entries.get(id);
-    return entry && !entry.deleted ? entry : undefined;
+    return entry && loginView(entry);
   }
 
   /** Number of local changes the phone has not seen yet. */
@@ -287,8 +331,16 @@ export class VaultStore {
     return [...this.requireVault().entries.values()].filter((e) => e.dirty).length;
   }
 
-  async upsert(id: string, data: EntryFields): Promise<void> {
-    p2p.upsertEntryV2(this.requireVault(), this.requireClock(), id, data);
+  /** Saves a login; an existing one keeps what this screen does not edit (note, totp, urls, androidApps, custom). */
+  async upsert(id: string, fields: EntryFields): Promise<void> {
+    const vault = this.requireVault();
+    const existing = vault.entries.get(id);
+    const content = loginContent(existing, fields);
+    try {
+      p2p.upsertEntryV2(vault, this.requireClock(), id, content);
+    } catch (error) {
+      throw tooLargeInPolish(error);
+    }
     await this.save();
   }
 
@@ -300,16 +352,25 @@ export class VaultStore {
   async importEntries(entries: readonly EntryFields[], newId: () => string = () => crypto.randomUUID()): Promise<ImportResult> {
     const vault = this.requireVault();
     const clock = this.requireClock();
-    const known: EntryFields[] = p2p.liveEntriesV2(vault).map((e) => e.data);
+    const known: EntryFields[] = this.entries().map((e) => e.data);
     let added = 0;
+    let tooLarge = 0;
     for (const entry of entries) {
       if (known.some((k) => sameEntry(k, entry))) continue;
-      p2p.upsertEntryV2(vault, clock, newId(), { name: entry.name, username: entry.username, password: entry.password });
+      try {
+        p2p.upsertEntryV2(vault, clock, newId(), loginContent(undefined, entry));
+      } catch (error) {
+        if (error instanceof Error && error.message === p2p.ENTRY_TOO_LARGE) {
+          tooLarge++;
+          continue;
+        }
+        throw error;
+      }
       known.push(entry);
       added++;
     }
     if (added > 0) await this.save();
-    return { added, duplicates: entries.length - added };
+    return { added, duplicates: entries.length - added - tooLarge, tooLarge };
   }
 
   async delete(id: string): Promise<void> {

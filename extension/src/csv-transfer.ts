@@ -174,6 +174,7 @@ export function importSummary(parsed: ParsedImport, result: ImportResult): strin
   const parts = [
     `Dodano ${result.added} wpisów (lokalnie, zsynchronizuj, żeby trafiły na telefon).`,
     result.duplicates > 0 && `Pominięto ${result.duplicates} takich, które już są w sejfie.`,
+    result.tooLarge > 0 && `Uwaga, pominięto za duże: ${result.tooLarge}.`,
     skipped.length > 0 && `Pominięto ${skipped.length} wierszy: ${listed}${skipped.length > LISTED_SKIPPED_ROWS ? "; …" : "."}`,
     "Usuń plik CSV z dysku, zawiera hasła jawnym tekstem.",
   ];
