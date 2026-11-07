@@ -80,14 +80,14 @@ function lockedView(message = "") {
     {
       type: "button",
       class: "danger",
-      title: "Usuwa sejf z tej przeglądarki. Telefon zachowuje hasła z ostatniej synchronizacji; niezsynchronizowane zmiany z tej przeglądarki przepadną.",
+      title: "Usuwa sejf z tej przeglądarki. Telefon zachowuje hasła z ostatniej synchronizacji; niezsynchronizowane zmiany z tej przeglądarki mogą przepaść.",
     },
     () =>
       void busy(status, "Odłączam…", async () => {
         await store.disconnect();
         await showConnect();
       }),
-    "Niezsynchronizowane zmiany przepadną. Kliknij ponownie",
+    "Niezsynchronizowane zmiany mogą przepaść. Kliknij ponownie",
   );
 
   show(

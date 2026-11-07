@@ -129,7 +129,7 @@ Przy tej samej epoce (ten sam telefon, który zapomniał przeglądarkę) niezsyn
 ## 7. Odłączanie
 
 „Odłącz tę przeglądarkę” jest tylko na ekranie blokady. Pierwsze kliknięcie zmienia napis na
-„Niezsynchronizowane zmiany przepadną. Kliknij ponownie”, drugie usuwa konto, sejf, PIN i `pendingPairing`.
+„Niezsynchronizowane zmiany mogą przepaść. Kliknij ponownie”, drugie usuwa konto, sejf, PIN i `pendingPairing`.
 Przy zablokowanym sejfie zmian nie da się policzyć, stąd ostrzeżenie. `disconnect()` przy odblokowanym
 sejfie ze zmianami odmawia (`UnsyncedChanges`: „Niezsynchronizowane zmiany: N…”), chyba że `force`.
 Telefon zachowuje to, co już dostał; przeglądarkę usuwa się tam w „Urządzenia”.

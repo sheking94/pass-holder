@@ -357,7 +357,7 @@ z adresem, kodem i hasłem → „Sparowano z telefonem. Ta przeglądarka synchr
 jest na telefonie, nic lokalnego nie zginęło.
 
 **T9. Ostrzeżenie przy odłączaniu.** Dodaj wpis bez synchronizacji, zablokuj wtyczkę. „Odłącz tę
-przeglądarkę”: pierwsze kliknięcie zmienia napis na „Niezsynchronizowane zmiany przepadną. Kliknij
+przeglądarkę”: pierwsze kliknięcie zmienia napis na „Niezsynchronizowane zmiany mogą przepaść. Kliknij
 ponownie”, dopiero drugie odłącza (ekran „Sparuj z telefonem”). Telefon nadal ma wpisy z ostatniej
 synchronizacji; usuń wtyczkę w „Urządzenia”.
 
