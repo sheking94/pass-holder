@@ -1,5 +1,7 @@
 # PassHolder: przegląd bezpieczeństwa
 
+> Dokument historyczny: dotyczy wersji z serwerem na Raspberry Pi (przed planem 4).
+
 > Stan poprawek (2026-11-01): S1–S4 i N3 poprawione, opis w [POPRAWKI_BEZPIECZENSTWA.md](POPRAWKI_BEZPIECZENSTWA.md).
 
 - Data: 2026-11-01

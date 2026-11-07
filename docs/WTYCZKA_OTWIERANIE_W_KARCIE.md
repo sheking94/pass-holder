@@ -1,6 +1,7 @@
 # Wtyczka Chrome: przycisk „Otwórz w karcie”
 
-Dokument opisuje zmianę z gałęzi `claude/project-thread-borcs6`.
+Dokument opisuje zmianę z gałęzi `claude/project-thread-borcs6`. Nazwy przycisków są aktualne po planie 3
+(wtyczka paruje się z telefonem, nie łączy z serwerem).
 
 ## Problem
 
@@ -16,7 +17,7 @@ W popupie, nad zawartością, jest mały przycisk **Otwórz w karcie ↗**. Otwi
 przełączać się między stroną a PassHolderem i kopiować dane bez utraty tego, co wpisane.
 
 - Przycisk jest na ekranach: zablokowany sejf, lista wpisów, dodawanie/edycja wpisu.
-  Na ekranie łączenia z serwerem go nie ma, bo tam jest już **Otwórz ustawienia połączenia** (to też karta).
+  Na ekranie parowania go nie ma, bo tam jest już **Sparuj z telefonem** (to też karta).
 - W karcie przycisk się nie pokazuje.
 - Jeśli karta PassHolder jest już otwarta, przycisk przełącza na nią (i jej okno) zamiast otwierać kolejną.
 - Po kliknięciu popup się zamyka.
@@ -35,7 +36,7 @@ Stan po PR #16 (podział `popup.ts` na widoki). Przy PR #9 te same rzeczy były 
 ### `extension/src/page-mode.ts`
 
 - `PageMode = "popup" | "tab" | "setup" | "addresses" | "transfer"`: która to strona. `?setup` to karta
-  łączenia z serwerem (PR #8), `?tab` to karta z przycisku, `?addresses` i `?transfer` to karty adresów
+  parowania z telefonem (od PR #8; dawniej łączenia z serwerem), `?tab` to karta z przycisku, `?addresses` i `?transfer` to karty adresów
   (PR #12) i CSV (PR #10).
 - `pageMode(location.search)`: odczytuje tryb z adresu.
 - `isInTab(mode)`: każda karta (wszystko poza popupem).
@@ -58,7 +59,7 @@ Stan po PR #16 (podział `popup.ts` na widoki). Przy PR #9 te same rzeczy były 
 ### `extension/src/ui/page.ts`
 
 - `MODE = pageMode(location.search)` i `IN_TAB = isInTab(MODE)`. W każdej karcie `body` dostaje klasę `tab`
-  (`popup.ts`), a łączenie z serwerem (po „Odłącz tę przeglądarkę”) odbywa się w niej bez przenoszenia do
+  (`popup.ts`), a parowanie z telefonem (po „Odłącz tę przeglądarkę”) odbywa się w niej bez przenoszenia do
   kolejnej karty.
 - `openInTabButton()`: zwraca pasek z przyciskiem albo `undefined` w każdej karcie; `show()` pomija `undefined`.
   Kliknięcie: `openInTab(chromeTabApi(), chrome.runtime.getURL("popup.html"))`, potem `window.close()`.
@@ -71,7 +72,7 @@ Stan po PR #16 (podział `popup.ts` na widoki). Przy PR #9 te same rzeczy były 
 - Współpraca z przyciskami z PR #10 i #12 w karcie:
   - **CSV** (`openTransfer`) pokazuje import/eksport w tej samej karcie, bo w karcie okno wyboru pliku
     działa.
-  - **Adresy serwera** (`openAddresses`) też pokazuje formularz w tej samej karcie (okno zgody Chrome
+  - **Adresy telefonu** (`openAddresses`) też pokazuje formularz w tej samej karcie (okno zgody Chrome
     nie zamyka karty). Pod formularzem jest wtedy przycisk **Wróć do listy**. Z popupu adresy dalej
     otwierają się w osobnej karcie `?addresses`, bez tego przycisku.
 

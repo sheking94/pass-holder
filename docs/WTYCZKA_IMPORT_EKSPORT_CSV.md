@@ -12,14 +12,14 @@ Dokument opisuje zmiany z gałęzi `claude/project-thread-v0cuwv`.
 4. **Import:** wybierz plik CSV wyeksportowany z NordPass (albo z PassHolder) i kliknij **Importuj**.
    Pod przyciskami pojawi się podsumowanie: ile dodano, ile pominięto jako duplikaty, które wiersze i dlaczego
    zostały pominięte.
-5. Zaimportowane wpisy są tylko lokalne (oznaczone • na liście). Kliknij **Synchronizuj**, żeby trafiły na serwer.
+5. Zaimportowane wpisy są tylko lokalne (oznaczone • na liście). Kliknij **Synchronizuj**, żeby trafiły na telefon.
 6. Usuń plik CSV z dysku, gdy nie jest już potrzebny.
 
 ## Dlaczego w osobnej karcie
 
 Chrome zamyka okienko wtyczki, gdy traci ono fokus. Okno wyboru pliku zabiera fokus, więc w okienku
 wybrany plik nigdy by nie dotarł do kodu (to ten sam problem co z oknem zgody przy zakładaniu sejfu, patrz
-`WTYCZKA_ZAKLADANIE_SEJFU.md`). W karcie strona żyje dalej.
+[`archive/WTYCZKA_ZAKLADANIE_SEJFU.md`](archive/WTYCZKA_ZAKLADANIE_SEJFU.md)). W karcie strona żyje dalej.
 
 Odblokowany sejf jest trzymany w `chrome.storage.session`, które jest wspólne dla okienka i karty, więc
 karta zwykle nie pyta drugi raz o hasło (`store.resume()`).
@@ -96,11 +96,11 @@ początku/końcu (żeby żaden program ich nie obciął). Hasło jest zapisywane
   dopiero po zaznaczeniu pola „Rozumiem…”, a nad nim jest czerwone ostrzeżenie. Po eksporcie i imporcie
   komunikat przypomina o usunięciu pliku.
 - Plik powstaje w pamięci przeglądarki (`Blob`) i jest zapisywany przez zwykłe pobieranie; nic nie idzie
-  do serwera.
+  do telefonu.
 - Celowo **nie** ma zabezpieczenia przed „formułami” w arkuszach (dopisywania `'` przed wartościami
   zaczynającymi się od `=`, `+`, `-`, `@`). Hasła często tak się zaczynają, a takie dopisanie zepsułoby je
   przy imporcie do NordPass. Nie otwieraj tego pliku w Excelu ani w Arkuszach Google.
-- Import nie wysyła niczego na serwer; dopiero **Synchronizuj** szyfruje nowe wpisy i je wysyła, jak każdą zmianę.
+- Import nie wysyła niczego na telefon; dopiero **Synchronizuj** szyfruje nowe wpisy i je wysyła, jak każdą zmianę.
 
 ## Testy
 
@@ -112,7 +112,7 @@ początku/końcu (żeby żaden program ich nie obciął). Hasło jest zapisywane
 - eksport → import daje te same wpisy (także hasło z przecinkiem, cudzysłowem, nową linią i spacjami);
 - import: tylko loginy, kolumny po nazwie w dowolnej kolejności, nazwa z URL, powody pominięcia, plik
   niebędący eksportem NordPass, pusty plik, sam nagłówek;
-- `importEntries` na prawdziwym serwerze: pomijanie duplikatów (z sejfu i z pliku), wpisy jako zmiany
+- `importEntries` z udawanym telefonem (`fake-phone.ts`, do planu 3 prawdziwy serwer): pomijanie duplikatów (z sejfu i z pliku), wpisy jako zmiany
   lokalne, synchronizacja po imporcie.
 
 Uruchomienie: `npm test --workspace extension` (albo `npm test` w katalogu głównym).

@@ -1,5 +1,7 @@
 # PassHolder – przegląd czystości kodu (Clean Code)
 
+> Dokument historyczny: dotyczy wersji z serwerem na Raspberry Pi (przed planem 4).
+
 Data: 2026-10-31 · Stan: `main` @ `978814a` (PR #1–#5 zmergowane) · Narzędzie: skill `clean-code-reviewer`
 
 > Stan punktów (2026-11-02): 1, 4–7, 9–14 zrobione w PR #6 (opis na końcu); 3 (podział `popup.ts`) zrobiony

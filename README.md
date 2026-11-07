@@ -1,92 +1,70 @@
 # pass-holder
 
-Prywatny menedżer haseł z wtyczką do Chrome i aplikacją na Androida. Od planu 3 wtyczka synchronizuje się
-bezpośrednio z telefonem ([docs/P2P_WTYCZKA.md](docs/P2P_WTYCZKA.md)), a serwer na Raspberry Pi nie jest
-potrzebny; `server/` i `deploy/` zostają do planu 4. Przed aktualizacją wtyczki z wersji z Pi wyeksportuj
-hasła do CSV.
+Prywatny menedżer haseł: aplikacja na Androida przechowuje sejf, a wtyczka do Chrome synchronizuje się z nią
+bezpośrednio w sieci domowej albo przez Tailscale (parowanie kodem, szyfrowanie Noise). Serwer nie jest
+potrzebny. Instalacja: [docs/INSTALACJA.md](docs/INSTALACJA.md).
 
 | Katalog | Zawartość |
 |---|---|
-| `core/` | Wspólny rdzeń w TypeScript: szyfrowanie, generator haseł, logika sync, wektory testowe |
-| `server/` | Serwer na Raspberry Pi (Node.js, Fastify, SQLite), stara wersja, niepotrzebny od planu 3 |
-| `deploy/` | Certyfikaty, usługa systemd, VPN |
+| `core/` | Wspólny rdzeń w TypeScript: szyfrowanie, generator haseł, parowanie i synchronizacja P2P, wektory testowe |
 | `extension/` | Wtyczka Chrome (Manifest V3) |
-| `android/` | Aplikacja Android (Kotlin, Jetpack Compose) |
+| `android/` | Aplikacja Android (Kotlin, Jetpack Compose): sejf i host synchronizacji na porcie 8787 |
 | `docs/` | Dokumentacja (spis niżej) |
 
-Wszystkie cztery części są gotowe. Poza podstawą (wpisy, generator, synchronizacja offline-first) są:
-kilka adresów serwera (LAN + Tailscale), automatyczna blokada, PIN i import/eksport CSV we wtyczce,
-odcisk palca na Androidzie.
+Poza podstawą (wpisy, generator, synchronizacja offline-first) są: kilka adresów telefonu (LAN + Tailscale),
+odtwarzanie telefonu z wtyczki, automatyczna blokada, PIN i import/eksport CSV we wtyczce, odcisk palca na
+Androidzie.
 
 ## Dokumentacja
 
 | Dokument | Dla kogo i po co |
 |---|---|
-| [docs/INSTALACJA.md](docs/INSTALACJA.md) | Instalacja krok po kroku: Raspberry Pi, Chrome, Android, aktualizacje, kopie zapasowe |
-| [docs/DEZINSTALACJA.md](docs/DEZINSTALACJA.md) | Całkowite usunięcie serwera z Raspberry Pi oraz sprzątanie na Ubuntu i telefonie |
+| [docs/INSTALACJA.md](docs/INSTALACJA.md) | Instalacja na Windows krok po kroku: telefon, wtyczka, parowanie, Tailscale, aktualizacje, kopia zapasowa |
+| [docs/DEZINSTALACJA.md](docs/DEZINSTALACJA.md) | Usunięcie wtyczki, aplikacji i narzędzi |
 | [docs/ARCHITEKTURA.md](docs/ARCHITEKTURA.md) | Mapa kodu: który plik za co odpowiada, przepływ synchronizacji, spis wszystkich dokumentów |
-| [docs/SYNCHRONIZACJA_P2P.md](docs/SYNCHRONIZACJA_P2P.md), `docs/P2P_*.md` | Synchronizacja bez Pi: projekt, rdzeń, telefon jako host, wtyczka |
-| [docs/SPEC.md](docs/SPEC.md) | Kryptografia, model danych, protokół synchronizacji, API serwera |
+| [docs/SYNCHRONIZACJA_P2P.md](docs/SYNCHRONIZACJA_P2P.md), `docs/P2P_*.md` | Synchronizacja telefon–wtyczka: projekt, rdzeń, telefon jako host, wtyczka, usunięcie serwera Pi |
+| [docs/SPEC.md](docs/SPEC.md) | Kryptografia i format danych |
 | [docs/TESTY.md](docs/TESTY.md) | Co testujemy, jak uruchomić testy, znalezione błędy |
-| `docs/WTYCZKA_*.md`, `docs/WIELE_ADRESOW_SERWERA.md`, `docs/ANDROID_ODCISK_PALCA.md` | Opisy poszczególnych funkcji (jak działają i dlaczego tak) |
-| `docs/PRZEGLAD_*.md`, `docs/POPRAWKI_BEZPIECZENSTWA.md` | Przeglądy kodu i bezpieczeństwa z otwartymi punktami |
+| `docs/WTYCZKA_*.md`, [docs/ANDROID_ODCISK_PALCA.md](docs/ANDROID_ODCISK_PALCA.md) | Opisy poszczególnych funkcji (jak działają i dlaczego tak) |
+| [docs/archive/](docs/archive/README.md) | Dokumenty historyczne z wersji z serwerem na Raspberry Pi |
 
-## Uruchomienie testów
+## Testy i budowanie (TypeScript)
 
-Wymaga Node.js 22.18 lub nowszego.
+Wymaga Node.js 22.18 lub nowszego (na Windows przez `fnm`: `fnm env --shell powershell | Out-String | Invoke-Expression`).
 
 ```sh
-npm install
+npm ci
 npm test
 npm run typecheck
+npm run build            # wtyczka do extension/dist
 ```
 
 Co testujemy i jakie luki znalazły testy: [docs/TESTY.md](docs/TESTY.md).
 
-Wektory testowe (`core/test-vectors/v1.json`) generuje `npm run gen-vectors -w core`.
-Każda implementacja (także Kotlin) musi odtworzyć je dokładnie.
-
-## Serwer lokalnie (bez HTTPS, do testów)
-
-```sh
-PASSHOLDER_INSECURE_HTTP=1 PASSHOLDER_PORT=8080 npm start -w server
-```
-
-Instalacja na Raspberry Pi: [docs/INSTALACJA.md, część 1](docs/INSTALACJA.md#część-1-serwer-na-raspberry-pi).
+Wektory testowe generują `npm run gen-vectors -w core` (`core/test-vectors/v1.json`: KDF i klucz sejfu) i
+`npm run gen-vectors-v2 -w core` (`v2.json`: wpisy, parowanie, Noise). Implementacja w Kotlinie musi
+odtworzyć je dokładnie.
 
 ## Wtyczka do Chrome
 
-```sh
-npm run build -w extension
-```
-
-Potem w Chrome: `chrome://extensions` → włącz „Tryb dewelopera” → „Załaduj rozpakowane” → wskaż `extension/dist`.
+W Chrome: `chrome://extensions` → włącz „Tryb dewelopera” → „Załaduj rozpakowane” → wskaż `extension/dist`.
 Parowanie z telefonem otwiera formularz w karcie i prosi o zgodę na dostęp do adresu telefonu
 (`http://<IPv4>:8787`), patrz [docs/P2P_WTYCZKA.md](docs/P2P_WTYCZKA.md).
 
 ## Aplikacja na Androida
 
-Wymaga JDK 17 lub nowszego i Android SDK (najprościej: zainstaluj Android Studio i otwórz katalog `android/`).
+Wymaga Android SDK (najprościej: Android Studio) i JDK 21 do Gradle. W PowerShellu, w katalogu `android/`:
 
-```sh
-cd android
-./gradlew :core:test            # krypto, wektory testowe, synchronizacja, klient HTTP (zwykła JVM, bez emulatora)
-./gradlew :app:testDebugUnitTest  # ekrany aplikacji na JVM (Robolectric), zrzuty do app/screenshots/
-./gradlew :app:assembleDebug    # APK: app/build/outputs/apk/debug/app-debug.apk
+```powershell
+$env:JAVA_HOME="$HOME\.jdks\jbr-21.0.11"     # JBR 25 z Android Studio nie działa z Gradle 8.14.3
+.\gradlew.bat :core:test                     # krypto, wektory, rdzeń P2P, serwer telefonu (zwykła JVM)
+.\gradlew.bat :app:testDebugUnitTest         # ekrany aplikacji na JVM (Robolectric), zrzuty do app/screenshots/
+.\gradlew.bat :app:installDebug              # instalacja na telefonie podłączonym przez USB (debugowanie USB)
 ```
 
-Testy ekranów uruchamiają prawdziwą aplikację (aktywność, ViewModel, Compose) bez emulatora i klikają ją jak
-użytkownik: parowanie, nowy sejf, generator, synchronizacja, kopiowanie hasła, usuwanie, blokada.
-Przy każdym uruchomieniu Roborazzi zapisuje zrzuty ekranów w [`android/app/screenshots/`](android/app/screenshots/).
+Na Linuksie to samo przez `./gradlew`. Testy ekranów uruchamiają prawdziwą aplikację (aktywność, ViewModel,
+Compose) bez emulatora i klikają ją jak użytkownik: nowy sejf, generator, tryb Synchronizacja, parowanie,
+urządzenia, odtwarzanie z wtyczki, blokada. Zrzuty ekranów: [`android/app/screenshots/`](android/app/screenshots/).
 
-Test całego systemu: prawdziwy serwer Node.js przez HTTPS, klient w Kotlinie i kod wtyczki w TypeScripcie
-na jednym sejfie (wymaga wcześniejszego `npm install` w katalogu głównym i `openssl`):
-
-```sh
-cd android
-PASSHOLDER_SERVER_TEST=1 ./gradlew :core:test
-```
-
-Instalacja na telefonie: włącz w telefonie debugowanie USB, podłącz go i uruchom `./gradlew :app:installDebug`
-(albo przycisk Run w Android Studio). Przy łączeniu aplikacja pokaże odcisk certyfikatu serwera do porównania
-z Raspberry Pi, patrz [docs/INSTALACJA.md, część 3](docs/INSTALACJA.md#część-3-aplikacja-na-androida).
+Test współpracy z kodem wtyczki (Node.js na PATH, wcześniej `npm ci` w katalogu głównym):
+`PASSHOLDER_INTEROP_TEST=1 ./gradlew :core:test --tests "*Interop*"` (PowerShell: [docs/TESTY.md](docs/TESTY.md)).

@@ -12,7 +12,8 @@ ten dokument opisuje tylko to, co w Kotlinie jest inne albo dodatkowe. W razie r
 wersja TypeScript. Zgodność sprawdzają wektory (`core/test-vectors/v2.json` i trzy wektory kryptograficzne)
 oraz test współpracy z prawdziwym klientem wtyczki w TypeScripcie.
 
-Kod v1 (`android/core/src/main`, `android/app`, `core/src`, `server/`, `extension/`) nie został zmieniony.
+Kod v1 (`android/core/src/main`, `android/app`, `core/src`, `server/`, `extension/`) nie został w tym planie zmieniony
+(klient v1 i serwer Pi usunął potem plan 4: [`P2P_USUNIECIE_SERWERA.md`](P2P_USUNIECIE_SERWERA.md)).
 Nowy kod używa z v1 tylko `Encoding`, `Aead`, `Kdf`, `KdfParams`, `Credentials`, `RemoteRecord`,
 `ChangeRequest`, `Accepted` i `SyncResponse`. Jedyna zmiana w plikach v1 to przekazanie zmiennej
 `PASSHOLDER_INTEROP_TEST` w `android/core/build.gradle.kts`. Nie doszły żadne nowe zależności.
@@ -168,7 +169,7 @@ W `android/` (PowerShell, Windows):
 
 ```powershell
 $env:JAVA_HOME="$HOME\.jdks\jbr-21.0.11"     # JDK 21; JBR 25 z Android Studio nie działa z Gradle 8.14.3
-.\gradlew.bat :core:test --console=plain                                   # cały android/core (v1 i p2p)
+.\gradlew.bat :core:test --console=plain                                   # cały android/core
 .\gradlew.bat :core:test --tests "io.github.sheking94.passholder.core.p2p.*" --console=plain   # tylko p2p
 .\gradlew.bat :core:test --tests "*P2pHostTest*" --console=plain           # jeden plik
 ```
@@ -221,9 +222,6 @@ Po stronie TypeScriptu nic się nie zmieniło: `npm test && npm run typecheck` w
   HTTP powinna przestać czytać ciało po 1 MiB + 1 bajcie, zanim zaalokuje więcej.
 - **Test współpracy**: czytanie wyjścia procesu `node` blokuje, więc limit 5 minut z `waitFor` nie działa,
   gdy `node` się zawiesi (test wisi do przerwania Gradle). Wymaga Node z domyślnym usuwaniem typów.
-- **`RealServerTest` (v1)** nadal uruchamia Node z `--experimental-transform-types`, więc z
-  `PASSHOLDER_SERVER_TEST=1` na Node 26 by nie przeszedł. Kodu v1 nie zmieniamy w tym planie; i tak zniknie
-  w planie 4 razem z serwerem Pi.
 - Ograniczenia protokołu (LWW, rozmiar wpisu a 1 MiB, częściowe wykrywanie cofnięcia telefonu) są te same
   co w `P2P_RDZEN.md` §6.
 
@@ -243,4 +241,4 @@ Plan 3 to aplikacja Android i wtyczka:
   albo po odtworzeniu z kopii zawsze tworzyć nową epokę, żeby numery rewizji odtworzonego telefonu nie
   zderzyły się z tymi, które wtyczka już zna.
 
-Plan 4 usuwa `server/`, `deploy/`, kod v1 i część `INSTALACJA.md` o Pi.
+Plan 4 usunął serwer Pi i kod v1: [`P2P_USUNIECIE_SERWERA.md`](P2P_USUNIECIE_SERWERA.md).

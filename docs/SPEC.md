@@ -1,40 +1,44 @@
-# PassHolder: specyfikacja v1
+# PassHolder: specyfikacja (kryptografia i dane)
 
-Ten dokument jest źródłem prawdy dla wszystkich części systemu: serwera na Raspberry Pi (TypeScript),
-wtyczki do Chrome (TypeScript) i aplikacji na Androida (Kotlin). Implementacja referencyjna jest w `core/`,
-a `core/test-vectors/v1.json` zawiera wartości, które każdy klient musi odtworzyć bit w bit.
+Ten dokument opisuje kryptografię i format danych wspólne dla wtyczki do Chrome (TypeScript) i aplikacji na
+Androida (Kotlin). Implementacja referencyjna jest w `core/`, a `core/test-vectors/v1.json` (KDF, klucz
+sejfu) i `v2.json` (wpisy, parowanie, Noise) zawierają wartości, które obie implementacje muszą odtworzyć
+bit w bit. Synchronizację telefon–wtyczka opisuje [SYNCHRONIZACJA_P2P.md](SYNCHRONIZACJA_P2P.md).
 
 ## 1. Założenia
 
 - Jeden użytkownik, jeden sejf.
-- **Zero-knowledge:** serwer nigdy nie widzi hasła głównego ani odszyfrowanych wpisów. Szyfrowanie i
-  rozwiązywanie konfliktów odbywa się na urządzeniach.
-- **Offline-first:** Raspberry Pi jest zwykle wyłączone. Klienci działają w pełni bez serwera i
-  synchronizują się, gdy serwer jest dostępny. Serwer to tylko punkt wymiany.
-- Zakres v1: nazwa serwisu, login, hasło, generator haseł.
+- **Zero-knowledge transportu:** hasło główne i odszyfrowane wpisy nigdy nie opuszczają urządzeń, które
+  znają hasło główne. Telefon jako host przechowuje i przekazuje tylko szyfrogramy; rozwiązywanie
+  konfliktów odbywa się na urządzeniach.
+- **Offline-first:** wtyczka i telefon działają w pełni bez połączenia i synchronizują się, gdy telefon
+  jest w trybie Synchronizacja.
+- Zakres: nazwa serwisu, login, hasło, generator haseł.
 
 ## 2. Klucze
 
 ```
 hasło główne ──NFC, UTF-8──► Argon2id(salt, m, t, p) ──► masterKey (32 B)
 masterKey ──HKDF-SHA256(info="passholder/v1/enc")──►  encKey  (32 B, nigdy nie opuszcza urządzenia)
-masterKey ──HKDF-SHA256(info="passholder/v1/auth")──► authKey (32 B, wysyłany do serwera przy logowaniu)
-serwer przechowuje authHash = SHA-256(authKey)
+masterKey ──HKDF-SHA256(info="passholder/v1/auth")──► authKey (32 B, nieużywany)
 vaultKey  = 32 losowe bajty, utworzony raz przy zakładaniu sejfu
 wrappedVaultKey = seal(encKey, vaultKey, aad="passholder/v1/vault-key")
 ```
 
 - HKDF: pusty salt, długość 32.
 - Argon2id domyślnie: `m = 65536 KiB (64 MiB)`, `t = 3`, `p = 4`, salt 16 losowych bajtów.
-  Parametry i salt są jawne i leżą na serwerze, żeby nowe urządzenie mogło wyprowadzić te same klucze.
-- Klient odrzuca parametry słabsze niż `m = 19456`, `t = 2`, `p = 1`, żeby złośliwy serwer nie mógł
-  wymusić słabego KDF, oraz większe niż `m = 1048576` (1 GiB), `t = 100`, `p = 64`, żeby nie mógł
+  Parametry, salt i `wrappedVaultKey` są jawne: telefon przekazuje je wtyczce przy parowaniu (a wtyczka
+  telefonowi przy „Odtwórz z wtyczki”), żeby druga strona wyprowadziła ten sam klucz.
+- Urządzenie odrzuca parametry słabsze niż `m = 19456`, `t = 2`, `p = 1`, żeby druga strona nie mogła
+  wymusić słabego KDF, oraz większe niż `m = 1048576` (1 GiB), `t = 100`, `p = 64`, żeby nie mogła
   wyczerpać pamięci urządzenia. Każdy parametr musi być liczbą całkowitą.
 - Hasło jest normalizowane do NFC przed kodowaniem UTF-8 (to samo „ż” wpisane na różnych klawiaturach
   daje te same bajty).
-- Dlaczego dwa klucze z jednego: serwer może sprawdzić, że znasz hasło (authKey), ale nie może z tego
-  odszyfrować sejfu (encKey jest niezależny dzięki HKDF). Zmiana hasła głównego wymaga tylko ponownego
-  zawinięcia vaultKey, bez przeszyfrowania wpisów (poza zakresem v1).
+- **`authKey`** służył do logowania na serwerze Pi (serwer trzymał `SHA-256(authKey)`). Od planu 4 nikt go
+  nie używa, ale nadal jest wyprowadzany: podział `masterKey` na dwa klucze to część formatu danych i jego
+  zmiana dałaby inny `encKey`, czyli nieczytelne istniejące sejfy.
+- Zmiana hasła głównego wymagałaby tylko ponownego zawinięcia vaultKey, bez przeszyfrowania wpisów (poza
+  zakresem).
 
 ## 3. Format szyfrogramu
 
@@ -49,103 +53,33 @@ Bajt `0x01` to wersja formatu. AAD (dane uwierzytelniane, nieszyfrowane):
 | Co | AAD |
 |----|-----|
 | zawinięty vaultKey | `passholder/v1/vault-key` |
-| wpis o identyfikatorze `id` | `passholder/v1/entry/<id>` |
+| wpis o identyfikatorze `id` | `passholder/v2/entry/<id>` |
+| lokalny sejf wtyczki, klucz statyczny wtyczki | `passholder/v2/local-vault`, `passholder/v2/ext-static-key` ([P2P_WTYCZKA.md](P2P_WTYCZKA.md) §4) |
+| klucze zawinięte PIN-em we wtyczce | `passholder/v1/pin-lock` ([WTYCZKA_PIN.md](WTYCZKA_PIN.md)) |
 
-AAD z `id` wiąże szyfrogram z wpisem, więc serwer nie może podmienić treści między wpisami.
+AAD z `id` wiąże szyfrogram z wpisem, więc host nie może podmienić treści między wpisami.
 
 ## 4. Wpisy
 
 - `id`: UUID v4 nadawany przez urządzenie, które tworzy wpis.
 - Treść żywego wpisu (JSON, szyfrowany vaultKey):
-  `{"name": "...", "username": "...", "password": "...", "modifiedAt": <ms od epoki>}`
-- Usunięty wpis to „nagrobek”: `deleted = true` jawnie dla serwera, a w szyfrogramie tylko
-  `{"modifiedAt": <ms>}`. Nagrobki zostają na serwerze, żeby usunięcie dotarło do każdego urządzenia.
-- Flaga `deleted` jest jawna, więc klient sprawdza, czy zgadza się z odszyfrowaną treścią: przy
-  `deleted = true` treść musi mieć **wyłącznie** pole `modifiedAt`, przy `deleted = false` pola żywego
-  wpisu. Inaczej cała synchronizacja jest przerywana bez zmian lokalnych (poprawka S2, zob.
-  [POPRAWKI_BEZPIECZENSTWA.md](POPRAWKI_BEZPIECZENSTWA.md)). Format się nie zmienił: oba rodzaje treści
-  od początku różnią się polami.
-- Wpis, który nigdy nie trafił na serwer, jest po prostu kasowany lokalnie.
-- `modifiedAt` jest wewnątrz szyfrogramu, więc serwer nie zna czasów zmian.
+  `{"name": "...", "username": "...", "password": "...", "hlc": {"ms": …, "c": …, "d": "<deviceId>"}}`
+- Usunięty wpis to „nagrobek”: `deleted = true` jawnie dla hosta, a w szyfrogramie tylko `{"hlc": …}`.
+  Nagrobki zostają na telefonie, żeby usunięcie dotarło do każdej wtyczki.
+- Flaga `deleted` jest jawna, więc odbiorca sprawdza, czy zgadza się z odszyfrowaną treścią: przy
+  `deleted = true` treść musi mieć **wyłącznie** pole `hlc`, przy `deleted = false` pola żywego wpisu.
+- Wpis, który nigdy nie trafił na telefon, wtyczka kasuje lokalnie.
+- HLC (hybrydowy zegar logiczny) jest wewnątrz szyfrogramu, więc host nie zna czasów zmian. Konflikty
+  rozstrzyga większy HLC: [SYNCHRONIZACJA_P2P.md](SYNCHRONIZACJA_P2P.md) §5.
 
-## 5. Synchronizacja
+## 5–7. Synchronizacja, protokół i sieć
 
-Serwer ma jeden licznik `revision`, rosnący przy każdej zaakceptowanej zmianie. Każdy rekord na serwerze to
-`{id, revision, deleted, blob}`. Klient pamięta `lastSyncRevision` i dla każdego wpisu ostatnio znaną
-`revision` oraz flagę `dirty` (zmieniony lokalnie od ostatniej synchronizacji).
-
-`POST /api/v1/sync`
-
-```json
-// żądanie
-{ "sinceRevision": 12,
-  "changes": [ { "id": "…", "baseRevision": 7, "deleted": false, "blob": "…" } ] }
-// odpowiedź
-{ "currentRevision": 15,
-  "accepted":  [ { "id": "…", "revision": 13 } ],
-  "conflicts": [ { "id": "…", "revision": 14, "deleted": false, "blob": "…" } ],
-  "changes":   [ { "id": "…", "revision": 15, "deleted": true,  "blob": "…" } ] }
-```
-
-Serwer (w jednej transakcji):
-1. Dla każdej zmiany: jeśli bieżąca `revision` rekordu (0 gdy brak) równa się `baseRevision`, zapisuje go z
-   nową `revision` i dodaje do `accepted`. W przeciwnym razie zwraca swoją wersję w `conflicts`.
-   `baseRevision ≠ 0` dla nieznanego `id` to błąd 400.
-2. `changes` = rekordy z `revision > sinceRevision`, z pominięciem `id` z tego żądania.
-
-Klient:
-1. Wysyła wszystkie wpisy `dirty`.
-2. Dla `accepted` ustawia nową `revision`, `dirty = false`.
-3. Odszyfrowuje i sprawdza (§4) **wszystkie** rekordy z `conflicts` i `changes`, zanim cokolwiek zmieni.
-   Potem dla każdego: jeśli lokalny wpis ma większe `modifiedAt`, wygrywa lokalny (przyjmuje `revision`
-   serwera i staje się `dirty`, więc zostanie wysłany ponownie). Dotyczy to także wpisów, które nie były
-   `dirty`: serwer nie może podsunąć starszego szyfrogramu pod nowym numerem rewizji. W każdym innym
-   przypadku, także przy remisie, wygrywa wersja z serwera.
-4. Ustawia `lastSyncRevision = currentRevision`.
-5. Jeśli jakiś lokalny wpis wygrał konflikt, powtarza synchronizację (maksymalnie 3 rundy).
-
-Reguła „ostatni zapis wygrywa” opiera się na zegarach urządzeń. Przy jednym użytkowniku i ręcznej
-synchronizacji to rozsądny kompromis; rozjechany zegar może sprawić, że wygra starsza zmiana.
-
-## 6. API serwera
-
-Wszystko przez HTTPS. Odpowiedzi JSON, binaria jako Base64.
-
-| Metoda i ścieżka | Autoryzacja | Opis |
-|---|---|---|
-| `GET /api/v1/status` | brak | `{ "initialized": bool, "version": "1" }` |
-| `POST /api/v1/setup` | jednorazowy `setupToken` | `{ setupToken, kdf, authKey, wrappedVaultKey }`; działa tylko gdy sejf nie istnieje |
-| `GET /api/v1/prelogin` | brak | `{ kdf }` |
-| `POST /api/v1/session` | `authKey` | `{ authKey }` → `{ token, expiresAt, wrappedVaultKey }` |
-| `POST /api/v1/sync` | `Authorization: Bearer <token>` | patrz sekcja 5 |
-
-- `setupToken` serwer wypisuje w konsoli przy pierwszym uruchomieniu, żeby nikt inny w sieci nie
-  założył sejfu przed Tobą.
-- Serwer porównuje `SHA-256(authKey)` z `authHash` w stałym czasie. Token sesji: 32 losowe bajty,
-  ważny 15 minut, trzymany tylko w pamięci serwera. Restart serwera unieważnia wszystkie tokeny; klient,
-  który dostanie 401 przy `/sync`, loguje się raz od nowa i powtarza synchronizację.
-- Limit nieudanych logowań: 5 na minutę z jednego adresu IP i 20 na minutę łącznie ze wszystkich adresów
-  (dużo adresów, np. IPv6). Po przekroczeniu `POST /session` zwraca 429. Udane logowanie zeruje licznik
-  tego IP. Wygasłe sesje i stare błędy są sprzątane przy każdym logowaniu (N3 z przeglądu bezpieczeństwa).
-- Kody błędów: 400 (zła treść żądania albo `baseRevision` nieznany serwerowi), 401 (zły `authKey` albo brak
-  ważnej sesji), 403 (zły `setupToken`), 404 (sejf nie istnieje), 409 (sejf już istnieje), 429 (limit prób).
-
-## 7. Sieć i transport
-
-- Serwer nasłuchuje na HTTPS z własnym certyfikatem (lokalne CA lub samopodpisany).
-- Android: przypięcie odcisku SHA-256 certyfikatu serwera (cały certyfikat w DER, jak w
-  `openssl x509 -fingerprint -sha256`). Przy parowaniu aplikacja pokazuje odcisk, użytkownik porównuje go
-  z wynikiem na Pi. Potem aplikacja ufa wyłącznie temu certyfikatowi i nie sprawdza nazwy hosta (dowód
-  posiadania klucza prywatnego tego certyfikatu jest silniejszy niż zgodność nazwy). Nowy certyfikat
-  wymaga ponownego sparowania.
-- Chrome: wtyczka nie może przypiąć certyfikatu, więc certyfikat (lub lokalne CA) trzeba dodać do
-  zaufanych w systemie albo w Chrome.
-- Poza domem: VPN (WireGuard lub Tailscale) z jedną komendą do włączania i wyłączania. Bez VPN serwer
-  jest osiągalny tylko w sieci lokalnej.
-- Klient pamięta kilka adresów tego samego serwera (`serverUrls`, np. LAN i Tailscale) oraz ostatnio
-  działający (`lastServerUrl`). Przy kilku adresach sprawdza je po kolei `GET /api/v1/status` z limitem 4 s
-  i używa pierwszego, który odpowie. Szczegóły: [WIELE_ADRESOW_SERWERA.md](WIELE_ADRESOW_SERWERA.md).
-- Treść wpisów jest szyfrowana end-to-end niezależnie od TLS; TLS chroni authKey i token sesji.
+Wcześniejsze sekcje o synchronizacji przez serwer na Raspberry Pi, jego API (`/api/v1/*`) i HTTPS z
+przypiętym certyfikatem opisywały wersję usuniętą w planie 4 ([P2P_USUNIECIE_SERWERA.md](P2P_USUNIECIE_SERWERA.md)).
+Obecny protokół (parowanie CPace, Noise KK, `POST /p2p/v1/*` na porcie 8787 telefonu, numery `revision`,
+epoka, adresy) opisują [SYNCHRONIZACJA_P2P.md](SYNCHRONIZACJA_P2P.md), [P2P_RDZEN.md](P2P_RDZEN.md) i
+[P2P_TELEFON.md](P2P_TELEFON.md). Logika przyjmowania zmian (`processSync`: `baseRevision`, rosnące
+`revision`, konflikty) została bez zmian i działa teraz na telefonie.
 
 ## 8. Generator haseł
 
@@ -156,18 +90,19 @@ Wszystko przez HTTPS. Odpowiedzi JSON, binaria jako Base64.
 
 ## 9. Funkcje klientów poza protokołem
 
-Te funkcje działają tylko na urządzeniu i nie zmieniają formatu danych ani API serwera.
+Te funkcje działają tylko na urządzeniu i nie zmieniają formatu danych ani protokołu synchronizacji.
 
 | Funkcja | Gdzie | Opis |
 |---|---|---|
-| Automatyczna blokada po 15 minutach bez aktywności | wtyczka, Android | [POPRAWKI_BEZPIECZENSTWA.md](POPRAWKI_BEZPIECZENSTWA.md) (S1) |
+| Automatyczna blokada po 15 minutach bez aktywności | wtyczka, Android | [archive/POPRAWKI_BEZPIECZENSTWA.md](archive/POPRAWKI_BEZPIECZENSTWA.md) (S1) |
 | Odblokowanie PIN-em | wtyczka | [WTYCZKA_PIN.md](WTYCZKA_PIN.md) |
 | Odblokowanie odciskiem palca, blokada 60 s po wyjściu z aplikacji | Android | [ANDROID_ODCISK_PALCA.md](ANDROID_ODCISK_PALCA.md) |
 | Import i eksport CSV w formacie NordPass | wtyczka | [WTYCZKA_IMPORT_EKSPORT_CSV.md](WTYCZKA_IMPORT_EKSPORT_CSV.md) |
-| Strona wtyczki w karcie (formularz połączenia, adresy, CSV) | wtyczka | [WTYCZKA_ZAKLADANIE_SEJFU.md](WTYCZKA_ZAKLADANIE_SEJFU.md), [WTYCZKA_OTWIERANIE_W_KARCIE.md](WTYCZKA_OTWIERANIE_W_KARCIE.md) |
+| Strona wtyczki w karcie (parowanie, adresy, CSV) | wtyczka | [WTYCZKA_OTWIERANIE_W_KARCIE.md](WTYCZKA_OTWIERANIE_W_KARCIE.md) |
 | Czyszczenie schowka po minucie | wtyczka, Android | `extension/src/clipboard.ts`, `android/app/.../SecureClipboard.kt` |
 
-## 10. Poza zakresem v1
+## 10. Poza zakresem
 
-Zmiana hasła głównego, wiele kont, współdzielenie, TOTP, autouzupełnianie, odtworzenie serwera z kopii
-klienta. Import CSV pozwala jednak wgrać wpisy do nowego, pustego sejfu (patrz INSTALACJA.md, „Kopia zapasowa”).
+Zmiana hasła głównego, wiele kont, współdzielenie, TOTP, autouzupełnianie, synchronizacja wtyczka–wtyczka
+bez telefonu. Sejf telefonu odtwarza się z wtyczki („Odtwórz z wtyczki”), a import CSV pozwala wgrać wpisy
+do nowego sejfu ([INSTALACJA.md](INSTALACJA.md#kopia-zapasowa)).
