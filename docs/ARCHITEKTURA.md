@@ -1,8 +1,8 @@
 # Architektura PassHolder
 
-Mapa kodu po planie 4 (listopad 2026, bez serwera na Raspberry Pi): które pliki za co odpowiadają i jak
-części systemu ze sobą rozmawiają. Kryptografię i format danych opisuje [SPEC.md](SPEC.md), synchronizację
-[SYNCHRONIZACJA_P2P.md](SYNCHRONIZACJA_P2P.md); tu jest tylko „gdzie to jest w kodzie”.
+Mapa kodu: które pliki za co odpowiadają i jak części systemu ze sobą rozmawiają. Kryptografię i format
+danych opisuje [SPEC.md](SPEC.md), protokół [SYNCHRONIZACJA.md](SYNCHRONIZACJA.md), funkcje urządzeń
+[FUNKCJE.md](FUNKCJE.md); tu jest tylko „gdzie to jest w kodzie”.
 
 ## Całość
 
@@ -44,8 +44,6 @@ części systemu ze sobą rozmawiają. Kryptografię i format danych opisuje [SP
 | `src/p2p/host.ts` | `P2pHost`: referencyjny host (uzgadnianie, sesje, sync) |
 | `scripts/gen-vectors.ts`, `gen-vectors-v2.ts` | `test-vectors/v1.json` (KDF, klucz sejfu) i `v2.json` (P2P) |
 
-Opis rdzenia P2P: [P2P_RDZEN.md](P2P_RDZEN.md).
-
 ## `extension/` (Chrome, Manifest V3)
 
 Budowanie: `extension/build.mjs` (esbuild) kopiuje `static/` i skleja trzy punkty wejścia do `extension/dist/`:
@@ -72,8 +70,6 @@ Chrome, wybór pliku), dlatego parowanie, adresy i CSV pokazują się w karcie. 
 | `src/ui/phone-url-fields.ts` | pola adresów telefonu (`phoneUrlFields`), wzorzec zgody, prośby o zgodę Chrome |
 | `src/ui/state.ts` | jeden `VaultStore` strony, wspólny dla widoków |
 | `src/views/*.ts` | ekrany: `connect` (parowanie), `locked`, `list`, `edit`, `addresses`, `pin-settings`, `transfer` |
-
-Opis: [P2P_WTYCZKA.md](P2P_WTYCZKA.md).
 
 ## `android/`
 
@@ -102,8 +98,6 @@ Dwa moduły Gradle: `core` (czysta JVM, testy bez emulatora) i `app` (Jetpack Co
 | `SecureClipboard.kt` | kopiowanie i czyszczenie schowka po minucie (WorkManager) |
 | `ui/*.kt` | ekrany Compose: `StartScreen`, `LockedScreen`, `ListScreen`, `EditScreen`, `SyncScreen`, `DevicesScreen`, `RestoreScreen`, `FingerprintDialog`, `Common`, `PassHolderUi` (wybór ekranu) |
 
-Opis: [P2P_ANDROID_RDZEN.md](P2P_ANDROID_RDZEN.md) (rdzeń), [P2P_TELEFON.md](P2P_TELEFON.md) (serwer, ekrany).
-
 ## Przepływ synchronizacji
 
 ```
@@ -119,42 +113,5 @@ Wtyczka: [Synchronizuj]
       more albo lokalny wpis wygrał → kolejna runda
 ```
 
-Parowanie (`/p2p/v1/pair/hello`, `start`, `finish`) i odtwarzanie z wtyczki: [P2P_TELEFON.md](P2P_TELEFON.md) §2 i §8.
-
-## Dokumentacja
-
-| Dokument | Treść |
-|---|---|
-| [INSTALACJA.md](INSTALACJA.md) | instalacja na Windows: telefon, wtyczka, parowanie, Tailscale, aktualizacje, kopie |
-| [DEZINSTALACJA.md](DEZINSTALACJA.md) | usunięcie wtyczki, aplikacji i narzędzi |
-| [SPEC.md](SPEC.md) | kryptografia, format danych, generator |
-| [SYNCHRONIZACJA_P2P.md](SYNCHRONIZACJA_P2P.md) | projekt synchronizacji telefon–wtyczka |
-| [P2P_RDZEN.md](P2P_RDZEN.md), [P2P_ANDROID_RDZEN.md](P2P_ANDROID_RDZEN.md) | rdzeń P2P w TypeScripcie i Kotlinie (plany 1–2) |
-| [P2P_TELEFON.md](P2P_TELEFON.md), [P2P_WTYCZKA.md](P2P_WTYCZKA.md) | telefon jako host i wtyczka sparowana z telefonem (plan 3) |
-| [P2P_USUNIECIE_SERWERA.md](P2P_USUNIECIE_SERWERA.md) | usunięcie serwera Pi i kodu v1 (plan 4) |
-| [TESTY.md](TESTY.md) | co testujemy i jak uruchomić testy |
-| [WTYCZKA_OTWIERANIE_W_KARCIE.md](WTYCZKA_OTWIERANIE_W_KARCIE.md) | przycisk „Otwórz w karcie” (PR #9) |
-| [WTYCZKA_IMPORT_EKSPORT_CSV.md](WTYCZKA_IMPORT_EKSPORT_CSV.md) | import i eksport CSV (PR #10) |
-| [WTYCZKA_PIN.md](WTYCZKA_PIN.md) | PIN we wtyczce (PR #11) |
-| [ANDROID_ODCISK_PALCA.md](ANDROID_ODCISK_PALCA.md) | odcisk palca i blokada po wyjściu z aplikacji (PR #13, #14) |
-| [archive/](archive/README.md) | dokumenty z wersji z Pi: przeglądy, poprawki bezpieczeństwa, kilka adresów serwera, zakładanie sejfu we wtyczce, przeniesienie na Windows |
-
-## Stare nazwy
-
-Nazwy z historii gita i starszych PR-ów, których już nie ma w kodzie.
-
-| Było | Jest |
-|---|---|
-| `extension/src/server-urls.ts`, `pickServer` | `extension/src/phone-urls.ts`, `pickPhone` (plan 4) |
-| `extension/src/ui/server-url-fields.ts`, `serverUrlFields` | `extension/src/ui/phone-url-fields.ts`, `phoneUrlFields` (plan 4) |
-| `extension/src/api.ts` (`ServerClient`) | `extension/src/phone-client.ts` (`PhoneClient`, plan 3) |
-| `android/core/.../VaultStore.kt`, `Sync.kt`, `ServerClient.kt`, `ServerPicker.kt`, `CertificatePin.kt` | `p2p/PhoneVaultStore.kt` i serwer na telefonie; reszta usunięta (plan 4) |
-| `core/src/sync.ts` (klient v1), `server/`, `deploy/` | usunięte (plan 4); host: `core/src/p2p/host-sync.ts` i `HostSync.kt` |
-| ekrany `ConnectScreen`, `AddressesScreen` (Android) | `StartScreen`, `SyncScreen`, `DevicesScreen`, `RestoreScreen` (plan 3) |
-| widoki w `extension/src/popup.ts` (695 linii) | `extension/src/views/*.ts` i `extension/src/ui/*.ts` (PR #16) |
-| `IN_TAB`, `TRANSFER_TAB`, `isTabPage`, `TAB_PARAM`, `SETUP_PARAM` | `pageMode`, `isInTab`, `isMainTab`, `modeQuery` (`page-mode.ts`); `IN_TAB` w `ui/page.ts` (PR #16) |
-| `openSetupTab`, `openAddressesTab`, `openTransferTab` | `showInTab("setup" \| "addresses" \| "transfer", widok)` (PR #16) |
-| `VaultStore.findPinLock`, `resetPinAttempts` | `PinStore.find` (prywatna), `PinStore.resetAttempts` (PR #16) |
-| `AppViewModel.lockOnLeave`, `fingerprintRequests` | `onLeftApp` → `LockController.onLeftApp`, `timesLeftApp` (PR #16) |
-| `fingerprintOnLockedScreen`, `lockWhenDone` | `LockController.offerFingerprint`, `lockWaitsForOperation` (PR #16) |
-| `AppViewModel.enableBiometric(activity)`, `unlockWithBiometric(activity)` | `cipherToEnableBiometric` + `onBiometricEnableAuthorized`, `cipherToUnlockBiometric` + `onBiometricUnlockAuthorized` (PR #16) |
+Parowanie (`/p2p/v1/pair/hello`, `start`, `finish`) i odtwarzanie z wtyczki:
+[SYNCHRONIZACJA.md](SYNCHRONIZACJA.md) punkty 3 i 8.

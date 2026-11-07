@@ -1,7 +1,6 @@
 # Testy PassHolder
 
-Przegląd testów całego monorepo: co jest testowane, jak to uruchomić, jakie luki znalazły testy. Pierwsza
-wersja powstała 2026-10-31 (PR #5); stan opisany niżej to wersja po planie 4 (2026-11-07, bez serwera Pi).
+Co jest testowane, jak to uruchomić i co trzeba sprawdzić ręcznie.
 
 ## Jak uruchomić
 
@@ -16,24 +15,23 @@ npm run typecheck
 npm run build            # wtyczka do extension\dist
 
 cd android
-$env:JAVA_HOME="$HOME\.jdks\jbr-21.0.11"    # JDK 21; JBR 25 z Android Studio nie działa z Gradle 8.14.3
+$env:JAVA_HOME="$HOME\.jdks\jbr-21.0.11"    # JDK 21; JBR 25 nie działa z Gradle 8.14.3
 .\gradlew.bat :core:test :app:testDebugUnitTest --console=plain
-.\gradlew.bat :core:test --tests "io.github.sheking94.passholder.core.p2p.*" --console=plain   # tylko P2P
+.\gradlew.bat :core:test --tests "*P2pHostTest*" --console=plain        # jeden plik
+git checkout app/screenshots                                              # testy nadpisują zrzuty
 ```
 
-Testy współpracy (`P2pInteropTest`, `PhoneInteropTest`) uruchamiają w Node prawdziwy kod wtyczki z
-`core/src/p2p` przeciw hostowi w Kotlinie. Bez `PASSHOLDER_INTEROP_TEST=1` są pomijane. Potrzebują
-`npm ci` w katalogu głównym i Node na PATH:
+**Testy współpracy** (`P2pInteropTest`, `PhoneInteropTest`) uruchamiają w Node prawdziwy kod wtyczki z
+`core/src/p2p` przeciw hostowi w Kotlinie. Bez zmiennej są pomijane; potrzebują `npm ci` i Node ≥ 22.18 na
+PATH:
 
 ```powershell
-fnm env --shell powershell | Out-String | Invoke-Expression
 $env:PASSHOLDER_INTEROP_TEST="1"
 .\gradlew.bat :core:test --tests "*Interop*" --console=plain
 Remove-Item Env:PASSHOLDER_INTEROP_TEST
 ```
 
-Gdy `node` się zawiesi, test współpracy czeka do przerwania Gradle (czytanie wyjścia procesu blokuje, limit
-5 minut nie zadziała).
+Gdy `node` się zawiesi, test czeka do przerwania Gradle.
 
 ### Linux (chmura, CI)
 
@@ -45,22 +43,19 @@ PASSHOLDER_INTEROP_TEST=1 ./gradlew :core:test --tests "*Interop*" --console=pla
 ```
 
 Testy ekranów (`:app:testDebugUnitTest`, Robolectric + Roborazzi, ok. 5 min) zapisują zrzuty w
-`android/app/screenshots/`; kody i hasła na nich są losowe, więc zrzuty zmieniają się przy każdym uruchomieniu.
+`android/app/screenshots/`; kody i hasła na nich są losowe. Wyniki Gradle: `android/*/build/reports/tests/`.
 
-Pokrycie dla TypeScript (opcjonalnie, bez dopisywania zależności do projektu):
-`npm i --no-save @vitest/coverage-v8 && npx vitest run --coverage` w katalogu pakietu.
+Pokrycie TypeScript (opcjonalnie): `npm i --no-save @vitest/coverage-v8 && npx vitest run --coverage` w
+katalogu pakietu.
 
-## Liczby
+## Liczby (2026-11-07)
 
-| Pakiet | Pliki | Testy (po planie 4) | Uwagi |
+| Pakiet | Pliki | Testy | Uwagi |
 |---|---|---|---|
-| `core` | 14 | 145 | w tym `core/test/p2p/` (rdzeń P2P) |
-| `extension` | 8 | 86 | widoki i service worker bez testów (patrz niżej) |
+| `core` | 14 | 145 | w tym `core/test/p2p/` |
+| `extension` | 8 | 86 | widoki i service worker bez testów |
 | `android/core` | 25 | 298 | 4 pomijane bez `PASSHOLDER_INTEROP_TEST=1` |
 | `android/app` | 6 | 31 | Robolectric, zrzuty ekranów |
-
-Liczby TypeScript to wynik `npm test`; liczby Androida to wynik Gradle z planu 4. Zmiana względem planu 3:
-[P2P_USUNIECIE_SERWERA.md](P2P_USUNIECIE_SERWERA.md) §5.
 
 ## Co testują pliki
 
@@ -68,64 +63,109 @@ Liczby TypeScript to wynik `npm test`; liczby Androida to wynik Gradle z planu 4
 
 | Plik | Co sprawdza |
 |---|---|
-| `edge-cases.test.ts` | NFC („ą” na dwa sposoby), Base64/hex dla wszystkich bajtów i złe dane, AES-GCM (zły klucz i nonce, ucięty blob, nieznana wersja, zmieniony nonce, pusty tekst), złe hasło nie odwija klucza sejfu, `encKey ≠ authKey`, inna sól daje inne klucze, granice KDF, generator |
-| `cipher.test.ts`, `generator.test.ts`, `vectors.test.ts` | szyfrowanie i zawijanie klucza sejfu, generator, wektory `test-vectors/v1.json` (KDF, klucz sejfu) |
-| `sync-edge.test.ts` | `processSync` (logika hosta): duplikaty w żądaniu, nieznana rewizja, rosnące rewizje, `sinceRevision` |
-| `p2p/*.test.ts` | HLC, ristretto255 (RFC 9496), CPace, Noise KK, parowanie, klient parowania, host i transport, synchronizacja wtyczki, wektory `v2.json` ([P2P_RDZEN.md](P2P_RDZEN.md)) |
+| `edge-cases.test.ts` | NFC, Base64/hex, AES-GCM (zły klucz i nonce, ucięty blob), złe hasło, granice KDF, generator |
+| `cipher.test.ts`, `generator.test.ts`, `vectors.test.ts` | szyfrowanie, generator, wektory `v1.json` |
+| `sync-edge.test.ts` | `processSync`: duplikaty, nieznana rewizja, rosnące rewizje |
+| `p2p/*.test.ts` | HLC, ristretto255 (RFC 9496), CPace (draft, dodatek B.3), Noise KK (Cacophony), parowanie, klient parowania, host, transport, synchronizacja, wektory `v2.json` |
+
+`v2.json` zawiera sekcje `hlcCompare`, `entryPayload`, `pairingKey`, `pairingMessage`, `frames`, `paging`
+oraz odnośniki do `cpace-ristretto255.json` i `noise-kk.json`. Odtwarza je `npm run gen-vectors-v2 -w core`;
+wartości losowe mają stałe klucze i nonce.
 
 ### `extension/test/`
 
-| Plik | Co sprawdza | Opis funkcji |
-|---|---|---|
-| `vault-store.test.ts`, `pairing-flow.test.ts` | parowanie, złe hasło po zamknięciu okienka, wygaśnięcie po 10 min, inny sejf, odtwarzanie, kilka adresów, brak zgody Chrome, odłączanie | [P2P_WTYCZKA.md](P2P_WTYCZKA.md) |
-| `edge-cases.test.ts` | konflikt telefon–wtyczka po HLC, zmiany po blokadzie, zablokowany sejf, słaby KDF od telefonu, zły kod, telefon, który zapomniał przeglądarkę, `PhoneClient` (limit 30 s) | [P2P_WTYCZKA.md](P2P_WTYCZKA.md) |
-| `phone-urls.test.ts` | adresy IPv4, zera wiodące, porty, `pickPhone` z limitem 4 s | [P2P_WTYCZKA.md](P2P_WTYCZKA.md) |
-| `pin.test.ts` | PIN: kształt, limit 5 prób, licznik zapisywany przed sprawdzeniem, długi PIN na dysku | [WTYCZKA_PIN.md](WTYCZKA_PIN.md) |
-| `csv-transfer.test.ts` | parser i generator CSV NordPass, duplikaty, import trafia na telefon | [WTYCZKA_IMPORT_EKSPORT_CSV.md](WTYCZKA_IMPORT_EKSPORT_CSV.md) |
-| `open-in-tab.test.ts` | tryby strony, przełączanie na otwartą kartę | [WTYCZKA_OTWIERANIE_W_KARCIE.md](WTYCZKA_OTWIERANIE_W_KARCIE.md) |
-| `auto-lock.test.ts` | blokada po 15 minutach przy otwartej stronie i alarm service workera | |
+| Plik | Co sprawdza |
+|---|---|
+| `vault-store.test.ts`, `pairing-flow.test.ts` | parowanie, złe hasło po zamknięciu okienka, wygaśnięcie po 10 min, inny sejf, odtwarzanie, kilka adresów, brak zgody Chrome, odłączanie |
+| `edge-cases.test.ts` | konflikty HLC, zablokowany sejf, słaby KDF od telefonu, telefon, który zapomniał przeglądarkę, limit 30 s |
+| `phone-urls.test.ts` | adresy IPv4, zera wiodące, porty, `pickPhone` (4 s) |
+| `pin.test.ts` | PIN: kształt, 5 prób, licznik przed sprawdzeniem, długi PIN na dysku |
+| `csv-transfer.test.ts` | parser i eksport CSV, duplikaty, import trafia na telefon |
+| `open-in-tab.test.ts` | tryby strony, przełączanie na otwartą kartę |
+| `auto-lock.test.ts` | blokada po 15 min na stronie i alarm service workera |
 
-Testy wtyczki używają `extension/test/fake-phone.ts`: parowanie z prawdziwym CPace przed referencyjnym `P2pHost`.
+Testy wtyczki używają `extension/test/fake-phone.ts`: parowanie z prawdziwym CPace przed referencyjnym
+`P2pHost`.
 
 ### `android/core` i `android/app`
 
-| Plik | Co sprawdza | Opis |
-|---|---|---|
-| `CryptoTest`, `GeneratorTest`, `VectorsTest`, `KdfBoundsTest` | szyfrowanie, generator, wektory `v1.json`, granice KDF i NFC | [SPEC.md](SPEC.md) |
-| `p2p/*Test.kt` (rdzeń) | te same wektory P2P bit w bit, CPace, Noise, `HostSync`, `P2pHost`, `PhoneVault`, wiele wątków | [P2P_ANDROID_RDZEN.md](P2P_ANDROID_RDZEN.md) §5 |
-| `SyncHttpServerTest`, `FileSyncStoreTest`, `HostStateTest`, `PairingHostTest`, `PhoneRouterTest`, `LocalAddressesTest`, `PhoneVaultStoreTest` | serwer HTTP i limity, trwała baza, parowanie po HTTP, sejf telefonu | [P2P_TELEFON.md](P2P_TELEFON.md) §9 |
-| `P2pInteropTest`, `PhoneInteropTest` (opcjonalne) | prawdziwy klient wtyczki w Node przeciw hostowi w Kotlinie | [P2P_WTYCZKA.md](P2P_WTYCZKA.md) §8 |
-| `ScreenTests`, `SyncScreenTests`, `SyncControllerTest` (app) | ekrany, tryb Synchronizacja, odświeżenie listy po synchronizacji | [P2P_TELEFON.md](P2P_TELEFON.md) |
-| `BiometricScreenTests` (app) | odcisk palca, blokada po wyjściu z aplikacji i opóźnienie 60 s | [ANDROID_ODCISK_PALCA.md](ANDROID_ODCISK_PALCA.md) |
-| `BackupRulesTest`, `ClearClipboardWorkerTest` (app) | brak kopii zapasowych w chmurze, czyszczenie schowka | |
+| Plik | Co sprawdza |
+|---|---|
+| `CryptoTest`, `GeneratorTest`, `VectorsTest`, `KdfBoundsTest` | szyfrowanie, generator, `v1.json`, granice KDF i NFC |
+| `p2p/P2pVectorsTest`, `Ristretto255Test`, `CpaceTest`, `NoiseTest`, `PairingTest`, `HlcTest`, `P2pJsonTest`, `EntryV2Test`, `FramesTest` | te same wektory bit w bit, `safeLong`, ramki |
+| `HostSyncTest`, `P2pHostTest`, `PhoneVaultTest` | rewizje, stronicowanie, cofnięty telefon, kody HTTP, sesje (60 s, 32), wiele wątków |
+| `SyncHttpServerTest`, `FileSyncStoreTest`, `HostStateTest`, `PairingHostTest`, `PhoneRouterTest`, `LocalAddressesTest`, `PhoneVaultStoreTest` | serwer HTTP i limity, `Host`, trwała baza, parowanie po HTTP, sejf telefonu |
+| `P2pInteropTest`, `PhoneInteropTest` (opcjonalne) | prawdziwy klient wtyczki w Node przeciw hostowi w Kotlinie: wpisy w obie strony, 1300/1200 wpisów, odtworzenie |
+| `ScreenTests`, `SyncScreenTests`, `SyncControllerTest`, `CorruptHostStateTest` (app) | ekrany, tryb Synchronizacja, odświeżenie po synchronizacji, uszkodzony stan |
+| `BiometricScreenTests` (app) | odcisk palca, blokada po wyjściu, opóźnienie 60 s (zegar Robolectric) |
+| `BackupRulesTest`, `ClearClipboardWorkerTest` (app) | brak kopii zapasowych, czyszczenie schowka |
 
-## Znalezione błędy i poprawki
+## Znaleziony błąd: walidacja KDF
 
-### 1. (historyczne, wersja z Pi) Po restarcie Raspberry Pi synchronizacja przestawała działać na 15 minut
+`assertKdfParamsAcceptable` sprawdzała tylko `memoryKiB < minimum`, więc `NaN` i napisy przechodziły, a
+górnej granicy nie było (druga strona mogła kazać zaalokować gigabajty). Poprawka: każdy parametr to liczba
+całkowita w zakresie, `MAX_KDF` (`memoryKiB ≤ 1048576`, `iterations ≤ 100`, `parallelism ≤ 64`), te same
+granice w `Kdf.kt` ([SPEC.md](SPEC.md) §2).
 
-Serwer trzymał tokeny sesji tylko w pamięci, a klienci logowali się ponownie dopiero po wygaśnięciu
-zapamiętanego tokenu. Poprawka: po 401 przy synchronizacji klient logował się raz od nowa i powtarzał
-synchronizację. Serwer, logowanie i te testy usunął plan 4; opis zostaje dla historii.
+## Testy ręczne
 
-### 2. Walidacja parametrów KDF przepuszczała `NaN`, napisy i ogromną pamięć
+Testy automatyczne nie obejmują prawdziwego Chrome (prośba o zgodę, Private Network Access), prawdziwego
+Keystore i `BiometricPrompt` ani serwera na prawdziwym telefonie. Przygotowanie: telefon z aplikacją
+(`.\gradlew.bat :app:installDebug`), wtyczka z `extension\dist` w Chrome, oba urządzenia w tej samej sieci
+Wi-Fi. Zapisz wynik każdego testu.
 
-`assertKdfParamsAcceptable` w `core/src/kdf.ts` sprawdzała tylko `memoryKiB < minimum`. Porównanie
-z `NaN` albo z napisem `"lots"` daje `false`, więc taka wartość przechodziła. Nie było też górnej
-granicy, którą Android już miał (1 GiB), więc złośliwa druga strona (wtedy serwer, dziś telefon albo
-wtyczka przy parowaniu) mogła kazać zaalokować gigabajty.
+### Sam telefon
 
-Poprawka: każdy parametr musi być liczbą całkowitą w zakresie. Stała `MAX_KDF`
-(`memoryKiB ≤ 1048576`, `iterations ≤ 100`, `parallelism ≤ 64`), te same granice w `Kdf.kt` i opis w
-[SPEC.md](SPEC.md) §2. Testy: `core/test/edge-cases.test.ts` („KDF parameters from another device”),
-`KdfBoundsTest.kt`, `extension/test/edge-cases.test.ts` (słaby KDF od telefonu).
+1. Start → „Nowy sejf” (hasło ≥ 12 znaków), „+ Dodaj” z generatorem, zapisz.
+2. „Synchronizacja”: adres `http://<IPv4>:8787`, po „Dodaj wtyczkę” kod z odliczaniem; ekran nie gaśnie.
+3. Z komputera: `curl -X POST -H "Content-Type: application/json" -d "{}" http://<IP>:8787/p2p/v1/ping` →
+   `{"ok":true}`.
+4. Home i powrót: tryb wyłączony, „Włącz ponownie” go uruchamia.
+5. Zablokuj, odblokuj hasłem i odciskiem; „Usuń sejf z telefonu” wraca na start.
+6. Odcisk palca: Home i powrót przed i po 60 s, to samo bez opóźnienia, wyłączenie ekranu, obrót (bez
+   blokady), dodanie nowego odcisku w ustawieniach (aplikacja prosi o hasło główne).
 
-## Czego dalej brakuje
+### Telefon z wtyczką
 
-- Widoki wtyczki (`extension/src/views/`, `extension/src/ui/`), `offscreen.ts` i `clipboard.ts` nie mają
-  testów jednostkowych (kod zależny od DOM i API Chrome). Sensowny następny krok: stały test w Chromium
-  (Playwright).
-- Prośba o zgodę Chrome i Private Network Access do adresu w LAN oraz Tailscale nie są pokryte testami
-  automatycznymi; sprawdzają je testy ręczne T4 i T7 w [P2P_TELEFON.md](P2P_TELEFON.md) §11.2.
-- Aplikacja Android jest testowana na JVM (Robolectric); prawdziwy Keystore, `BiometricPrompt` i serwer na
-  porcie 8787 tylko ręcznie na telefonie.
-- Brak testu wydajności Argon2id na telefonie (domyślne 64 MiB, 3 iteracje).
+**T7. Zgoda Chrome i LAN (najpierw).** Okienko z paska → „Sparuj z telefonem” → adres
+`http://192.168.x.x:8787`, kod → „Sparuj”. Chrome **musi** zapytać o zgodę na `http://<ip>:8787/*`. Hasło
+główne → „Sparowano z telefonem.”; potem „Synchronizuj” w okienku. Przy „Telefon nie odpowiada” mimo
+włączonego trybu: DevTools → Network, szukaj żądania `OPTIONS` (405) i zapisz wersję Chrome.
+
+**T1. Wpis w obie strony.** Wpis A z telefonu jest we wtyczce. Wpis B we wtyczce (•) → „Synchronizuj” →
+jest na telefonie. Zmiana A na telefonie dochodzi do wtyczki. „Urządzenia” pokazuje wtyczkę z datami.
+
+**T2. Zły i wygasły kod.** Zły kod: „Zły kod parowania…”. Po 2 min: „Telefon nie czeka na parowanie albo kod
+wygasł.” 7 cyfr: „Kod parowania to 8 cyfr.” (kod nie przepada).
+
+**T3. Zmiana sieci.** Inne IP telefonu: stary adres „Telefon nie odpowiada…”; nowy adres w „Adresy telefonu”
+→ „Zapisz” → „Synchronizuj” działa bez parowania.
+
+**T4. Tailscale.** Adres `http://100.x.y.z:8787` w „Adresy telefonu” → „Zapisz”; wyłącz Wi-Fi komputera albo
+usuń adres LAN i „Synchronizuj”. Zapisz wynik i wersję Chrome.
+
+**T5. Odtworzenie.** Telefon: „Usuń sejf” → „Odtwórz z wtyczki”. Wtyczka: „Sparuj z innym telefonem /
+odtwórz telefon” → „Telefon odtworzony…”. Telefon: hasło główne → wszystkie wpisy wróciły.
+
+**T6. Wyjście z aplikacji.** Home na telefonie → „Synchronizuj”: „Telefon nie odpowiada…”; po „Włącz
+ponownie” działa.
+
+**T8. Telefon zapomniał przeglądarkę.** Wpis C bez synchronizacji, usuń wtyczkę w „Urządzenia” →
+„Synchronizuj”: „Telefon nie zna tej przeglądarki…”. Ponowne parowanie z kodem: wpis C trafia na telefon.
+
+**T9. Odłączanie.** Wpis bez synchronizacji, zablokuj → „Odłącz tę przeglądarkę”: pierwsze kliknięcie
+ostrzega, drugie odłącza.
+
+**T10. Złe hasło przy parowaniu.** Złe hasło → „Złe hasło główne”; po zamknięciu karty „Dokończ parowanie”
+wraca do hasła. Po 10 min: „Parowanie wygasło…”.
+
+**PIN i karta.** PIN `4821` → Zablokuj → zły PIN „Pozostało prób: 4”, dobry otwiera; restart Chrome prosi o
+hasło główne. „Otwórz w karcie ↗” dwa razy: drugi raz przełącza na istniejącą kartę.
+
+## Czego brakuje
+
+- Testów widoków wtyczki (`views/`, `ui/`), `offscreen.ts` i `clipboard.ts` (DOM, API Chrome). Następny krok:
+  test w Chromium (Playwright).
+- Testów automatycznych prośby o zgodę Chrome, Private Network Access i Tailscale (T4, T7 ręcznie).
+- Testów na prawdziwym telefonie (Keystore, `BiometricPrompt`, port 8787) i wydajności Argon2id.
+- Na telefonie: zajętego portu, obrotu ekranu przy działającym serwerze, wygasania kodu przez zegar.

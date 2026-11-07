@@ -2,7 +2,7 @@ package io.github.sheking94.passholder.core
 
 import kotlinx.serialization.Serializable
 
-/** Character groups from docs/SPEC.md §8. */
+/** Character groups from docs/SPEC.md §6. */
 enum class CharacterGroup(val chars: String) {
     LOWERCASE("abcdefghijklmnopqrstuvwxyz"),
     UPPERCASE("ABCDEFGHIJKLMNOPQRSTUVWXYZ"),

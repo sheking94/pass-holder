@@ -3,7 +3,7 @@
 Ten dokument opisuje kryptografię i format danych wspólne dla wtyczki do Chrome (TypeScript) i aplikacji na
 Androida (Kotlin). Implementacja referencyjna jest w `core/`, a `core/test-vectors/v1.json` (KDF, klucz
 sejfu) i `v2.json` (wpisy, parowanie, Noise) zawierają wartości, które obie implementacje muszą odtworzyć
-bit w bit. Synchronizację telefon–wtyczka opisuje [SYNCHRONIZACJA_P2P.md](SYNCHRONIZACJA_P2P.md).
+bit w bit. Synchronizację telefon–wtyczka opisuje [SYNCHRONIZACJA.md](SYNCHRONIZACJA.md).
 
 ## 1. Założenia
 
@@ -54,8 +54,8 @@ Bajt `0x01` to wersja formatu. AAD (dane uwierzytelniane, nieszyfrowane):
 |----|-----|
 | zawinięty vaultKey | `passholder/v1/vault-key` |
 | wpis o identyfikatorze `id` | `passholder/v2/entry/<id>` |
-| lokalny sejf wtyczki, klucz statyczny wtyczki | `passholder/v2/local-vault`, `passholder/v2/ext-static-key` ([P2P_WTYCZKA.md](P2P_WTYCZKA.md) §4) |
-| klucze zawinięte PIN-em we wtyczce | `passholder/v1/pin-lock` ([WTYCZKA_PIN.md](WTYCZKA_PIN.md)) |
+| lokalny sejf wtyczki, klucz statyczny wtyczki | `passholder/v2/local-vault`, `passholder/v2/ext-static-key` ([SYNCHRONIZACJA.md](SYNCHRONIZACJA.md#73-dane-w-chromestorage)) |
+| klucze zawinięte PIN-em we wtyczce | `passholder/v1/pin-lock` ([FUNKCJE.md](FUNKCJE.md#pin-we-wtyczce)) |
 
 AAD z `id` wiąże szyfrogram z wpisem, więc host nie może podmienić treści między wpisami.
 
@@ -69,42 +69,30 @@ AAD z `id` wiąże szyfrogram z wpisem, więc host nie może podmienić treści 
 - Flaga `deleted` jest jawna. Odbiorca sprawdza tylko, czy treść pasuje do flagi: przy `deleted = true`
   musi mieć poprawne pole `hlc`, przy `deleted = false` pola `name`, `username`, `password` i `hlc`
   (`parseTombstoneDataV2` / `parseEntryDataV2` w `core/src/p2p/entry.ts`, `EntryV2.kt`). Inne pola nagrobka
-  nie są odrzucane (w v1 nagrobek musiał mieć wyłącznie `modifiedAt`, poprawka S2): rekordy pochodzą
-  od sparowanego urządzenia, które zna hasło główne, a kanał Noise KK je uwierzytelnia.
+  nie są odrzucane: rekordy pochodzą od sparowanego urządzenia, które zna hasło główne, a kanał Noise KK
+  je uwierzytelnia.
 - Wpis, który nigdy nie trafił na telefon, wtyczka kasuje lokalnie.
 - HLC (hybrydowy zegar logiczny) jest wewnątrz szyfrogramu, więc host nie zna czasów zmian. Konflikty
-  rozstrzyga większy HLC: [SYNCHRONIZACJA_P2P.md](SYNCHRONIZACJA_P2P.md) §5.
+  rozstrzyga większy HLC: [SYNCHRONIZACJA.md](SYNCHRONIZACJA.md#43-konflikty-hlc).
 
-## 5–7. Synchronizacja, protokół i sieć
+## 5. Synchronizacja
 
-Wcześniejsze sekcje o synchronizacji przez serwer na Raspberry Pi, jego API (`/api/v1/*`) i HTTPS z
-przypiętym certyfikatem opisywały wersję usuniętą w planie 4 ([P2P_USUNIECIE_SERWERA.md](P2P_USUNIECIE_SERWERA.md)).
-Obecny protokół (parowanie CPace, Noise KK, `POST /p2p/v1/*` na porcie 8787 telefonu, numery `revision`,
-epoka, adresy) opisują [SYNCHRONIZACJA_P2P.md](SYNCHRONIZACJA_P2P.md), [P2P_RDZEN.md](P2P_RDZEN.md) i
-[P2P_TELEFON.md](P2P_TELEFON.md). Logika przyjmowania zmian (`processSync`: `baseRevision`, rosnące
-`revision`, konflikty) została bez zmian i działa teraz na telefonie.
+Protokół (parowanie CPace, Noise KK, `POST /p2p/v1/*` na porcie 8787 telefonu, numery `revision`, epoka,
+adresy) opisuje [SYNCHRONIZACJA.md](SYNCHRONIZACJA.md).
 
-## 8. Generator haseł
+## 6. Generator haseł
 
 - Grupy znaków: małe litery, wielkie litery, cyfry, symbole `!@#$%^&*()-_=+[]{};:,.<>?/~`.
 - Długość 4–128, domyślnie 20, wszystkie grupy.
 - Co najmniej jeden znak z każdej wybranej grupy, reszta z sumy grup, potem tasowanie Fishera-Yatesa.
 - Losowanie z CSPRNG z odrzucaniem (bez przewagi żadnego znaku).
 
-## 9. Funkcje klientów poza protokołem
+## 7. Funkcje urządzeń
 
-Te funkcje działają tylko na urządzeniu i nie zmieniają formatu danych ani protokołu synchronizacji.
+Automatyczna blokada, PIN, odcisk palca, CSV, strona w karcie i czyszczenie schowka działają tylko na
+urządzeniu i nie zmieniają formatu danych ani protokołu: [FUNKCJE.md](FUNKCJE.md).
 
-| Funkcja | Gdzie | Opis |
-|---|---|---|
-| Automatyczna blokada po 15 minutach bez aktywności | wtyczka, Android | [archive/POPRAWKI_BEZPIECZENSTWA.md](archive/POPRAWKI_BEZPIECZENSTWA.md) (S1) |
-| Odblokowanie PIN-em | wtyczka | [WTYCZKA_PIN.md](WTYCZKA_PIN.md) |
-| Odblokowanie odciskiem palca, blokada 60 s po wyjściu z aplikacji | Android | [ANDROID_ODCISK_PALCA.md](ANDROID_ODCISK_PALCA.md) |
-| Import i eksport CSV w formacie NordPass | wtyczka | [WTYCZKA_IMPORT_EKSPORT_CSV.md](WTYCZKA_IMPORT_EKSPORT_CSV.md) |
-| Strona wtyczki w karcie (parowanie, adresy, CSV) | wtyczka | [WTYCZKA_OTWIERANIE_W_KARCIE.md](WTYCZKA_OTWIERANIE_W_KARCIE.md) |
-| Czyszczenie schowka po minucie | wtyczka, Android | `extension/src/clipboard.ts`, `android/app/.../SecureClipboard.kt` |
-
-## 10. Poza zakresem
+## 8. Poza zakresem
 
 Zmiana hasła głównego, wiele kont, współdzielenie, TOTP, autouzupełnianie, synchronizacja wtyczka–wtyczka
 bez telefonu. Sejf telefonu odtwarza się z wtyczki („Odtwórz z wtyczki”), a import CSV pozwala wgrać wpisy

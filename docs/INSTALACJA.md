@@ -6,7 +6,7 @@ trzyma jego zaszyfrowaną kopię i synchronizuje się bezpośrednio z telefonem.
 Kolejność: [1. narzędzia na Windows](#1-narzędzia-na-windows) → [2. telefon](#2-telefon) →
 [3. wtyczka](#3-wtyczka-do-chrome) → [4. Tailscale (opcjonalnie)](#4-tailscale-opcjonalnie). Potem:
 [codzienne używanie](#codzienne-używanie), [aktualizacje](#aktualizacje), [kopia zapasowa](#kopia-zapasowa),
-[problemy](#problemy) i [znane ograniczenia](#znane-ograniczenia). Usunięcie: [DEZINSTALACJA.md](DEZINSTALACJA.md).
+[problemy](#problemy), [znane ograniczenia](#znane-ograniczenia) i [dezinstalacja](#dezinstalacja).
 
 ## Jak to działa
 
@@ -24,7 +24,7 @@ Kolejność: [1. narzędzia na Windows](#1-narzędzia-na-windows) → [2. telefo
 - Wtyczkę parujesz z telefonem jednorazowym 8-cyfrowym kodem. Każda synchronizacja jest szyfrowana i
   uwierzytelniona protokołem Noise, więc zwykłe HTTP wystarcza: nie ma certyfikatów do instalowania.
 - Wtyczka działa bez telefonu na swojej kopii; zmiany wymienia, gdy telefon jest w trybie Synchronizacja.
-  Szczegóły: [SYNCHRONIZACJA_P2P.md](SYNCHRONIZACJA_P2P.md).
+  Szczegóły: [SYNCHRONIZACJA.md](SYNCHRONIZACJA.md).
 
 ## Czego potrzebujesz
 
@@ -104,7 +104,7 @@ z wtyczki przez „Odtwórz z wtyczki”, patrz [kopia zapasowa](#kopia-zapasowa
 **Hasła głównego nie da się odzyskać.** Bez niego nie otworzysz sejfu ani na telefonie, ani we wtyczce.
 
 Opcjonalnie na liście wpisów: przełącznik **Odblokowanie odciskiem palca** i **Blokuj dopiero po 60 s poza
-aplikacją** ([ANDROID_ODCISK_PALCA.md](ANDROID_ODCISK_PALCA.md)).
+aplikacją** ([FUNKCJE.md](FUNKCJE.md#odcisk-palca-i-blokada-po-wyjściu-android)).
 
 ## 3. Wtyczka do Chrome
 
@@ -168,8 +168,7 @@ dopiero po **Zapisz** w „Adresy telefonu” (wtedy Chrome pyta o zgodę).
   „Zsynchronizowano z telefonem HH:MM”. Na telefonie potem **Zakończ**. Wpisy zmienione we wtyczce, a
   jeszcze niewysłane, mają kropkę •.
 - **Wtyczka:** **+ Dodaj** (z generatorem haseł), kopiowanie loginu i hasła (schowek czyszczony po minucie),
-  **PIN** ([WTYCZKA_PIN.md](WTYCZKA_PIN.md)), **CSV** ([WTYCZKA_IMPORT_EKSPORT_CSV.md](WTYCZKA_IMPORT_EKSPORT_CSV.md)),
-  **Adresy telefonu**, **Otwórz w karcie ↗** ([WTYCZKA_OTWIERANIE_W_KARCIE.md](WTYCZKA_OTWIERANIE_W_KARCIE.md)).
+  **PIN**, **CSV**, **Adresy telefonu**, **Otwórz w karcie ↗** (opis: [FUNKCJE.md](FUNKCJE.md)).
 - **Telefon:** **+ Dodaj**, **Zablokuj**, **Urządzenia** (sparowane wtyczki, daty ostatniej synchronizacji,
   **Usuń**: wtyczka przestaje się synchronizować).
 - **Blokada:** obie części blokują się po 15 minutach bez aktywności; telefon także 60 s po wyjściu z
@@ -239,7 +238,92 @@ Nowa wersja instaluje się na starej, sejf zostaje (pod warunkiem tego samego `d
 - **Bez telefonu w pobliżu nie ma synchronizacji** (także między dwoma komputerami). Wtyczka działa wtedy
   offline na swojej kopii.
 - **Tylko adresy IPv4.** Telefon odrzuca nazwy (MagicDNS z Tailscale) i IPv6 jako ochronę przed DNS rebinding.
-- **Tailscale w prawdziwym Chrome nie był jeszcze sprawdzony** (test T4 w [P2P_TELEFON.md](P2P_TELEFON.md) §11.2).
+- **Tailscale w prawdziwym Chrome nie był jeszcze sprawdzony** (test T4 w [TESTY.md](TESTY.md#testy-ręczne)).
 - **Zmiany na tym samym wpisie bez synchronizacji** w obu miejscach: wygrywa późniejsza, druga przepada.
 - **Wtyczka w trybie dewelopera:** Chrome może przy starcie przypominać o takich wtyczkach.
 - **Klucz debug:** aktualizacje wymagają tego samego `debug.keystore` (2.2).
+
+---
+
+## Dezinstalacja
+
+Jak usunąć wtyczkę, aplikację i narzędzia z tej instrukcji. Kroki D2 i D3 usuwają sejf; reszta jest opcjonalna.
+
+### D1. Najpierw kopia haseł
+
+Po krokach D2 i D3 sejfu nie ma już nigdzie. Jeśli hasła mają przetrwać (np. przenosisz je do innego
+menedżera), zrób kopię **przed** usunięciem:
+
+1. Na telefonie **Synchronizacja**, we wtyczce **Synchronizuj**, żeby wtyczka miała wszystkie wpisy.
+2. We wtyczce **CSV** → zaznacz „Rozumiem, plik będzie zawierał hasła jawnym tekstem” → **Pobierz plik CSV**.
+3. Sprawdź, że plik nie jest pusty, zaimportuj go tam, gdzie trzeba, i **usuń go** (także z Kosza). Plik
+   zawiera hasła jawnym tekstem.
+
+Jeśli usuwasz tylko jedną część (np. wtyczkę z jednego komputera), druga zachowuje sejf i kopia nie jest
+potrzebna.
+
+### D2. Wtyczka w Chrome
+
+1. Opcjonalnie: zablokuj sejf i na ekranie blokady kliknij **Odłącz tę przeglądarkę** (dwa razy, drugie
+   kliknięcie potwierdza). To usuwa konto i sejf z pamięci wtyczki.
+2. `chrome://extensions` → na karcie PassHolder **Usuń** → potwierdź. Chrome usuwa razem z wtyczką całą jej
+   pamięć (zaszyfrowany sejf, PIN, adresy telefonu) i zgody na adresy telefonu.
+
+Powtórz w każdej przeglądarce, w której była wtyczka.
+
+### D3. Aplikacja na telefonie
+
+1. Opcjonalnie: **Zablokuj** → **Usuń sejf z telefonu** → **Usuń**.
+2. Odinstaluj aplikację: przytrzymaj ikonę PassHolder → odinstaluj (albo Ustawienia → Aplikacje →
+   PassHolder → Odinstaluj). Z komputera przez USB:
+
+   ```powershell
+   & "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" uninstall io.github.sheking94.passholder
+   ```
+
+Odinstalowanie usuwa wszystkie dane aplikacji: sejf, listę sparowanych wtyczek, ustawienia i klucze w
+Android Keystore (klucz odcisku palca i klucz tożsamości telefonu). Kopii w chmurze Google aplikacja nie
+robi, więc nic nie zostaje.
+
+Na koniec możesz wyłączyć **Debugowanie USB** w Opcjach programisty i cofnąć zgodę dla komputera
+(„Cofnij autoryzacje debugowania USB”, nazwa zależy od producenta).
+
+### D4. Sparowane urządzenia
+
+Jeśli usuwasz tylko jedną wtyczkę, a telefon zostaje: na telefonie **Urządzenia** → przy tej przeglądarce
+**Usuń** → **Usuń**. Telefon przestaje się z nią synchronizować. Po odinstalowaniu aplikacji (D3) ten
+krok nie jest potrzebny.
+
+### D5. Tailscale (opcjonalnie)
+
+Jeśli instalowałeś Tailscale tylko dla PassHoldera:
+
+- Windows: Ustawienia → Aplikacje → Tailscale → Odinstaluj (albo `winget uninstall Tailscale.Tailscale`).
+- Telefon: odinstaluj aplikację Tailscale.
+- Na stronie konta Tailscale (Machines) usuń oba urządzenia, jeśli zostały na liście.
+
+### D6. Repozytorium i wyniki budowania (opcjonalnie)
+
+W katalogu repozytorium leżą tylko wyniki instalacji i budowania (nie ma w nich haseł):
+
+```powershell
+cd C:\Users\krzys\Projekty\PassHolder
+Remove-Item -Recurse -Force node_modules, extension\dist, android\build, android\app\build, android\core\build, android\.gradle -ErrorAction SilentlyContinue
+```
+
+Albo usuń cały katalog `C:\Users\krzys\Projekty\PassHolder`, jeśli kod nie jest Ci już potrzebny.
+`android\local.properties` zawiera tylko ścieżkę do Android SDK.
+
+**Klucz podpisu** `C:\Users\krzys\.android\debug.keystore` usuwaj tylko wtedy, gdy nie budujesz już żadnych
+aplikacji na Androida: Android Studio używa go dla wszystkich projektów i utworzy nowy przy następnej budowie.
+
+### D7. Narzędzia na Windows (opcjonalnie)
+
+Jeśli nie są potrzebne do niczego innego:
+
+- **Android Studio**: Ustawienia → Aplikacje → Android Studio → Odinstaluj; potem usuń Android SDK
+  (`%LOCALAPPDATA%\Android\Sdk`) i pamięć podręczną Gradle (`%USERPROFILE%\.gradle`).
+- **JDK 21**: usuń katalog `%USERPROFILE%\.jdks\jbr-21.0.11`.
+- **Node.js przez fnm**: `fnm uninstall 22`, potem `winget uninstall Schniz.fnm`; wiersz `fnm env …` usuń z
+  `$PROFILE`, jeśli go tam dopisałeś. Pamięć podręczna npm: `%LOCALAPPDATA%\npm-cache`.
+- **Git for Windows**: Ustawienia → Aplikacje → Git → Odinstaluj.

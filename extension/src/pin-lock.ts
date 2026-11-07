@@ -9,7 +9,7 @@ import { deriveMasterKey, fromBase64, fromUtf8, newKdfParams, open, seal, toBase
  * copy of the PinLock can try them all offline (minutes for 4 digits, hours for 6). The attempt limit
  * only stops someone who guesses through the popup. That is fine while the lock is in session storage
  * (memory), but not on disk, so a PIN kept after a browser restart must be a long one (S4 of the
- * security review): at least 8 characters and not only digits. See docs/WTYCZKA_PIN.md.
+ * security review): at least 8 characters and not only digits. See docs/FUNKCJE.md, "PIN we wtyczce".
  */
 
 /** A short PIN: 4-6 digits. Allowed only while the PIN lock is kept in memory. */
