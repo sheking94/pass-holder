@@ -1,9 +1,10 @@
 # Usunięcie serwera Pi (plan 4)
 
-Dokument opisuje ostatni krok synchronizacji bez Pi (projekt w [SYNCHRONIZACJA_P2P.md](SYNCHRONIZACJA_P2P.md),
-sekcja 8 punkt 5): z repozytorium zniknął serwer na Raspberry Pi i kod klientów v1, który z nim rozmawiał.
+> Dokument historyczny: opisuje jednorazową zmianę z 2026-11-07 (PR #26).
+
+Dokument opisuje ostatni krok synchronizacji bez Pi (projekt w [../SYNCHRONIZACJA.md](../SYNCHRONIZACJA.md)): z repozytorium zniknął serwer na Raspberry Pi i kod klientów v1, który z nim rozmawiał.
 Zostały tylko telefon (kotwica sejfu) i wtyczka. Plan wykonania:
-[superpowers/plans/2026-11-07-p2p-usuniecie-serwera.md](superpowers/plans/2026-11-07-p2p-usuniecie-serwera.md).
+[plany/2026-11-07-p2p-usuniecie-serwera.md](plany/2026-11-07-p2p-usuniecie-serwera.md).
 
 Po planie 3 wtyczka i telefon już nie korzystały z Pi, ale kod v1 nadal się kompilował i był testowany.
 Plan 4 go usuwa, żeby nie utrzymywać dwóch dróg synchronizacji i żeby dokumentacja opisywała jedną.
@@ -79,7 +80,7 @@ Zmiana bez zmiany zachowania (`git mv`, historia plików zostaje). Importy w `va
 | `android/app` | 31 | 31 (bez zmian) |
 
 Liczby „przed” dla `core` i `android/core` są policzone z różnicy w kodzie testów (`it(` i `@Test`), nie z
-uruchomienia. Pełny opis testów: [TESTY.md](TESTY.md).
+uruchomienia. Pełny opis testów: [../TESTY.md](../TESTY.md).
 
 ## 6. Jak sprawdzić na Windows
 
@@ -105,4 +106,4 @@ Na urządzeniach:
    istniejący sejf.
 3. `git grep -n "server/\|deploy/\|PASSHOLDER_SERVER" -- . ":!docs"` nic nie znajduje: kod nie odwołuje się do usuniętych plików.
 
-Instalacja od zera bez Pi: [INSTALACJA.md](INSTALACJA.md); dokumenty z wersji z Pi: [archive/](archive/README.md).
+Instalacja od zera bez Pi: [../INSTALACJA.md](../INSTALACJA.md); dokumenty z wersji z Pi: [archiwum](README.md).

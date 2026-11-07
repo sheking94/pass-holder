@@ -17,16 +17,15 @@ Androidzie.
 
 ## Dokumentacja
 
-| Dokument | Dla kogo i po co |
+| Dokument | Treść |
 |---|---|
-| [docs/INSTALACJA.md](docs/INSTALACJA.md) | Instalacja na Windows krok po kroku: telefon, wtyczka, parowanie, Tailscale, aktualizacje, kopia zapasowa |
-| [docs/DEZINSTALACJA.md](docs/DEZINSTALACJA.md) | Usunięcie wtyczki, aplikacji i narzędzi |
-| [docs/ARCHITEKTURA.md](docs/ARCHITEKTURA.md) | Mapa kodu: który plik za co odpowiada, przepływ synchronizacji, spis wszystkich dokumentów |
-| [docs/SYNCHRONIZACJA_P2P.md](docs/SYNCHRONIZACJA_P2P.md), `docs/P2P_*.md` | Synchronizacja telefon–wtyczka: projekt, rdzeń, telefon jako host, wtyczka, usunięcie serwera Pi |
+| [docs/INSTALACJA.md](docs/INSTALACJA.md) | Instalacja na Windows krok po kroku, aktualizacje, kopia zapasowa, problemy, dezinstalacja |
+| [docs/ARCHITEKTURA.md](docs/ARCHITEKTURA.md) | Mapa kodu: który plik za co odpowiada, przepływ synchronizacji |
 | [docs/SPEC.md](docs/SPEC.md) | Kryptografia i format danych |
-| [docs/TESTY.md](docs/TESTY.md) | Co testujemy, jak uruchomić testy, znalezione błędy |
-| `docs/WTYCZKA_*.md`, [docs/ANDROID_ODCISK_PALCA.md](docs/ANDROID_ODCISK_PALCA.md) | Opisy poszczególnych funkcji (jak działają i dlaczego tak) |
-| [docs/archive/](docs/archive/README.md) | Dokumenty historyczne z wersji z serwerem na Raspberry Pi |
+| [docs/SYNCHRONIZACJA.md](docs/SYNCHRONIZACJA.md) | Synchronizacja telefon–wtyczka: parowanie, Noise, konflikty, telefon, wtyczka, ograniczenia |
+| [docs/FUNKCJE.md](docs/FUNKCJE.md) | Funkcje urządzeń: blokada, PIN, CSV, karta, odcisk palca, schowek |
+| [docs/TESTY.md](docs/TESTY.md) | Testy automatyczne i ręczne |
+| [docs/archive/](docs/archive/README.md) | Dokumenty historyczne (wersja z Raspberry Pi, wykonane plany) |
 
 ## Testy i budowanie (TypeScript)
 
@@ -49,7 +48,7 @@ odtworzyć je dokładnie.
 
 W Chrome: `chrome://extensions` → włącz „Tryb dewelopera” → „Załaduj rozpakowane” → wskaż `extension/dist`.
 Parowanie z telefonem otwiera formularz w karcie i prosi o zgodę na dostęp do adresu telefonu
-(`http://<IPv4>:8787`), patrz [docs/P2P_WTYCZKA.md](docs/P2P_WTYCZKA.md).
+(`http://<IPv4>:8787`), patrz [docs/SYNCHRONIZACJA.md](docs/SYNCHRONIZACJA.md#7-wtyczka).
 
 ## Aplikacja na Androida
 

@@ -36,7 +36,7 @@ export function phoneErrorInPolish(error: unknown): unknown {
 }
 
 /**
- * HTTP client for the phone in sync mode (docs/SYNCHRONIZACJA_P2P.md). Every call is a JSON POST; `post` is the
+ * HTTP client for the phone in sync mode (docs/SYNCHRONIZACJA.md). Every call is a JSON POST; `post` is the
  * FetchJson the pairing client and noiseTransport take. A network failure or a timeout (POST_TIMEOUT_MS) becomes
  * ApiError(0, PHONE_UNREACHABLE); an HTTP error status is returned as is, for callP2pHost to turn into a message.
  */

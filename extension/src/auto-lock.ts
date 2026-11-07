@@ -1,5 +1,5 @@
 /**
- * Auto-lock after 15 minutes without activity (docs/POPRAWKI_BEZPIECZENSTWA.md, S1).
+ * Auto-lock after 15 minutes without activity (docs/FUNKCJE.md, "Automatyczna blokada").
  *
  * Two independent guards, so the vault closes whether or not a PassHolder page is open:
  * - every open page (popup or tab) runs watchIdle(): it checks the deadline every few seconds and when
