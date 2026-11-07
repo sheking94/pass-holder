@@ -348,6 +348,11 @@ describe("v3 entries", () => {
     await local.set(STORAGE_KEYS.vault, await seal(vaultKey, utf8(JSON.stringify(oldVault)), LOCAL_VAULT_AAD));
 
     await store.unlock(PASSWORD);
+    expect(store.pendingCount()).toBe(1);
+    expect(store.entry("1")).toMatchObject({ dirty: true });
+    expect(store.entry("2")).toBeUndefined();
+    const tombstone = (store as unknown as { vault: p2p.LocalVaultV2 }).vault.entries.get("2");
+    expect(tombstone).toMatchObject({ revision: 3, deleted: true, dirty: false });
     expect(store.entries().map((e) => e.data)).toEqual([{ name: "stary.pl", username: "jan", password: "tajne" }]);
     await store.sync();
     expect(await phone.passwords()).toEqual({ "1": "tajne" });
@@ -391,6 +396,17 @@ describe("v3 entries", () => {
     expect(names(store)).toEqual(["login.pl"]);
     expect(store.entry("c")).toBeUndefined();
     expect(store.pendingCount()).toBe(0);
+  }, 30_000);
+
+  it("refuses to overwrite a live non-login entry with a login", async () => {
+    const { store, phone } = await pairedBrowser();
+    await phone.addContent("n", { ...p2p.emptyLogin("x"), type: "note", fields: {} });
+    await store.sync();
+    expect(store.pendingCount()).toBe(0);
+    await expect(store.upsert("n", { name: "a", username: "b", password: "c" })).rejects.toThrow("Ten wpis nie jest loginem");
+    expect(store.pendingCount()).toBe(0);
+    await store.sync();
+    expect((await phone.entryData("n")).type).toBe("note");
   }, 30_000);
 
   it("too large entry", async () => {

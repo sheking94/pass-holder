@@ -77,6 +77,11 @@ describe("NordPass CSV", () => {
 });
 
 describe("importSummary", () => {
+  it("mentions entries skipped as too large only when there are some", () => {
+    expect(importSummary({ entries: [], skipped: [] }, { added: 0, duplicates: 0, tooLarge: 2 })).toContain("pominięto za duże: 2");
+    expect(importSummary({ entries: [], skipped: [] }, { added: 0, duplicates: 0, tooLarge: 0 })).not.toContain("za duże");
+  });
+
   it("says only what was added when nothing was skipped", () => {
     expect(importSummary({ entries: [], skipped: [] }, { added: 2, duplicates: 0, tooLarge: 0 })).toBe(
       "Dodano 2 wpisów (lokalnie, zsynchronizuj, żeby trafiły na telefon). Usuń plik CSV z dysku, zawiera hasła jawnym tekstem.",

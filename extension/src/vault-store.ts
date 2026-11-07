@@ -181,6 +181,7 @@ export interface ImportResult {
   tooLarge: number;
 }
 
+const NOT_A_LOGIN = "Ten wpis nie jest loginem";
 const ENTRY_TOO_LARGE_PL = "Wpis jest za duży";
 
 function loginView(e: p2p.LocalEntryV2): LiveEntry | undefined {
@@ -193,10 +194,16 @@ function sameEntry(a: EntryFields, b: EntryFields): boolean {
   return a.name === b.name && a.username === b.username && a.password === b.password;
 }
 
-/** The content to store for a login edited here: the existing login's other fields stay, a new one starts empty. */
+/**
+ * The content to store for a login edited here: the existing login's other fields stay, a new one starts empty.
+ * An id that holds a live entry of another type is refused: it would be overwritten by a login.
+ */
 function loginContent(existing: p2p.LocalEntryV2 | undefined, fields: EntryFields): p2p.EntryContentV3 {
-  const base = existing && !existing.deleted && existing.data.type === "login" ? existing.data : p2p.emptyLogin();
-  if (base.type !== "login") throw new Error("Not a login");
+  let base: p2p.EntryContentV3 & { type: "login" } = p2p.emptyLogin();
+  if (existing && !existing.deleted) {
+    if (existing.data.type !== "login") throw new Error(NOT_A_LOGIN);
+    base = existing.data;
+  }
   return {
     type: "login",
     name: fields.name,
