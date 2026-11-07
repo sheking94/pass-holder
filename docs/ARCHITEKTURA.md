@@ -21,6 +21,12 @@ Format danych, kryptografię i API opisuje [SPEC.md](SPEC.md); tu jest tylko „
   wektory testowe `core/test-vectors/v1.json` i test na prawdziwym serwerze (`RealServerTest`).
 - Klienci działają offline: sejf jest zaszyfrowany na urządzeniu, serwer to tylko punkt wymiany.
 
+Telefon jako host P2P (w trakcie, plan 3 z 4): aplikacja Android ma własny sejf i serwer HTTP na porcie 8787
+(`android/core/.../core/p2p/`: `SyncHttpServer`, `PhoneRouter`, `PairingHost`, `PhoneVaultStore`), a wtyczka ma
+synchronizować się z nim bezpośrednio, bez Pi. Raspberry Pi i kod v1 są w trakcie wycofywania (plan 4); opis
+telefonu w [P2P_TELEFON.md](P2P_TELEFON.md), projekt całości w [SYNCHRONIZACJA_P2P.md](SYNCHRONIZACJA_P2P.md). Tabele
+poniżej opisują jeszcze stan z v1.
+
 ## `core/` (TypeScript, wspólny)
 
 | Plik | Co robi |
@@ -124,6 +130,7 @@ Dwa moduły Gradle: `core` (czysta JVM, testy bez emulatora) i `app` (Jetpack Co
 | [WTYCZKA_IMPORT_EKSPORT_CSV.md](WTYCZKA_IMPORT_EKSPORT_CSV.md) | import i eksport CSV (PR #10) |
 | [WTYCZKA_PIN.md](WTYCZKA_PIN.md) | PIN we wtyczce (PR #11) |
 | [WIELE_ADRESOW_SERWERA.md](WIELE_ADRESOW_SERWERA.md) | kilka adresów serwera (PR #12) |
+| [P2P_TELEFON.md](P2P_TELEFON.md) | telefon jako host synchronizacji P2P (plan 3a) |
 | [ANDROID_ODCISK_PALCA.md](ANDROID_ODCISK_PALCA.md) | odcisk palca i blokada po wyjściu z aplikacji (PR #13, #14) |
 | [PRZEGLAD_CZYSTOSCI_KODU.md](PRZEGLAD_CZYSTOSCI_KODU.md) | przegląd czystości kodu nr 1 (część punktów otwarta) |
 | [PRZEGLAD_BEZPIECZENSTWA.md](PRZEGLAD_BEZPIECZENSTWA.md), [POPRAWKI_BEZPIECZENSTWA.md](POPRAWKI_BEZPIECZENSTWA.md) | przegląd bezpieczeństwa i poprawki S1–S4, N3 (punkty N1, N2, N4–N7, I1–I5 otwarte) |

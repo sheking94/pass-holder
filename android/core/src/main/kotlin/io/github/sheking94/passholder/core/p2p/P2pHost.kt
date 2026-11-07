@@ -33,6 +33,10 @@ class P2pHost(
     private val epoch: String,
     private val addresses: () -> List<String>,
     private val now: () -> Long = System::currentTimeMillis,
+    /** Called with the device id after each sync answered 200; a failure here does not change the answer. */
+    private val onSynced: (deviceId: String) -> Unit = {},
+    /** Gets the cause of every 500 answer and of a failed [onSynced]; e.g. to log it. */
+    private val onError: (Throwable) -> Unit = {},
 ) {
     companion object {
         const val MAX_BODY_BYTES = 1024 * 1024
@@ -139,12 +143,20 @@ class P2pHost(
             return fail(400, "cannot decrypt request")
         }
         synchronized(store) { HostSync.validate(store, epoch, request) }?.let { return fail(400, it) }
-        return try {
+        val reply = try {
             val response = HostSync.process(store, epoch, addresses(), request)
             val encrypted = Frames.encrypt(session.send, P2pJson.json.encodeToString(P2pSyncResponse.serializer(), response))
             HostReply(200, buildJsonObject { put("frames", JsonArray(encrypted.map { JsonPrimitive(it) })) }.toString())
-        } catch (_: Exception) {
-            fail(500, "internal error")
+        } catch (e: Exception) {
+            reportError(onError, e)
+            return fail(500, "internal error")
         }
+        try {
+            onSynced(session.deviceId)
+        } catch (e: Exception) {
+            // Only bookkeeping (last sync time); the changes are already stored.
+            reportError(onError, e)
+        }
+        return reply
     }
 }

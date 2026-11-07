@@ -328,9 +328,13 @@ class P2pHostTest {
     fun aFailureWhileBuildingTheResponseIs500() {
         val s = Setup()
         val key = s.addDevice("a")
-        val failing = P2pHost(s.hostKey, { s.devices.toList() }, s.store, s.epoch, { error("boom") }, { s.time })
+        val errors = ArrayList<Throwable>()
+        val failing = P2pHost(
+            s.hostKey, { s.devices.toList() }, s.store, s.epoch, { error("boom") }, { s.time }, onError = { errors.add(it) },
+        )
         val client = TestP2pClient("a", key, s.hostKey.publicKey, failing)
         assertError(500, "internal error", client.sync(s.emptyRequest()))
+        assertEquals(listOf("boom"), errors.map { it.message })
     }
 
     @Test
@@ -393,5 +397,44 @@ class P2pHostTest {
             pool.shutdown()
         }
         assertEquals(40, s.store.currentRevision())
+    }
+
+    @Test
+    fun callsOnSyncedOnlyAfterASuccessfulSync() {
+        val store = MemorySyncStore()
+        val epoch = Encoding.toBase64(Encoding.randomBytes(16))
+        val hostKey = NoiseKeys.generate()
+        val key = NoiseKeys.generate()
+        val synced = ArrayList<String>()
+        val host = P2pHost(
+            hostKey, { listOf(PairedDevice("a", "a", key.publicKey)) }, store, epoch, { emptyList() },
+            onSynced = { synced.add(it) },
+        )
+        val client = TestP2pClient("a", key, hostKey.publicKey, host)
+        client.syncResponse(P2pSyncRequest(epoch, 0, emptyList()))
+        assertEquals(listOf("a"), synced)
+        // A request the host rejects (unknown base revision) is not a sync.
+        assertEquals(400, client.sync(req(epoch, 0, change("x", 5))).status)
+        client.handshake()
+        assertEquals(listOf("a"), synced)
+    }
+
+    @Test
+    fun failingOnSyncedStillAnswers200() {
+        val errors = ArrayList<Throwable>()
+        val store = MemorySyncStore()
+        val epoch = Encoding.toBase64(Encoding.randomBytes(16))
+        val hostKey = NoiseKeys.generate()
+        val key = NoiseKeys.generate()
+        val host = P2pHost(
+            hostKey, { listOf(PairedDevice("a", "a", key.publicKey)) }, store, epoch, { emptyList() },
+            onSynced = { throw IllegalStateException("disk full") },
+            onError = { errors.add(it) },
+        )
+        val client = TestP2pClient("a", key, hostKey.publicKey, host)
+        val res = client.syncResponse(P2pSyncRequest(epoch, 0, listOf(ChangeRequest("x", 0, false, blob))))
+        assertEquals(1, res.accepted.size)
+        assertEquals(1, store.currentRevision())
+        assertEquals(listOf("disk full"), errors.map { it.message })
     }
 }

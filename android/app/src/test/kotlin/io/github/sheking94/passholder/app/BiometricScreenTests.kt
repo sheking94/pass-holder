@@ -18,7 +18,7 @@ import javax.crypto.spec.GCMParameterSpec
 
 /**
  * Robolectric has no Android Keystore and no fingerprint reader. These fakes stand in for exactly those two
- * pieces; everything else (BiometricUnlock, the ViewModel, VaultStore, the screens) is the real code.
+ * pieces; everything else (BiometricUnlock, the ViewModel, PhoneVaultStore, the screens) is the real code.
  */
 class SoftwareKeyProtector : UnlockKeyProtector {
     var key: SecretKey? = null
@@ -65,15 +65,17 @@ abstract class BiometricTestBase : ScreenTestBase() {
 
     protected fun createVaultWithFingerprint() {
         createVault()
-        finishCreate()
         addEntry("bank.pl", "jan.kowalski", "s3cret-haslo")
         click("Zapisz")
         waitFor("Zapisano na telefonie", substring = true)
-        shot("12-odcisk-wylaczony")
+        shot("13-odcisk-wylaczony")
         click("Odblokowanie odciskiem palca")
         waitFor("Włączono odblokowanie odciskiem palca", substring = true)
         assertTrue(app.biometric.isEnabled)
-        shot("13-odcisk-wlaczony")
+        // Only the 32-byte vault key is stored, encrypted (AES-GCM adds a 16-byte tag).
+        val stored = app.getSharedPreferences("biometric", Context.MODE_PRIVATE).getString("data", null)!!
+        assertEquals(32 + 16, android.util.Base64.decode(stored, android.util.Base64.NO_WRAP).size)
+        shot("14-odcisk-wlaczony")
     }
 
     /**
@@ -82,7 +84,7 @@ abstract class BiometricTestBase : ScreenTestBase() {
      */
     protected fun reopenLocked() {
         scenario.close()
-        assertFalse("closing the app must lock the vault", app.vaultStore.isUnlocked)
+        assertFalse("closing the app must lock the vault", app.phoneStore.isUnlocked)
         scenario = ActivityScenario.launch(MainActivity::class.java)
     }
 }
@@ -97,14 +99,14 @@ class FingerprintUnlockTest : BiometricTestBase() {
         click("Zablokuj")
         waitFor("Odblokuj odciskiem palca")
         assertEquals(1, finger.shown)
-        shot("14-blokada-z-odciskiem")
+        shot("15-blokada-z-odciskiem")
         click("Odblokuj odciskiem palca")
-        waitFor("bank.pl •")
+        waitFor("bank.pl")
         assertEquals(2, finger.shown)
 
         // Opening the app shows the fingerprint dialog straight away.
         reopenLocked()
-        waitFor("bank.pl •")
+        waitFor("bank.pl")
         assertEquals(3, finger.shown)
     }
 }
@@ -119,7 +121,7 @@ class FingerprintFallbackTest : BiometricTestBase() {
         assertEquals(2, finger.shown)
         type("Hasło główne", masterPassword)
         click("Odblokuj")
-        waitFor("bank.pl •")
+        waitFor("bank.pl")
 
         click("Odblokowanie odciskiem palca")
         waitFor("Wyłączono odblokowanie odciskiem palca.")
@@ -141,20 +143,20 @@ class FingerprintKeyLostTest : BiometricTestBase() {
         waitFor("Odcisk palca przestał działać", substring = true)
         assertFalse(app.biometric.isEnabled)
         assertTrue(gone("Odblokuj odciskiem palca"))
-        shot("15-odcisk-niewazny")
+        shot("16-odcisk-niewazny")
     }
 }
 
 class FingerprintDisconnectTest : BiometricTestBase() {
     @Test
-    fun `disconnecting the phone also forgets the fingerprint keys`() {
+    fun `removing the vault from the phone also forgets the fingerprint keys`() {
         createVaultWithFingerprint()
         click("Zablokuj")
-        waitFor("Odłącz ten telefon")
-        click("Odłącz ten telefon")
-        waitFor("Odłączyć telefon?")
-        click("Odłącz")
-        waitFor("Nowy sejf")
+        waitFor("Usuń sejf z telefonu")
+        click("Usuń sejf z telefonu")
+        waitFor("Usunąć sejf z tego telefonu?", substring = true)
+        click("Usuń")
+        waitFor("Załóż sejf")
         assertFalse(app.biometric.isEnabled)
         assertEquals(null, keys.key)
     }
@@ -168,24 +170,24 @@ class FingerprintEveryOpenTest : BiometricTestBase() {
 
         // A rotation recreates the activity, but the user never left: still unlocked, no dialog.
         scenario.recreate()
-        waitFor("bank.pl •")
-        assertTrue(app.vaultStore.isUnlocked)
+        waitFor("bank.pl")
+        assertTrue(app.phoneStore.isUnlocked)
         assertEquals(1, finger.shown)
 
         // Home button (or another app on top): the activity stops and the vault locks at once.
         finger.cancel = true
         scenario.moveToState(Lifecycle.State.CREATED)
-        assertFalse(app.vaultStore.isUnlocked)
+        assertFalse(app.phoneStore.isUnlocked)
         scenario.moveToState(Lifecycle.State.RESUMED)
         waitFor("PassHolder jest zablokowany")
         assertEquals(2, finger.shown)
-        shot("16-powrot-z-tla")
+        shot("17-powrot-z-tla")
 
         // The dialog was cancelled; leaving and coming back while locked offers it again.
         finger.cancel = false
         scenario.moveToState(Lifecycle.State.CREATED)
         scenario.moveToState(Lifecycle.State.RESUMED)
-        waitFor("bank.pl •")
+        waitFor("bank.pl")
         assertEquals(3, finger.shown)
     }
 }
@@ -199,7 +201,7 @@ class FingerprintAfterManualLockTest : BiometricTestBase() {
         assertEquals(1, finger.shown)
         scenario.moveToState(Lifecycle.State.CREATED)
         scenario.moveToState(Lifecycle.State.RESUMED)
-        waitFor("bank.pl •")
+        waitFor("bank.pl")
         assertEquals(2, finger.shown)
     }
 }
@@ -212,10 +214,9 @@ class LockOnLeaveWithoutFingerprintTest : ScreenTestBase() {
     @Test
     fun `without fingerprint unlock, closing and reopening asks for the master password`() {
         createVault()
-        finishCreate()
         val app = androidx.test.core.app.ApplicationProvider.getApplicationContext<PassHolderApp>()
         scenario.close()
-        assertFalse(app.vaultStore.isUnlocked)
+        assertFalse(app.phoneStore.isUnlocked)
         scenario = ActivityScenario.launch(MainActivity::class.java)
         waitFor("PassHolder jest zablokowany")
         type("Hasło główne", masterPassword)
@@ -234,14 +235,14 @@ class LockDelayTest : BiometricTestBase() {
     fun `with the delay on, a short trip keeps the vault and the form, after 60 s it locks`() {
         createVaultWithFingerprint()
         assertEquals(1, finger.shown)
-        shot("17-opoznienie-blokady")
+        shot("18-opoznienie-blokady")
 
         // Half-filled form, then out to another app for 30 s.
         click("+ Dodaj")
         type("Nazwa serwisu", "poczta.pl")
         scenario.moveToState(Lifecycle.State.CREATED)
         passTime(30)
-        assertTrue(app.vaultStore.isUnlocked)
+        assertTrue(app.phoneStore.isUnlocked)
         scenario.moveToState(Lifecycle.State.RESUMED)
         waitFor("poczta.pl")
         assertEquals(1, finger.shown)
@@ -249,9 +250,9 @@ class LockDelayTest : BiometricTestBase() {
         // Out again for over a minute: the timer locks while the app is in the background.
         scenario.moveToState(Lifecycle.State.CREATED)
         passTime(61)
-        compose.waitUntil(5_000) { !app.vaultStore.isUnlocked }
+        compose.waitUntil(5_000) { !app.phoneStore.isUnlocked }
         scenario.moveToState(Lifecycle.State.RESUMED)
-        waitFor("bank.pl •")
+        waitFor("bank.pl")
         assertEquals(2, finger.shown)
     }
 }
@@ -266,13 +267,13 @@ class LockDelayLateTimerTest : BiometricTestBase() {
         // Android froze the app: the timer never ran, but the clock went on past the deadline.
         app.leaveLock.cancel()
         var t = 0L
-        app.leaveLock = LeaveLock(app.vaultStore, now = { t }).also { it.schedule(LeaveLock.DELAY_MS) }
+        app.leaveLock = LeaveLock(app.phoneStore, now = { t }).also { it.schedule(LeaveLock.DELAY_MS) }
         t = 61_000L
-        assertTrue(app.vaultStore.isUnlocked)
+        assertTrue(app.phoneStore.isUnlocked)
         finger.cancel = true
         scenario.moveToState(Lifecycle.State.RESUMED)
         waitFor("PassHolder jest zablokowany")
-        assertFalse(app.vaultStore.isUnlocked)
+        assertFalse(app.phoneStore.isUnlocked)
         assertEquals(2, finger.shown)
     }
 }
@@ -286,11 +287,40 @@ class LockDelaySwitchOffTest : BiometricTestBase() {
         click("Blokuj dopiero po 60 s poza aplikacją")
         waitFor("Sejf blokuje się od razu po wyjściu z aplikacji.")
         assertFalse(app.settings.lockDelay)
-        shot("18-opoznienie-wylaczone")
+        shot("19-opoznienie-wylaczone")
         scenario.moveToState(Lifecycle.State.CREATED)
-        assertFalse(app.vaultStore.isUnlocked)
+        assertFalse(app.phoneStore.isUnlocked)
         scenario.moveToState(Lifecycle.State.RESUMED)
-        waitFor("bank.pl •")
+        waitFor("bank.pl")
         assertEquals(2, finger.shown)
+    }
+}
+
+class StaleFingerprintKeysTest : BiometricTestBase() {
+    /** What an older version stored: 64 bytes (vault key + auth key of the v1 vault). */
+    private fun storeV1Keys() = app.biometric.enable(keys.newEncryptCipher(), ByteArray(64) { 7 })
+
+    override fun beforeLaunch(app: PassHolderApp) {
+        super.beforeLaunch(app)
+        storeV1Keys()
+    }
+
+    @Test
+    fun `keys left from another vault are cleared by a new vault and refused at unlock`() {
+        // A new vault turns off a fingerprint key that belongs to no vault on the phone.
+        createVault()
+        assertFalse(app.biometric.isEnabled)
+
+        // Keys that do not fit the vault (as after an upgrade from v1): the finger works, the keys do not.
+        click("Zablokuj")
+        waitFor("PassHolder jest zablokowany")
+        scenario.close()
+        storeV1Keys()
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        waitFor("Zapisane klucze nie pasują do sejfu", substring = true)
+        assertEquals(1, finger.shown)
+        assertFalse(app.biometric.isEnabled)
+        assertTrue(gone("Odblokuj odciskiem palca"))
+        assertFalse(app.phoneStore.isUnlocked)
     }
 }

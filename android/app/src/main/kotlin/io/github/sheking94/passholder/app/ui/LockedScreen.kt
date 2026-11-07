@@ -24,7 +24,7 @@ import io.github.sheking94.passholder.app.AppViewModel
 import io.github.sheking94.passholder.app.UiState
 
 /**
- * Unlocking works offline: the wrapped vault key and the encrypted vault are on the phone.
+ * The vault lives on the phone: unlocking needs no network.
  * With fingerprint unlock on, the system dialog opens by itself; the master password always works too.
  */
 @Composable
@@ -52,7 +52,7 @@ fun LockedScreen(state: UiState, vm: AppViewModel) {
         PasswordField(password, { password = it }, "Hasło główne", onDone = unlock)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = unlock, enabled = !state.busy) { Text("Odblokuj") }
-            TextButton(onClick = { askDisconnect = true }, enabled = !state.busy) { Text("Odłącz ten telefon") }
+            TextButton(onClick = { askDisconnect = true }, enabled = !state.busy) { Text("Usuń sejf z telefonu") }
         }
         if (biometricEnabled) {
             OutlinedButton(onClick = { unlockWithFinger() }, enabled = !state.busy) { Text("Odblokuj odciskiem palca") }
@@ -63,9 +63,8 @@ fun LockedScreen(state: UiState, vm: AppViewModel) {
     if (askDisconnect) {
         AlertDialog(
             onDismissRequest = { askDisconnect = false },
-            title = { Text("Odłączyć telefon?") },
-            text = { Text("Usunie to sejf z telefonu (i odblokowanie odciskiem palca). Niezsynchronizowane zmiany przepadną; to, co jest na serwerze, zostaje.") },
-            confirmButton = { TextButton(onClick = { askDisconnect = false; vm.disconnect() }) { Text("Odłącz", color = MaterialTheme.colorScheme.error) } },
+            text = { Text("Usunąć sejf z tego telefonu? Wpisy zostaną tylko na sparowanych wtyczkach.") },
+            confirmButton = { TextButton(onClick = { askDisconnect = false; vm.disconnect() }) { Text("Usuń", color = MaterialTheme.colorScheme.error) } },
             dismissButton = { TextButton(onClick = { askDisconnect = false }) { Text("Anuluj") } },
         )
     }

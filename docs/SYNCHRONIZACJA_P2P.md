@@ -1,8 +1,8 @@
 # Synchronizacja bez serwera (telefon jako kotwica): projekt
 
 Status: rdzeń zaimplementowany w TypeScripcie (plan 1, [`P2P_RDZEN.md`](P2P_RDZEN.md)) i w Kotlinie po
-stronie telefonu (plan 2, [`P2P_ANDROID_RDZEN.md`](P2P_ANDROID_RDZEN.md)); aplikacja Android i wtyczka (plan 3)
-oraz usunięcie Pi (plan 4) jeszcze **bez implementacji**. Dokument opisuje, jak PassHolder ma działać bez
+stronie telefonu (plan 2, [`P2P_ANDROID_RDZEN.md`](P2P_ANDROID_RDZEN.md)); plan 3a gotowy: telefon jako host
+([`P2P_TELEFON.md`](P2P_TELEFON.md)); wtyczka (plan 3b) i usunięcie Pi (plan 4) jeszcze **bez implementacji**. Dokument opisuje, jak PassHolder ma działać bez
 Raspberry Pi: telefon z Androidem przejmuje rolę punktu wymiany, a wtyczka Chrome łączy się bezpośrednio
 z telefonem. Zmienia sekcje 5–7 z `SPEC.md`; reszta (klucze, format szyfrogramu, generator) zostaje.
 

@@ -3,11 +3,11 @@ package io.github.sheking94.passholder.app
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import io.github.sheking94.passholder.core.CertificatePin
 import io.github.sheking94.passholder.core.Credentials
-import io.github.sheking94.passholder.core.ServerPicker
 import io.github.sheking94.passholder.core.GeneratorOptions
-import io.github.sheking94.passholder.core.LiveEntry
+import io.github.sheking94.passholder.core.p2p.PairingOffer
+import io.github.sheking94.passholder.core.p2p.PhoneEntry
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import javax.crypto.Cipher
 import kotlinx.coroutines.delay
@@ -17,27 +17,32 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.SerializationException
-import java.text.DateFormat
-import java.util.Date
 import java.util.UUID
 
 sealed interface Screen {
     /** The screens that show what is in the vault: they must not stay on screen once it locks. */
     val showsVault: Boolean get() = false
 
-    data object Connect : Screen
+    /** No vault on the phone: create one, or restore it from the extension. */
+    data object Start : Screen
     data object Locked : Screen
     data object List : Screen {
-        override val showsVault get() = true
-    }
-    data object Addresses : Screen {
         override val showsVault get() = true
     }
     /** [id] is null for a new entry. */
     data class Edit(val id: String?) : Screen {
         override val showsVault get() = true
     }
+    /** Sync mode: the phone serves the extension. */
+    data object Sync : Screen {
+        override val showsVault get() = true
+    }
+    /** Paired extensions. */
+    data object Devices : Screen {
+        override val showsVault get() = true
+    }
+    /** "Odtwórz z wtyczki" in progress: the server runs and waits for the extension to send the vault. */
+    data object Restore : Screen
 }
 
 data class Status(val text: String, val isError: Boolean = false)
@@ -46,30 +51,34 @@ data class UiState(
     val screen: Screen,
     val busy: Boolean = false,
     val status: Status? = null,
-    val entries: List<LiveEntry> = emptyList(),
-    val pending: Int = 0,
-    /** Server addresses the user wants to pair with, and the fingerprint of its certificate, waiting for confirmation. */
-    val pairing: Pairing? = null,
+    val entries: List<PhoneEntry> = emptyList(),
+    /** Records the vault key cannot open (e.g. sent by an extension of another vault). */
+    val unreadable: Int = 0,
+    /** The entry on [Screen.Edit], read from the store when it was opened (not from [entries], which may be older). */
+    val editing: PhoneEntry? = null,
+    /** host.json cannot be read: the start screen offers only to remove the vault from the phone. */
+    val corruptVault: Boolean = false,
 )
 
 /**
- * [urls]: every address of the server, in the order typed. [fingerprint]: of the certificate read from
- * [certificateFrom], the first address that answered; null for a local http:// server (debug only).
- */
-data class Pairing(val urls: List<String>, val fingerprint: String?, val certificateFrom: String? = null)
-
-/**
- * The single source of UI state. Every operation on the vault runs on Dispatchers.IO (Argon2id, disk,
- * network), one at a time; the screens only read [state] and call these functions.
+ * The single source of UI state. Every operation on the vault runs on Dispatchers.IO (Argon2id, disk),
+ * one at a time; the screens only read [state] and call these functions.
  * When the vault locks is decided by [LockController], fingerprint unlock by [BiometricController].
  */
 class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as PassHolderApp
-    private val store = app.vaultStore
+    private val store = app.phoneStore
     private val biometrics = BiometricController(app.biometric)
 
-    private val _state = MutableStateFlow(UiState(initialScreen()))
+    private val _state = MutableStateFlow(UiState(initialScreen(), corruptVault = store.corruptState))
     val state: StateFlow<UiState> = _state.asStateFlow()
+
+    /** A sync may have changed entries: the list must not keep (and the edit form must not save over) older ones. */
+    private val sync = SyncController(store, app.syncPort, { app.clock() }, app.syncAddresses, onSynced = {
+        viewModelScope.launch { refresh() }
+    })
+    /** Sync mode: server, addresses, pairing code, last event, paired devices. */
+    val syncState: StateFlow<SyncUiState> = sync.state
 
     private val locks = LockController(
         store = store,
@@ -77,7 +86,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         lockDelay = { app.settings.lockDelay },
         isBusy = { _state.value.busy },
         currentScreen = { _state.value.screen },
-        showLocked = { status -> _state.value = UiState(Screen.Locked, status = status) },
+        showLocked = { status ->
+            sync.stop(null)
+            _state.value = UiState(Screen.Locked, status = status)
+        },
     )
 
     /** Fingerprint unlock is turned on (the encrypted keys are on the phone). */
@@ -98,11 +110,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 checkAutoLock()
             }
         }
-        if (store.isUnlocked) refresh()
+        // The activity came back while the vault stayed unlocked (e.g. within the 60 s after Back).
+        if (store.isUnlocked) viewModelScope.launch { refresh() }
     }
 
     private fun initialScreen(): Screen = when {
-        store.account() == null -> Screen.Connect
+        store.restoreInProgress -> Screen.Restore
+        !store.hasVault -> Screen.Start
         store.isUnlocked -> Screen.List
         else -> Screen.Locked
     }
@@ -111,13 +125,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     // --- Lock lifecycle (see LockController) ----------------------------------------------------
 
-    /** MainActivity.onStop, unless it is only a rotation. */
-    fun onLeftApp() = locks.onLeftApp()
+    /** MainActivity.onStop, unless it is only a rotation. Sync mode never runs without the app on screen. */
+    fun onLeftApp() {
+        sync.stop(SyncController.LEFT_APP_STOPPED)
+        locks.onLeftApp()
+    }
 
-    /** MainActivity.onStart. */
-    fun onReturn() = locks.onReturn()
+    /** MainActivity.onStart. A restore in progress gets its server (and a code) back at once. */
+    fun onReturn() {
+        locks.onReturn()
+        if (_state.value.screen == Screen.Restore) startRestoreSync()
+    }
 
+    /** Every 15 s and on return: the 5-minute idle stop of sync mode, then the 15-minute auto-lock. */
     fun checkAutoLock() {
+        if (sync.checkIdle()) viewModelScope.launch { refresh() }
         viewModelScope.launch { locks.checkIdle() }
     }
 
@@ -126,54 +148,70 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _lockDelay.value = on
     }
 
-    override fun onCleared() = locks.onCleared()
+    override fun onCleared() {
+        sync.stop(null)
+        locks.onCleared()
+    }
 
-    // --- Connecting -------------------------------------------------------------------------------
+    // --- Start ---------------------------------------------------------------------------------------
+
+    /** "Nowy sejf": the same rules for the master password as the extension. */
+    fun createVault(masterPassword: String, repeat: String) {
+        if (masterPassword.length < MIN_MASTER_PASSWORD) return fail("Hasło główne musi mieć co najmniej $MIN_MASTER_PASSWORD znaków")
+        if (masterPassword != repeat) return fail("Hasła się różnią")
+        launchVaultOperation("Liczę klucze z hasła głównego… (to celowo trwa kilka sekund)") {
+            store.createVault(masterPassword)
+            // A fingerprint key left from an earlier vault would only fail.
+            forgetFingerprint()
+            showList("Założono sejf na telefonie.")
+        }
+    }
+
+    /** "Odtwórz z wtyczki": a new identity without a vault, waiting for the extension to send it. */
+    fun startRestore() = launchVaultOperation("Przygotowuję odtwarzanie…") {
+        store.startRestore()
+        forgetFingerprint()
+        _state.value = UiState(Screen.Restore)
+        startRestoreSync()
+    }
+
+    /** "Zakończ odtwarzanie": the extension sent the vault; its master password opens it on the phone. */
+    fun finishRestore(masterPassword: String) {
+        if (masterPassword.isEmpty()) return fail("Podaj hasło główne")
+        launchVaultOperation("Liczę klucze z hasła głównego…") {
+            store.finishRestore(masterPassword)
+            sync.stop(null)
+            showList("Odtworzono sejf z wtyczki. Od teraz przechowuje go ten telefon.")
+        }
+    }
+
+    /** "Przerwij odtwarzanie": forget the restore (and the extensions paired for it) and go back to the start. */
+    fun abortRestore() = disconnect()
 
     /**
-     * Step 1 of pairing: read the server's certificate so the user can compare its fingerprint with the Pi.
-     * The certificate comes from the first address that answers; the other address (e.g. Tailscale while
-     * the VPN is off) does not have to be reachable now. One pin covers both: it is the same certificate.
+     * Restore mode: the server runs from the start and, until an extension paired, a fresh server comes with a
+     * fresh code. A server that was already running (e.g. after a rotation) keeps its code, or its
+     * "Kod wygasł…" hint.
      */
-    fun inspectServer(rawUrl: String, rawSecondUrl: String = "") {
-        val urls = ServerPicker.normalize(listOf(rawUrl, rawSecondUrl))
-        if (urls.isNotEmpty() && urls.all { it.startsWith("http://") } && BuildConfig.DEBUG) {
-            _state.update { it.copy(pairing = Pairing(urls, null), status = Status("Serwer deweloperski bez HTTPS (tylko wersja debug).")) }
-            return
-        }
-        val valid = runCatching { ServerPicker.validate(urls, https = true) }
-        if (valid.isFailure) return fail(valid.exceptionOrNull()?.message ?: "Podaj pełny adres, np. https://passholder.local:8443")
-        launchVaultOperation("Pobieram certyfikat serwera…") {
-            // If no address answers, the error of the last one is shown.
-            val (from, fingerprint) = ServerPicker.firstThatAnswers(urls, onAllFailed = { errors -> errors.last() }) { url ->
-                url to CertificatePin.fingerprint(CertificatePin.fetchServerCertificate(url))
+    private fun startRestoreSync() = launchSync(offerCodeUntilPaired = true)
+
+    /**
+     * Starts sync mode in the background. The ticket is taken now, on the main thread: a stop that comes before
+     * the start runs (leaving the app, locking, "Zakończ") cancels it.
+     */
+    private fun launchSync(offerCodeUntilPaired: Boolean) {
+        val ticket = sync.startTicket()
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    if (sync.start(ticket) && offerCodeUntilPaired && store.devices().isEmpty()) sync.offerPairing()
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                fail(e.message ?: e.javaClass.simpleName)
             }
-            _state.update { it.copy(pairing = Pairing(urls, fingerprint, from), status = null) }
         }
-    }
-
-    fun cancelPairing() = _state.update { it.copy(pairing = null, status = null) }
-
-    /** Step 2: create a new vault on the server, or download the existing one. */
-    fun connect(isNew: Boolean, setupToken: String, masterPassword: String) {
-        val pairing = _state.value.pairing ?: return
-        launchVaultOperation("Liczę klucze z hasła głównego… (to celowo trwa kilka sekund)") {
-            if (isNew) store.createVault(pairing.urls, pairing.fingerprint, setupToken.trim(), masterPassword)
-            else store.connectExisting(pairing.urls, pairing.fingerprint, masterPassword)
-            showList("Połączono z serwerem.")
-        }
-    }
-
-    // --- Server addresses ------------------------------------------------------------------------
-
-    fun openAddresses() = _state.update { it.copy(screen = Screen.Addresses, status = null) }
-
-    fun serverUrls(): List<String> = store.account()?.serverUrls.orEmpty()
-
-    /** Saves new addresses for the paired server; the certificate pin stays, so no new pairing is needed. */
-    fun saveServerUrls(urls: List<String>) = launchVaultOperation("Zapisuję adresy…") {
-        store.setServerUrls(urls)
-        showList("Zapisano adresy serwera. Przy synchronizacji telefon sam wybierze ten, który odpowiada.")
     }
 
     // --- Lock and unlock --------------------------------------------------------------------------
@@ -184,16 +222,33 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun lock() = launchVaultOperation("Blokuję…") {
+        sync.stop(null)
         store.lock()
         locks.onLockedByUser()
         _state.value = UiState(Screen.Locked)
     }
 
-    fun disconnect() = launchVaultOperation("Odłączam…") {
+    /** "Usuń sejf z telefonu" (after the confirmation on screen): the entries stay only on the paired extensions. */
+    fun disconnect() = launchVaultOperation("Usuwam sejf z telefonu…") {
+        sync.stop(null)
         store.disconnect()
-        // The stored keys belong to this vault; a vault connected later gets new ones.
+        // The vault is gone: whatever happens to the fingerprint key below, the start screen is the only right one.
+        val warning = forgetFingerprint()?.let {
+            Status("Usunięto sejf, ale nie udało się usunąć klucza odcisku palca: ${it.message ?: it.javaClass.simpleName}", isError = true)
+        }
+        _state.value = UiState(Screen.Start, status = warning)
+    }
+
+    /**
+     * Turns fingerprint unlock off: the stored key belongs to the vault that is gone or replaced, and a vault
+     * created later needs its own. Returns the error instead of throwing; the encrypted key is forgotten even then
+     * (BiometricUnlock clears it before it deletes the Keystore key).
+     */
+    private fun forgetFingerprint(): Exception? = try {
         biometrics.disable()
-        _state.value = UiState(Screen.Connect)
+        null
+    } catch (e: Exception) {
+        e
     }
 
     // --- Fingerprint ------------------------------------------------------------------------------
@@ -240,27 +295,108 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     // --- Entries ----------------------------------------------------------------------------------
 
-    fun openEntry(id: String?) = _state.update { it.copy(screen = Screen.Edit(id), status = null) }
+    /**
+     * The edit form for [id] (null: a new entry). An existing entry is read from the store, off the main thread:
+     * the list on screen may predate a sync, and saving its stale fields would overwrite the extension's change.
+     */
+    fun openEntry(id: String?) {
+        if (id == null) {
+            _state.update { it.copy(screen = Screen.Edit(null), editing = null, status = null) }
+            return
+        }
+        if (_state.value.busy) return
+        viewModelScope.launch {
+            val read = withContext(Dispatchers.IO) { runCatching { store.entry(id) } }
+            val entry = read.getOrElse { return@launch fail(it.message ?: it.javaClass.simpleName) }
+            if (entry == null) {
+                refresh()
+                return@launch fail("Tego wpisu już nie ma na telefonie.")
+            }
+            // Not if the vault locked or the screen changed in the meantime.
+            _state.update {
+                if (store.isUnlocked && it.screen == Screen.List) it.copy(screen = Screen.Edit(id), editing = entry, status = null) else it
+            }
+        }
+    }
 
-    fun backToList() = _state.update { it.copy(screen = Screen.List, status = null) }
+    fun backToList() = _state.update { it.copy(screen = Screen.List, status = null, editing = null) }
 
     fun save(id: String?, credentials: Credentials) {
         if (credentials.name.isBlank()) return fail("Podaj nazwę serwisu")
         if (credentials.password.isEmpty()) return fail("Podaj albo wygeneruj hasło")
         launchVaultOperation("Zapisuję…") {
             store.upsert(id ?: UUID.randomUUID().toString(), credentials.copy(name = credentials.name.trim()))
-            showList("Zapisano na telefonie. Zsynchronizuj, gdy serwer będzie włączony.")
+            showList(SAVED)
         }
     }
 
     fun delete(id: String) = launchVaultOperation("Usuwam…") {
         store.delete(id)
-        showList("Usunięto na telefonie. Zsynchronizuj, żeby usunąć też na innych urządzeniach.")
+        showList(DELETED)
     }
 
-    fun sync() = launchVaultOperation("Synchronizuję…") {
-        store.sync()
-        showList("Zsynchronizowano o ${DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())}.")
+    // --- Sync mode and devices -----------------------------------------------------------------------
+
+    /** "Synchronizacja": sync mode, where the extension can reach the phone. */
+    fun openSync() {
+        _state.update { it.copy(screen = Screen.Sync, status = null) }
+        startSync()
+    }
+
+    /**
+     * Sync mode again after it turned itself off (idle, leaving the app), or after a failed start ("Włącz
+     * ponownie"). On the restore screen it also brings a new code.
+     */
+    fun startSync() {
+        _state.update { it.copy(status = null) }
+        launchSync(offerCodeUntilPaired = _state.value.screen == Screen.Restore)
+    }
+
+    /** "Zakończ": the server stops, back to the list. */
+    fun closeSync() {
+        sync.stop(null)
+        backToList()
+        viewModelScope.launch { refresh() }
+    }
+
+    /** "Dodaj wtyczkę" (and "Nowy kod" while restoring): a new 8-digit pairing code for 2 minutes. */
+    fun addExtension() {
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { sync.offerPairing() }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                fail(e.message ?: e.javaClass.simpleName)
+            }
+        }
+    }
+
+    /** For the countdown on screen: milliseconds left on [offer]; drops the code once it can no longer be used. */
+    fun pairingCodeRemainingMs(offer: PairingOffer): Long {
+        sync.refreshOffer()
+        return sync.remainingMs(offer)
+    }
+
+    fun openDevices() {
+        sync.refreshDevices()
+        _state.update { it.copy(screen = Screen.Devices, status = null) }
+    }
+
+    /** "Usuń" on Urządzenia (after the confirmation): the extension can no longer sync. */
+    fun removeDevice(id: String) {
+        val name = store.devices().firstOrNull { it.deviceId == id }?.name ?: return
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { store.removeDevice(id) }
+                sync.refreshDevices()
+                showStatus("Usunięto urządzenie $name.")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                fail(e.message ?: e.javaClass.simpleName)
+            }
+        }
     }
 
     fun copyLogin(username: String) {
@@ -284,12 +420,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private fun showStatus(text: String) = _state.update { it.copy(status = Status(text)) }
 
     private fun showList(message: String?) {
-        val pending = store.pendingCount()
-        val text = message ?: if (pending > 0) "Niezsynchronizowane zmiany: $pending (oznaczone •)." else null
-        _state.value = UiState(Screen.List, entries = store.entries(), pending = pending, status = text?.let { Status(it) })
+        _state.value = UiState(Screen.List, entries = store.entries(), unreadable = store.unreadableIds().size, status = message?.let { Status(it) })
     }
 
-    private fun refresh() = _state.update { it.copy(entries = store.entries(), pending = store.pendingCount()) }
+    /**
+     * Reads the entries off the main thread (decrypting every record). Does nothing if the vault locked meanwhile:
+     * decrypted entries never go into the state of a locked screen.
+     */
+    private suspend fun refresh() {
+        if (!store.isUnlocked) return
+        val read = withContext(Dispatchers.IO) { runCatching { store.entries() to store.unreadableIds().size } }
+        read.onSuccess { (entries, unreadable) ->
+            _state.update { if (store.isUnlocked) it.copy(entries = entries, unreadable = unreadable) else it }
+        }
+    }
 
     /** Runs a blocking vault operation off the main thread, with a progress message and errors shown in the status line. */
     private fun launchVaultOperation(progress: String, action: () -> Unit) {
@@ -298,16 +442,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) { action() }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                val message = when (e) {
-                    is SerializationException -> "Nieoczekiwana odpowiedź serwera"
-                    else -> e.message ?: e.javaClass.simpleName
-                }
-                _state.update { it.copy(status = Status(message, isError = true)) }
+                _state.update { it.copy(status = Status(e.message ?: e.javaClass.simpleName, isError = true)) }
             } finally {
                 _state.update { it.copy(busy = false) }
                 locks.onOperationFinished()
             }
         }
+    }
+
+    private companion object {
+        const val MIN_MASTER_PASSWORD = 12
+        const val SAVED = "Zapisano na telefonie. Wtyczka dostanie zmianę przy następnej synchronizacji."
+        const val DELETED = "Usunięto na telefonie. Wtyczka dostanie zmianę przy następnej synchronizacji."
     }
 }

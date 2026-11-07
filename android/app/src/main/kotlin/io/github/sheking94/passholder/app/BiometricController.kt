@@ -22,7 +22,7 @@ class BiometricController(private val biometric: BiometricUnlock) {
         throw IllegalStateException("Nie udało się przygotować klucza: ${e.message ?: e.javaClass.simpleName}", e)
     }
 
-    /** Step 2: [cipher] came back from the dialog. Blocking (Keystore): run it as a vault operation. */
+    /** Step 2: [cipher] came back from the dialog; [unlockKeys] is the 32-byte vault key. Blocking (Keystore): run it as a vault operation. */
     fun enable(cipher: Cipher, unlockKeys: ByteArray) {
         biometric.enable(cipher, unlockKeys)
         _enabled.value = true
@@ -53,9 +53,13 @@ class BiometricController(private val biometric: BiometricUnlock) {
         }
     }
 
+    /** The stored keys are forgotten even when deleting the Keystore key throws, so the switch goes off either way. */
     fun disable() {
-        biometric.disable()
-        _enabled.value = false
+        try {
+            biometric.disable()
+        } finally {
+            _enabled.value = false
+        }
     }
 }
 

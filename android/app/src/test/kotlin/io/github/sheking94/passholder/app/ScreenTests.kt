@@ -2,40 +2,63 @@ package io.github.sheking94.passholder.app
 
 import android.content.ClipboardManager
 import androidx.compose.ui.test.SemanticsMatcher
-import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
-import androidx.test.core.app.ActivityScenario
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.printToLog
 import androidx.compose.ui.test.printToString
+import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.work.testing.WorkManagerTestInitHelper
 import com.github.takahirom.roborazzi.captureRoboImage
-import io.github.sheking94.passholder.core.FakeServer
 import io.github.sheking94.passholder.core.Credentials
-import okhttp3.mockwebserver.MockWebServer
-import okhttp3.tls.HandshakeCertificates
-import okhttp3.tls.HeldCertificate
+import io.github.sheking94.passholder.core.RemoteRecord
+import io.github.sheking94.passholder.core.p2p.FileSyncStore
+import io.github.sheking94.passholder.core.p2p.PhoneVaultStore
+import io.github.sheking94.passholder.core.p2p.SecretWrapper
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
-import org.junit.Rule
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
-import androidx.work.testing.WorkManagerTestInitHelper
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import java.io.File
+import java.util.Base64
+import javax.crypto.Cipher
+import javax.crypto.spec.GCMParameterSpec
+import javax.crypto.spec.SecretKeySpec
 
 /**
- * The real app (MainActivity, ViewModel, VaultStore, Compose) on the JVM through Robolectric, against a fake
- * server over HTTPS. Tests click through the app like a user and save screenshots to app/screenshots/.
+ * Robolectric has no Android Keystore: the phone's identity key is wrapped with a plain software AES key,
+ * in the same format as [KeystoreSecretWrapper].
+ */
+object TestSecretWrapper : SecretWrapper {
+    private val key = SecretKeySpec(ByteArray(32) { it.toByte() }, "AES")
+
+    override fun wrap(secret: ByteArray): String {
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding").apply { init(Cipher.ENCRYPT_MODE, key) }
+        val ct = cipher.doFinal(secret)
+        return Base64.getEncoder().encodeToString(cipher.iv) + ":" + Base64.getEncoder().encodeToString(ct)
+    }
+
+    override fun unwrap(wrapped: String): ByteArray {
+        val (iv, ct) = wrapped.split(":").map { Base64.getDecoder().decode(it) }
+        return Cipher.getInstance("AES/GCM/NoPadding").apply { init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, iv)) }.doFinal(ct)
+    }
+}
+
+/**
+ * The real app (MainActivity, ViewModel, PhoneVaultStore, Compose) on the JVM through Robolectric. Tests click
+ * through the app like a user and save screenshots to app/screenshots/.
  * One test per class: Compose test roots leak between tests in one JVM, and Gradle forks a JVM per class.
  * Run: ./gradlew :app:testDebugUnitTest
  */
@@ -48,22 +71,17 @@ abstract class ScreenTestBase {
     protected lateinit var scenario: ActivityScenario<MainActivity>
 
     protected val masterPassword = "Zażółć gęślą jaźń 2026"
-    protected val ca = HeldCertificate.Builder().certificateAuthority(0).commonName("PassHolder local CA").build()
-    protected val serverCert = HeldCertificate.Builder().signedBy(ca).commonName("passholder.local").build()
-    protected val fake = FakeServer(setupToken = "3f9c2a7e5b1d")
-    protected val server = MockWebServer().apply {
-        useHttps(HandshakeCertificates.Builder().heldCertificate(serverCert, ca.certificate).build().sslSocketFactory(), false)
-        dispatcher = fake
-        start()
-    }
-    protected val url = "https://127.0.0.1:${server.port}"
 
     /** WorkManager in test mode: clipboard-clearing jobs are queued, not run on a timer. */
     @Before
     fun start() {
         val app = ApplicationProvider.getApplicationContext<PassHolderApp>()
         WorkManagerTestInitHelper.initializeTestWorkManager(app)
-        app.vaultStore.disconnect() // a fresh phone: no account, nothing on disk
+        app.secretWrapper = TestSecretWrapper
+        // Removing the vault also deletes the fingerprint key, which needs a key protector without the Keystore.
+        app.biometric = BiometricUnlock(app, SoftwareKeyProtector())
+        app.syncPort = 0
+        app.phoneStore.disconnect() // a fresh phone: no vault, nothing on disk
         beforeLaunch(app)
         scenario = ActivityScenario.launch(MainActivity::class.java)
     }
@@ -74,7 +92,6 @@ abstract class ScreenTestBase {
     @After
     fun stop() {
         scenario.close()
-        server.shutdown()
     }
 
     protected fun shot(name: String) {
@@ -100,16 +117,9 @@ abstract class ScreenTestBase {
 
     protected fun gone(text: String) = compose.onAllNodes(hasText(text, substring = true)).fetchSemanticsNodes().isEmpty()
 
+    /** "Nowy sejf" on the start screen, up to the empty list. */
     protected fun createVault() {
-        click("Nowy sejf")
-        type("Adres serwera, np. https://passholder.local:8443", url)
-        click("Dalej: sprawdź certyfikat")
-        waitFor("Odcisk się zgadza")
-    }
-
-    protected fun finishCreate() {
-        click("Odcisk się zgadza")
-        type("Token z logu serwera (jednorazowy)", "3f9c2a7e5b1d")
+        waitFor("Załóż sejf")
         type("Hasło główne", masterPassword)
         type("Powtórz hasło główne", masterPassword)
         click("Załóż sejf")
@@ -122,22 +132,35 @@ abstract class ScreenTestBase {
         type("Login", login)
         if (password != null) type("Hasło", password) else click("Generuj")
     }
+
+    protected fun lockAndUnlock() {
+        click("Zablokuj")
+        waitFor("PassHolder jest zablokowany")
+        type("Hasło główne", masterPassword)
+        click("Odblokuj")
+    }
 }
 
 class FullFlowScreensTest : ScreenTestBase() {
     @Test
-    fun `full flow with a screenshot of every screen`() {
-        shot("01-polaczenie")
+    fun `new vault, entries, copy, delete, lock and unlock`() {
+        waitFor("Załóż sejf")
+        shot("01-start-nowy-sejf")
+
+        // The same rules as the extension: at least 12 characters, typed twice the same.
+        type("Hasło główne", "za krotkie")
+        type("Powtórz hasło główne", "za krotkie")
+        click("Załóż sejf")
+        waitFor("Hasło główne musi mieć co najmniej 12 znaków")
+        shot("02-start-za-krotkie-haslo")
+        type("Hasło główne", masterPassword)
+        type("Powtórz hasło główne", "$masterPassword!")
+        click("Załóż sejf")
+        waitFor("Hasła się różnią")
 
         createVault()
-        // The fingerprint the app shows is the SHA-256 of exactly the certificate the server presents.
-        val fingerprint = io.github.sheking94.passholder.core.CertificatePin.fingerprint(serverCert.certificate)
-        compose.onNodeWithText(fingerprint.split(":").chunked(8).joinToString("\n") { it.joinToString(":") }).assertExists()
-        // Nothing can be sent before the fingerprint is confirmed.
-        compose.onNodeWithText("Załóż sejf").assertIsNotEnabled()
-        shot("02-odcisk-certyfikatu")
-
-        finishCreate()
+        val app = ApplicationProvider.getApplicationContext<PassHolderApp>()
+        assertTrue(app.phoneStore.hasVault)
         shot("03-pusty-sejf")
 
         addEntry("bank.pl", "jan.kowalski", null)
@@ -145,116 +168,172 @@ class FullFlowScreensTest : ScreenTestBase() {
         assertEquals(20, generated.length)
         shot("04-nowy-wpis-z-generatorem")
         click("Zapisz")
-        waitFor("Zapisano na telefonie", substring = true)
+        waitFor("Zapisano na telefonie. Wtyczka dostanie zmianę przy następnej synchronizacji.")
 
         addEntry("poczta.onet.pl", "jan@onet.pl", "hunter2-ale-dluzsze")
         click("Zapisz")
-        waitFor("poczta.onet.pl •")
-        shot("05-lista-niezsynchronizowane")
-
-        click("Synchronizuj")
-        waitFor("Zsynchronizowano", substring = true)
-        assertTrue(gone("•"))
-        assertEquals(2, fake.sync.records.size)
-        // The server got only ciphertext.
-        assertFalse(fake.sync.records.values.joinToString().contains("bank.pl"))
-        shot("06-po-synchronizacji")
+        // Not the entry's name: the edit form shows it too.
+        waitFor("Zapisano na telefonie", substring = true)
+        shot("05-lista")
+        // On disk only ciphertext.
+        val records = File(app.filesDir, "p2p/records.jsonl").readText()
+        assertEquals(2, records.lines().count { it.isNotBlank() })
+        assertFalse(records.contains("bank.pl") || records.contains("jan.kowalski"))
 
         compose.onAllNodes(hasText("Hasło") and SemanticsMatcher.keyIsDefined(androidx.compose.ui.semantics.SemanticsActions.OnClick))[0].performClick()
         waitFor("Skopiowano hasło", substring = true)
-        val clipboard = ApplicationProvider.getApplicationContext<PassHolderApp>().getSystemService(ClipboardManager::class.java)
+        val clipboard = app.getSystemService(ClipboardManager::class.java)
         assertEquals(generated, clipboard.primaryClip!!.getItemAt(0).text.toString())
-        shot("07-skopiowane-haslo")
+        shot("06-skopiowane-haslo")
 
-        click("bank.pl")
+        click("poczta.onet.pl")
         waitFor("Edytuj wpis")
         click("Usuń")
         waitFor("Usunąć wpis?")
-        shot("08-usuwanie")
+        shot("07-usuwanie")
         compose.onAllNodes(hasText("Usuń"))[1].performClick()
-        waitFor("Usunięto na telefonie", substring = true)
+        waitFor("Usunięto na telefonie. Wtyczka dostanie zmianę przy następnej synchronizacji.")
 
+        click("Synchronizacja")
+        waitFor("Czekam na wtyczkę…")
+        click("Zakończ")
+
+        lockAndUnlock()
+        waitFor("bank.pl")
+        assertTrue(gone("poczta.onet.pl"))
+        shot("08-po-odblokowaniu")
+    }
+}
+
+class WrongPasswordTest : ScreenTestBase() {
+    @Test
+    fun `a wrong master password on the locked screen shows the error`() {
+        createVault()
         click("Zablokuj")
         waitFor("PassHolder jest zablokowany")
-        type("Hasło główne", "zle haslo")
+        type("Hasło główne", "zle haslo glowne")
         click("Odblokuj")
         waitFor("Złe hasło główne")
+        assertFalse(ApplicationProvider.getApplicationContext<PassHolderApp>().phoneStore.isUnlocked)
         shot("09-blokada-zle-haslo")
+    }
+}
 
+class StartRestoreTest : ScreenTestBase() {
+    @Test
+    fun `restore from the extension starts the restore and survives reopening the app`() {
+        click("Odtwórz z wtyczki")
+        waitFor("Rozpocznij odtwarzanie")
+        shot("10-start-odtworz-z-wtyczki")
+        click("Rozpocznij odtwarzanie")
+        waitFor("Odtwarzanie z wtyczki")
+        val app = ApplicationProvider.getApplicationContext<PassHolderApp>()
+        assertTrue(app.phoneStore.restoreInProgress)
+        assertFalse(app.phoneStore.hasVault)
+
+        scenario.close()
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        waitFor("Odtwarzanie z wtyczki")
+    }
+}
+
+class RemoveVaultTest : ScreenTestBase() {
+    @Test
+    fun `Usuń sejf z telefonu asks first, then deletes the vault and goes back to the start`() {
+        createVault()
+        addEntry("bank.pl", "jan.kowalski", "s3cret-haslo")
+        click("Zapisz")
+        waitFor("Zapisano na telefonie", substring = true)
+        click("Zablokuj")
+        waitFor("Usuń sejf z telefonu")
+        click("Usuń sejf z telefonu")
+        waitFor("Usunąć sejf z tego telefonu? Wpisy zostaną tylko na sparowanych wtyczkach.")
+        shot("11-usuwanie-sejfu")
+        click("Anuluj")
+        val app = ApplicationProvider.getApplicationContext<PassHolderApp>()
+        assertTrue(app.phoneStore.hasVault)
+
+        click("Usuń sejf z telefonu")
+        waitFor("Usunąć sejf z tego telefonu?", substring = true)
+        click("Usuń")
+        waitFor("Załóż sejf")
+        assertFalse(app.phoneStore.hasVault)
+        assertFalse(File(app.filesDir, "p2p").exists())
+    }
+}
+
+class RemoveVaultKeystoreFailureTest : ScreenTestBase() {
+    /** A Keystore that refuses to delete the fingerprint key. */
+    override fun beforeLaunch(app: PassHolderApp) {
+        app.biometric = BiometricUnlock(app, object : UnlockKeyProtector by SoftwareKeyProtector() {
+            override fun deleteKey() = throw IllegalStateException("Keystore niedostępny")
+        })
+    }
+
+    @Test
+    fun `a failing fingerprint key deletion still ends on the start screen`() {
+        createVault()
+        click("Zablokuj")
+        waitFor("Usuń sejf z telefonu")
+        click("Usuń sejf z telefonu")
+        waitFor("Usunąć sejf z tego telefonu?", substring = true)
+        click("Usuń")
+        waitFor("Załóż sejf")
+        waitFor("nie udało się usunąć klucza odcisku palca", substring = true)
+        val app = ApplicationProvider.getApplicationContext<PassHolderApp>()
+        assertFalse(app.phoneStore.hasVault)
+        assertFalse(app.biometric.isEnabled)
+    }
+}
+
+class UnreadableEntriesTest : ScreenTestBase() {
+    /** A vault with one entry and one record the vault key cannot open (as if an extension of another vault sent it). */
+    override fun beforeLaunch(app: PassHolderApp) {
+        PhoneVaultStore(app.filesDir, TestSecretWrapper).apply {
+            createVault(masterPassword)
+            upsert("1", Credentials("github.com", "jkowalski", "s3cret"))
+            lock()
+        }
+        FileSyncStore(File(app.filesDir, "p2p/records.jsonl")).apply {
+            put(RemoteRecord("obcy", currentRevision() + 1, false, "bm90IGEgcmVhbCBibG9i"))
+        }
+        // The app's store read the (then empty) disk at start; a new one sees the vault.
+        app.replacePhoneStore(PhoneVaultStore(app.filesDir, TestSecretWrapper))
+    }
+
+    @Test
+    fun `the list warns about records the vault key cannot open`() {
+        waitFor("PassHolder jest zablokowany")
         type("Hasło główne", masterPassword)
         click("Odblokuj")
-        waitFor("poczta.onet.pl")
-        assertTrue(gone("bank.pl •") && gone("jan.kowalski"))
-    }
-}
-
-class PairingErrorsTest : ScreenTestBase() {
-    @Test
-    fun `pairing with a wrong setup token and with an unreachable server shows the error`() {
-        type("Adres serwera, np. https://passholder.local:8443", "https://127.0.0.1:1")
-        click("Dalej: sprawdź certyfikat")
-        waitFor("Serwer jest niedostępny", substring = true)
-
-        createVault()
-        click("Odcisk się zgadza")
-        type("Token z logu serwera (jednorazowy)", "zly")
-        type("Hasło główne", masterPassword)
-        type("Powtórz hasło główne", masterPassword)
-        click("Załóż sejf")
-        waitFor("Zły token z logu serwera")
-        shot("10-zly-token")
-    }
-}
-
-class SecondPhoneTest : ScreenTestBase() {
-    @Test
-    fun `a second phone downloads what the first one saved`() {
-        // Another device already created the vault and synced an entry.
-        val other = io.github.sheking94.passholder.core.VaultStore(io.github.sheking94.passholder.core.MemoryStore())
-        val pin = io.github.sheking94.passholder.core.CertificatePin.fingerprint(serverCert.certificate)
-        other.createVault(listOf(url), pin, "3f9c2a7e5b1d", masterPassword)
-        other.upsert("1", Credentials("github.com", "jkowalski", "s3cret"))
-        other.sync()
-
-        type("Adres serwera, np. https://passholder.local:8443", url)
-        click("Dalej: sprawdź certyfikat")
-        waitFor("Odcisk się zgadza")
-        click("Odcisk się zgadza")
-        type("Hasło główne", masterPassword)
-        click("Połącz")
         waitFor("github.com")
-        shot("11-drugi-telefon")
+        waitFor("Wpisów nie do odczytania: 1", substring = true)
+        shot("12-nieczytelne-wpisy")
     }
 }
 
-class TwoAddressesTest : ScreenTestBase() {
+class CorruptHostStateTest : ScreenTestBase() {
+    /** host.json damaged on disk; the store the app builds at start must not throw (it did, on every launch). */
+    override fun beforeLaunch(app: PassHolderApp) {
+        File(app.filesDir, "p2p").mkdirs()
+        File(app.filesDir, "p2p/host.json").writeText("{\"deviceId\": tru")
+        app.replacePhoneStore(PhoneVaultStore(app.filesDir, TestSecretWrapper))
+    }
+
     @Test
-    fun `pairs with two addresses while only one answers, then edits them`() {
-        // At home with the VPN off: the first address does not answer, the certificate comes from the second.
-        val offline = "https://127.0.0.1:1"
-        click("Nowy sejf")
-        type(io.github.sheking94.passholder.app.ui.URL_LABEL, offline)
-        type(io.github.sheking94.passholder.app.ui.SECOND_URL_LABEL, url)
-        click("Dalej: sprawdź certyfikat")
-        waitFor("Odcisk się zgadza")
-        waitFor("(z adresu $url)", substring = true)
-        shot("12-dwa-adresy")
-        finishCreate()
-
-        val store = ApplicationProvider.getApplicationContext<PassHolderApp>().vaultStore
-        assertEquals(listOf(offline, url), store.account()!!.serverUrls)
-        assertEquals(url, store.account()!!.lastServerUrl)
-
-        click("Synchronizuj")
-        waitFor("Zsynchronizowano", substring = true)
-
-        click("Adresy")
-        waitFor("Adresy serwera")
-        shot("13-adresy-serwera")
-        type(io.github.sheking94.passholder.app.ui.URL_LABEL, url)
-        type(io.github.sheking94.passholder.app.ui.SECOND_URL_LABEL, "")
-        click("Zapisz")
-        waitFor("Zapisano adresy serwera", substring = true)
-        assertEquals(listOf(url), store.account()!!.serverUrls)
+    fun `a damaged host json shows the start screen with the error and the vault can be removed`() {
+        waitFor(
+            "Nie mogę odczytać danych sejfu na telefonie. Możesz je usunąć i założyć sejf od nowa albo odtworzyć go z wtyczki.",
+        )
+        shot("29-uszkodzony-sejf")
+        click("Usuń sejf z telefonu")
+        waitFor("Usunąć sejf z tego telefonu? Wpisy zostaną tylko na sparowanych wtyczkach.")
+        compose.onAllNodes(hasText("Usuń"))[0].performClick()
+        waitFor("Załóż sejf")
+        val app = ApplicationProvider.getApplicationContext<PassHolderApp>()
+        assertFalse(app.phoneStore.corruptState)
+        assertFalse(File(app.filesDir, "p2p").exists())
+        assertTrue(gone("Nie mogę odczytać"))
+        createVault()
     }
 }

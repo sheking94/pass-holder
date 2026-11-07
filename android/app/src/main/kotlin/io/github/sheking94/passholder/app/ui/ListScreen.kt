@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -47,6 +48,13 @@ fun ListScreen(state: UiState, vm: AppViewModel) {
             OutlinedTextField(query, { query = it }, placeholder = { Text("Szukaj…") }, singleLine = true, modifier = Modifier.weight(1f))
             Button(onClick = { vm.openEntry(null) }, enabled = !state.busy) { Text("+ Dodaj") }
         }
+        if (state.unreadable > 0) {
+            Text(
+                "Wpisów nie do odczytania: ${state.unreadable}. Zaszyfrował je inny klucz, np. wtyczka sparowana z innym sejfem.",
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
         LazyColumn(Modifier.weight(1f)) {
             if (rows.isEmpty()) {
                 item { Text(if (query.isBlank()) "Brak wpisów. Dodaj pierwszy." else "Nic nie pasuje.", Modifier.padding(vertical = 16.dp)) }
@@ -58,7 +66,7 @@ fun ListScreen(state: UiState, vm: AppViewModel) {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text(c.name + if (entry.dirty) " •" else "", style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(c.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(c.username, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     TextButton(onClick = { vm.copyLogin(c.username) }) { Text("Login") }
@@ -67,10 +75,11 @@ fun ListScreen(state: UiState, vm: AppViewModel) {
                 HorizontalDivider()
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = vm::sync, enabled = !state.busy) { Text("Synchronizuj") }
+        // Three buttons do not fit one row on a narrow phone: the last one moves to the next row.
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = vm::openSync, enabled = !state.busy) { Text("Synchronizacja") }
+            OutlinedButton(onClick = vm::openDevices, enabled = !state.busy) { Text("Urządzenia") }
             OutlinedButton(onClick = vm::lock, enabled = !state.busy) { Text("Zablokuj") }
-            TextButton(onClick = vm::openAddresses, enabled = !state.busy) { Text("Adresy") }
         }
         FingerprintSetting(state, vm)
         LockDelaySetting(state, vm)
