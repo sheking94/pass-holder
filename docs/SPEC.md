@@ -66,8 +66,11 @@ AAD z `id` wiąże szyfrogram z wpisem, więc host nie może podmienić treści 
   `{"name": "...", "username": "...", "password": "...", "hlc": {"ms": …, "c": …, "d": "<deviceId>"}}`
 - Usunięty wpis to „nagrobek”: `deleted = true` jawnie dla hosta, a w szyfrogramie tylko `{"hlc": …}`.
   Nagrobki zostają na telefonie, żeby usunięcie dotarło do każdej wtyczki.
-- Flaga `deleted` jest jawna, więc odbiorca sprawdza, czy zgadza się z odszyfrowaną treścią: przy
-  `deleted = true` treść musi mieć **wyłącznie** pole `hlc`, przy `deleted = false` pola żywego wpisu.
+- Flaga `deleted` jest jawna. Odbiorca sprawdza tylko, czy treść pasuje do flagi: przy `deleted = true`
+  musi mieć poprawne pole `hlc`, przy `deleted = false` pola `name`, `username`, `password` i `hlc`
+  (`parseTombstoneDataV2` / `parseEntryDataV2` w `core/src/p2p/entry.ts`, `EntryV2.kt`). Inne pola nagrobka
+  nie są odrzucane (w v1 nagrobek musiał mieć wyłącznie `modifiedAt`, poprawka S2): rekordy pochodzą
+  od sparowanego urządzenia, które zna hasło główne, a kanał Noise KK je uwierzytelnia.
 - Wpis, który nigdy nie trafił na telefon, wtyczka kasuje lokalnie.
 - HLC (hybrydowy zegar logiczny) jest wewnątrz szyfrogramu, więc host nie zna czasów zmian. Konflikty
   rozstrzyga większy HLC: [SYNCHRONIZACJA_P2P.md](SYNCHRONIZACJA_P2P.md) §5.

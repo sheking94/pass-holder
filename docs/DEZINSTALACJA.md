@@ -1,7 +1,7 @@
 # Dezinstalacja PassHolder
 
 Jak usunąć wtyczkę, aplikację na telefonie i narzędzia, które zainstalowała [INSTALACJA.md](INSTALACJA.md).
-Kroki 1–3 usuwają sejf; reszta jest opcjonalna.
+Kroki 1 i 2 usuwają sejf; reszta jest opcjonalna.
 
 ## 0. Najpierw kopia haseł
 
