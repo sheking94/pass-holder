@@ -10,7 +10,8 @@ export class ApiError extends Error {
 }
 
 export const PHONE_UNREACHABLE = "Telefon nie odpowiada. Czy tryb Synchronizacja jest włączony?";
-export const PHONE_FORGOT_BROWSER = "Telefon nie zna tej przeglądarki. Sparuj ponownie.";
+export const PHONE_FORGOT_BROWSER =
+  "Telefon nie zna tej przeglądarki. Sparuj ją ponownie w „Adresy telefonu” → „Sparuj z innym telefonem / odtwórz telefon”.";
 export const PHONE_MALFORMED = "Telefon odpowiedział niepoprawnie.";
 
 /**

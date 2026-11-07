@@ -4,7 +4,7 @@ import { requestHostPermission, serverUrlFields } from "../ui/server-url-fields.
 import { store } from "../ui/state.ts";
 import { PairedButSyncFailed } from "../vault-store.ts";
 import { showConnect } from "./connect.ts";
-import { listView } from "./list.ts";
+import { listView, skippedNote } from "./list.ts";
 
 const REPAIRED: Record<"paired" | "restored", string> = {
   paired: "Sparowano z telefonem. Ta przeglądarka synchronizuje się teraz z nim.",
@@ -52,7 +52,8 @@ export async function addressesView(message = "") {
       void busy(repairStatus, "Paruję z telefonem…", async () => {
         let done: string;
         try {
-          done = REPAIRED[await store.repair(typed.urls, code.value, password.value)];
+          const { mode, skipped } = await store.repair(typed.urls, code.value, password.value);
+          done = REPAIRED[mode] + skippedNote(skipped);
         } catch (error) {
           password.value = "";
           if (!(error instanceof PairedButSyncFailed)) throw error;

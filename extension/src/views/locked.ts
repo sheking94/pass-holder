@@ -72,11 +72,23 @@ function lockedView(message = "") {
       showUnlocked();
     });
 
-  // Forgets only this browser's copy; the phone keeps the vault (remove the browser there in "Urządzenia").
-  const disconnect = confirmButton("Odłącz tę przeglądarkę", { type: "button", class: "danger", title: "Usuwa sejf z tej przeglądarki. Telefon zachowuje wszystkie hasła." }, async () => {
-    await store.disconnect();
-    showConnect();
-  });
+  // Forgets only this browser's copy; the phone keeps what it has synced (remove the browser there in
+  // "Urządzenia"). While locked the unsynced changes cannot be counted, so the warning says they may exist.
+  // The store still refuses if the vault is unlocked with unsynced changes; busy() then shows how many.
+  const disconnect = confirmButton(
+    "Odłącz tę przeglądarkę",
+    {
+      type: "button",
+      class: "danger",
+      title: "Usuwa sejf z tej przeglądarki. Telefon zachowuje hasła z ostatniej synchronizacji; niezsynchronizowane zmiany z tej przeglądarki przepadną.",
+    },
+    () =>
+      void busy(status, "Odłączam…", async () => {
+        await store.disconnect();
+        await showConnect();
+      }),
+    "Niezsynchronizowane zmiany przepadną. Kliknij ponownie",
+  );
 
   show(
     openInTabButton(),

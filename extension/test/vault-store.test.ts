@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fromBase64 } from "@passholder/core";
-import { AUTO_LOCK_MS, STORAGE_KEYS, VaultStore, type Account } from "../src/vault-store.ts";
+import { AUTO_LOCK_MS, STORAGE_KEYS, UnsyncedChanges, VaultStore, type Account } from "../src/vault-store.ts";
 import {
   CODE,
   FakePhone,
@@ -98,7 +98,7 @@ describe("pairing an existing browser again (repair)", () => {
     const vaultBefore = await local.get(STORAGE_KEYS.vault);
     other.offerPairing();
     await expect(sameStore.repair(SECOND_URL, CODE, PASSWORD)).rejects.toThrow(
-      "To inny sejf. Wtyczka zostaje połączona z poprzednim telefonem.",
+      "To inny sejf. Wtyczka zostaje połączona z poprzednim telefonem. Na nowym telefonie usuń „Chrome (Linux)” z „Urządzenia”.",
     );
     expect(await local.get(STORAGE_KEYS.account)).toEqual(accountBefore);
     expect(await local.get(STORAGE_KEYS.vault)).toEqual(vaultBefore);
@@ -109,7 +109,7 @@ describe("pairing an existing browser again (repair)", () => {
     const { store, phone, local, session, makeClient } = await pairedBrowser();
     const before = (await store.getAccount())!;
     phone.offerPairing();
-    expect(await store.repair(PHONE_URL, CODE, PASSWORD)).toBe("paired");
+    expect(await store.repair(PHONE_URL, CODE, PASSWORD)).toEqual({ mode: "paired", skipped: [] });
     const after = (await store.getAccount())!;
     expect(after.deviceId).toBe(before.deviceId);
     expect(after.staticPublicKey).toBe(before.staticPublicKey);
@@ -130,7 +130,7 @@ describe("pairing an existing browser again (repair)", () => {
     const browser = newBrowser(new Map([[SECOND_URL, fresh]]));
     const sameStore = new VaultStore(local, session, browser.makeClient);
     fresh.offerPairing();
-    expect(await sameStore.repair(SECOND_URL, CODE, PASSWORD)).toBe("restored");
+    expect(await sameStore.repair(SECOND_URL, CODE, PASSWORD)).toEqual({ mode: "restored", skipped: [] });
 
     expect(fresh.receivedVaultInfo).toMatchObject({ kdf: before.kdf, wrappedVaultKey: before.wrappedVaultKey });
     // A non-zero baseRevision for an entry the empty phone does not know would be refused with 400.
@@ -143,6 +143,16 @@ describe("pairing an existing browser again (repair)", () => {
       phoneUrls: [SECOND_URL],
       lastPhoneUrl: SECOND_URL,
     });
+  }, 60_000);
+
+  it("returns the learned addresses its first sync skipped because Chrome does not allow them (M1)", async () => {
+    const phone = await FakePhone.withVault(PASSWORD, [PHONE_URL, SECOND_URL]);
+    const { store } = newBrowser(new Map([[PHONE_URL, phone]]), Date.now, async (u) => u === PHONE_URL);
+    phone.offerPairing();
+    await store.pairStart(PHONE_URL, CODE, "Chrome");
+    await store.pairFinish(PASSWORD);
+    phone.offerPairing();
+    expect(await store.repair(PHONE_URL, CODE, PASSWORD)).toEqual({ mode: "paired", skipped: [SECOND_URL] });
   }, 60_000);
 
   it("checks the master password before spending the phone's code", async () => {
@@ -197,6 +207,47 @@ describe("syncing with the phone", () => {
     expect(await phone.entryNames()).toEqual(["z-wtyczki.pl"]);
   }, 30_000);
 
+  it("keeps addresses another page saved during the sync and adds the learned ones (M7)", async () => {
+    const extra = "http://10.0.0.2:8787";
+    let duringSync: (() => Promise<void>) | undefined;
+    const phone = await FakePhone.withVault(PASSWORD, [PHONE_URL]);
+    // canReach runs after sync() read the account: a stand-in for another page writing it meanwhile.
+    const browser = newBrowser(new Map([[PHONE_URL, phone]]), Date.now, async () => {
+      const run = duringSync;
+      duringSync = undefined;
+      await run?.();
+      return true;
+    });
+    phone.offerPairing();
+    await browser.store.pairStart(PHONE_URL, CODE, "Chrome");
+    await browser.store.pairFinish(PASSWORD);
+    const account = (await browser.store.getAccount())!;
+    duringSync = () => browser.local.set(STORAGE_KEYS.account, { ...account, phoneUrls: [PHONE_URL, extra], deviceName: "inna nazwa" });
+    phone.addresses = [PHONE_URL, SECOND_URL];
+    await browser.store.sync();
+    expect(await browser.store.getAccount()).toMatchObject({ phoneUrls: [PHONE_URL, extra, SECOND_URL], lastPhoneUrl: PHONE_URL, deviceName: "inna nazwa" });
+  }, 30_000);
+
+  it("does not write the account when another page paired with another phone during the sync (M7)", async () => {
+    let duringSync: (() => Promise<void>) | undefined;
+    const phone = await FakePhone.withVault(PASSWORD, [PHONE_URL]);
+    const browser = newBrowser(new Map([[PHONE_URL, phone]]), Date.now, async () => {
+      const run = duringSync;
+      duringSync = undefined;
+      await run?.();
+      return true;
+    });
+    phone.offerPairing();
+    await browser.store.pairStart(PHONE_URL, CODE, "Chrome");
+    await browser.store.pairFinish(PASSWORD);
+    const account = (await browser.store.getAccount())!;
+    const repaired: Account = { ...account, phone: { ...account.phone, staticPublicKey: "bm93eQ==" }, phoneUrls: [SECOND_URL], lastPhoneUrl: SECOND_URL };
+    duringSync = () => browser.local.set(STORAGE_KEYS.account, repaired);
+    phone.addresses = [PHONE_URL, "http://10.0.0.3:8787"];
+    await browser.store.sync();
+    expect(await browser.store.getAccount()).toEqual(repaired);
+  }, 30_000);
+
   it("says the phone does not answer when sync mode is off", async () => {
     const { store, network } = await pairedBrowser();
     network.clear();
@@ -240,6 +291,32 @@ describe("VaultStore offline", () => {
     expect(await browser.store.getAccount()).toBeUndefined();
     expect(await browser.local.get(STORAGE_KEYS.vault)).toBeUndefined();
     expect(await browser.session.get(STORAGE_KEYS.pendingPairing)).toBeUndefined();
+  }, 30_000);
+
+  it("refuses to disconnect with unsynced changes unless forced, and names how many (I1)", async () => {
+    const browser = await pairedBrowser();
+    await browser.store.upsert("1", { name: "a.pl", username: "u", password: "p" });
+    await browser.store.upsert("2", { name: "b.pl", username: "u", password: "p" });
+    const error = await browser.store.disconnect().catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(UnsyncedChanges);
+    expect((error as UnsyncedChanges).count).toBe(2);
+    expect((error as Error).message).toBe(
+      "Niezsynchronizowane zmiany: 2. Odłączenie usunie je z tej przeglądarki. Najpierw zsynchronizuj albo wyeksportuj hasła do CSV.",
+    );
+    expect(await browser.store.getAccount()).toBeDefined();
+    expect(names(browser.store)).toEqual(["a.pl", "b.pl"]);
+
+    await browser.store.disconnect({ force: true });
+    expect(await browser.store.getAccount()).toBeUndefined();
+    expect(await browser.local.get(STORAGE_KEYS.vault)).toBeUndefined();
+  }, 30_000);
+
+  it("disconnects while locked without counting (the UI warns that changes may be lost)", async () => {
+    const browser = await pairedBrowser();
+    await browser.store.upsert("1", { name: "a.pl", username: "u", password: "p" });
+    await browser.store.lock();
+    await browser.store.disconnect();
+    expect(await browser.store.getAccount()).toBeUndefined();
   }, 30_000);
 
   it("does not read the v1 account of the Raspberry Pi version", async () => {

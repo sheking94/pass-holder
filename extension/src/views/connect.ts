@@ -2,7 +2,7 @@ import { busy, form, h, passwordField, setStatus, show, statusLine } from "../ui
 import { IN_TAB, showInTab } from "../ui/page.ts";
 import { originPattern, requestHostPermission, requestOptionalHostPermission, serverUrlFields } from "../ui/server-url-fields.ts";
 import { store } from "../ui/state.ts";
-import { PairedButSyncFailed } from "../vault-store.ts";
+import { pairingCancelledMessage, pairingExpiredMessage, PairedButSyncFailed, type PendingPairingInfo } from "../vault-store.ts";
 import { listView, skippedNote } from "./list.ts";
 
 const PAIRED =
@@ -33,7 +33,8 @@ export async function showConnect() {
 
 /** The pairing waits for the master password: go straight there (the code is already spent). */
 async function connectView(message = "") {
-  if (await store.hasPendingPairing()) return passwordStep();
+  const pending = await store.pendingPairing();
+  if (pending) return passwordStep(pending);
   codeStep(message);
 }
 
@@ -51,7 +52,9 @@ function codeStep(message = "") {
     requestHostPermission(typed.origins, status, () => {
       void busy(status, "Łączę z telefonem…", async () => {
         await store.pairStart(typed.urls, code.value, name.value);
-        await passwordStep();
+        const pending = await store.pendingPairing();
+        if (!pending) return codeStep(pairingExpiredMessage(name.value.trim()));
+        passwordStep(pending);
       });
     });
   };
@@ -80,16 +83,22 @@ function codeStep(message = "") {
  * Step 2: the master password of the phone's vault. A wrong one keeps the pairing (no new code is needed),
  * also after closing the tab, for 10 minutes. "Anuluj parowanie" drops it.
  */
-async function passwordStep(message = "") {
-  const pending = await store.pendingPairing();
-  if (!pending) return codeStep("Parowanie wygasło. Poproś telefon o nowy kod.");
+function passwordStep(pending: PendingPairingInfo, message = "") {
   const password = h("input", { type: "password", autocomplete: "current-password" });
   const status = statusLine();
   setStatus(status, message, Boolean(message));
 
+  // Addresses the phone reported besides the typed one: asked here, on the click, as sync cannot ask later.
+  // Once per screen: after a wrong password the next try should not show Chrome's prompt again.
+  let asked = false;
+  const askOnce = (then: () => void) => {
+    if (asked) return then();
+    asked = true;
+    requestOptionalHostPermission([...new Set(pending.phoneUrls.map(originPattern))], then);
+  };
+
   const submit = () => {
-    // Addresses the phone reported besides the typed one: asked here, on the click, as sync cannot ask later.
-    requestOptionalHostPermission([...new Set(pending.phoneUrls.map(originPattern))], () => {
+    askOnce(() => {
       void busy(status, "Liczę klucze z hasła głównego…", async () => {
         try {
           const { skipped } = await store.pairFinish(password.value);
@@ -97,7 +106,8 @@ async function passwordStep(message = "") {
         } catch (error) {
           if (error instanceof PairedButSyncFailed) return listView(error.message, true);
           password.value = "";
-          if (!(await store.hasPendingPairing())) return codeStep((error as Error).message);
+          // The pairing is gone (expired, or cancelled in another tab): the phone still lists this browser.
+          if (!(await store.hasPendingPairing())) return codeStep(pairingExpiredMessage(pending.deviceName));
           throw error;
         }
       });
@@ -107,8 +117,8 @@ async function passwordStep(message = "") {
   const cancel = h("button", {
     type: "button",
     onclick: async () => {
-      await store.cancelPairing();
-      codeStep();
+      // Also when it expired meanwhile: the phone lists the browser either way.
+      codeStep(pairingCancelledMessage((await store.cancelPairing()) ?? pending.deviceName));
     },
   }, "Anuluj parowanie");
 

@@ -27,12 +27,41 @@ const STATIC_KEY_AAD = "passholder/v2/ext-static-key";
 const LOCKED = "Sejf jest zablokowany";
 const NOT_PAIRED = "Ta przeglądarka nie jest sparowana z telefonem";
 const WRONG_PASSWORD = "Złe hasło główne";
-export const OTHER_VAULT = "To inny sejf. Wtyczka zostaje połączona z poprzednim telefonem.";
 const NO_PENDING_PAIRING = "Najpierw sparuj przeglądarkę z telefonem (kod z ekranu Synchronizacja).";
 const NO_ALLOWED_ADDRESS =
   "Brak zgody Chrome na łączenie z żadnym adresem telefonu. Otwórz „Adresy telefonu” i zapisz adresy, a Chrome zapyta o zgodę.";
 export const PHONE_WAITS_FOR_RESTORE =
   "Telefon czeka na odtworzenie sejfu z wtyczki, a ta przeglądarka nie ma jeszcze sejfu. Na telefonie wybierz „Dodaj wtyczkę” albo odtwórz sejf z przeglądarki, która go ma.";
+
+/**
+ * After /pair/finish the phone lists this browser in "Urządzenia", so a pairing that is not completed here
+ * leaves a device there that nothing uses: this sentence says which one to remove.
+ */
+export function orphanDeviceNote(deviceName: string, phone = "telefonie"): string {
+  return ` Na ${phone} usuń „${deviceName}” z „Urządzenia”.`;
+}
+
+export const PAIRING_EXPIRED = "Parowanie wygasło. Poproś telefon o nowy kod.";
+
+export function pairingExpiredMessage(deviceName: string): string {
+  return PAIRING_EXPIRED + orphanDeviceNote(deviceName);
+}
+
+export function pairingCancelledMessage(deviceName: string): string {
+  return "Anulowano parowanie." + orphanDeviceNote(deviceName);
+}
+
+/** repair() met a phone with another vault; that phone has already added this browser. */
+export function otherVaultMessage(deviceName: string): string {
+  return "To inny sejf. Wtyczka zostaje połączona z poprzednim telefonem." + orphanDeviceNote(deviceName, "nowym telefonie");
+}
+
+/** disconnect() without force while the vault is unlocked and has changes the phone has not seen. */
+export class UnsyncedChanges extends Error {
+  constructor(readonly count: number) {
+    super(`Niezsynchronizowane zmiany: ${count}. Odłączenie usunie je z tej przeglądarki. Najpierw zsynchronizuj albo wyeksportuj hasła do CSV.`);
+  }
+}
 
 /** Kept on disk. Nothing here is readable without the master password, except the public parts. */
 export interface Account {
@@ -87,6 +116,8 @@ export const PAIRING_PENDING_MS = 10 * 60_000;
 /** What the connect screen shows while a pairing waits for the master password. */
 export interface PendingPairingInfo {
   phoneName: string;
+  /** This browser's name, as the phone already lists it in "Urządzenia". */
+  deviceName: string;
   /** The addresses the account will start with (typed, then learned from the phone): Chrome must allow each. */
   phoneUrls: string[];
 }
@@ -94,6 +125,11 @@ export interface PendingPairingInfo {
 /** What a sync did besides syncing: addresses it did not try because Chrome does not allow them yet. */
 export interface SyncResult {
   skipped: string[];
+}
+
+/** What repair() did: paired with a phone that has the vault, or restored an empty one; and what its sync skipped. */
+export interface RepairResult extends SyncResult {
+  mode: "paired" | "restored";
 }
 
 /**
@@ -323,23 +359,35 @@ export class VaultStore {
   async pendingPairing(): Promise<PendingPairingInfo | undefined> {
     const pending = await this.loadPending();
     if (!pending) return undefined;
-    return { phoneName: pending.phone.name, phoneUrls: withLearned(pending.urls, pending.vaultInfo.addresses) };
+    return { phoneName: pending.phone.name, deviceName: pending.deviceName, phoneUrls: withLearned(pending.urls, pending.vaultInfo.addresses) };
   }
 
-  /** "Anuluj parowanie": forgets the pairing that waits for the password; the next one needs a new code. */
-  async cancelPairing(): Promise<void> {
+  /**
+   * "Anuluj parowanie": forgets the pairing that waits for the password; the next one needs a new code.
+   * Returns the cancelled browser's name (the phone still lists it), or undefined when there was none.
+   */
+  async cancelPairing(): Promise<string | undefined> {
+    const pending = await this.loadPending();
     await this.session.remove(STORAGE_KEYS.pendingPairing);
+    return pending?.deviceName;
   }
 
-  /** The pending pairing, unless it is older than PAIRING_PENDING_MS (then it is removed). */
+  /** The pending pairing, unless it has expired (then it is removed). */
   private async loadPending(): Promise<PendingPairing | undefined> {
     const pending = await this.session.get<PendingPairing>(STORAGE_KEYS.pendingPairing);
     if (!pending) return undefined;
-    if (!(typeof pending.createdAt === "number" && this.now() - pending.createdAt < PAIRING_PENDING_MS)) {
-      await this.cancelPairing();
+    if (this.pendingExpired(pending)) {
+      await this.session.remove(STORAGE_KEYS.pendingPairing);
       return undefined;
     }
     return pending;
+  }
+
+  /** Older than PAIRING_PENDING_MS, or from the future (the clock moved back): either way not to be trusted. */
+  private pendingExpired(pending: PendingPairing): boolean {
+    if (typeof pending.createdAt !== "number") return true;
+    const age = this.now() - pending.createdAt;
+    return age < 0 || age >= PAIRING_PENDING_MS;
   }
 
   /**
@@ -347,8 +395,13 @@ export class VaultStore {
    * storage, so it can be typed again without a new code. Then the account is saved and the first sync runs.
    */
   async pairFinish(masterPassword: string): Promise<SyncResult> {
+    const stored = await this.session.get<PendingPairing>(STORAGE_KEYS.pendingPairing);
     const pending = await this.loadPending();
-    if (!pending) throw new Error(NO_PENDING_PAIRING);
+    if (!pending) {
+      // Expired just now: say so, and name the device the phone still lists.
+      if (stored && typeof stored.deviceName === "string") throw new Error(pairingExpiredMessage(stored.deviceName));
+      throw new Error(NO_PENDING_PAIRING);
+    }
     const { kdf, wrappedVaultKey } = pending.vaultInfo;
     assertKdfParamsAcceptable(kdf);
     const vaultKey = await unwrapWithPassword(masterPassword, kdf, wrappedVaultKey);
@@ -384,10 +437,10 @@ export class VaultStore {
   /**
    * Pairs this browser (same deviceId and static key) with a phone again, e.g. a new or reinstalled one.
    * A phone waiting for "Odtwórz z wtyczki" gets this browser's vault ("restored"). A phone with a vault
-   * ("paired") must hold the same vault key: otherwise nothing changes here and OTHER_VAULT is thrown.
+   * ("paired") must hold the same vault key: otherwise nothing changes here and otherVaultMessage is thrown.
    * The master password is checked first, so a typo does not spend the phone's code.
    */
-  async repair(urls: string | readonly string[], code: string, masterPassword: string): Promise<"paired" | "restored"> {
+  async repair(urls: string | readonly string[], code: string, masterPassword: string): Promise<RepairResult> {
     const account = await this.requireAccount();
     const typed = typeof urls === "string" ? [phoneUrl(urls)] : toUrlList(urls);
     const vaultKey = await unwrapWithPassword(masterPassword, account.kdf, account.wrappedVaultKey);
@@ -407,7 +460,7 @@ export class VaultStore {
     let { kdf, wrappedVaultKey } = account;
     if (res.mode === "pair") {
       const phoneKey = await unwrapWithPassword(masterPassword, res.vaultInfo.kdf, res.vaultInfo.wrappedVaultKey).catch(() => undefined);
-      if (!phoneKey || !sameBytes(phoneKey, vaultKey)) throw new Error(OTHER_VAULT);
+      if (!phoneKey || !sameBytes(phoneKey, vaultKey)) throw new Error(otherVaultMessage(account.deviceName));
       // Same vault key, perhaps wrapped anew (e.g. the phone changed the KDF): the phone's copy is current.
       ({ kdf, wrappedVaultKey } = res.vaultInfo);
     }
@@ -423,8 +476,8 @@ export class VaultStore {
     await this.saveAccount(updated);
     await this.startSession(vaultKey, vault, updated);
     const mode = res.mode === "pair" ? "paired" : "restored";
-    await this.firstSync(mode);
-    return mode;
+    const { skipped } = await this.firstSync(mode);
+    return { mode, skipped };
   }
 
   /** Works offline: the wrapped vault key and the encrypted vault are on disk. */
@@ -517,8 +570,16 @@ export class VaultStore {
     await this.session.remove(STORAGE_KEYS.sessionKeys);
   }
 
-  /** Forgets this browser's account, PIN, local copy and an unfinished pairing. The phone keeps everything. */
-  async disconnect(): Promise<void> {
+  /**
+   * Forgets this browser's account, PIN, local copy and an unfinished pairing. The phone keeps what it has
+   * seen, but local changes it has not are lost: while unlocked, that is refused (UnsyncedChanges) unless
+   * `force` says the user confirmed it. While locked they cannot be counted; the screen warns instead.
+   */
+  async disconnect(options: { force?: boolean } = {}): Promise<void> {
+    if (!options.force && this.isUnlocked()) {
+      const count = this.pendingCount();
+      if (count > 0) throw new UnsyncedChanges(count);
+    }
     await this.lock();
     await this.disablePin();
     await this.session.remove(STORAGE_KEYS.pendingPairing);
@@ -552,11 +613,16 @@ export class VaultStore {
     });
     await talkToPhone(() => p2p.syncVaultV2(vault, vaultKey, clock, send));
     await this.save();
-    const phoneUrls = withLearned(account.phoneUrls, vault.addresses);
-    if (url !== account.lastPhoneUrl || phoneUrls.length !== account.phoneUrls.length) {
-      await this.saveAccount({ ...account, phoneUrls, lastPhoneUrl: url });
+    // Another page may have changed the account during the sync (addresses, a repair): merge into the
+    // current one, and only while it is still the same phone; otherwise its state wins.
+    const current = await this.getAccount();
+    if (!current || current.phone.staticPublicKey !== account.phone.staticPublicKey) return { skipped };
+    const phoneUrls = withLearned(current.phoneUrls, vault.addresses);
+    const lastPhoneUrl = phoneUrls.includes(url) ? url : current.lastPhoneUrl;
+    if (lastPhoneUrl !== current.lastPhoneUrl || phoneUrls.length !== current.phoneUrls.length) {
+      await this.saveAccount({ ...current, phoneUrls, lastPhoneUrl });
     }
-    for (const u of phoneUrls) if (!account.phoneUrls.includes(u) && !(await this.canReach(u))) skipped.push(u);
+    for (const u of phoneUrls) if (!account.phoneUrls.includes(u) && !skipped.includes(u) && !(await this.canReach(u))) skipped.push(u);
     return { skipped };
   }
 

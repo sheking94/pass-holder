@@ -92,14 +92,19 @@ export function form(onSubmit: () => void, ...children: Child[]) {
 }
 
 /** A button that asks "Na pewno?" on the first click and runs action on the second. */
-export function confirmButton(label: string, props: Partial<Record<string, unknown>>, action: () => void) {
+export function confirmButton(
+  label: string,
+  props: Partial<Record<string, unknown>>,
+  action: () => void,
+  confirmLabel = "Na pewno? Kliknij ponownie",
+) {
   let confirmed = false;
   const button = h("button", {
     ...props,
     onclick: () => {
       if (!confirmed) {
         confirmed = true;
-        button.textContent = "Na pewno? Kliknij ponownie";
+        button.textContent = confirmLabel;
         return;
       }
       action();

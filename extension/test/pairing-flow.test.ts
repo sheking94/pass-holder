@@ -15,8 +15,10 @@ describe("pending pairing as the connect screen sees it", () => {
     await store.pairStart(PHONE_URL, CODE, "Chrome (Linux)");
 
     expect(await store.hasPendingPairing()).toBe(true);
-    expect(await store.pendingPairing()).toEqual({ phoneName: "Telefon", phoneUrls: [PHONE_URL, SECOND_URL] });
-    await store.cancelPairing();
+    expect(await store.pendingPairing()).toEqual({ phoneName: "Telefon", deviceName: "Chrome (Linux)", phoneUrls: [PHONE_URL, SECOND_URL] });
+    // The phone already lists the browser: the screen names it, so the user can remove it there (M6).
+    expect(await store.cancelPairing()).toBe("Chrome (Linux)");
+    expect(await store.cancelPairing()).toBeUndefined();
     expect(await store.hasPendingPairing()).toBe(false);
     expect(await session.get(STORAGE_KEYS.pendingPairing)).toBeUndefined();
     await expect(store.pairFinish(PASSWORD)).rejects.toThrow("Najpierw sparuj");
@@ -37,6 +39,30 @@ describe("pending pairing as the connect screen sees it", () => {
     expect(await reopened.hasPendingPairing()).toBe(false);
     expect(await session.get(STORAGE_KEYS.pendingPairing)).toBeUndefined();
     await expect(reopened.pairFinish(PASSWORD)).rejects.toThrow("Najpierw sparuj");
+  }, 30_000);
+
+  it("pairFinish on an expired pairing says it expired and which device to remove on the phone (M6)", async () => {
+    let clock = 5_000_000;
+    const phone = await FakePhone.withVault(PASSWORD, [PHONE_URL]);
+    const { store, session } = newBrowser(new Map([[PHONE_URL, phone]]), () => clock);
+    phone.offerPairing();
+    await store.pairStart(PHONE_URL, CODE, "Chrome (Linux)");
+    clock += PAIRING_PENDING_MS;
+    await expect(store.pairFinish(PASSWORD)).rejects.toThrow(
+      "Parowanie wygasło. Poproś telefon o nowy kod. Na telefonie usuń „Chrome (Linux)” z „Urządzenia”.",
+    );
+    expect(await session.get(STORAGE_KEYS.pendingPairing)).toBeUndefined();
+  }, 30_000);
+
+  it("treats a pairing created in the future (clock moved back) as expired (M2)", async () => {
+    let clock = 5_000_000;
+    const phone = await FakePhone.withVault(PASSWORD, [PHONE_URL]);
+    const { store, session } = newBrowser(new Map([[PHONE_URL, phone]]), () => clock);
+    phone.offerPairing();
+    await store.pairStart(PHONE_URL, CODE, "Chrome");
+    clock -= 1;
+    expect(await store.hasPendingPairing()).toBe(false);
+    expect(await session.get(STORAGE_KEYS.pendingPairing)).toBeUndefined();
   }, 30_000);
 });
 
@@ -123,7 +149,9 @@ describe("Polish messages for raw phone errors", () => {
   it("a phone that forgot this browser asks to pair again", async () => {
     const { store, phone } = await pairedBrowser();
     phone.devices.length = 0;
-    await expect(store.sync()).rejects.toThrow("Telefon nie zna tej przeglądarki. Sparuj ponownie.");
+    await expect(store.sync()).rejects.toThrow(
+      "Telefon nie zna tej przeglądarki. Sparuj ją ponownie w „Adresy telefonu” → „Sparuj z innym telefonem / odtwórz telefon”.",
+    );
   }, 30_000);
 
   it("a malformed answer says the phone answered wrongly", async () => {

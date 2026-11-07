@@ -19,8 +19,8 @@ export function serverUrlFields(current: readonly string[] = []) {
   const box = h("div", { class: "url-list" });
   const add = (value = "") => {
     const first = box.childElementCount === 0;
+    // Not `required`: read() names a missing address in the status line, in the same place as other errors.
     const input = h("input", { type: "text", inputmode: "url", class: "mono", placeholder: first ? URL_EXAMPLE : SECOND_URL_EXAMPLE, value, autocomplete: "off" });
-    if (first) input.required = true;
     box.append(input);
     return input;
   };

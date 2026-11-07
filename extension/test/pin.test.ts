@@ -93,7 +93,7 @@ describe("Unlocking with a PIN", () => {
     expect(await store.pinStatus()).toBeUndefined();
 
     await store.enablePin("654321-abc", true);
-    await store.disconnect();
+    await store.disconnect({ force: true }); // the vault has an unsynced entry; the user confirmed
     expect(await local.get(STORAGE_KEYS.pinLock)).toBeUndefined();
   }, 60_000);
 
