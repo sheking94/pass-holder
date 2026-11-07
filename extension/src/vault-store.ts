@@ -12,7 +12,7 @@ import {
   utf8,
   type KdfParams,
 } from "@passholder/core";
-import { PhoneClient } from "./phone-client.ts";
+import { PhoneClient, phoneErrorInPolish } from "./phone-client.ts";
 import { invalidPinMessage, isValidPin } from "./pin-lock.ts";
 import { PinStore, type PinStatus } from "./pin-store.ts";
 import { learnedPhoneUrls, normalizePhoneUrls, pickServer } from "./server-urls.ts";
@@ -28,6 +28,9 @@ const LOCKED = "Sejf jest zablokowany";
 const NOT_PAIRED = "Ta przeglądarka nie jest sparowana z telefonem";
 const WRONG_PASSWORD = "Złe hasło główne";
 export const OTHER_VAULT = "To inny sejf. Wtyczka zostaje połączona z poprzednim telefonem.";
+const NO_PENDING_PAIRING = "Najpierw sparuj przeglądarkę z telefonem (kod z ekranu Synchronizacja).";
+const NO_ALLOWED_ADDRESS =
+  "Brak zgody Chrome na łączenie z żadnym adresem telefonu. Otwórz „Adresy telefonu” i zapisz adresy, a Chrome zapyta o zgodę.";
 export const PHONE_WAITS_FOR_RESTORE =
   "Telefon czeka na odtworzenie sejfu z wtyczki, a ta przeglądarka nie ma jeszcze sejfu. Na telefonie wybierz „Dodaj wtyczkę” albo odtwórz sejf z przeglądarki, która go ma.";
 
@@ -55,7 +58,12 @@ export interface Account {
  * code), not a browser restart.
  */
 interface PendingPairing {
+  /** The address that answered. */
   url: string;
+  /** Every typed address, `url` among them. */
+  urls: string[];
+  /** When /pair/finish succeeded; after PAIRING_PENDING_MS the pairing counts as abandoned. */
+  createdAt: number;
   deviceId: string;
   deviceName: string;
   /** Base64; memory only, like the session keys. */
@@ -72,6 +80,43 @@ interface SessionKeys {
 }
 
 export const AUTO_LOCK_MS = 15 * 60_000;
+
+/** How long a pairing waits for the master password before it counts as abandoned (a new code is needed). */
+export const PAIRING_PENDING_MS = 10 * 60_000;
+
+/** What the connect screen shows while a pairing waits for the master password. */
+export interface PendingPairingInfo {
+  phoneName: string;
+  /** The addresses the account will start with (typed, then learned from the phone): Chrome must allow each. */
+  phoneUrls: string[];
+}
+
+/** What a sync did besides syncing: addresses it did not try because Chrome does not allow them yet. */
+export interface SyncResult {
+  skipped: string[];
+}
+
+/**
+ * The pairing is saved (the browser is paired and unlocked), but the first sync after it failed. Thrown by
+ * pairFinish and repair so the screen can say "paired" rather than "pairing failed".
+ */
+export class PairedButSyncFailed extends Error {
+  constructor(
+    readonly mode: "paired" | "restored",
+    readonly syncError: unknown,
+  ) {
+    super(`Sparowano z telefonem, ale pierwsza synchronizacja się nie udała: ${syncError instanceof Error ? syncError.message : String(syncError)}`);
+  }
+}
+
+/** Runs a call to the phone and turns the core's English errors into Polish ones. */
+async function talkToPhone<T>(call: () => Promise<T>): Promise<T> {
+  try {
+    return await call();
+  } catch (error) {
+    throw phoneErrorInPolish(error);
+  }
+}
 
 /**
  * Activity (a click, a key) moves the auto-lock deadline, but writes it to session storage at most this
@@ -166,6 +211,8 @@ export class VaultStore {
     private readonly session: KeyValueStore,
     private readonly makeClient: (url: string) => PhoneClient = (url) => new PhoneClient(url),
     private readonly now: () => number = Date.now,
+    /** Whether Chrome lets this page reach the address (host permission); sync skips those it does not. */
+    private readonly canReach: (url: string) => Promise<boolean> = async () => true,
   ) {
     this.pin = new PinStore(local, session);
   }
@@ -238,23 +285,25 @@ export class VaultStore {
    * First step of pairing a new browser: /pair/hello, start and finish with the code the phone shows.
    * The result (with this browser's new static key) waits in session storage for pairFinish.
    */
-  async pairStart(url: string, code: string, deviceName: string): Promise<{ needsPassword: true }> {
-    const baseUrl = phoneUrl(url);
+  async pairStart(urls: string | readonly string[], code: string, deviceName: string): Promise<{ needsPassword: true }> {
+    const typed = typeof urls === "string" ? [phoneUrl(urls)] : toUrlList(urls);
     const name = deviceName.trim();
     if (name.length < 1 || name.length > p2p.MAX_DEVICE_NAME_LENGTH) {
       throw new Error(`Podaj nazwę tego urządzenia (do ${p2p.MAX_DEVICE_NAME_LENGTH} znaków)`);
     }
     if (await this.getAccount()) throw new Error("Ta przeglądarka jest już sparowana. Użyj „Sparuj z innym telefonem”.");
-    const client = this.makeClient(baseUrl);
+    const { url: baseUrl, client } = await pickServer(typed, this.makeClient);
     // pairWithPhone refuses restore mode too, but only with a short message; this one says what to do.
-    if ((await p2p.phoneHello(baseUrl, client.post)).mode === "restore") throw new Error(PHONE_WAITS_FOR_RESTORE);
+    if ((await talkToPhone(() => p2p.phoneHello(baseUrl, client.post))).mode === "restore") throw new Error(PHONE_WAITS_FOR_RESTORE);
 
     const staticKey = p2p.generateKeyPair();
     const identity: p2p.DeviceIdentity = { deviceId: crypto.randomUUID(), name, staticPublicKey: toBase64(staticKey.publicKey) };
-    const res = await p2p.pairWithPhone({ baseUrl, code, identity, post: client.post });
+    const res = await talkToPhone(() => p2p.pairWithPhone({ baseUrl, code, identity, post: client.post }));
     if (res.mode !== "pair") throw new Error(PHONE_WAITS_FOR_RESTORE);
     const pending: PendingPairing = {
       url: baseUrl,
+      urls: [baseUrl, ...typed.filter((u) => u !== baseUrl)],
+      createdAt: this.now(),
       deviceId: identity.deviceId,
       deviceName: name,
       staticPrivateKey: toBase64(staticKey.privateKey),
@@ -266,18 +315,45 @@ export class VaultStore {
     return { needsPassword: true };
   }
 
+  /** A pairing waits for the master password (pairStart succeeded, pairFinish not yet). */
+  async hasPendingPairing(): Promise<boolean> {
+    return (await this.loadPending()) !== undefined;
+  }
+
+  async pendingPairing(): Promise<PendingPairingInfo | undefined> {
+    const pending = await this.loadPending();
+    if (!pending) return undefined;
+    return { phoneName: pending.phone.name, phoneUrls: withLearned(pending.urls, pending.vaultInfo.addresses) };
+  }
+
+  /** "Anuluj parowanie": forgets the pairing that waits for the password; the next one needs a new code. */
+  async cancelPairing(): Promise<void> {
+    await this.session.remove(STORAGE_KEYS.pendingPairing);
+  }
+
+  /** The pending pairing, unless it is older than PAIRING_PENDING_MS (then it is removed). */
+  private async loadPending(): Promise<PendingPairing | undefined> {
+    const pending = await this.session.get<PendingPairing>(STORAGE_KEYS.pendingPairing);
+    if (!pending) return undefined;
+    if (!(typeof pending.createdAt === "number" && this.now() - pending.createdAt < PAIRING_PENDING_MS)) {
+      await this.cancelPairing();
+      return undefined;
+    }
+    return pending;
+  }
+
   /**
    * Second step: the master password opens the phone's vault key. A wrong one leaves the pairing in session
    * storage, so it can be typed again without a new code. Then the account is saved and the first sync runs.
    */
-  async pairFinish(masterPassword: string): Promise<void> {
-    const pending = await this.session.get<PendingPairing>(STORAGE_KEYS.pendingPairing);
-    if (!pending) throw new Error("Najpierw sparuj przeglądarkę z telefonem (kod z ekranu Synchronizacja).");
+  async pairFinish(masterPassword: string): Promise<SyncResult> {
+    const pending = await this.loadPending();
+    if (!pending) throw new Error(NO_PENDING_PAIRING);
     const { kdf, wrappedVaultKey } = pending.vaultInfo;
     assertKdfParamsAcceptable(kdf);
     const vaultKey = await unwrapWithPassword(masterPassword, kdf, wrappedVaultKey);
     const account: Account = {
-      phoneUrls: withLearned([pending.url], pending.vaultInfo.addresses),
+      phoneUrls: withLearned(pending.urls, pending.vaultInfo.addresses),
       lastPhoneUrl: pending.url,
       deviceId: pending.deviceId,
       deviceName: pending.deviceName,
@@ -293,7 +369,16 @@ export class VaultStore {
     await this.saveAccount(account);
     await this.startSession(vaultKey, vault, account);
     await this.session.remove(STORAGE_KEYS.pendingPairing);
-    await this.sync();
+    return this.firstSync("paired");
+  }
+
+  /** The sync right after a pairing was saved: its failure must not read as a failed pairing. */
+  private async firstSync(mode: "paired" | "restored"): Promise<SyncResult> {
+    try {
+      return await this.sync();
+    } catch (error) {
+      throw new PairedButSyncFailed(mode, error);
+    }
   }
 
   /**
@@ -302,9 +387,9 @@ export class VaultStore {
    * ("paired") must hold the same vault key: otherwise nothing changes here and OTHER_VAULT is thrown.
    * The master password is checked first, so a typo does not spend the phone's code.
    */
-  async repair(url: string, code: string, masterPassword: string): Promise<"paired" | "restored"> {
+  async repair(urls: string | readonly string[], code: string, masterPassword: string): Promise<"paired" | "restored"> {
     const account = await this.requireAccount();
-    const baseUrl = phoneUrl(url);
+    const typed = typeof urls === "string" ? [phoneUrl(urls)] : toUrlList(urls);
     const vaultKey = await unwrapWithPassword(masterPassword, account.kdf, account.wrappedVaultKey);
     const vault = await this.loadVault(vaultKey);
     const identity: p2p.DeviceIdentity = { deviceId: account.deviceId, name: account.deviceName, staticPublicKey: account.staticPublicKey };
@@ -315,8 +400,9 @@ export class VaultStore {
       wrappedVaultKey: account.wrappedVaultKey,
       addresses: [],
     };
+    const { url: baseUrl, client } = await pickServer(typed, this.makeClient);
     // In pair mode pairWithPhone does not send `restore`: the phone keeps its own vault.
-    const res = await p2p.pairWithPhone({ baseUrl, code, identity, post: this.makeClient(baseUrl).post, restore });
+    const res = await talkToPhone(() => p2p.pairWithPhone({ baseUrl, code, identity, post: client.post, restore }));
 
     let { kdf, wrappedVaultKey } = account;
     if (res.mode === "pair") {
@@ -328,7 +414,7 @@ export class VaultStore {
     p2p.applyVaultInfo(vault, res.vaultInfo);
     const updated: Account = {
       ...account,
-      phoneUrls: withLearned([baseUrl], res.vaultInfo.addresses),
+      phoneUrls: withLearned([baseUrl, ...typed.filter((u) => u !== baseUrl)], res.vaultInfo.addresses),
       lastPhoneUrl: baseUrl,
       phone: res.phone,
       kdf,
@@ -336,8 +422,9 @@ export class VaultStore {
     };
     await this.saveAccount(updated);
     await this.startSession(vaultKey, vault, updated);
-    await this.sync();
-    return res.mode === "pair" ? "paired" : "restored";
+    const mode = res.mode === "pair" ? "paired" : "restored";
+    await this.firstSync(mode);
+    return mode;
   }
 
   /** Works offline: the wrapped vault key and the encrypted vault are on disk. */
@@ -442,14 +529,19 @@ export class VaultStore {
   /**
    * Syncs with the phone at the first address that answers (the one that worked last time is tried first),
    * over Noise KK with this browser's static key and the phone's key from pairing. Addresses the phone
-   * reports are added to phoneUrls; typed ones stay.
+   * reports are added to phoneUrls; typed ones stay. Addresses Chrome does not allow yet (e.g. learned ones
+   * the user has not approved) are skipped and returned, so the screen can say where to allow them.
    */
-  async sync(): Promise<void> {
+  async sync(): Promise<SyncResult> {
     const vault = this.requireVault();
     const vaultKey = fromBase64(this.requireKeys().vaultKey);
     const clock = this.requireClock();
     const account = await this.requireAccount();
-    const { url, client } = await pickServer(account.phoneUrls, this.makeClient, account.lastPhoneUrl);
+    const allowed: string[] = [];
+    const skipped: string[] = [];
+    for (const u of account.phoneUrls) ((await this.canReach(u)) ? allowed : skipped).push(u);
+    if (allowed.length === 0) throw new Error(NO_ALLOWED_ADDRESS);
+    const { url, client } = await pickServer(allowed, this.makeClient, account.lastPhoneUrl);
     const staticKey = p2p.keyPairFromPrivateKey(await open(vaultKey, account.sealedStaticKey, STATIC_KEY_AAD));
     const send = p2p.noiseTransport({
       baseUrl: url,
@@ -458,12 +550,14 @@ export class VaultStore {
       peerPublicKey: fromBase64(account.phone.staticPublicKey),
       post: client.post,
     });
-    await p2p.syncVaultV2(vault, vaultKey, clock, send);
+    await talkToPhone(() => p2p.syncVaultV2(vault, vaultKey, clock, send));
     await this.save();
     const phoneUrls = withLearned(account.phoneUrls, vault.addresses);
     if (url !== account.lastPhoneUrl || phoneUrls.length !== account.phoneUrls.length) {
       await this.saveAccount({ ...account, phoneUrls, lastPhoneUrl: url });
     }
+    for (const u of phoneUrls) if (!account.phoneUrls.includes(u) && !(await this.canReach(u))) skipped.push(u);
+    return { skipped };
   }
 
   private async requireAccount(): Promise<Account> {

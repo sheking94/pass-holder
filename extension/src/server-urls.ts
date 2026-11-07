@@ -14,7 +14,12 @@ export const PHONE_PORT = 8787;
  * The phone answers only requests whose Host is an IPv4 literal or localhost (anything else gets 403), and
  * only over plain HTTP: the Noise handshake inside does the encryption and authentication.
  */
-const PHONE_URL = /^(?:http:\/\/)?(localhost|(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3}))(?::(\d{1,5}))?\/*$/i;
+const OCTET = String.raw`(0|[1-9]\d{0,2})`;
+/** No leading zeros in an octet: the WHATWG URL parser would read "010" as octal (8). */
+const PHONE_URL = new RegExp(
+  String.raw`^(?:http:\/\/)?(localhost|${OCTET}\.${OCTET}\.${OCTET}\.${OCTET})(?::(\d{1,5}))?\/*$`,
+  "i",
+);
 
 const invalidPhoneUrl = (raw: string) =>
   `Nieprawidłowy adres telefonu „${raw}”. Wpisz adres IPv4 z ekranu Synchronizacja w telefonie, np. http://192.168.1.5:${PHONE_PORT}.`;

@@ -217,12 +217,12 @@ export function networkFetch(network: Network): typeof fetch {
 }
 
 /** A browser whose VaultStore reaches the fake network. */
-export function newBrowser(network: Network, now: () => number = Date.now) {
+export function newBrowser(network: Network, now: () => number = Date.now, canReach?: (url: string) => Promise<boolean>) {
   const local = memoryStore();
   const session = memoryStore();
   const fetchFn = networkFetch(network);
   const makeClient = (url: string) => new PhoneClient(url, fetchFn);
-  return { local, session, makeClient, store: new VaultStore(local, session, makeClient, now) };
+  return { local, session, makeClient, store: new VaultStore(local, session, makeClient, now, canReach) };
 }
 
 export const PHONE_URL = "http://192.168.1.5:8787";

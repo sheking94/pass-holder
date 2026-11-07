@@ -24,7 +24,9 @@ describe("phone addresses", () => {
     expect(normalizePhoneUrl("192.168.1.5:9000/")).toBe("http://192.168.1.5:9000");
     expect(normalizePhoneUrl("HTTP://10.0.0.1:8787//")).toBe("http://10.0.0.1:8787");
     expect(normalizePhoneUrl("http://LocalHost:8787")).toBe("http://localhost:8787");
-    for (const bad of ["", "https://192.168.1.5:8787", "http://phone.local:8787", "http://[::1]:8787", "1.2.3.256", "1.2.3", "http://1.2.3.4:0", "http://1.2.3.4:8787/p2p", "http://u@1.2.3.4"]) {
+    // A single 0 is fine; leading zeros are not (the WHATWG URL parser would read 010 as octal 8).
+    expect(normalizePhoneUrl("10.0.0.1")).toBe("http://10.0.0.1:8787");
+    for (const bad of ["", "https://192.168.1.5:8787", "http://phone.local:8787", "http://[::1]:8787", "1.2.3.256", "1.2.3", "http://1.2.3.4:0", "http://1.2.3.4:8787/p2p", "http://u@1.2.3.4", "010.0.0.1", "192.168.01.5", "http://1.2.3.00:8787"]) {
       expect(normalizePhoneUrl(bad)).toBeUndefined();
     }
   });

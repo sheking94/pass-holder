@@ -72,7 +72,8 @@ function lockedView(message = "") {
       showUnlocked();
     });
 
-  const disconnect = confirmButton("Odłącz tę przeglądarkę", { type: "button", class: "danger" }, async () => {
+  // Forgets only this browser's copy; the phone keeps the vault (remove the browser there in "Urządzenia").
+  const disconnect = confirmButton("Odłącz tę przeglądarkę", { type: "button", class: "danger", title: "Usuwa sejf z tej przeglądarki. Telefon zachowuje wszystkie hasła." }, async () => {
     await store.disconnect();
     showConnect();
   });
@@ -80,6 +81,7 @@ function lockedView(message = "") {
   show(
     openInTabButton(),
     h("h1", {}, "PassHolder jest zablokowany"),
+    h("p", { class: "hint" }, "Hasło główne sejfu z telefonu. Odblokowanie działa także bez połączenia z telefonem."),
     form(
       () => void unlock(),
       h("label", {}, "Hasło główne"),

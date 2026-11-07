@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { ApiError, PhoneClient } from "../src/phone-client.ts";
+import { describe, expect, it, vi } from "vitest";
+import { ApiError, PHONE_UNREACHABLE, PhoneClient, POST_TIMEOUT_MS } from "../src/phone-client.ts";
 import { STORAGE_KEYS, VaultStore, memoryStore } from "../src/vault-store.ts";
 import { CODE, FakePhone, names, newBrowser, pairedBrowser, PASSWORD, PHONE_URL } from "./fake-phone.ts";
 
@@ -47,7 +47,7 @@ describe("VaultStore edge cases", () => {
     phone.kdf = { ...phone.kdf!, memoryKiB: 8, iterations: 1, parallelism: 1 };
     const { store, session } = newBrowser(new Map([[PHONE_URL, phone]]));
     phone.offerPairing();
-    await expect(store.pairStart(PHONE_URL, CODE, "Chrome")).rejects.toThrow("malformed");
+    await expect(store.pairStart(PHONE_URL, CODE, "Chrome")).rejects.toThrow("Telefon odpowiedział niepoprawnie.");
     expect(await session.get(STORAGE_KEYS.pendingPairing)).toBeUndefined();
   });
 
@@ -75,7 +75,7 @@ describe("VaultStore edge cases", () => {
   it("a phone that forgot this browser is reported by sync", async () => {
     const { store, phone } = await pairedBrowser();
     phone.devices.length = 0;
-    await expect(store.sync()).rejects.toThrow("403");
+    await expect(store.sync()).rejects.toThrow("Telefon nie zna tej przeglądarki");
   }, 30_000);
 });
 
@@ -107,5 +107,25 @@ describe("PhoneClient", () => {
     await expect(down.status()).rejects.toEqual(new ApiError(0, "Telefon nie odpowiada. Czy tryb Synchronizacja jest włączony?"));
     const html = new PhoneClient("http://x", async () => new Response("<h1>Bad Gateway</h1>", { status: 502 }));
     expect(await html.post("http://x/p2p/v1/ping", {})).toEqual({ status: 502, body: {} });
+  });
+
+  it("gives up on a request after 30 s, also when the body never finishes", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      expect(POST_TIMEOUT_MS).toBe(30_000);
+      const silent = new PhoneClient("http://x", () => new Promise<Response>(() => {}));
+      const slowBody = new PhoneClient("http://x", async () => ({ status: 200, json: () => new Promise(() => {}) }) as unknown as Response);
+      for (const client of [silent, slowBody]) {
+        let result: unknown;
+        const call = client.post("http://x/p2p/v1/sync", {}).then((r) => r, (e: unknown) => e).then((r) => (result = r));
+        await vi.advanceTimersByTimeAsync(POST_TIMEOUT_MS - 1);
+        expect(result).toBeUndefined();
+        await vi.advanceTimersByTimeAsync(1);
+        await call;
+        expect(result).toEqual(new ApiError(0, PHONE_UNREACHABLE));
+      }
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -21,11 +21,17 @@ async function copyPassword(password: string, status: HTMLElement) {
   setStatus(status, `Skopiowano hasło. Schowek zostanie wyczyszczony za ${CLEAR_AFTER_MINUTES} min.`);
 }
 
-export function listView(message = "") {
+/** One sentence about addresses a sync skipped because Chrome does not allow them yet; "" when none. */
+export function skippedNote(skipped: readonly string[]): string {
+  if (skipped.length === 0) return "";
+  return ` Pominięto adresy bez zgody Chrome: ${skipped.join(", ")}. Zgodę dasz w „Adresy telefonu” (Zapisz).`;
+}
+
+export function listView(message = "", isError = false) {
   const search = h("input", { type: "search", placeholder: "Szukaj…" });
   const list = h("ul", { class: "entries" });
   const status = statusLine();
-  setStatus(status, message);
+  setStatus(status, message, isError);
 
   const renderList = () => {
     const query = search.value.trim().toLowerCase();
@@ -65,14 +71,14 @@ export function listView(message = "") {
       h("button", {
         onclick: () =>
           busy(status, "Synchronizuję…", async () => {
-            await store.sync();
+            const { skipped } = await store.sync();
             renderList();
-            setStatus(status, `Zsynchronizowano ${new Date().toLocaleTimeString("pl")}.`);
+            setStatus(status, `Zsynchronizowano z telefonem ${new Date().toLocaleTimeString("pl")}.` + skippedNote(skipped));
           }),
       }, "Synchronizuj"),
       h("button", { title: "Logowanie PIN-em", onclick: () => void pinSettingsView() }, "PIN"),
       h("button", { onclick: async () => { await store.lock(); await showLocked(); } }, "Zablokuj"),
-      h("button", { title: "Adresy serwera, np. w domu i przez Tailscale", onclick: () => void openAddresses() }, "Adresy serwera"),
+      h("button", { title: "Adresy telefonu (np. w domu i przez Tailscale), parowanie z innym telefonem", onclick: () => void openAddresses() }, "Adresy telefonu"),
       h("button", { title: "Import i eksport haseł w pliku CSV (format NordPass)", onclick: () => void openTransfer() }, "CSV"),
     ),
     status,

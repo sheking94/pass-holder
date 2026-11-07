@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "PassHolder",
   "version": "0.1.0",
-  "description": "Prywatny menedżer haseł synchronizowany z serwerem na Raspberry Pi.",
+  "description": "Prywatny menedżer haseł synchronizowany z telefonem.",
   "minimum_chrome_version": "120",
   "action": {
     "default_title": "PassHolder",
@@ -16,9 +16,7 @@
     "offscreen"
   ],
   "optional_host_permissions": [
-    "https://*/*",
-    "http://localhost/*",
-    "http://127.0.0.1/*"
+    "http://*/*"
   ],
   "background": {
     "service_worker": "background.js",
