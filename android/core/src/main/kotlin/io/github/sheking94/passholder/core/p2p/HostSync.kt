@@ -61,6 +61,7 @@ object HostSync {
     const val MAX_CHANGES_PER_REQUEST = 500
     const val MAX_CHANGES_PER_RESPONSE = 500
     const val MAX_ENTRY_ID_LENGTH = 128
+    const val MAX_BLOB_BYTES_PER_ROUND = 524288
 
     private fun JsonElement?.string(): String? = if (this is JsonPrimitive && isString) content else null
 
