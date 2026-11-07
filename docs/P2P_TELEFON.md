@@ -2,7 +2,7 @@
 
 Dokument opisuje to, co w planie 3 (projekt w `SYNCHRONIZACJA_P2P.md`) robi telefon: własny sejf w
 aplikacji, serwer HTTP, parowanie kodem i ekrany trybu synchronizacji. Część B (wtyczka paruje się z
-telefonem) dochodzi w PR 3b. Rdzeń protokołu (`P2pHost`, CPace, Noise) opisuje `P2P_ANDROID_RDZEN.md`, więc
+telefonem) opisuje [`P2P_WTYCZKA.md`](P2P_WTYCZKA.md). Rdzeń protokołu (`P2pHost`, CPace, Noise) opisuje `P2P_ANDROID_RDZEN.md`, więc
 tu go nie powtarzamy. Kod: `android/core/src/main/kotlin/io/github/sheking94/passholder/core/p2p/` (czysty
 Kotlin/JVM) i `android/app/src/main/kotlin/io/github/sheking94/passholder/app/` (Compose). Gałąź: `claude/project-thread-0590i1`.
 
@@ -247,8 +247,8 @@ przy każdym uruchomieniu.
 
 ## 10. Znane ograniczenia
 
-- **Tylko adres IPv4.** Nazwy (MagicDNS) i IPv6 dostają 403 `forbidden host` (punkt 3). Część B musi wymagać
-  adresu IP albo wytłumaczyć ten błąd.
+- **Tylko adres IPv4.** Nazwy (MagicDNS) i IPv6 dostają 403 `forbidden host` (punkt 3). Wtyczka (część B)
+  przyjmuje więc tylko adres IPv4 i pomija inne adresy.
 - **Kod parowania można spalić z sieci.** Każdy w LAN zna `sid` (z `/pair/hello`) i jedną błędną próbą zużywa
   kod i klucz; to nieusuwalne przy jednej próbie na kod, więc ekran każe wziąć nowy kod.
 - **Klucz parowania nie jest zerowany**, a wygasły oczekujący klucz zostaje w pamięci do następnej oferty,
@@ -275,9 +275,9 @@ przy każdym uruchomieniu.
   trzyma jego blokadę podczas `bind`.
 - Ograniczenia samego protokołu: `P2P_RDZEN.md` §6 i `P2P_ANDROID_RDZEN.md` §6.
 
-## 11. Testy ręczne na telefonie
+## 11. Testy ręczne
 
-Po PR 3b (pełny przepływ z wtyczką dojdzie w części B; na razie bez niej):
+### 11.1 Sam telefon
 
 1. Zainstaluj aplikację (z katalogu `android/`: `./gradlew :app:installDebug`).
 2. Start → „Nowy sejf”, hasło główne co najmniej 12 znaków. Pojawia się pusty sejf.
@@ -293,8 +293,75 @@ Po PR 3b (pełny przepływ z wtyczką dojdzie w części B; na razie bez niej):
    Oczekiwana odpowiedź: `{"ok":true}`. Z nazwą zamiast IP w adresie (jeśli się rozwiąże) powinno być 403 `forbidden host`.
 6. Wyjdź z aplikacji (Home) i wróć: tryb jest wyłączony („…po wyjściu z aplikacji”), „Włącz ponownie” go
    uruchamia; `curl` w międzyczasie nie dostaje odpowiedzi.
-7. „Urządzenia”: na razie pusto („Brak sparowanych wtyczek”).
+7. „Urządzenia”: bez sparowanej wtyczki pusto („Brak sparowanych wtyczek”).
 8. Zablokuj sejf i odblokuj go hasłem (i odciskiem, jeśli włączony).
 9. Zablokuj i „Usuń sejf z telefonu” (z potwierdzeniem): wraca ekran startowy.
 10. Start → „Odtwórz z wtyczki” → „Rozpocznij odtwarzanie”: ekran pokazuje adres i kod; „Przerwij odtwarzanie” wraca
     na start.
+
+### 11.2 Telefon z wtyczką
+
+Przygotowanie: `npm run build -w extension`, w `chrome://extensions` „Załaduj rozpakowane” → `extension/dist`
+(prawdziwy Chrome, nie Chromium z testów). Stara wtyczka v1: najpierw eksport CSV (`P2P_WTYCZKA.md` §0).
+Telefon i komputer w tej samej sieci Wi-Fi. Wynik każdego testu zapisz.
+
+**T7. Bramka przed scaleniem (zrób najpierw).** Dlaczego: test dymny w chmurze dał zgody na hosty z góry
+(kopia manifestu z `host_permissions`) i łączył się tylko z `127.0.0.1`, a wcześniejszy spike
+(`SYNCHRONIZACJA_P2P.md` §2) sprawdził tylko service worker. Prawdziwa prośba o zgodę i Private Network
+Access ze strony wtyczki do adresu w LAN nie były sprawdzone.
+
+1. Kliknij ikonę PassHolder na pasku (okienko, nie ręcznie otwarta karta) → „Sparuj z telefonem”. Okienko
+   otwiera kartę parowania.
+2. Wpisz adres telefonu z LAN `http://192.168.x.x:8787`, kod i „Sparuj”. Chrome **musi** zapytać o zgodę na
+   `http://<ip>:8787/*`. Zaakceptuj.
+3. Hasło główne → „Sparowano z telefonem.”, lista z wpisem z telefonu. Potem w okienku z paska
+   „Synchronizuj” → „Zsynchronizowano z telefonem HH:MM”.
+4. Jeśli parowanie albo synchronizacja kończy się „Telefon nie odpowiada”, a tryb Synchronizacja na telefonie
+   jest włączony: DevTools (karta: F12; okienko: prawy przycisk → „Zbadaj”) → Network. Szukaj żądania
+   wstępnego CORS / Private Network Access (`OPTIONS` z odpowiedzią 405: serwer telefonu przyjmuje tylko
+   `POST`). Zapisz wynik i wersję Chrome w `SYNCHRONIZACJA_P2P.md` §2 i §10.
+
+**T1. LAN, wpis w obie strony.** Telefon: „Nowy sejf” → wpis A → Synchronizacja → „Dodaj wtyczkę”. Wtyczka:
+parowanie jak w T7. Wpis A jest we wtyczce. Dodaj we wtyczce wpis B (kropka •, niezsynchronizowany) →
+„Synchronizuj”: kropka znika, telefon pokazuje „Zsynchronizowano z: <nazwa>” i wpis B. Zmień A na telefonie,
+zsynchronizuj z wtyczki: zmiana jest we wtyczce. „Urządzenia” pokazuje wtyczkę z datami.
+
+**T2. Zły i wygasły kod.** Odłącz wtyczkę (T9) i usuń ją w „Urządzenia”. Zły kod: „Zły kod parowania.
+Poproś telefon o nowy kod.”, a telefon każe wziąć nowy kod. Kod po 2 min: „Telefon nie czeka na parowanie
+albo kod wygasł.” 7 cyfr: „Kod parowania to 8 cyfr.”, a kod na telefonie nie przepada.
+
+**T3. Zmiana sieci.** Przełącz telefon na inną sieć Wi-Fi (albo zmień jego IP). Wtyczka ze starym adresem:
+„Telefon nie odpowiada…”. Dodaj nowy adres w „Adresy telefonu” → „Zapisz” (prośba o zgodę) →
+„Synchronizuj”: działa bez ponownego parowania. Przy dwóch adresach martwy kosztuje do 4 s. Adresy, które
+telefon poda sam, pojawiają się w „Adresy telefonu”; bez „Zapisz” lista mówi „Pominięto adresy bez zgody
+Chrome…”.
+
+**T4. Tailscale.** Tailscale włączony na telefonie i komputerze. W „Adresy telefonu” dodaj
+`http://100.x.y.z:8787` (adres z ekranu Synchronizacja albo `tailscale ip -4`) → „Zapisz”. Wyłącz Wi-Fi
+komputera albo usuń adres LAN i „Synchronizuj”. Wynik (działa / błąd, wersja Chrome) wpisz do
+`SYNCHRONIZACJA_P2P.md` §2 i §10. Nazwa MagicDNS jest odrzucana już przez wtyczkę („Nieprawidłowy adres
+telefonu…”).
+
+**T5. Odtworzenie.** Wtyczka zsynchronizowana z kilkoma wpisami. Telefon: zablokuj → „Usuń sejf z telefonu”
+→ „Odtwórz z wtyczki” → „Rozpocznij odtwarzanie”. Wtyczka: „Adresy telefonu” → „Sparuj z innym telefonem /
+odtwórz telefon”: adres, kod, hasło → „Telefon odtworzony z tej wtyczki…”. Telefon prosi o hasło główne →
+wszystkie wpisy wróciły. Nowy wpis z telefonu dochodzi do wtyczki przy następnej synchronizacji.
+
+**T6. Wyjście z aplikacji gasi tryb.** Przy włączonym trybie naciśnij Home na telefonie. „Synchronizuj” we
+wtyczce: „Telefon nie odpowiada…” (przy kilku adresach: „…pod żadnym adresem…”). Po „Włącz ponownie” działa.
+
+**T8. Telefon zapomniał przeglądarkę.** Dodaj we wtyczce wpis C bez synchronizacji. Na telefonie w
+„Urządzenia” usuń wtyczkę. „Synchronizuj”: „Telefon nie zna tej przeglądarki. Sparuj ją ponownie w „Adresy
+telefonu” → „Sparuj z innym telefonem / odtwórz telefon”.” Telefon: „Dodaj wtyczkę”; wtyczka: ten formularz
+z adresem, kodem i hasłem → „Sparowano z telefonem. Ta przeglądarka synchronizuje się teraz z nim.” Wpis C
+jest na telefonie, nic lokalnego nie zginęło.
+
+**T9. Ostrzeżenie przy odłączaniu.** Dodaj wpis bez synchronizacji, zablokuj wtyczkę. „Odłącz tę
+przeglądarkę”: pierwsze kliknięcie zmienia napis na „Niezsynchronizowane zmiany mogą przepaść. Kliknij
+ponownie”, dopiero drugie odłącza (ekran „Sparuj z telefonem”). Telefon nadal ma wpisy z ostatniej
+synchronizacji; usuń wtyczkę w „Urządzenia”.
+
+**T10. Złe hasło przy parowaniu.** Krok hasła: złe hasło → „Złe hasło główne”, zostajesz na tym kroku.
+Zamknij kartę i otwórz okienko: „Dokończ parowanie” wraca do hasła; dobre hasło paruje bez nowego kodu.
+Drugie parowanie: odczekaj 10 min na kroku hasła → „Parowanie wygasło. Poproś telefon o nowy kod. Na
+telefonie usuń „<nazwa>” z „Urządzenia”.” Usuń ją tam.

@@ -1,10 +1,13 @@
 /**
- * Keys in chrome.storage. account, vault and generator are in local storage, sessionKeys in session storage.
- * pinLock is in session storage, or in local storage if the user wants the PIN to survive a browser restart.
+ * Keys in chrome.storage. account, vault and generator are in local storage; sessionKeys and pendingPairing
+ * in session storage. pinLock is in session storage, or in local storage if the user wants the PIN to survive
+ * a browser restart. The v1 keys of the Raspberry Pi version ("account", "vault") are not read: that data
+ * moves to the phone through a CSV export.
  */
 export const STORAGE_KEYS = {
-  account: "account",
-  vault: "vault",
+  account: "accountV2",
+  vault: "vaultV2",
+  pendingPairing: "pendingPairing",
   sessionKeys: "keys",
   generator: "generator",
   pinLock: "pinLock",

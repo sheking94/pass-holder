@@ -6,6 +6,11 @@ Instrukcja krok po kroku dla trzech części systemu:
 2. [Wtyczka do Chrome na Ubuntu](#część-2-wtyczka-do-chrome) – pierwszy klient, zakłada sejf.
 3. [Aplikacja na Androida](#część-3-aplikacja-na-androida) – drugi klient, łączy się z istniejącym sejfem.
 
+> **Od wersji z planem 3 Pi nie jest potrzebne.** Sejf zakłada się w aplikacji na telefonie, a wtyczka
+> paruje się z nim kodem ([`P2P_WTYCZKA.md`](P2P_WTYCZKA.md), [`P2P_TELEFON.md`](P2P_TELEFON.md)).
+> **Przed aktualizacją wtyczki wyeksportuj hasła do CSV**: nowa wtyczka nie czyta danych z wersji z Pi;
+> po sparowaniu zaimportuj CSV we wtyczce. Części o Pi poniżej dotyczą starej wersji; usunie je plan 4.
+
 Na końcu: [aktualizacje](#aktualizacje), [kopia zapasowa](#kopia-zapasowa), [dezinstalacja](#dezinstalacja),
 [rozwiązywanie problemów](#rozwiązywanie-problemów) i [znane ograniczenia](#znane-ograniczenia).
 
@@ -518,7 +523,8 @@ Jeśli zmienił się `deploy/passholder.service`, skopiuj go ponownie i uruchom 
 Konfiguracji `/etc/passholder/passholder.env` aktualizacja nie nadpisuje.
 
 **Wtyczka:** `npm install && npm run build -w extension`, potem w `chrome://extensions` przycisk odświeżania
-(strzałka) na karcie PassHolder. Dane wtyczki zostają.
+(strzałka) na karcie PassHolder. Dane wtyczki zostają, z wyjątkiem przejścia z wersji z Pi na wersję z
+telefonem (plan 3): wtedy najpierw eksport CSV, patrz uwaga na początku.
 
 **Telefon:** `./gradlew :app:installDebug` instaluje nową wersję na starej, dane zostają. Odinstalowanie aplikacji
 usuwa lokalny sejf.

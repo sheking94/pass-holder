@@ -4,8 +4,8 @@
  * Chrome closes the popup as soon as it loses focus: a host permission prompt, a file chooser, a click on
  * the web page. Whatever needs one of those runs in a normal tab, which stays open:
  *  - "tab":       the whole extension, opened by the "Otwórz w karcie" button,
- *  - "setup":     the connect form (the host permission prompt),
- *  - "addresses": the server address form (the host permission prompt for a new address),
+ *  - "setup":     pairing with the phone (the host permission prompt),
+ *  - "addresses": the phone address form and pairing with another phone (host permission prompts),
  *  - "transfer":  CSV import and export (the file chooser).
  */
 export type PageMode = "popup" | "tab" | "setup" | "addresses" | "transfer";

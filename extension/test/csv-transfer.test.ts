@@ -1,8 +1,6 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { buildApp } from "@passholder/server/src/app.ts";
-import { Database } from "@passholder/server/src/db.ts";
+import { describe, expect, it } from "vitest";
 import { exportNordPassCsv, importSummary, NORDPASS_COLUMNS, parseCsv, parseNordPassCsv } from "../src/csv-transfer.ts";
-import { memoryStore, VaultStore } from "../src/vault-store.ts";
+import { pairedBrowser } from "./fake-phone.ts";
 
 const HEADER = NORDPASS_COLUMNS.join(",");
 
@@ -81,7 +79,7 @@ describe("NordPass CSV", () => {
 describe("importSummary", () => {
   it("says only what was added when nothing was skipped", () => {
     expect(importSummary({ entries: [], skipped: [] }, { added: 2, duplicates: 0 })).toBe(
-      "Dodano 2 wpisów (lokalnie, zsynchronizuj, żeby trafiły na serwer). Usuń plik CSV z dysku, zawiera hasła jawnym tekstem.",
+      "Dodano 2 wpisów (lokalnie, zsynchronizuj, żeby trafiły na telefon). Usuń plik CSV z dysku, zawiera hasła jawnym tekstem.",
     );
   });
 
@@ -96,16 +94,8 @@ describe("importSummary", () => {
 });
 
 describe("VaultStore.importEntries", () => {
-  const servers: { close(): Promise<unknown> }[] = [];
-  afterEach(async () => {
-    await Promise.all(servers.splice(0).map((s) => s.close()));
-  });
-
   it("adds new entries as local changes and skips duplicates, also within the file", async () => {
-    const app = buildApp({ db: new Database(":memory:"), setupToken: "token" });
-    servers.push(app);
-    const store = new VaultStore(memoryStore(), memoryStore());
-    await store.createVault([await app.listen({ host: "127.0.0.1", port: 0 })], "token", "hasło główne do testu");
+    const { store, phone } = await pairedBrowser();
     await store.upsert("1", { name: "Bank", username: "jan", password: "x" });
 
     let n = 0;
@@ -121,8 +111,10 @@ describe("VaultStore.importEntries", () => {
     expect(result).toEqual({ added: 2, duplicates: 2 });
     expect(store.entries().map((e) => e.data.password).sort()).toEqual(["nowe", "x", "y"]);
     expect(store.pendingCount()).toBe(3);
+    expect(store.entries().filter((e) => e.id.startsWith("new-")).every((e) => e.dirty)).toBe(true);
 
     await store.sync();
     expect(store.pendingCount()).toBe(0);
+    expect(await phone.entryNames()).toEqual(["Bank", "Bank", "Poczta"]);
   }, 30_000);
 });

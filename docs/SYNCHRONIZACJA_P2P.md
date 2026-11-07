@@ -1,8 +1,9 @@
 # Synchronizacja bez serwera (telefon jako kotwica): projekt
 
 Status: rdzeń zaimplementowany w TypeScripcie (plan 1, [`P2P_RDZEN.md`](P2P_RDZEN.md)) i w Kotlinie po
-stronie telefonu (plan 2, [`P2P_ANDROID_RDZEN.md`](P2P_ANDROID_RDZEN.md)); plan 3a gotowy: telefon jako host
-([`P2P_TELEFON.md`](P2P_TELEFON.md)); wtyczka (plan 3b) i usunięcie Pi (plan 4) jeszcze **bez implementacji**. Dokument opisuje, jak PassHolder ma działać bez
+stronie telefonu (plan 2, [`P2P_ANDROID_RDZEN.md`](P2P_ANDROID_RDZEN.md)); plan 3 gotowy: telefon jako host
+([`P2P_TELEFON.md`](P2P_TELEFON.md)) i wtyczka sparowana z telefonem ([`P2P_WTYCZKA.md`](P2P_WTYCZKA.md));
+usunięcie Pi (plan 4) jeszcze **bez implementacji**. Dokument opisuje, jak PassHolder ma działać bez
 Raspberry Pi: telefon z Androidem przejmuje rolę punktu wymiany, a wtyczka Chrome łączy się bezpośrednio
 z telefonem. Zmienia sekcje 5–7 z `SPEC.md`; reszta (klucze, format szyfrogramu, generator) zostaje.
 
@@ -36,7 +37,8 @@ jednak z istniejącego protokołu, żeby nie przepisywać działającego kodu.
   156.0.8078.79: service worker wtyczki MV3 z `host_permissions` `"http://*/*"` wysłał do
   `http://192.168.50.164:8787/` (inne urządzenie w tej samej sieci LAN) `GET` → 200 i `POST` → 501
   (`python http.server` nie obsługuje POST, więc 501 dowodzi, że żądanie dotarło). Adresu Tailscale
-  jeszcze nie sprawdzono. Szczegóły w `P2P_RDZEN.md`, punkt 7.
+  i strony wtyczki (okienko, karta) z prawdziwą prośbą o zgodę jeszcze nie sprawdzono: testy T7 i T4 w
+  `P2P_TELEFON.md` §11.2, wynik dopisać tutaj. Szczegóły w `P2P_RDZEN.md`, punkt 7.
 
 ## 3. Architektura
 
@@ -207,8 +209,9 @@ W tym trybie (i tylko w nim) telefon przyjmuje metadane sejfu od wtyczki zamiast
 - **Własna implementacja CPace i Noise** w dwóch językach to ryzyko subtelnych błędów. Łagodzą je
   wspólne wektory testowe, ale to nie audyt.
 - **Private Network Access w Chrome** (sekcja 2) potwierdzone 2026-11-04 dla adresu w tej samej sieci
-  LAN (Chrome 156.0.8078.79, MV3, `"http://*/*"`). Niesprawdzone: adres Tailscale i przyszłe wersje
-  Chrome, które mogą zaostrzyć te reguły.
+  LAN (Chrome 156.0.8078.79, MV3, `"http://*/*"`). Niesprawdzone: adres Tailscale, strona wtyczki
+  zamiast service workera (T4, T7 w `P2P_TELEFON.md` §11.2) i przyszłe wersje Chrome, które mogą zaostrzyć
+  te reguły.
 - **Bez telefonu nie ma synchronizacji** między dwoma komputerami.
 - **Android może ubić serwer w tle**; dlatego tryb synchronizacji działa tylko z aplikacją na wierzchu.
 

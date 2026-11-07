@@ -6,5 +6,6 @@ export * from "./cpace.ts";
 export * from "./noise.ts";
 export * from "./pairing.ts";
 export * from "./transport.ts";
+export * from "./pair-client.ts";
 export * from "./host.ts";
 export { MAX_FRAMES, MAX_FRAME_PLAINTEXT } from "./frames.ts";

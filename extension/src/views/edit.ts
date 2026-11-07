@@ -63,7 +63,7 @@ export async function editView(id?: string) {
         username: username.value,
         password: password.value,
       });
-      listView("Zapisano lokalnie. Zsynchronizuj, gdy serwer będzie włączony.");
+      listView("Zapisano lokalnie. Zsynchronizuj, gdy telefon będzie w trybie Synchronizacja.");
     });
 
   const remove = confirmButton("Usuń", { class: "danger" }, () => {

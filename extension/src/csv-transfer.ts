@@ -172,7 +172,7 @@ export function importSummary(parsed: ParsedImport, result: ImportResult): strin
   const { skipped } = parsed;
   const listed = skipped.slice(0, LISTED_SKIPPED_ROWS).map((s) => `wiersz ${s.line}: ${s.reason}`).join("; ");
   const parts = [
-    `Dodano ${result.added} wpisów (lokalnie, zsynchronizuj, żeby trafiły na serwer).`,
+    `Dodano ${result.added} wpisów (lokalnie, zsynchronizuj, żeby trafiły na telefon).`,
     result.duplicates > 0 && `Pominięto ${result.duplicates} takich, które już są w sejfie.`,
     skipped.length > 0 && `Pominięto ${skipped.length} wierszy: ${listed}${skipped.length > LISTED_SKIPPED_ROWS ? "; …" : "."}`,
     "Usuń plik CSV z dysku, zawiera hasła jawnym tekstem.",

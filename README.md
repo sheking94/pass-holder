@@ -1,11 +1,14 @@
 # pass-holder
 
-Prywatny menedżer haseł z serwerem synchronizacji na Raspberry Pi, wtyczką do Chrome i aplikacją na Androida.
+Prywatny menedżer haseł z wtyczką do Chrome i aplikacją na Androida. Od planu 3 wtyczka synchronizuje się
+bezpośrednio z telefonem ([docs/P2P_WTYCZKA.md](docs/P2P_WTYCZKA.md)), a serwer na Raspberry Pi nie jest
+potrzebny; `server/` i `deploy/` zostają do planu 4. Przed aktualizacją wtyczki z wersji z Pi wyeksportuj
+hasła do CSV.
 
 | Katalog | Zawartość |
 |---|---|
 | `core/` | Wspólny rdzeń w TypeScript: szyfrowanie, generator haseł, logika sync, wektory testowe |
-| `server/` | Serwer na Raspberry Pi (Node.js, Fastify, SQLite) |
+| `server/` | Serwer na Raspberry Pi (Node.js, Fastify, SQLite), stara wersja, niepotrzebny od planu 3 |
 | `deploy/` | Certyfikaty, usługa systemd, VPN |
 | `extension/` | Wtyczka Chrome (Manifest V3) |
 | `android/` | Aplikacja Android (Kotlin, Jetpack Compose) |
@@ -22,6 +25,7 @@ odcisk palca na Androidzie.
 | [docs/INSTALACJA.md](docs/INSTALACJA.md) | Instalacja krok po kroku: Raspberry Pi, Chrome, Android, aktualizacje, kopie zapasowe |
 | [docs/DEZINSTALACJA.md](docs/DEZINSTALACJA.md) | Całkowite usunięcie serwera z Raspberry Pi oraz sprzątanie na Ubuntu i telefonie |
 | [docs/ARCHITEKTURA.md](docs/ARCHITEKTURA.md) | Mapa kodu: który plik za co odpowiada, przepływ synchronizacji, spis wszystkich dokumentów |
+| [docs/SYNCHRONIZACJA_P2P.md](docs/SYNCHRONIZACJA_P2P.md), `docs/P2P_*.md` | Synchronizacja bez Pi: projekt, rdzeń, telefon jako host, wtyczka |
 | [docs/SPEC.md](docs/SPEC.md) | Kryptografia, model danych, protokół synchronizacji, API serwera |
 | [docs/TESTY.md](docs/TESTY.md) | Co testujemy, jak uruchomić testy, znalezione błędy |
 | `docs/WTYCZKA_*.md`, `docs/WIELE_ADRESOW_SERWERA.md`, `docs/ANDROID_ODCISK_PALCA.md` | Opisy poszczególnych funkcji (jak działają i dlaczego tak) |
@@ -57,8 +61,8 @@ npm run build -w extension
 ```
 
 Potem w Chrome: `chrome://extensions` → włącz „Tryb dewelopera” → „Załaduj rozpakowane” → wskaż `extension/dist`.
-Wcześniej zainstaluj w Chrome urząd certyfikacji serwera (`ca.crt`, patrz [docs/INSTALACJA.md, część 2](docs/INSTALACJA.md#część-2-wtyczka-do-chrome)).
-Przy pierwszym połączeniu wtyczka otworzy formularz w karcie i poprosi o zgodę na dostęp do adresu serwera.
+Parowanie z telefonem otwiera formularz w karcie i prosi o zgodę na dostęp do adresu telefonu
+(`http://<IPv4>:8787`), patrz [docs/P2P_WTYCZKA.md](docs/P2P_WTYCZKA.md).
 
 ## Aplikacja na Androida
 

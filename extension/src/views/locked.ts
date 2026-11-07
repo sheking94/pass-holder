@@ -72,14 +72,28 @@ function lockedView(message = "") {
       showUnlocked();
     });
 
-  const disconnect = confirmButton("Odłącz tę przeglądarkę", { type: "button", class: "danger" }, async () => {
-    await store.disconnect();
-    showConnect();
-  });
+  // Forgets only this browser's copy; the phone keeps what it has synced (remove the browser there in
+  // "Urządzenia"). While locked the unsynced changes cannot be counted, so the warning says they may exist.
+  // The store still refuses if the vault is unlocked with unsynced changes; busy() then shows how many.
+  const disconnect = confirmButton(
+    "Odłącz tę przeglądarkę",
+    {
+      type: "button",
+      class: "danger",
+      title: "Usuwa sejf z tej przeglądarki. Telefon zachowuje hasła z ostatniej synchronizacji; niezsynchronizowane zmiany z tej przeglądarki mogą przepaść.",
+    },
+    () =>
+      void busy(status, "Odłączam…", async () => {
+        await store.disconnect();
+        await showConnect();
+      }),
+    "Niezsynchronizowane zmiany mogą przepaść. Kliknij ponownie",
+  );
 
   show(
     openInTabButton(),
     h("h1", {}, "PassHolder jest zablokowany"),
+    h("p", { class: "hint" }, "Hasło główne sejfu z telefonu. Odblokowanie działa także bez połączenia z telefonem."),
     form(
       () => void unlock(),
       h("label", {}, "Hasło główne"),
