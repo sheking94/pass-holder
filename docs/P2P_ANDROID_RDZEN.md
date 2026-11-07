@@ -229,6 +229,8 @@ Po stronie TypeScriptu nic się nie zmieniło: `npm test && npm run typecheck` w
 
 ## 7. Co dalej (plan 3)
 
+Część A planu 3 (serwer HTTP, trwała baza, parowanie, ekrany) jest zrobiona: opisuje ją [`P2P_TELEFON.md`](P2P_TELEFON.md). Poniższa lista to pierwotny zakres planu 3.
+
 Plan 3 to aplikacja Android i wtyczka:
 
 - **trwały `SyncStore`** na telefonie (baza w pamięci aplikacji) z tą samą umową blokady na obiekcie
