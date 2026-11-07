@@ -11,7 +11,7 @@ danych opisuje [SPEC.md](SPEC.md), protokół [SYNCHRONIZACJA.md](SYNCHRONIZACJA
  extension/ ──używa──► core/                      android/app ──używa──► android/core
  pełna zaszyfrowana kopia sejfu                   sejf (kotwica), tryb „Synchronizacja”
         │                                                      ▲
-        │  POST http://<IPv4 telefonu>:8787/p2p/v1/...          │ SyncHttpServer (tylko w trybie
+        │  POST http://<IPv4 telefonu>:8787/p2p/...             │ SyncHttpServer (tylko w trybie
         │  parowanie: CPace z 8-cyfrowym kodem                  │ Synchronizacja)
         │  synchronizacja: Noise KK, w środku zaszyfrowane wpisy│
         └───────────────────── LAN albo Tailscale ─────────────┘
@@ -36,13 +36,13 @@ danych opisuje [SPEC.md](SPEC.md), protokół [SYNCHRONIZACJA.md](SYNCHRONIZACJA
 | `src/protocol.ts` | `RemoteRecord`, `SyncStore`, `processSync`, `MemorySyncStore`: logika hosta (numery `revision`, `baseRevision`) |
 | `src/generator.ts` | generator haseł (CSPRNG z odrzucaniem, Fisher-Yates) |
 | `src/p2p/hlc.ts` | hybrydowy zegar logiczny (HLC) do rozstrzygania konfliktów |
-| `src/p2p/entry.ts` | treść wpisu v2 i nagrobka, AAD `passholder/v2/entry/<id>` |
-| `src/p2p/sync.ts` | sejf wtyczki (`LocalVaultV2`) i `syncVaultV2` |
-| `src/p2p/host-sync.ts` | strona hosta: `validateP2pSyncRequest`, `processP2pSync` (na `processSync`), epoka, stronicowanie |
+| `src/p2p/entry.ts` | wpis v3 i nagrobek: typy, ścisły parser (`parseEntryData`, `parseTombstoneData`), zwarta serializacja w stałej kolejności kluczy, limit `MAX_ENTRY_BLOB_LENGTH`, odczyt v2 jako login; AAD `passholder/v2/entry/<id>` |
+| `src/p2p/sync.ts` | sejf wtyczki (`LocalVaultV2`) i `syncVaultV2`; budżet bajtów żądania, rundy ucięte (`more`) poza limitem rund konfliktów |
+| `src/p2p/host-sync.ts` | strona hosta: `validateP2pSyncRequest` (też blob ≤ 64 KiB), `processP2pSync` (na `processSync`), epoka, stronicowanie po 500 zmianach i `MAX_BLOB_BYTES_PER_ROUND` (tnie też `conflicts`) |
 | `src/p2p/cpace.ts`, `pairing.ts`, `pair-client.ts` | parowanie: CPace, kod 8 cyfr, zapieczętowane tożsamości, klient HTTP parowania wtyczki |
-| `src/p2p/noise.ts`, `frames.ts`, `transport.ts` | Noise KK, ramki, `noiseTransport` i `callP2pHost` |
-| `src/p2p/host.ts` | `P2pHost`: referencyjny host (uzgadnianie, sesje, sync) |
-| `scripts/gen-vectors.ts`, `gen-vectors-v2.ts` | `test-vectors/v1.json` (KDF, klucz sejfu) i `v2.json` (P2P) |
+| `src/p2p/noise.ts`, `frames.ts`, `transport.ts` | Noise KK, ramki, `noiseTransport` i `callP2pHost`; ścieżki `/p2p/v2/*`, 404 → „Phone app needs an update” |
+| `src/p2p/host.ts` | `P2pHost`: referencyjny host (uzgadnianie, sesje, sync); `/p2p/v1/handshake` i `/p2p/v1/sync` → 410 |
+| `scripts/gen-vectors.ts`, `gen-vectors-v2.ts`, `gen-vectors-v3.ts` | `test-vectors/v1.json` (KDF, klucz sejfu), `v2.json` (P2P) i `v3.json` (wpisy v3, limity) |
 
 ## `extension/` (Chrome, Manifest V3)
 
@@ -56,9 +56,9 @@ Chrome, wybór pliku), dlatego parowanie, adresy i CSV pokazują się w karcie. 
 | Plik | Co robi |
 |---|---|
 | `src/popup.ts` | `start()`: wybiera pierwszy widok i włącza automatyczną blokadę strony |
-| `src/vault-store.ts` | `VaultStore`: konto, lokalny sejf, parowanie (`pairStart`, `pairFinish`, `repair`), `sync`, adresy, PIN, CSV; serce wtyczki |
+| `src/vault-store.ts` | `VaultStore`: konto, lokalny sejf, parowanie (`pairStart`, `pairFinish`, `repair`), `sync`, adresy, PIN, CSV; serce wtyczki. Widzi tylko loginy (`loginView`), zapis zachowuje resztę pól (`loginContent`), starą treść v2 czyta jako login |
 | `src/storage.ts` | klucze `chrome.storage` (`STORAGE_KEYS`), `chromeStore`, `memoryStore` do testów |
-| `src/phone-client.ts` | `PhoneClient`: JSON `POST` do telefonu z limitem 30 s, polskie komunikaty błędów |
+| `src/phone-client.ts` | `PhoneClient`: JSON `POST` do telefonu z limitem 30 s, polskie komunikaty błędów (też „Zaktualizuj aplikację na telefonie”) |
 | `src/phone-urls.ts` | adresy telefonu: `normalizePhoneUrl` (tylko IPv4), `learnedPhoneUrls`, `pickPhone` (wybór działającego adresu, ping 4 s) |
 | `src/auto-lock.ts` | blokada po 15 minutach: `watchIdle` na stronie i alarm w service workerze |
 | `src/pin-lock.ts`, `src/pin-store.ts` | PIN: kryptografia (`createPinLock`, `openPinLock`) i przechowywanie z licznikiem prób |
@@ -79,11 +79,11 @@ Dwa moduły Gradle: `core` (czysta JVM, testy bez emulatora) i `app` (Jetpack Co
 |---|---|
 | `Encoding.kt`, `Kdf.kt`, `Cipher.kt`, `Vault.kt`, `Generator.kt` | odpowiedniki plików z `core/src/` (`Vault.kt`: `Credentials`, `VaultCrypto` do klucza sejfu) |
 | `Protocol.kt` | `RemoteRecord`, `ChangeRequest`, `Accepted`, `SyncResponse` |
-| `p2p/Hlc.kt`, `EntryV2.kt`, `P2pJson.kt` | HLC, wpisy v2, wspólny `Json` |
+| `p2p/Hlc.kt`, `EntryV3.kt`, `P2pJson.kt` | HLC, wpis v3 (`EntryV3`: modele, ścisły parser, serializacja w kolejności z TypeScriptu, limit, odczyt v2 jako login), wspólny `Json` |
 | `p2p/Ristretto255.kt`, `Cpace.kt`, `Pairing.kt`, `PairingHost.kt` | parowanie: grupa, CPace, kod i zapieczętowane wiadomości, strona telefonu po HTTP |
-| `p2p/Noise.kt`, `Frames.kt`, `P2pHost.kt`, `HostSync.kt` | Noise KK, ramki, host synchronizacji, `processSync` i `MemorySyncStore` |
-| `p2p/SyncHttpServer.kt`, `PhoneRouter.kt`, `LocalAddresses.kt` | serwer HTTP na porcie 8787 z limitami, trasy `/p2p/v1/*`, adresy telefonu |
-| `p2p/PhoneVaultStore.kt`, `PhoneVault.kt`, `FileSyncStore.kt`, `HostState.kt` | sejf telefonu: tworzenie, odtwarzanie, blokada (15 min), wpisy, urządzenia; pliki `records.jsonl` i `host.json` |
+| `p2p/Noise.kt`, `Frames.kt`, `P2pHost.kt`, `HostSync.kt` | Noise KK, ramki, host synchronizacji (`/p2p/v2/*`, stare ścieżki → 410), `processSync`, budżet bajtów rundy i `MemorySyncStore` |
+| `p2p/SyncHttpServer.kt`, `PhoneRouter.kt`, `LocalAddresses.kt` | serwer HTTP na porcie 8787 z limitami, trasy `/p2p/v1/pair/*`, `/p2p/v1/ping` i `/p2p/v2/*` (stare `/p2p/v1/handshake` i `/sync` przekazane do hosta, który odpowiada 410), adresy telefonu |
+| `p2p/PhoneVaultStore.kt`, `PhoneVault.kt`, `FileSyncStore.kt`, `HostState.kt` | sejf telefonu: tworzenie, odtwarzanie, blokada (15 min), wpisy (lista tylko loginów, `upsert` zachowuje resztę pól i odmawia nadpisania wpisu innego typu), urządzenia; pliki `records.jsonl` i `host.json` |
 
 | Plik (`android/app/.../app/`) | Co robi |
 |---|---|
@@ -105,13 +105,36 @@ Telefon: [Synchronizacja] → SyncController.start → SyncHttpServer :8787 (Pho
 Wtyczka: [Synchronizuj]
   → VaultStore.sync()
       adresy z zgodą Chrome → pickPhone (najpierw lastPhoneUrl, ping 4 s)
-      noiseTransport: POST /p2p/v1/handshake (Noise KK, klucze z parowania)
-                      POST /p2p/v1/sync { epoch, sinceRevision, changes = wpisy dirty } w ramkach Noise
-  → telefon: P2pHost → HostSync.process (epoka, processSync, stronicowanie po 500) → FileSyncStore
+      noiseTransport: POST /p2p/v2/handshake (Noise KK, klucze z parowania)
+                      POST /p2p/v2/sync { epoch, sinceRevision, changes = wpisy dirty } w ramkach Noise
+  → telefon: P2pHost → HostSync.process (epoka, blob ≤ 64 KiB, processSync,
+             ucięcie: 500 zmian albo 512 KiB blobów) → FileSyncStore
   ← accepted, conflicts, changes, addresses, more
-      odszyfruj i sprawdź rekordy, konflikty po HLC, zapisz sejf, dopisz nowe adresy
+      odszyfruj i sprawdź rekordy (parseEntryData: v3 albo v2 jako login), konflikty po HLC,
+      zapisz sejf, dopisz nowe adresy
       more albo lokalny wpis wygrał → kolejna runda
 ```
+
+## Przepływ v2 → v3 (format wpisu)
+
+```
+odczyt:  blob → AES-GCM (AAD z id) → JSON → parseEntryData / EntryV3.parse
+           {v:3, ...} ścisły typ  → wpis v3 (nieznany klucz = „Invalid entry payload”)
+           {name, username, password, hlc} (bez v) → login, reszta pól pusta
+           {hlc} + deleted=true → nagrobek (inny klucz = „Invalid tombstone payload”)
+zapis:   zawsze v3: serializeEntryData / EntryV3.serialize (stała kolejność kluczy, zwarty JSON)
+           długość bloba > 65536 → „Entry too large” (aplikacje: „Wpis jest za duży”)
+```
+
+Wpis v2 staje się v3 dopiero przy edycji; do tego czasu leży w sejfie bez zmian. Obie implementacje serializują
+bajt w bajt tak samo (`core/test-vectors/v3.json`).
+
+**Reguła ucinania rundy** (`processP2pSync` / `HostSync.process`, to samo wtyczka przy wysyłaniu): najpierw
+`conflicts`, potem `changes` po rosnącej `revision`; rekord wchodzi, dopóki jest pod limitem 500 i suma długości
+blobów mieści się w 524288 (pierwszy rekord zawsze wchodzi, więc runda zawsze coś niesie). Gdy cokolwiek
+ucięto, `more = true`, a `currentRevision` to rewizja ostatniego zwróconego rekordu. Konflikt, który się nie
+zmieścił, zostawia wpis `dirty`, więc wtyczka wyśle go w następnej rundzie. Rundy z `more` nie liczą się do
+limitu rund konfliktów (3), tylko do ogólnego (1000).
 
 Parowanie (`/p2p/v1/pair/hello`, `start`, `finish`) i odtwarzanie z wtyczki:
 [SYNCHRONIZACJA.md](SYNCHRONIZACJA.md) punkty 3 i 8.

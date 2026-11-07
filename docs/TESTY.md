@@ -52,8 +52,8 @@ katalogu pakietu.
 
 | Pakiet | Pliki | Testy | Uwagi |
 |---|---|---|---|
-| `core` | 14 | 145 | w tym `core/test/p2p/` |
-| `extension` | 8 | 86 | widoki i service worker bez testów |
+| `core` | 16 | 212 | w tym `core/test/p2p/` |
+| `extension` | 8 | 93 | widoki i service worker bez testów |
 | `android/core` | 25 | 298 | 4 pomijane bez `PASSHOLDER_INTEROP_TEST=1` |
 | `android/app` | 6 | 31 | Robolectric, zrzuty ekranów |
 
@@ -66,7 +66,11 @@ katalogu pakietu.
 | `edge-cases.test.ts` | NFC, Base64/hex, AES-GCM (zły klucz i nonce, ucięty blob), złe hasło, granice KDF, generator |
 | `cipher.test.ts`, `generator.test.ts`, `vectors.test.ts` | szyfrowanie, generator, wektory `v1.json` |
 | `sync-edge.test.ts` | `processSync`: duplikaty, nieznana rewizja, rosnące rewizje |
-| `p2p/*.test.ts` | HLC, ristretto255 (RFC 9496), CPace (draft, dodatek B.3), Noise KK (Cacophony), parowanie, klient parowania, host, transport, synchronizacja, wektory `v2.json` |
+| `p2p/*.test.ts` | HLC, ristretto255 (RFC 9496), CPace (draft, dodatek B.3), Noise KK (Cacophony), parowanie, klient parowania, host, transport (ścieżki v2, 410/404), synchronizacja (stronicowanie po bajtach, rundy `more`), wpis v3 (`entry-v3.test.ts`), wektory `v2.json` i `v3.json` |
+
+`v3.json` (sekcje `limits`, `entries`, `rejected`, `oldPaths`) trzyma po jednym wpisie każdego typu, stary wpis v2,
+nagrobek, 22 przykłady odrzucane i odpowiedzi na stare ścieżki; odtwarza go `npm run gen-vectors-v3 -w core`,
+a w Kotlinie sprawdza `P2pVectorsV3Test`.
 
 `v2.json` zawiera sekcje `hlcCompare`, `entryPayload`, `pairingKey`, `pairingMessage`, `frames`, `paging`
 oraz odnośniki do `cpace-ristretto255.json` i `noise-kk.json`. Odtwarza je `npm run gen-vectors-v2 -w core`;
@@ -76,7 +80,7 @@ wartości losowe mają stałe klucze i nonce.
 
 | Plik | Co sprawdza |
 |---|---|
-| `vault-store.test.ts`, `pairing-flow.test.ts` | parowanie, złe hasło po zamknięciu okienka, wygaśnięcie po 10 min, inny sejf, odtwarzanie, kilka adresów, brak zgody Chrome, odłączanie |
+| `vault-store.test.ts`, `pairing-flow.test.ts` | wpisy v3 (zachowanie pól loginu, odmowa nadpisania innego typu, stary sejf v2, za duży wpis), parowanie, złe hasło po zamknięciu okienka, wygaśnięcie po 10 min, inny sejf, odtwarzanie, kilka adresów, brak zgody Chrome, odłączanie |
 | `edge-cases.test.ts` | konflikty HLC, zablokowany sejf, słaby KDF od telefonu, telefon, który zapomniał przeglądarkę, limit 30 s |
 | `phone-urls.test.ts` | adresy IPv4, zera wiodące, porty, `pickPhone` (4 s) |
 | `pin.test.ts` | PIN: kształt, 5 prób, licznik przed sprawdzeniem, długi PIN na dysku |
@@ -92,8 +96,8 @@ Testy wtyczki używają `extension/test/fake-phone.ts`: parowanie z prawdziwym C
 | Plik | Co sprawdza |
 |---|---|
 | `CryptoTest`, `GeneratorTest`, `VectorsTest`, `KdfBoundsTest` | szyfrowanie, generator, `v1.json`, granice KDF i NFC |
-| `p2p/P2pVectorsTest`, `Ristretto255Test`, `CpaceTest`, `NoiseTest`, `PairingTest`, `HlcTest`, `P2pJsonTest`, `EntryV2Test`, `FramesTest` | te same wektory bit w bit, `safeLong`, ramki |
-| `HostSyncTest`, `P2pHostTest`, `PhoneVaultTest` | rewizje, stronicowanie, cofnięty telefon, kody HTTP, sesje (60 s, 32), wiele wątków |
+| `p2p/P2pVectorsTest`, `P2pVectorsV3Test`, `Ristretto255Test`, `CpaceTest`, `NoiseTest`, `PairingTest`, `HlcTest`, `P2pJsonTest`, `EntryV3Test`, `FramesTest` | te same wektory bit w bit, `safeLong`, ramki |
+| `HostSyncTest`, `P2pHostTest`, `PhoneVaultTest` | rewizje, stronicowanie (500 zmian i 512 KiB), cięcie konfliktów, 410 dla starych ścieżek, odmowa nadpisania wpisu innego typu, cofnięty telefon, kody HTTP, sesje (60 s, 32), wiele wątków |
 | `SyncHttpServerTest`, `FileSyncStoreTest`, `HostStateTest`, `PairingHostTest`, `PhoneRouterTest`, `LocalAddressesTest`, `PhoneVaultStoreTest` | serwer HTTP i limity, `Host`, trwała baza, parowanie po HTTP, sejf telefonu |
 | `P2pInteropTest`, `PhoneInteropTest` (opcjonalne) | prawdziwy klient wtyczki w Node przeciw hostowi w Kotlinie: wpisy w obie strony, 1300/1200 wpisów, odtworzenie |
 | `ScreenTests`, `SyncScreenTests`, `SyncControllerTest`, `CorruptHostStateTest` (app) | ekrany, tryb Synchronizacja, odświeżenie po synchronizacji, uszkodzony stan |
@@ -158,6 +162,12 @@ ostrzega, drugie odłącza.
 
 **T10. Złe hasło przy parowaniu.** Złe hasło → „Złe hasło główne”; po zamknięciu karty „Dokończ parowanie”
 wraca do hasła. Po 10 min: „Parowanie wygasło…”.
+
+**T11. Synchronizacja po aktualizacji obu aplikacji.** Zainstaluj nową aplikację (`.\gradlew.bat :app:installDebug`) i przeładuj wtyczkę z nowego `extension\dist` (`chrome://extensions` → odśwież). Sejf z wpisami sprzed aktualizacji: telefon i wtyczka odblokowują się bez parowania, lista pokazuje wszystkie dawne wpisy. Wpis A zmień na telefonie, wpis B we wtyczce (•) → „Synchronizuj”: zmiany są po obu stronach, a niezmienione dawne wpisy są bez zmian. Opcjonalnie: wpis z bardzo długim hasłem (ponad ok. 48 KB) → „Wpis jest za duży”.
+
+**T12. Stara wtyczka → błąd.** Zostaw w Chrome starą wersję wtyczki (sprzed aktualizacji), telefon z nową aplikacją w trybie „Synchronizacja” → „Synchronizuj”: ogólny błąd synchronizacji (stara wtyczka dostaje 410 i nie zna lepszego komunikatu). Wpisy na telefonie bez zmian. Po aktualizacji wtyczki synchronizacja działa.
+
+**T13. Nowa wtyczka + stary telefon.** Nowa wtyczka, na telefonie stara aplikacja (sparowany sejf) → „Synchronizuj”: „Zaktualizuj aplikację na telefonie”. Po aktualizacji aplikacji synchronizacja działa bez ponownego parowania.
 
 **PIN i karta.** PIN `4821` → Zablokuj → zły PIN „Pozostało prób: 4”, dobry otwiera; restart Chrome prosi o
 hasło główne. „Otwórz w karcie ↗” dwa razy: drugi raz przełącza na istniejącą kartę.
