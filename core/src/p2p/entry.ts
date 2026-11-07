@@ -43,6 +43,8 @@ export interface TombstoneDataV2 {
 
 export const MAX_ENTRY_BLOB_LENGTH = 65536;
 export const ENTRY_TOO_LARGE = "Entry too large";
+/** Prefix of the error syncVaultV2 throws for a dirty entry whose blob exceeds the host limit; ": <name>" follows. */
+export const ENTRY_TOO_LARGE_TO_SYNC = "Entry too large to sync";
 
 const INVALID_ENTRY = "Invalid entry payload";
 const INVALID_TOMBSTONE = "Invalid tombstone payload";

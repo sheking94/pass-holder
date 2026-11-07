@@ -124,10 +124,12 @@ wtyczka robi reset (punkt 4.2). **`vault.epoch` nigdy nie przypisuje się bezpo�
    - inna epoka: odpowiada samą epoką i adresami, nic nie zapisuje,
    - ta sama epoka: walidacja całego żądania (punkt 5.2), potem `processSync` (przyjęte zmiany, konflikty,
      zmiany od `sinceRevision`),
-   - odpowiedź (`conflicts` i `changes` razem) ma najwyżej 500 rekordów i `MAX_BLOB_BYTES_PER_ROUND` znaków
-     bloba; zmiany idą w kolejności `revision`. Host tnie też `conflicts`. Przy ucięciu `more = true`, a
-     `currentRevision` to rewizja ostatniego zwróconego rekordu (pominięte konflikty zostają `dirty` u
-     wtyczki, która wyśle je ponownie).
+   - odpowiedź: najwyżej 500 rekordów w `changes` (konflikty ogranicza tylko budżet bajtów i rozmiar żądania)
+     oraz `MAX_BLOB_BYTES_PER_ROUND` znaków bloba łącznie; zmiany idą w kolejności `revision`. Budżet
+     schodzi najpierw na `conflicts`, potem na `changes`, a pierwszy rekord zawsze wchodzi. `changes` trafiają
+     do odpowiedzi tylko wtedy, gdy zmieściły się wszystkie konflikty. Przy każdym ucięciu `more = true`, a
+     `currentRevision` to rewizja ostatniego rekordu w `changes` albo `sinceRevision` żądania, gdy żadna zmiana
+     nie weszła (pominięte konflikty zostają `dirty` u wtyczki, która wyśle je ponownie).
 3. Wtyczka po odpowiedzi:
    - **inna epoka:** `adoptEpoch` zeruje `lastSyncRevision` i oznacza wszystkie wpisy i nagrobki jako `dirty`
      z `revision = 0`; pętla rusza od nowa (najwyżej jedna zmiana epoki na synchronizację),

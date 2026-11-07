@@ -330,6 +330,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 store.upsert(id ?: UUID.randomUUID().toString(), credentials.copy(name = credentials.name.trim()))
             } catch (e: EntryTooLargeException) {
                 return@launchVaultOperation fail("Wpis jest za duży")
+            } catch (e: IllegalArgumentException) {
+                // PhoneVault.upsert refuses an id that holds an entry of another type.
+                return@launchVaultOperation fail("Ten wpis nie jest loginem")
             }
             showList(SAVED)
         }

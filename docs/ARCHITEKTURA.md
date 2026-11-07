@@ -126,13 +126,16 @@ zapis:   zawsze v3: serializeEntryData / EntryV3.serialize (stała kolejność k
            długość bloba > 65536 → „Entry too large” (aplikacje: „Wpis jest za duży”)
 ```
 
-Wpis v2 staje się v3 dopiero przy edycji; do tego czasu leży w sejfie bez zmian. Obie implementacje serializują
+Bloby na telefonie zostają v2, dopóki wpis nie zostanie edytowany. We wtyczce cały lokalny sejf jest przy
+odblokowaniu w pamięci zamieniany na v3 i zapisywany jako v3 przy najbliższym zapisie dowolnego rodzaju; po
+zmianie epoki (`adoptEpoch`) wpisy idą na telefon ponownie jako v3. Obie implementacje serializują
 bajt w bajt tak samo (`core/test-vectors/v3.json`).
 
 **Reguła ucinania rundy** (`processP2pSync` / `HostSync.process`, to samo wtyczka przy wysyłaniu): najpierw
-`conflicts`, potem `changes` po rosnącej `revision`; rekord wchodzi, dopóki jest pod limitem 500 i suma długości
-blobów mieści się w 524288 (pierwszy rekord zawsze wchodzi, więc runda zawsze coś niesie). Gdy cokolwiek
-ucięto, `more = true`, a `currentRevision` to rewizja ostatniego zwróconego rekordu. Konflikt, który się nie
+`conflicts`, potem `changes` po rosnącej `revision`; rekord wchodzi, dopóki suma długości blobów mieści się w 524288
+(pierwszy rekord zawsze wchodzi, więc runda zawsze coś niesie); limit 500 dotyczy tylko `changes`, a `changes`
+dochodzą dopiero, gdy zmieściły się wszystkie konflikty. Gdy cokolwiek ucięto, `more = true`, a `currentRevision`
+to rewizja ostatniego rekordu w `changes` (albo `sinceRevision` żądania, gdy żadnej zmiany nie dołączono). Konflikt, który się nie
 zmieścił, zostawia wpis `dirty`, więc wtyczka wyśle go w następnej rundzie. Rundy z `more` nie liczą się do
 limitu rund konfliktów (3), tylko do ogólnego (1000).
 

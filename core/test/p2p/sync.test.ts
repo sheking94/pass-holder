@@ -10,6 +10,7 @@ import {
   emptyLogin,
   emptyVaultV2,
   encryptPayloadV2,
+  ENTRY_TOO_LARGE_TO_SYNC,
   entryBlobLength,
   MAX_BLOB_BYTES_PER_ROUND,
   MAX_ENTRY_BLOB_LENGTH,
@@ -493,6 +494,20 @@ describe("p2p sync: v3 entries and byte budget", () => {
     expect(() => upsertEntryV2(v, clock, "ok", note)).toThrow("Entry too large");
     expect([...v.entries]).toEqual(before);
     expect(entryBlobLength({ ...note, v: 3, hlc: { ms: 1, c: 0, d: "a" } })).toBeGreaterThan(MAX_ENTRY_BLOB_LENGTH);
+  });
+
+  it("throws a clear error, before sending, for a dirty entry too large to sync", async () => {
+    const s = setup();
+    const v = emptyVaultV2();
+    const clock = new HlcClock("a", () => 1000);
+    upsertEntryV2(v, clock, "ok", entry("ok"));
+    // Saved before v3 and near the limit: it no longer fits once serialized as v3.
+    const huge = { ...emptyLogin("Huge"), note: "a".repeat(70_000) };
+    v.entries.set("huge", { id: "huge", revision: 0, dirty: true, deleted: false, data: { ...huge, v: 3, hlc: { ms: 1, c: 0, d: "a" } } });
+    const requests: P2pSyncRequest[] = [];
+    await expect(syncVaultV2(v, s.vaultKey, clock, async (r) => { requests.push(r); return s.send(r); }))
+      .rejects.toThrow(`${ENTRY_TOO_LARGE_TO_SYNC}: Huge`);
+    expect(requests).toHaveLength(0);
   });
 
   it("remote v2 payload is read as login", async () => {

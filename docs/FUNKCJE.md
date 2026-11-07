@@ -22,7 +22,9 @@ są synchronizowane i nietknięte: edycja loginu zachowuje jego notatkę, TOTP, 
 - **Obie aplikacje trzeba zaktualizować razem.** Stara wtyczka dostaje od nowego telefonu 410 i pokazuje
   ogólny błąd synchronizacji; nowa wtyczka ze starym telefonem pokazuje „Zaktualizuj aplikację na telefonie”
   ([SYNCHRONIZACJA.md](SYNCHRONIZACJA.md#41-transport-noise-kk)).
-- Lokalny sejf v2 (wtyczka, telefon) i stare bloby v2 są czytane jako loginy i przy edycji zapisywane jako v3.
+- Stare bloby v2 są czytane jako loginy. Na telefonie zostają v2, dopóki wpis nie zostanie edytowany; we wtyczce
+  cały lokalny sejf jest przy odblokowaniu w pamięci zamieniany na v3 i zapisywany jako v3 przy najbliższym
+  zapisie dowolnego rodzaju, a po zmianie epoki (`adoptEpoch`) wpisy idą na telefon ponownie jako v3.
 
 ## Automatyczna blokada
 

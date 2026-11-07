@@ -52,9 +52,9 @@ katalogu pakietu.
 
 | Pakiet | Pliki | Testy | Uwagi |
 |---|---|---|---|
-| `core` | 16 | 212 | w tym `core/test/p2p/` |
-| `extension` | 8 | 93 | widoki i service worker bez testów |
-| `android/core` | 25 | 298 | 4 pomijane bez `PASSHOLDER_INTEROP_TEST=1` |
+| `core` | 16 | 213 | w tym `core/test/p2p/` |
+| `extension` | 8 | 94 | widoki i service worker bez testów |
+| `android/core` | 27 | 350 | 4 pomijane bez `PASSHOLDER_INTEROP_TEST=1` |
 | `android/app` | 6 | 31 | Robolectric, zrzuty ekranów |
 
 ## Co testują pliki

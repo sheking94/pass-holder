@@ -330,6 +330,20 @@ describe("VaultStore offline", () => {
 });
 
 describe("v3 entries", () => {
+  it("names an old entry too large to sync as v3 in Polish", async () => {
+    const { store, local, session } = await pairedBrowser();
+    const vaultKey = fromBase64((await session.get<{ vaultKey: string }>(STORAGE_KEYS.sessionKeys))!.vaultKey);
+    await store.lock();
+    const hlc = { ms: 1_700_000_000_000, c: 0, d: "old-browser" };
+    const oldVault = {
+      epoch: null, lastSyncRevision: 0, addresses: [],
+      entries: [{ id: "1", revision: 0, dirty: true, deleted: false, data: { name: "Wielki", username: "u", password: "x".repeat(49_000), hlc } }],
+    };
+    await local.set(STORAGE_KEYS.vault, await seal(vaultKey, utf8(JSON.stringify(oldVault)), LOCAL_VAULT_AAD));
+    await store.unlock(PASSWORD);
+    await expect(store.sync()).rejects.toThrow("Wpis „Wielki” jest za duży (ponad 64 KiB) i nie może zostać zsynchronizowany. Skróć go.");
+  }, 30_000);
+
   it("opens vault saved in v2 format", async () => {
     const { store, phone, local, session } = await pairedBrowser();
     const vaultKey = fromBase64((await session.get<{ vaultKey: string }>(STORAGE_KEYS.sessionKeys))!.vaultKey);

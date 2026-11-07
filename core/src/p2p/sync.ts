@@ -3,6 +3,7 @@ import {
   decryptPayloadV2,
   encryptPayloadV2,
   ENTRY_TOO_LARGE,
+  ENTRY_TOO_LARGE_TO_SYNC,
   entryBlobLength,
   MAX_ENTRY_BLOB_LENGTH,
   parseEntryData,
@@ -97,6 +98,13 @@ interface BuiltRequest {
 
 async function buildRequest(vault: LocalVaultV2, vaultKey: Uint8Array): Promise<BuiltRequest> {
   const allDirty = [...vault.entries.values()].filter((e) => e.dirty);
+  // The host rejects a whole request holding an oversized blob, so it would never get through: say which entry it is.
+  // (An entry saved before v3 can grow past the limit when it is serialized as v3.)
+  for (const e of allDirty) {
+    if (entryBlobLength(e.data) > MAX_ENTRY_BLOB_LENGTH) {
+      throw new Error(`${ENTRY_TOO_LARGE_TO_SYNC}: ${e.deleted ? e.id : e.data.name}`);
+    }
+  }
   // Up to MAX_CHANGES_PER_REQUEST entries and MAX_BLOB_BYTES_PER_ROUND blob characters; the first always goes in.
   const dirty: LocalEntryV2[] = [];
   let budget = MAX_BLOB_BYTES_PER_ROUND;
