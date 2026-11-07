@@ -3,6 +3,7 @@ package io.github.sheking94.passholder.app
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import android.util.Log
 import io.github.sheking94.passholder.core.p2p.SecretWrapper
 import java.security.KeyStore
 import javax.crypto.Cipher
@@ -20,14 +21,26 @@ import javax.crypto.spec.GCMParameterSpec
  * Nothing touches the Keystore before the first [wrap] or [unwrap]; the key is created on first use.
  */
 class KeystoreSecretWrapper(private val alias: String = "passholder-p2p-wrap") : SecretWrapper {
-    override fun wrap(secret: ByteArray): String {
+    override fun wrap(secret: ByteArray): String = logged("wrap") { doWrap(secret) }
+
+    override fun unwrap(wrapped: String): ByteArray = logged("unwrap") { doUnwrap(wrapped) }
+
+    /** Keystore failures surface to the extension only as "internal error": the cause goes to logcat. */
+    private inline fun <T> logged(what: String, block: () -> T): T = try {
+        block()
+    } catch (e: Exception) {
+        Log.w(PassHolderApp.TAG, "Keystore $what failed", e)
+        throw e
+    }
+
+    private fun doWrap(secret: ByteArray): String {
         val cipher = Cipher.getInstance(TRANSFORMATION).apply { init(Cipher.ENCRYPT_MODE, existingKey() ?: newKey()) }
         // The Keystore picks the nonce itself; it is read back from cipher.iv.
         val ct = cipher.doFinal(secret)
         return Base64.encodeToString(cipher.iv, Base64.NO_WRAP) + ":" + Base64.encodeToString(ct, Base64.NO_WRAP)
     }
 
-    override fun unwrap(wrapped: String): ByteArray {
+    private fun doUnwrap(wrapped: String): ByteArray {
         val parts = wrapped.split(":")
         require(parts.size == 2) { "Wrapped secret must be iv:ciphertext" }
         val (iv, ct) = parts.map { Base64.decode(it, Base64.NO_WRAP) }

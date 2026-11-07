@@ -1,12 +1,14 @@
 package io.github.sheking94.passholder.app.ui
 
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -20,6 +22,7 @@ import io.github.sheking94.passholder.app.UiState
 /** No vault on the phone yet: a new one, or the one the extension still has after the old phone was lost. */
 @Composable
 fun StartScreen(state: UiState, vm: AppViewModel) {
+    if (state.corruptVault) return CorruptVault(state, vm)
     var restore by rememberSaveable { mutableStateOf(false) }
     // remember, not rememberSaveable: the master password must not end up in the saved instance state.
     var password by remember { mutableStateOf("") }
@@ -58,5 +61,29 @@ fun StartScreen(state: UiState, vm: AppViewModel) {
             Button(onClick = vm::startRestore, enabled = !state.busy) { Text("Rozpocznij odtwarzanie") }
         }
         StatusLine(state.status, state.busy)
+    }
+}
+
+/** host.json is damaged: the only way on is to remove what is left and then create or restore the vault. */
+@Composable
+private fun CorruptVault(state: UiState, vm: AppViewModel) {
+    var askDisconnect by remember { mutableStateOf(false) }
+    FormColumn {
+        Text("PassHolder", style = MaterialTheme.typography.headlineSmall)
+        Text(
+            "Nie mogę odczytać danych sejfu na telefonie. Możesz je usunąć i założyć sejf od nowa albo odtworzyć go z wtyczki.",
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Button(onClick = { askDisconnect = true }, enabled = !state.busy) { Text("Usuń sejf z telefonu") }
+        StatusLine(state.status, state.busy)
+    }
+    if (askDisconnect) {
+        AlertDialog(
+            onDismissRequest = { askDisconnect = false },
+            text = { Text("Usunąć sejf z tego telefonu? Wpisy zostaną tylko na sparowanych wtyczkach.") },
+            confirmButton = { TextButton(onClick = { askDisconnect = false; vm.disconnect() }) { Text("Usuń", color = MaterialTheme.colorScheme.error) } },
+            dismissButton = { TextButton(onClick = { askDisconnect = false }) { Text("Anuluj") } },
+        )
     }
 }

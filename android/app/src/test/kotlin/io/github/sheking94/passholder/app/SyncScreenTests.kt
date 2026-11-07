@@ -312,3 +312,50 @@ class RestoreRestartTest : SyncScreenTestBase() {
         "AA==", emptyList(),
     )
 }
+
+class SyncRefreshesEntriesTest : SyncScreenTestBase() {
+    @Test
+    fun `an entry the extension changed during sync mode shows its new values after Zakończ`() {
+        createVault()
+        addEntry("bank.pl", "jan", "stare-haslo-123")
+        click("Zapisz")
+        waitFor("Zapisano na telefonie", substring = true)
+        val old = app.phoneStore.entries().single()
+        val vaultKey = app.phoneStore.exportUnlockKeys()
+
+        click("Synchronizacja")
+        waitFor("http://127.0.0.1:", substring = true)
+        click("Dodaj wtyczkę")
+        val pair = TestP2pClient.pair(http(), shownCode(), extIdentity)
+        assertEquals(pair.finish?.body, 200, pair.finish?.status)
+
+        // The extension edited the same entry later than the phone did.
+        val blob = EntryV2.encrypt(
+            vaultKey, old.id, EntryDataV2("bank.pl", "jan.nowak", "nowe-haslo-456", Hlc(clock + 60_000, 0, extIdentity.deviceId)),
+        )
+        val res = client(pair).syncResponse(
+            P2pSyncRequest(pair.phoneVaultInfo!!.epoch, 0, listOf(ChangeRequest(old.id, old.revision, false, blob))),
+        )
+        assertEquals(1, res.accepted.size)
+        waitFor("Zsynchronizowano z: test-ext")
+        // Already refreshed by the sync itself, before leaving sync mode.
+        val vm = viewModel()
+        compose.waitUntil(30_000) { vm.state.value.entries.singleOrNull()?.credentials?.username == "jan.nowak" }
+
+        click("Zakończ")
+        waitFor("jan.nowak")
+        // The old login is gone from the list (exact match: "jan.nowak" contains it).
+        assertTrue(compose.onAllNodes(hasText("jan")).fetchSemanticsNodes().isEmpty())
+
+        // The edit form is filled from the store, not from a list cached before the sync.
+        click("bank.pl")
+        waitFor("Edytuj wpis")
+        click("Pokaż")
+        compose.waitForIdle()
+        assertEquals("jan.nowak", editable("Login"))
+        assertEquals("nowe-haslo-456", editable("Hasło"))
+    }
+
+    private fun editable(label: String) =
+        field(label).fetchSemanticsNode().config[SemanticsProperties.EditableText].text
+}

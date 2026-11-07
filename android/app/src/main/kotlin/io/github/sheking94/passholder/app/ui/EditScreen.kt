@@ -43,7 +43,8 @@ private val GROUP_LABELS = mapOf(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun EditScreen(id: String?, state: UiState, vm: AppViewModel) {
-    val existing = remember(id) { state.entries.find { it.id == id }?.credentials }
+    // Read from the store when the entry was opened (AppViewModel.openEntry), not from the list on screen.
+    val existing = remember(id) { state.editing?.takeIf { it.id == id }?.credentials }
     // remember, not rememberSaveable: entry passwords stay out of the saved instance state.
     var name by remember(id) { mutableStateOf(existing?.name ?: "") }
     var username by remember(id) { mutableStateOf(existing?.username ?: "") }

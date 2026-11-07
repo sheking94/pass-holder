@@ -54,6 +54,10 @@ data class UiState(
     val entries: List<PhoneEntry> = emptyList(),
     /** Records the vault key cannot open (e.g. sent by an extension of another vault). */
     val unreadable: Int = 0,
+    /** The entry on [Screen.Edit], read from the store when it was opened (not from [entries], which may be older). */
+    val editing: PhoneEntry? = null,
+    /** host.json cannot be read: the start screen offers only to remove the vault from the phone. */
+    val corruptVault: Boolean = false,
 )
 
 /**
@@ -66,10 +70,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val store = app.phoneStore
     private val biometrics = BiometricController(app.biometric)
 
-    private val _state = MutableStateFlow(UiState(initialScreen()))
+    private val _state = MutableStateFlow(UiState(initialScreen(), corruptVault = store.corruptState))
     val state: StateFlow<UiState> = _state.asStateFlow()
 
-    private val sync = SyncController(store, app.syncPort, { app.clock() }, app.syncAddresses)
+    /** A sync may have changed entries: the list must not keep (and the edit form must not save over) older ones. */
+    private val sync = SyncController(store, app.syncPort, { app.clock() }, app.syncAddresses, onSynced = {
+        viewModelScope.launch { refresh() }
+    })
     /** Sync mode: server, addresses, pairing code, last event, paired devices. */
     val syncState: StateFlow<SyncUiState> = sync.state
 
@@ -132,7 +139,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Every 15 s and on return: the 5-minute idle stop of sync mode, then the 15-minute auto-lock. */
     fun checkAutoLock() {
-        sync.checkIdle()
+        if (sync.checkIdle()) viewModelScope.launch { refresh() }
         viewModelScope.launch { locks.checkIdle() }
     }
 
@@ -288,9 +295,31 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     // --- Entries ----------------------------------------------------------------------------------
 
-    fun openEntry(id: String?) = _state.update { it.copy(screen = Screen.Edit(id), status = null) }
+    /**
+     * The edit form for [id] (null: a new entry). An existing entry is read from the store, off the main thread:
+     * the list on screen may predate a sync, and saving its stale fields would overwrite the extension's change.
+     */
+    fun openEntry(id: String?) {
+        if (id == null) {
+            _state.update { it.copy(screen = Screen.Edit(null), editing = null, status = null) }
+            return
+        }
+        if (_state.value.busy) return
+        viewModelScope.launch {
+            val read = withContext(Dispatchers.IO) { runCatching { store.entry(id) } }
+            val entry = read.getOrElse { return@launch fail(it.message ?: it.javaClass.simpleName) }
+            if (entry == null) {
+                refresh()
+                return@launch fail("Tego wpisu już nie ma na telefonie.")
+            }
+            // Not if the vault locked or the screen changed in the meantime.
+            _state.update {
+                if (store.isUnlocked && it.screen == Screen.List) it.copy(screen = Screen.Edit(id), editing = entry, status = null) else it
+            }
+        }
+    }
 
-    fun backToList() = _state.update { it.copy(screen = Screen.List, status = null) }
+    fun backToList() = _state.update { it.copy(screen = Screen.List, status = null, editing = null) }
 
     fun save(id: String?, credentials: Credentials) {
         if (credentials.name.isBlank()) return fail("Podaj nazwę serwisu")
@@ -327,6 +356,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun closeSync() {
         sync.stop(null)
         backToList()
+        viewModelScope.launch { refresh() }
     }
 
     /** "Dodaj wtyczkę" (and "Nowy kod" while restoring): a new 8-digit pairing code for 2 minutes. */
@@ -393,10 +423,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _state.value = UiState(Screen.List, entries = store.entries(), unreadable = store.unreadableIds().size, status = message?.let { Status(it) })
     }
 
-    /** Reads the entries off the main thread (decrypting every record). Does nothing if the vault locked meanwhile. */
+    /**
+     * Reads the entries off the main thread (decrypting every record). Does nothing if the vault locked meanwhile:
+     * decrypted entries never go into the state of a locked screen.
+     */
     private suspend fun refresh() {
+        if (!store.isUnlocked) return
         val read = withContext(Dispatchers.IO) { runCatching { store.entries() to store.unreadableIds().size } }
-        read.onSuccess { (entries, unreadable) -> _state.update { it.copy(entries = entries, unreadable = unreadable) } }
+        read.onSuccess { (entries, unreadable) ->
+            _state.update { if (store.isUnlocked) it.copy(entries = entries, unreadable = unreadable) else it }
+        }
     }
 
     /** Runs a blocking vault operation off the main thread, with a progress message and errors shown in the status line. */

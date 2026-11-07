@@ -2,6 +2,7 @@ package io.github.sheking94.passholder.app
 
 import android.app.Application
 import android.content.Context
+import android.util.Log
 import androidx.core.content.edit
 import io.github.sheking94.passholder.core.GeneratorOptions
 import io.github.sheking94.passholder.core.p2p.LocalAddresses
@@ -48,10 +49,16 @@ class PassHolderApp : Application() {
                 override fun unwrap(wrapped: String) = secretWrapper.unwrap(wrapped)
             },
             now = { clock() },
+            // The extension only gets "internal error"; the cause goes to logcat.
+            onError = { Log.w(TAG, "Sync mode error", it) },
         )
         settings = Settings(this)
         biometric = BiometricUnlock(this)
         leaveLock = LeaveLock(phoneStore)
+    }
+
+    companion object {
+        const val TAG = "PassHolder"
     }
 
     /** For tests: another store, with a [LeaveLock] that locks that store and not the old one. */

@@ -40,6 +40,8 @@ class SyncController(
     private val now: () -> Long = System::currentTimeMillis,
     /** The phone's addresses for the port actually bound (with [port] 0 the system picks one). */
     private val addresses: (boundPort: Int) -> List<String> = { LocalAddresses.list(it) },
+    /** After each sync an extension finished (on a server thread): the vault on disk may have changed. */
+    private val onSynced: () -> Unit = {},
 ) {
     companion object {
         const val IDLE_STOPPED = "Tryb synchronizacji wyłączony po 5 min bez połączeń."
@@ -121,13 +123,17 @@ class SyncController(
         _state.update { it.copy(offer = offer, offerSpent = false) }
     }
 
-    /** Stops sync mode after [PhoneSync.SYNC_IDLE_MS] without a request; also notices an expired code. */
-    fun checkIdle() {
+    /**
+     * Stops sync mode after [PhoneSync.SYNC_IDLE_MS] without a request; also notices an expired code.
+     * Returns true when it stopped sync mode.
+     */
+    fun checkIdle(): Boolean {
         if (running && now() - lastRequestAt.get() >= PhoneSync.SYNC_IDLE_MS) {
             stop(IDLE_STOPPED)
-            return
+            return true
         }
         refreshOffer()
+        return false
     }
 
     /** Milliseconds left on the code on screen, by this controller's clock. */
@@ -153,6 +159,7 @@ class SyncController(
      * Ignored once [http] was stopped (a request still in flight must not touch the state of a later start).
      */
     private fun afterRequest(http: SyncHttpServer) {
+        var synced = false
         synchronized(lock) {
             if (server !== http) return
             val devices = store.devices()
@@ -163,11 +170,13 @@ class SyncController(
                     event = "Sparowano: ${d.name}"
                 } else if (d.lastSyncAt != null && d.lastSyncAt != before.lastSyncAt) {
                     event = "Zsynchronizowano z: ${d.name}"
+                    synced = true
                 }
             }
             known = devices.associateBy { it.deviceId }
             _state.update { it.copy(devices = devices, lastEvent = event ?: it.lastEvent) }
         }
         refreshOffer()
+        if (synced) onSynced()
     }
 }

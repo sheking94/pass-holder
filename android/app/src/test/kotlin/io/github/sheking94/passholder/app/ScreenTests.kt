@@ -311,3 +311,29 @@ class UnreadableEntriesTest : ScreenTestBase() {
         shot("12-nieczytelne-wpisy")
     }
 }
+
+class CorruptHostStateTest : ScreenTestBase() {
+    /** host.json damaged on disk; the store the app builds at start must not throw (it did, on every launch). */
+    override fun beforeLaunch(app: PassHolderApp) {
+        File(app.filesDir, "p2p").mkdirs()
+        File(app.filesDir, "p2p/host.json").writeText("{\"deviceId\": tru")
+        app.replacePhoneStore(PhoneVaultStore(app.filesDir, TestSecretWrapper))
+    }
+
+    @Test
+    fun `a damaged host json shows the start screen with the error and the vault can be removed`() {
+        waitFor(
+            "Nie mogę odczytać danych sejfu na telefonie. Możesz je usunąć i założyć sejf od nowa albo odtworzyć go z wtyczki.",
+        )
+        shot("29-uszkodzony-sejf")
+        click("Usuń sejf z telefonu")
+        waitFor("Usunąć sejf z tego telefonu? Wpisy zostaną tylko na sparowanych wtyczkach.")
+        compose.onAllNodes(hasText("Usuń"))[0].performClick()
+        waitFor("Załóż sejf")
+        val app = ApplicationProvider.getApplicationContext<PassHolderApp>()
+        assertFalse(app.phoneStore.corruptState)
+        assertFalse(File(app.filesDir, "p2p").exists())
+        assertTrue(gone("Nie mogę odczytać"))
+        createVault()
+    }
+}
