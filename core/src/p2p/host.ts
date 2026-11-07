@@ -2,6 +2,7 @@ import { fromBase64, randomBytes, toBase64, utf8 } from "../encoding.ts";
 import { decryptFrames, encryptFrames, MAX_FRAMES } from "./frames.ts";
 import type { SyncStore } from "../protocol.ts";
 import { processP2pSync, validateP2pSyncRequest, type P2pSyncRequest } from "./host-sync.ts";
+import { P2P_HANDSHAKE_PATH, P2P_SYNC_PATH } from "./transport.ts";
 import { CipherState, NoiseKK, P2P_PROLOGUE, type KeyPair } from "./noise.ts";
 
 export interface PairedDevice {
@@ -63,8 +64,10 @@ export class P2pHost {
   async handle(path: string, body: unknown): Promise<Reply> {
     if (utf8(JSON.stringify(body) ?? "").length > MAX_BODY_BYTES) return fail(413, "body too large");
     this.#prune();
-    if (path === "/p2p/v1/handshake") return this.#handshake(body);
-    if (path === "/p2p/v1/sync") return this.#sync(body);
+    if (path === P2P_HANDSHAKE_PATH) return this.#handshake(body);
+    if (path === P2P_SYNC_PATH) return this.#sync(body);
+    // The v1 sync protocol is gone; tell old clients to update instead of pretending the path is unknown.
+    if (path === "/p2p/v1/handshake" || path === "/p2p/v1/sync") return fail(410, "update required");
     return fail(404, "not found");
   }
 

@@ -11,6 +11,9 @@ import {
   liveEntriesV2,
   NoiseKK,
   noiseTransport,
+  P2P_HANDSHAKE_PATH,
+  P2P_SYNC_PATH,
+  PHONE_UPDATE_REQUIRED,
   P2P_PROLOGUE,
   P2pHost,
   processP2pSync,
@@ -61,7 +64,7 @@ function setup() {
 async function rawHandshake(s: ReturnType<typeof setup>, deviceId: string, key = s.addDevice(deviceId)) {
   const noise = NoiseKK.initiator({ s: key, rs: s.hostKey.publicKey, prologue: P2P_PROLOGUE });
   const message = toBase64(await noise.writeMessage(new Uint8Array()));
-  const res = await s.host.handle("/p2p/v1/handshake", { deviceId, message });
+  const res = await s.host.handle("/p2p/v2/handshake", { deviceId, message });
   expect(res.status).toBe(200);
   const body = res.body as { session: string; message: string };
   await noise.readMessage(fromBase64(body.message));
@@ -91,6 +94,42 @@ describe("p2p noise transport", () => {
     expect(b.addresses).toEqual(["192.168.1.5:8787"]);
   });
 
+  it("old paths answer 410", async () => {
+    const s = setup();
+    for (const path of ["/p2p/v1/handshake", "/p2p/v1/sync"])
+      expect(await s.host.handle(path, {})).toEqual({ status: 410, body: { error: "update required" } });
+  });
+
+  it("transport uses v2 paths", async () => {
+    const s = setup();
+    const urls: string[] = [];
+    const key = s.addDevice("a");
+    const t = noiseTransport({
+      baseUrl: "http://phone",
+      deviceId: "a",
+      staticKey: key,
+      peerPublicKey: s.hostKey.publicKey,
+      post: async (url, body) => (urls.push(url), s.post(url, body)),
+    });
+    await t({ epoch: s.epoch, sinceRevision: 0, changes: [] });
+    expect(urls).toEqual(["http://phone/p2p/v2/handshake", "http://phone/p2p/v2/sync"]);
+    expect(P2P_HANDSHAKE_PATH).toBe("/p2p/v2/handshake");
+    expect(P2P_SYNC_PATH).toBe("/p2p/v2/sync");
+  });
+
+  it("404 on handshake means old phone", async () => {
+    const s = setup();
+    const t = noiseTransport({
+      baseUrl: "http://phone",
+      deviceId: "a",
+      staticKey: s.addDevice("a"),
+      peerPublicKey: s.hostKey.publicKey,
+      post: async () => ({ status: 404, body: { error: "not found" } }),
+    });
+    await expect(t({ epoch: s.epoch, sinceRevision: 0, changes: [] })).rejects.toThrow(PHONE_UPDATE_REQUIRED);
+    expect(PHONE_UPDATE_REQUIRED).toBe("Phone app needs an update");
+  });
+
   it("refuses a device that is not paired or was removed", async () => {
     const s = setup();
     const stranger = noiseTransport({
@@ -113,17 +152,17 @@ describe("p2p noise transport", () => {
     const s = setup();
     const keyA = s.addDevice("a");
     const first = await rawHandshake(s, "a", keyA);
-    const ok = await s.host.handle("/p2p/v1/sync", { session: first.session, frames: await syncBody(first.ciphers, s.epoch) });
+    const ok = await s.host.handle("/p2p/v2/sync", { session: first.session, frames: await syncBody(first.ciphers, s.epoch) });
     expect(ok.status).toBe(200);
-    const again = await s.host.handle("/p2p/v1/sync", { session: first.session, frames: await syncBody(first.ciphers, s.epoch) });
+    const again = await s.host.handle("/p2p/v2/sync", { session: first.session, frames: await syncBody(first.ciphers, s.epoch) });
     expect(again.status).toBe(401);
 
     const second = await rawHandshake(s, "a", keyA);
     s.advance(61_000);
-    const expired = await s.host.handle("/p2p/v1/sync", { session: second.session, frames: await syncBody(second.ciphers, s.epoch) });
+    const expired = await s.host.handle("/p2p/v2/sync", { session: second.session, frames: await syncBody(second.ciphers, s.epoch) });
     expect(expired.status).toBe(401);
 
-    const unknown = await s.host.handle("/p2p/v1/sync", { session: toBase64(randomBytes(16)), frames: ["AA=="] });
+    const unknown = await s.host.handle("/p2p/v2/sync", { session: toBase64(randomBytes(16)), frames: ["AA=="] });
     expect(unknown.status).toBe(401);
   });
 
@@ -133,7 +172,7 @@ describe("p2p noise transport", () => {
     const frames = await syncBody(h.ciphers, s.epoch);
     const ct = fromBase64(frames[0]!);
     ct[ct.length - 1]! ^= 1;
-    const res = await s.host.handle("/p2p/v1/sync", { session: h.session, frames: [toBase64(ct)] });
+    const res = await s.host.handle("/p2p/v2/sync", { session: h.session, frames: [toBase64(ct)] });
     expect(res.status).toBe(400);
     expect(s.store.currentRevision()).toBe(0);
   });
@@ -178,24 +217,24 @@ describe("p2p noise transport", () => {
     const mid = fromBase64(frames[1]!);
     mid[5]! ^= 1;
     frames[1] = toBase64(mid);
-    const res = await s.host.handle("/p2p/v1/sync", { session: h.session, frames });
+    const res = await s.host.handle("/p2p/v2/sync", { session: h.session, frames });
     expect(res.status).toBe(400);
     expect(s.store.currentRevision()).toBe(0);
   });
 
   it("rejects an oversized body", async () => {
     const s = setup();
-    const res = await s.host.handle("/p2p/v1/sync", { session: "x", frames: ["A".repeat(1024 * 1024)] });
+    const res = await s.host.handle("/p2p/v2/sync", { session: "x", frames: ["A".repeat(1024 * 1024)] });
     expect(res.status).toBe(413);
   });
 
   it("maps malformed requests and unknown paths", async () => {
     const s = setup();
     expect((await s.host.handle("/p2p/v1/nope", {})).status).toBe(404);
-    expect((await s.host.handle("/p2p/v1/handshake", { deviceId: 1 })).status).toBe(400);
-    expect((await s.host.handle("/p2p/v1/sync", null)).status).toBe(400);
+    expect((await s.host.handle("/p2p/v2/handshake", { deviceId: 1 })).status).toBe(400);
+    expect((await s.host.handle("/p2p/v2/sync", null)).status).toBe(400);
     s.addDevice("a");
-    expect((await s.host.handle("/p2p/v1/handshake", { deviceId: "a", message: toBase64(randomBytes(48)) })).status).toBe(400);
+    expect((await s.host.handle("/p2p/v2/handshake", { deviceId: "a", message: toBase64(randomBytes(48)) })).status).toBe(400);
   });
 });
 
@@ -205,7 +244,7 @@ describe("p2p host: final review fixes", () => {
 
   async function sendRaw(s: ReturnType<typeof setup>, request: unknown, key = s.addDevice(`d${Math.random()}`)) {
     const h = await rawHandshake(s, s.devices.at(-1)!.deviceId, key);
-    return s.host.handle("/p2p/v1/sync", { session: h.session, frames: await encryptFrames(h.ciphers.send, request) });
+    return s.host.handle("/p2p/v2/sync", { session: h.session, frames: await encryptFrames(h.ciphers.send, request) });
   }
 
   it("a session opened before the device was removed cannot sync", async () => {
@@ -213,11 +252,11 @@ describe("p2p host: final review fixes", () => {
     const key = s.addDevice("a");
     const h = await rawHandshake(s, "a", key);
     s.devices.length = 0;
-    const res = await s.host.handle("/p2p/v1/sync", { session: h.session, frames: await syncBody(h.ciphers, s.epoch) });
+    const res = await s.host.handle("/p2p/v2/sync", { session: h.session, frames: await syncBody(h.ciphers, s.epoch) });
     expect(res).toEqual({ status: 403, body: { error: "device not paired" } });
     // The session is consumed even though the device comes back.
     s.devices.push({ deviceId: "a", name: "a", staticPublicKey: key.publicKey });
-    const again = await s.host.handle("/p2p/v1/sync", { session: h.session, frames: await syncBody(h.ciphers, s.epoch) });
+    const again = await s.host.handle("/p2p/v2/sync", { session: h.session, frames: await syncBody(h.ciphers, s.epoch) });
     expect(again.status).toBe(401);
   });
 
@@ -225,7 +264,7 @@ describe("p2p host: final review fixes", () => {
     const s = setup();
     const h = await rawHandshake(s, "a");
     s.devices[0] = { deviceId: "a", name: "a", staticPublicKey: generateKeyPair().publicKey };
-    const res = await s.host.handle("/p2p/v1/sync", { session: h.session, frames: await syncBody(h.ciphers, s.epoch) });
+    const res = await s.host.handle("/p2p/v2/sync", { session: h.session, frames: await syncBody(h.ciphers, s.epoch) });
     expect(res.status).toBe(403);
   });
 
@@ -311,7 +350,7 @@ describe("p2p host: final review fixes", () => {
     for (let i = 0; i < 32; i++) await rawHandshake(s, "a", key);
     const noise = NoiseKK.initiator({ s: key, rs: s.hostKey.publicKey, prologue: P2P_PROLOGUE });
     const message = toBase64(await noise.writeMessage(new Uint8Array()));
-    expect(await s.host.handle("/p2p/v1/handshake", { deviceId: "a", message })).toEqual({
+    expect(await s.host.handle("/p2p/v2/handshake", { deviceId: "a", message })).toEqual({
       status: 503,
       body: { error: "too many sessions" },
     });
