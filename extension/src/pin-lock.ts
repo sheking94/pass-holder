@@ -3,7 +3,7 @@ import { deriveMasterKey, fromBase64, fromUtf8, newKdfParams, open, seal, toBase
 /**
  * Unlocking with a PIN. The PIN never replaces the master password: it only re-wraps the keys this
  * browser already has after a normal unlock, so the vault can be opened again without typing the
- * master password. The server knows nothing about the PIN.
+ * master password. The phone knows nothing about the PIN.
  *
  * A 4-6 digit PIN has at most a million values. Argon2id makes each guess slow, but someone who has a
  * copy of the PinLock can try them all offline (minutes for 4 digits, hours for 6). The attempt limit
@@ -34,16 +34,15 @@ const PIN_LOCK_AAD = "passholder/v1/pin-lock";
 export interface PinLock {
   /** Own Argon2id salt and parameters, unrelated to the master password ones. */
   kdf: KdfParams;
-  /** AES-256-GCM of JSON {vaultKey, authKey} under the key derived from the PIN. */
+  /** AES-256-GCM of JSON {vaultKey} under the key derived from the PIN. */
   wrappedKeys: string;
   /** Wrong PINs since the last successful unlock (by PIN or by master password). */
   failedAttempts: number;
 }
 
-/** The two keys the extension needs while unlocked: one decrypts the vault, the other logs in to the server. */
+/** What the extension needs while unlocked: the vault key (the P2P static key is sealed under it in the account). */
 export interface UnlockKeys {
   vaultKey: Uint8Array;
-  authKey: Uint8Array;
 }
 
 export class WrongPinError extends Error {}
@@ -66,7 +65,7 @@ export async function createPinLock(pin: string, keys: UnlockKeys): Promise<PinL
   if (!isValidPin(pin)) throw new Error(INVALID_PIN);
   const kdf = newKdfParams();
   const pinKey = await deriveMasterKey(pin, kdf);
-  const plaintext = utf8(JSON.stringify({ vaultKey: toBase64(keys.vaultKey), authKey: toBase64(keys.authKey) }));
+  const plaintext = utf8(JSON.stringify({ vaultKey: toBase64(keys.vaultKey) }));
   return { kdf, wrappedKeys: await seal(pinKey, plaintext, PIN_LOCK_AAD), failedAttempts: 0 };
 }
 
@@ -80,6 +79,6 @@ export async function openPinLock(pin: string, lock: PinLock): Promise<UnlockKey
   } catch {
     throw new WrongPinError("Zły PIN");
   }
-  const parsed = JSON.parse(fromUtf8(plaintext)) as { vaultKey: string; authKey: string };
-  return { vaultKey: fromBase64(parsed.vaultKey), authKey: fromBase64(parsed.authKey) };
+  const parsed = JSON.parse(fromUtf8(plaintext)) as { vaultKey: string };
+  return { vaultKey: fromBase64(parsed.vaultKey) };
 }

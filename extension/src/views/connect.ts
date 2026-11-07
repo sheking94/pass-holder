@@ -37,8 +37,10 @@ function connectView(mode: "existing" | "new" = "existing") {
     if (isNew && password.value !== repeat.value) return setStatus(status, "Hasła się różnią", true);
     requestHostPermission(typed.origins, status, () => {
       void busy(status, "Liczę klucze z hasła głównego…", async () => {
-        if (isNew) await store.createVault(typed.urls, token.value.trim(), password.value);
-        else await store.connectExisting(typed.urls, password.value);
+        // Interim wiring until Task 11 replaces this form with "Sparuj z telefonem" (code, then password).
+        if (isNew) throw new Error("Nowy sejf zakłada się w aplikacji na telefonie.");
+        await store.pairStart(typed.urls[0]!, token.value, "Chrome");
+        await store.pairFinish(password.value);
         listView("Połączono z serwerem. Możesz zamknąć tę kartę i używać ikony PassHolder na pasku. Logowanie PIN-em włączysz przyciskiem PIN.");
       });
     });
@@ -55,8 +57,8 @@ function connectView(mode: "existing" | "new" = "existing") {
     form(
       submit,
       ...addresses.fields,
-      isNew && h("label", {}, "Token z logu serwera (jednorazowy)"),
-      isNew && token,
+      !isNew && h("label", {}, "Kod parowania z telefonu (8 cyfr)"),
+      !isNew && token,
       h("label", {}, "Hasło główne"),
       passwordField(password).row,
       isNew && h("label", {}, "Powtórz hasło główne"),

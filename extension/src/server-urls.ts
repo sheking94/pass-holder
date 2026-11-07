@@ -1,18 +1,54 @@
-import { ApiError, type ServerClient } from "./api.ts";
+import { ApiError } from "./phone-client.ts";
 
 /**
- * How long the quick status check of one address may take before the next address is tried.
+ * How long the quick ping of one address may take before the next address is tried.
  * Without it, an address that is not reachable from where you are (the home IP when you are out,
  * the Tailscale IP with the VPN off) could keep fetch waiting for half a minute or more.
  */
 export const PROBE_TIMEOUT_MS = 4000;
 
-/** Trims, drops trailing slashes, empty entries and duplicates; keeps the order they were typed in. */
-export function normalizeServerUrls(urls: readonly string[]): string[] {
+/** The port of the phone's sync server (PhoneSync.PORT), used when an address has none. */
+export const PHONE_PORT = 8787;
+
+/**
+ * The phone answers only requests whose Host is an IPv4 literal or localhost (anything else gets 403), and
+ * only over plain HTTP: the Noise handshake inside does the encryption and authentication.
+ */
+const PHONE_URL = /^(?:http:\/\/)?(localhost|(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3}))(?::(\d{1,5}))?\/*$/i;
+
+const invalidPhoneUrl = (raw: string) =>
+  `Nieprawidłowy adres telefonu „${raw}”. Wpisz adres IPv4 z ekranu Synchronizacja w telefonie, np. http://192.168.1.5:${PHONE_PORT}.`;
+
+/** `http://<IPv4>:<port>` for an address like "192.168.1.5", "192.168.1.5:8787" or "http://192.168.1.5:8787/"; undefined if unusable. */
+export function normalizePhoneUrl(raw: string): string | undefined {
+  const m = PHONE_URL.exec(raw.trim());
+  if (!m) return undefined;
+  const [, host, ...rest] = m;
+  const octets = rest.slice(0, 4);
+  if (octets[0] !== undefined && octets.some((o) => Number(o) > 255)) return undefined;
+  const port = rest[4] === undefined ? PHONE_PORT : Number(rest[4]);
+  if (port < 1 || port > 65535) return undefined;
+  return `http://${host!.toLowerCase()}:${port}`;
+}
+
+/** Normalizes typed addresses, drops empty entries and duplicates, keeps their order; throws on an unusable one. */
+export function normalizePhoneUrls(urls: readonly string[]): string[] {
   const out: string[] = [];
   for (const raw of urls) {
-    const url = raw.trim().replace(/\/+$/, "");
-    if (url && !out.includes(url)) out.push(url);
+    if (!raw.trim()) continue;
+    const url = normalizePhoneUrl(raw);
+    if (url === undefined) throw new Error(invalidPhoneUrl(raw.trim()));
+    if (!out.includes(url)) out.push(url);
+  }
+  return out;
+}
+
+/** Addresses the phone reported, normalized; those the extension cannot use (e.g. IPv6 or names) are skipped. */
+export function learnedPhoneUrls(addresses: readonly string[]): string[] {
+  const out: string[] = [];
+  for (const address of addresses) {
+    const url = normalizePhoneUrl(address);
+    if (url !== undefined && !out.includes(url)) out.push(url);
   }
   return out;
 }
@@ -23,20 +59,25 @@ export function orderForTrying(urls: readonly string[], lastWorking?: string): s
   return [lastWorking, ...urls.filter((u) => u !== lastWorking)];
 }
 
+/** What pickServer needs of a client: a quick check that the other side answers. */
+export interface Probe {
+  status(timeoutMs?: number): Promise<unknown>;
+}
+
 /**
- * Finds an address at which the server answers. With one address there is nothing to choose, so it is
- * returned without a check (the request itself reports if the server is down). With more, each one gets
- * a short GET /status in turn and the first that answers wins. Any failure (no route, timeout,
- * certificate Chrome does not trust, an error status) means "not here, try the next one".
+ * Finds an address at which the phone answers. With one address there is nothing to choose, so it is
+ * returned without a check (the request itself reports if the phone is not there). With more, each one
+ * gets a ping with PROBE_TIMEOUT_MS in turn and the first that answers wins. Any failure (no route,
+ * timeout, an error status) means "not here, try the next one".
  */
-export async function pickServer(
+export async function pickServer<C extends Probe>(
   urls: readonly string[],
-  makeClient: (url: string) => ServerClient,
+  makeClient: (url: string) => C,
   lastWorking?: string,
-): Promise<{ url: string; client: ServerClient }> {
+): Promise<{ url: string; client: C }> {
   const ordered = orderForTrying(urls, lastWorking);
   const [only] = ordered;
-  if (only === undefined) throw new Error("Brak adresu serwera");
+  if (only === undefined) throw new Error("Brak adresu telefonu");
   if (ordered.length === 1) return { url: only, client: makeClient(only) };
   for (const url of ordered) {
     const client = makeClient(url);
@@ -49,6 +90,6 @@ export async function pickServer(
   }
   throw new ApiError(
     0,
-    `Serwer nie odpowiada pod żadnym adresem (${ordered.join(", ")}). Czy Raspberry Pi jest włączone? Spoza domu potrzebny jest też włączony Tailscale.`,
+    `Telefon nie odpowiada pod żadnym adresem (${ordered.join(", ")}). Czy tryb Synchronizacja jest włączony? Spoza domu potrzebny jest też włączony Tailscale.`,
   );
 }

@@ -1,75 +1,74 @@
 import {
   assertKdfParamsAcceptable,
-  deleteEntry,
   deriveKeys,
-  emptyVault,
   fromBase64,
   fromUtf8,
-  liveEntries,
-  newKdfParams,
-  newVaultKey,
   open,
+  p2p,
+  randomBytes,
   seal,
-  syncVault,
   toBase64,
   unwrapVaultKey,
-  upsertEntry,
   utf8,
-  wrapVaultKey,
-  type EntryData,
   type KdfParams,
-  type LocalEntry,
-  type LocalVault,
 } from "@passholder/core";
-import { ApiError, ServerClient, type SessionResponse } from "./api.ts";
+import { PhoneClient } from "./phone-client.ts";
 import { invalidPinMessage, isValidPin } from "./pin-lock.ts";
 import { PinStore, type PinStatus } from "./pin-store.ts";
-import { normalizeServerUrls, pickServer } from "./server-urls.ts";
+import { learnedPhoneUrls, normalizePhoneUrls, pickServer } from "./server-urls.ts";
 import { STORAGE_KEYS, type KeyValueStore } from "./storage.ts";
 
 export { chromeStore, memoryStore, STORAGE_KEYS, type KeyValueStore } from "./storage.ts";
 export type { PinStatus } from "./pin-store.ts";
 
-const LOCAL_VAULT_AAD = "passholder/v1/local-vault";
-
-/** A token this close to expiry is renewed before a sync, so it does not run out halfway. */
-const TOKEN_REFRESH_MARGIN_MS = 10_000;
+const LOCAL_VAULT_AAD = "passholder/v2/local-vault";
+const STATIC_KEY_AAD = "passholder/v2/ext-static-key";
 
 const LOCKED = "Sejf jest zablokowany";
-const NOT_CONNECTED = "Ta przeglądarka nie jest połączona z serwerem";
-export const NO_VAULT_ON_SERVER = "Na serwerze nie ma jeszcze sejfu. Wybierz „Nowy sejf” i załóż go.";
+const NOT_PAIRED = "Ta przeglądarka nie jest sparowana z telefonem";
+const WRONG_PASSWORD = "Złe hasło główne";
+export const OTHER_VAULT = "To inny sejf. Wtyczka zostaje połączona z poprzednim telefonem.";
+export const PHONE_WAITS_FOR_RESTORE =
+  "Telefon czeka na odtworzenie sejfu z wtyczki, a ta przeglądarka nie ma jeszcze sejfu. Na telefonie wybierz „Dodaj wtyczkę” albo odtwórz sejf z przeglądarki, która go ma.";
 
-/** Kept on disk. Nothing here is readable without the master password. */
+/** Kept on disk. Nothing here is readable without the master password, except the public parts. */
 export interface Account {
-  /** Every address of the same server, e.g. the home network IP and the Tailscale IP. At least one. */
-  serverUrls: string[];
+  /** Every address of the phone, e.g. the home network IP and the Tailscale IP. At least one. */
+  phoneUrls: string[];
   /** The address that answered last time; tried first on the next sync. */
-  lastServerUrl?: string;
+  lastPhoneUrl?: string;
+  deviceId: string;
+  deviceName: string;
+  /** The phone's identity from pairing: its static public key authenticates every sync. */
+  phone: p2p.DeviceIdentity;
   kdf: KdfParams;
   wrappedVaultKey: string;
+  /** This browser's X25519 private key, sealed under the vault key (STATIC_KEY_AAD). */
+  sealedStaticKey: string;
+  /** Base64 of the matching public key, as the phone knows it. */
+  staticPublicKey: string;
 }
 
-/** Version 1.0 stored a single serverUrl. */
-type StoredAccount = Omit<Account, "serverUrls"> & { serverUrls?: string[]; serverUrl?: string };
-
-function upgradeAccount(stored: StoredAccount): Account {
-  const { serverUrl, serverUrls, ...rest } = stored;
-  return { ...rest, serverUrls: serverUrls ?? (serverUrl ? [serverUrl] : []) };
-}
-
-function toUrlList(serverUrls: readonly string[]): string[] {
-  const urls = normalizeServerUrls(serverUrls);
-  if (urls.length === 0) throw new Error("Podaj adres serwera");
-  return urls;
+/**
+ * The result of /pair/start…/finish of a new browser, waiting for the master password. Kept in
+ * chrome.storage.session: it survives closing the popup (a wrong password can be typed again without a new
+ * code), not a browser restart.
+ */
+interface PendingPairing {
+  url: string;
+  deviceId: string;
+  deviceName: string;
+  /** Base64; memory only, like the session keys. */
+  staticPrivateKey: string;
+  staticPublicKey: string;
+  phone: p2p.DeviceIdentity;
+  vaultInfo: p2p.VaultInfo;
 }
 
 /** Kept in chrome.storage.session (memory only, gone when the browser closes) while unlocked. */
 interface SessionKeys {
   vaultKey: string;
-  authKey: string;
   unlockedUntil: number;
-  token?: string;
-  tokenExpiresAt?: number;
 }
 
 export const AUTO_LOCK_MS = 15 * 60_000;
@@ -81,10 +80,10 @@ export const AUTO_LOCK_MS = 15 * 60_000;
 export const ACTIVITY_WRITE_INTERVAL_MS = 30_000;
 
 /** An entry that is not deleted, as the popup lists and edits it. */
-export type LiveEntry = LocalEntry & { deleted: false };
+export type LiveEntry = p2p.LocalEntryV2 & { deleted: false };
 
 /** What the user sees of an entry, e.g. one row of an imported file. */
-export type EntryFields = Pick<EntryData, "name" | "username" | "password">;
+export type EntryFields = Pick<p2p.EntryDataV2, "name" | "username" | "password">;
 
 /** What importEntries() did: how many entries were added and how many were already in the vault. */
 export interface ImportResult {
@@ -97,49 +96,93 @@ function sameEntry(a: EntryFields, b: EntryFields): boolean {
   return a.name === b.name && a.username === b.username && a.password === b.password;
 }
 
-function serializeVault(vault: LocalVault): string {
-  return JSON.stringify({ lastSyncRevision: vault.lastSyncRevision, entries: [...vault.entries.values()] });
+function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a[i]! ^ b[i]!;
+  return diff === 0;
 }
 
-function deserializeVault(json: string): LocalVault {
-  const parsed = JSON.parse(json) as { lastSyncRevision: number; entries: LocalEntry[] };
-  return { lastSyncRevision: parsed.lastSyncRevision, entries: new Map(parsed.entries.map((e) => [e.id, e])) };
+/** One typed address as http://IPv4:port; throws a message that names a wrong one. */
+function phoneUrl(raw: string): string {
+  const [url] = normalizePhoneUrls([raw]);
+  if (url === undefined) throw new Error("Podaj adres telefonu");
+  return url;
+}
+
+function toUrlList(urls: readonly string[]): string[] {
+  const out = normalizePhoneUrls(urls);
+  if (out.length === 0) throw new Error("Podaj adres telefonu");
+  return out;
+}
+
+/** urls followed by the usable addresses from learned that are not in it yet. */
+function withLearned(urls: readonly string[], learned: readonly string[]): string[] {
+  return [...urls, ...learnedPhoneUrls(learned).filter((u) => !urls.includes(u))];
+}
+
+function serializeVault(vault: p2p.LocalVaultV2): string {
+  return JSON.stringify({
+    epoch: vault.epoch,
+    lastSyncRevision: vault.lastSyncRevision,
+    addresses: vault.addresses,
+    entries: [...vault.entries.values()],
+  });
+}
+
+function deserializeVault(json: string): p2p.LocalVaultV2 {
+  const parsed = JSON.parse(json) as { epoch: string | null; lastSyncRevision: number; addresses: string[]; entries: p2p.LocalEntryV2[] };
+  return {
+    epoch: parsed.epoch,
+    lastSyncRevision: parsed.lastSyncRevision,
+    addresses: parsed.addresses,
+    entries: new Map(parsed.entries.map((e) => [e.id, e])),
+  };
+}
+
+/** Unwraps the vault key; a wrong password (the GCM tag does not verify) becomes "Złe hasło główne". */
+async function unwrapWithPassword(masterPassword: string, kdf: KdfParams, wrappedVaultKey: string): Promise<Uint8Array> {
+  const keys = await deriveKeys(masterPassword, kdf);
+  try {
+    return await unwrapVaultKey(keys.encKey, wrappedVaultKey);
+  } catch {
+    throw new Error(WRONG_PASSWORD);
+  }
 }
 
 /**
  * Everything the popup does with the vault. The vault is encrypted with the vault key on disk too,
- * so the extension works offline and only talks to the server when you sync.
+ * so the extension works offline and only talks to the phone when you sync.
  * Every change (upsert, delete, sync) is saved to disk before the method returns.
  */
 export class VaultStore {
-  private vault: LocalVault | undefined;
+  private vault: p2p.LocalVaultV2 | undefined;
   private keys: SessionKeys | undefined;
+  private clock: p2p.HlcClock | undefined;
   private readonly pin: PinStore;
 
   constructor(
     private readonly local: KeyValueStore,
     private readonly session: KeyValueStore,
-    private readonly makeClient: (url: string) => ServerClient = (url) => new ServerClient(url),
+    private readonly makeClient: (url: string) => PhoneClient = (url) => new PhoneClient(url),
     private readonly now: () => number = Date.now,
   ) {
     this.pin = new PinStore(local, session);
   }
 
   async getAccount(): Promise<Account | undefined> {
-    const stored = await this.local.get<StoredAccount>(STORAGE_KEYS.account);
-    return stored && upgradeAccount(stored);
+    return this.local.get<Account>(STORAGE_KEYS.account);
   }
 
   /**
-   * Replaces the list of server addresses. The vault stays as it is: every address leads to the same
-   * server, and the browser checks its certificate on every connection anyway.
+   * Replaces the list of phone addresses. No new pairing is needed: every address leads to the same phone,
+   * and the Noise handshake checks its static key on every sync.
    */
-  async setServerUrls(serverUrls: readonly string[]): Promise<void> {
-    const account = await this.getAccount();
-    if (!account) throw new Error(NOT_CONNECTED);
-    const urls = toUrlList(serverUrls);
-    const lastServerUrl = account.lastServerUrl && urls.includes(account.lastServerUrl) ? account.lastServerUrl : undefined;
-    await this.saveAccount({ ...account, serverUrls: urls, lastServerUrl });
+  async setPhoneUrls(phoneUrls: readonly string[]): Promise<void> {
+    const account = await this.requireAccount();
+    const urls = toUrlList(phoneUrls);
+    const lastPhoneUrl = account.lastPhoneUrl && urls.includes(account.lastPhoneUrl) ? account.lastPhoneUrl : undefined;
+    await this.saveAccount({ ...account, phoneUrls: urls, lastPhoneUrl });
   }
 
   isUnlocked(): boolean {
@@ -148,7 +191,7 @@ export class VaultStore {
 
   /** Entries that are not deleted, in no particular order. */
   entries(): LiveEntry[] {
-    return liveEntries(this.requireVault());
+    return p2p.liveEntriesV2(this.requireVault());
   }
 
   entry(id: string): LiveEntry | undefined {
@@ -156,13 +199,13 @@ export class VaultStore {
     return entry && !entry.deleted ? entry : undefined;
   }
 
-  /** Number of local changes the server has not seen yet. */
+  /** Number of local changes the phone has not seen yet. */
   pendingCount(): number {
     return [...this.requireVault().entries.values()].filter((e) => e.dirty).length;
   }
 
-  async upsert(id: string, data: Omit<EntryData, "modifiedAt">): Promise<void> {
-    upsertEntry(this.requireVault(), id, data, this.now());
+  async upsert(id: string, data: EntryFields): Promise<void> {
+    p2p.upsertEntryV2(this.requireVault(), this.requireClock(), id, data);
     await this.save();
   }
 
@@ -173,11 +216,12 @@ export class VaultStore {
    */
   async importEntries(entries: readonly EntryFields[], newId: () => string = () => crypto.randomUUID()): Promise<ImportResult> {
     const vault = this.requireVault();
-    const known: EntryFields[] = liveEntries(vault).map((e) => e.data);
+    const clock = this.requireClock();
+    const known: EntryFields[] = p2p.liveEntriesV2(vault).map((e) => e.data);
     let added = 0;
     for (const entry of entries) {
       if (known.some((k) => sameEntry(k, entry))) continue;
-      upsertEntry(vault, newId(), entry, this.now());
+      p2p.upsertEntryV2(vault, clock, newId(), { name: entry.name, username: entry.username, password: entry.password });
       known.push(entry);
       added++;
     }
@@ -186,59 +230,121 @@ export class VaultStore {
   }
 
   async delete(id: string): Promise<void> {
-    deleteEntry(this.requireVault(), id, this.now());
+    p2p.deleteEntryV2(this.requireVault(), this.requireClock(), id);
     await this.save();
   }
 
-  /** Creates a new vault on an empty server, reached at the first of serverUrls that answers. */
-  async createVault(serverUrls: readonly string[], setupToken: string, masterPassword: string): Promise<void> {
-    const urls = toUrlList(serverUrls);
-    const { url, client } = await pickServer(urls, this.makeClient);
-    const kdf = newKdfParams();
-    const keys = await deriveKeys(masterPassword, kdf);
-    const vaultKey = newVaultKey();
-    const wrappedVaultKey = await wrapVaultKey(keys.encKey, vaultKey);
-    await client.setup({ setupToken, kdf, authKey: toBase64(keys.authKey), wrappedVaultKey });
-    await this.disablePin();
-    await this.saveAccount({ serverUrls: urls, lastServerUrl: url, kdf, wrappedVaultKey });
-    await this.startSession(vaultKey, keys.authKey, emptyVault());
+  /**
+   * First step of pairing a new browser: /pair/hello, start and finish with the code the phone shows.
+   * The result (with this browser's new static key) waits in session storage for pairFinish.
+   */
+  async pairStart(url: string, code: string, deviceName: string): Promise<{ needsPassword: true }> {
+    const baseUrl = phoneUrl(url);
+    const name = deviceName.trim();
+    if (name.length < 1 || name.length > p2p.MAX_DEVICE_NAME_LENGTH) {
+      throw new Error(`Podaj nazwę tego urządzenia (do ${p2p.MAX_DEVICE_NAME_LENGTH} znaków)`);
+    }
+    if (await this.getAccount()) throw new Error("Ta przeglądarka jest już sparowana. Użyj „Sparuj z innym telefonem”.");
+    const client = this.makeClient(baseUrl);
+    // pairWithPhone refuses restore mode too, but only with a short message; this one says what to do.
+    if ((await p2p.phoneHello(baseUrl, client.post)).mode === "restore") throw new Error(PHONE_WAITS_FOR_RESTORE);
+
+    const staticKey = p2p.generateKeyPair();
+    const identity: p2p.DeviceIdentity = { deviceId: crypto.randomUUID(), name, staticPublicKey: toBase64(staticKey.publicKey) };
+    const res = await p2p.pairWithPhone({ baseUrl, code, identity, post: client.post });
+    if (res.mode !== "pair") throw new Error(PHONE_WAITS_FOR_RESTORE);
+    const pending: PendingPairing = {
+      url: baseUrl,
+      deviceId: identity.deviceId,
+      deviceName: name,
+      staticPrivateKey: toBase64(staticKey.privateKey),
+      staticPublicKey: identity.staticPublicKey,
+      phone: res.phone,
+      vaultInfo: res.vaultInfo,
+    };
+    await this.session.set(STORAGE_KEYS.pendingPairing, pending);
+    return { needsPassword: true };
   }
 
-  /** Connects this browser to a vault that already exists on the server, then downloads it. */
-  async connectExisting(serverUrls: readonly string[], masterPassword: string): Promise<void> {
-    const urls = toUrlList(serverUrls);
-    const { url, client } = await pickServer(urls, this.makeClient);
-    const { kdf } = await client.prelogin().catch((error: unknown) => {
-      if (error instanceof ApiError && error.status === 404) throw new ApiError(404, NO_VAULT_ON_SERVER);
-      throw error;
-    });
+  /**
+   * Second step: the master password opens the phone's vault key. A wrong one leaves the pairing in session
+   * storage, so it can be typed again without a new code. Then the account is saved and the first sync runs.
+   */
+  async pairFinish(masterPassword: string): Promise<void> {
+    const pending = await this.session.get<PendingPairing>(STORAGE_KEYS.pendingPairing);
+    if (!pending) throw new Error("Najpierw sparuj przeglądarkę z telefonem (kod z ekranu Synchronizacja).");
+    const { kdf, wrappedVaultKey } = pending.vaultInfo;
     assertKdfParamsAcceptable(kdf);
-    const keys = await deriveKeys(masterPassword, kdf);
-    const authKey = toBase64(keys.authKey);
-    const session = await client.session(authKey).catch((error: unknown) => {
-      if (error instanceof ApiError && error.status === 401) throw new ApiError(401, "Złe hasło główne");
-      throw error;
-    });
-    const vaultKey = await unwrapVaultKey(keys.encKey, session.wrappedVaultKey);
+    const vaultKey = await unwrapWithPassword(masterPassword, kdf, wrappedVaultKey);
+    const account: Account = {
+      phoneUrls: withLearned([pending.url], pending.vaultInfo.addresses),
+      lastPhoneUrl: pending.url,
+      deviceId: pending.deviceId,
+      deviceName: pending.deviceName,
+      phone: pending.phone,
+      kdf,
+      wrappedVaultKey,
+      sealedStaticKey: await seal(vaultKey, fromBase64(pending.staticPrivateKey), STATIC_KEY_AAD),
+      staticPublicKey: pending.staticPublicKey,
+    };
+    const vault = p2p.emptyVaultV2();
+    p2p.applyVaultInfo(vault, pending.vaultInfo);
     await this.disablePin();
-    await this.saveAccount({ serverUrls: urls, lastServerUrl: url, kdf, wrappedVaultKey: session.wrappedVaultKey });
-    await this.startSession(vaultKey, keys.authKey, emptyVault());
-    await this.rememberToken(session);
+    await this.saveAccount(account);
+    await this.startSession(vaultKey, vault, account);
+    await this.session.remove(STORAGE_KEYS.pendingPairing);
     await this.sync();
+  }
+
+  /**
+   * Pairs this browser (same deviceId and static key) with a phone again, e.g. a new or reinstalled one.
+   * A phone waiting for "Odtwórz z wtyczki" gets this browser's vault ("restored"). A phone with a vault
+   * ("paired") must hold the same vault key: otherwise nothing changes here and OTHER_VAULT is thrown.
+   * The master password is checked first, so a typo does not spend the phone's code.
+   */
+  async repair(url: string, code: string, masterPassword: string): Promise<"paired" | "restored"> {
+    const account = await this.requireAccount();
+    const baseUrl = phoneUrl(url);
+    const vaultKey = await unwrapWithPassword(masterPassword, account.kdf, account.wrappedVaultKey);
+    const vault = await this.loadVault(vaultKey);
+    const identity: p2p.DeviceIdentity = { deviceId: account.deviceId, name: account.deviceName, staticPublicKey: account.staticPublicKey };
+    const restore: p2p.VaultInfo = {
+      // The phone ignores epoch and addresses of a restore, but they must be well formed.
+      epoch: vault.epoch ?? toBase64(randomBytes(16)),
+      kdf: account.kdf,
+      wrappedVaultKey: account.wrappedVaultKey,
+      addresses: [],
+    };
+    // In pair mode pairWithPhone does not send `restore`: the phone keeps its own vault.
+    const res = await p2p.pairWithPhone({ baseUrl, code, identity, post: this.makeClient(baseUrl).post, restore });
+
+    let { kdf, wrappedVaultKey } = account;
+    if (res.mode === "pair") {
+      const phoneKey = await unwrapWithPassword(masterPassword, res.vaultInfo.kdf, res.vaultInfo.wrappedVaultKey).catch(() => undefined);
+      if (!phoneKey || !sameBytes(phoneKey, vaultKey)) throw new Error(OTHER_VAULT);
+      // Same vault key, perhaps wrapped anew (e.g. the phone changed the KDF): the phone's copy is current.
+      ({ kdf, wrappedVaultKey } = res.vaultInfo);
+    }
+    p2p.applyVaultInfo(vault, res.vaultInfo);
+    const updated: Account = {
+      ...account,
+      phoneUrls: withLearned([baseUrl], res.vaultInfo.addresses),
+      lastPhoneUrl: baseUrl,
+      phone: res.phone,
+      kdf,
+      wrappedVaultKey,
+    };
+    await this.saveAccount(updated);
+    await this.startSession(vaultKey, vault, updated);
+    await this.sync();
+    return res.mode === "pair" ? "paired" : "restored";
   }
 
   /** Works offline: the wrapped vault key and the encrypted vault are on disk. */
   async unlock(masterPassword: string): Promise<void> {
-    const account = await this.getAccount();
-    if (!account) throw new Error(NOT_CONNECTED);
-    const keys = await deriveKeys(masterPassword, account.kdf);
-    let vaultKey: Uint8Array;
-    try {
-      vaultKey = await unwrapVaultKey(keys.encKey, account.wrappedVaultKey);
-    } catch {
-      throw new Error("Złe hasło główne");
-    }
-    await this.startSession(vaultKey, keys.authKey, await this.loadVault(vaultKey));
+    const account = await this.requireAccount();
+    const vaultKey = await unwrapWithPassword(masterPassword, account.kdf, account.wrappedVaultKey);
+    await this.startSession(vaultKey, await this.loadVault(vaultKey), account);
     await this.pin.resetAttempts();
   }
 
@@ -247,9 +353,9 @@ export class VaultStore {
    * MAX_PIN_ATTEMPTS in a row the PIN is deleted and only the master password works (see PinStore).
    */
   async unlockWithPin(pin: string): Promise<{ movedToMemory: boolean }> {
-    if (!(await this.getAccount())) throw new Error(NOT_CONNECTED);
+    const account = await this.requireAccount();
     const { keys, movedToMemory } = await this.pin.unlock(pin);
-    await this.startSession(keys.vaultKey, keys.authKey, await this.loadVault(keys.vaultKey));
+    await this.startSession(keys.vaultKey, await this.loadVault(keys.vaultKey), account);
     return { movedToMemory };
   }
 
@@ -263,7 +369,7 @@ export class VaultStore {
     // Before requireKeys(): a PIN of the wrong shape is reported as such even while locked.
     if (!isValidPin(pin, rememberAfterRestart)) throw new Error(invalidPinMessage(rememberAfterRestart));
     const keys = this.requireKeys();
-    await this.pin.enable(pin, { vaultKey: fromBase64(keys.vaultKey), authKey: fromBase64(keys.authKey) }, rememberAfterRestart);
+    await this.pin.enable(pin, { vaultKey: fromBase64(keys.vaultKey) }, rememberAfterRestart);
   }
 
   disablePin(): Promise<void> {
@@ -273,12 +379,14 @@ export class VaultStore {
   /** Restores an unlocked state kept in session storage, so reopening the popup needs no password. */
   async resume(): Promise<boolean> {
     const keys = await this.session.get<SessionKeys>(STORAGE_KEYS.sessionKeys);
-    if (!keys || keys.unlockedUntil <= this.now()) {
+    const account = await this.getAccount();
+    if (!keys || !account || keys.unlockedUntil <= this.now()) {
       await this.lock();
       return false;
     }
     this.keys = keys;
     this.vault = await this.loadVault(fromBase64(keys.vaultKey));
+    this.clock = p2p.clockForVault(this.vault, account.deviceId, this.now);
     await this.touch();
     return true;
   }
@@ -296,7 +404,6 @@ export class VaultStore {
       await this.lock();
       return true;
     }
-    // A sync in another page may have renewed the token; the deadline is the later of the two.
     this.keys = { ...stored, unlockedUntil: Math.max(stored.unlockedUntil, this.keys.unlockedUntil) };
     return false;
   }
@@ -319,56 +426,50 @@ export class VaultStore {
   async lock(): Promise<void> {
     this.vault = undefined;
     this.keys = undefined;
+    this.clock = undefined;
     await this.session.remove(STORAGE_KEYS.sessionKeys);
   }
 
-  /** Forgets this browser's account, PIN and local copy. The server keeps everything. */
+  /** Forgets this browser's account, PIN, local copy and an unfinished pairing. The phone keeps everything. */
   async disconnect(): Promise<void> {
     await this.lock();
     await this.disablePin();
+    await this.session.remove(STORAGE_KEYS.pendingPairing);
     await this.local.remove(STORAGE_KEYS.account);
     await this.local.remove(STORAGE_KEYS.vault);
   }
 
+  /**
+   * Syncs with the phone at the first address that answers (the one that worked last time is tried first),
+   * over Noise KK with this browser's static key and the phone's key from pairing. Addresses the phone
+   * reports are added to phoneUrls; typed ones stay.
+   */
   async sync(): Promise<void> {
     const vault = this.requireVault();
-    const keys = this.requireKeys();
-    const account = await this.getAccount();
-    if (!account) throw new Error(LOCKED);
-    // The session token stays valid at any address: it is the same server.
-    const { url, client } = await pickServer(account.serverUrls, this.makeClient, account.lastServerUrl);
-    const vaultKey = fromBase64(keys.vaultKey);
-    await this.withFreshToken(client, (token) => syncVault(vault, vaultKey, (request) => client.sync(token, request)));
+    const vaultKey = fromBase64(this.requireKeys().vaultKey);
+    const clock = this.requireClock();
+    const account = await this.requireAccount();
+    const { url, client } = await pickServer(account.phoneUrls, this.makeClient, account.lastPhoneUrl);
+    const staticKey = p2p.keyPairFromPrivateKey(await open(vaultKey, account.sealedStaticKey, STATIC_KEY_AAD));
+    const send = p2p.noiseTransport({
+      baseUrl: url,
+      deviceId: account.deviceId,
+      staticKey,
+      peerPublicKey: fromBase64(account.phone.staticPublicKey),
+      post: client.post,
+    });
+    await p2p.syncVaultV2(vault, vaultKey, clock, send);
     await this.save();
-    if (url !== account.lastServerUrl) await this.saveAccount({ ...account, lastServerUrl: url });
-  }
-
-  /**
-   * Runs action with a valid session token. The server keeps sessions in memory only, so switching the
-   * Pi off and on forgets our token although it has not expired yet: on 401 log in again once and retry.
-   */
-  private async withFreshToken(client: ServerClient, action: (token: string) => Promise<void>): Promise<void> {
-    const keys = this.requireKeys();
-    const expiringSoon = (keys.tokenExpiresAt ?? 0) <= this.now() + TOKEN_REFRESH_MARGIN_MS;
-    const token = keys.token && !expiringSoon ? keys.token : await this.logIn(client);
-    try {
-      await action(token);
-    } catch (error) {
-      if (!(error instanceof ApiError && error.status === 401)) throw error;
-      await action(await this.logIn(client));
+    const phoneUrls = withLearned(account.phoneUrls, vault.addresses);
+    if (url !== account.lastPhoneUrl || phoneUrls.length !== account.phoneUrls.length) {
+      await this.saveAccount({ ...account, phoneUrls, lastPhoneUrl: url });
     }
   }
 
-  /** Gets a new session token from the server and returns it. */
-  private async logIn(client: ServerClient): Promise<string> {
-    const session = await client.session(this.requireKeys().authKey);
-    await this.rememberToken(session);
-    return session.token;
-  }
-
-  private async rememberToken(session: SessionResponse): Promise<void> {
-    this.keys = { ...this.requireKeys(), token: session.token, tokenExpiresAt: session.expiresAt };
-    await this.session.set(STORAGE_KEYS.sessionKeys, this.keys);
+  private async requireAccount(): Promise<Account> {
+    const account = await this.getAccount();
+    if (!account) throw new Error(NOT_PAIRED);
+    return account;
   }
 
   private async saveAccount(account: Account): Promise<void> {
@@ -380,7 +481,7 @@ export class VaultStore {
     return this.keys !== undefined && this.keys.unlockedUntil <= this.now();
   }
 
-  private requireVault(): LocalVault {
+  private requireVault(): p2p.LocalVaultV2 {
     if (!this.vault || this.expired()) throw new Error(LOCKED);
     return this.vault;
   }
@@ -390,15 +491,21 @@ export class VaultStore {
     return this.keys;
   }
 
+  private requireClock(): p2p.HlcClock {
+    if (!this.clock || this.expired()) throw new Error(LOCKED);
+    return this.clock;
+  }
+
   private async save(): Promise<void> {
     const blob = await seal(fromBase64(this.requireKeys().vaultKey), utf8(serializeVault(this.requireVault())), LOCAL_VAULT_AAD);
     await this.local.set(STORAGE_KEYS.vault, blob);
     await this.touch();
   }
 
-  private async startSession(vaultKey: Uint8Array, authKey: Uint8Array, vault: LocalVault): Promise<void> {
+  private async startSession(vaultKey: Uint8Array, vault: p2p.LocalVaultV2, account: Account): Promise<void> {
     this.vault = vault;
-    this.keys = { vaultKey: toBase64(vaultKey), authKey: toBase64(authKey), unlockedUntil: this.now() + AUTO_LOCK_MS };
+    this.clock = p2p.clockForVault(vault, account.deviceId, this.now);
+    this.keys = { vaultKey: toBase64(vaultKey), unlockedUntil: this.now() + AUTO_LOCK_MS };
     await this.save();
   }
 
@@ -408,9 +515,9 @@ export class VaultStore {
     await this.session.set(STORAGE_KEYS.sessionKeys, this.keys);
   }
 
-  private async loadVault(vaultKey: Uint8Array): Promise<LocalVault> {
+  private async loadVault(vaultKey: Uint8Array): Promise<p2p.LocalVaultV2> {
     const blob = await this.local.get<string>(STORAGE_KEYS.vault);
-    if (!blob) return emptyVault();
+    if (!blob) return p2p.emptyVaultV2();
     return deserializeVault(fromUtf8(await open(vaultKey, blob, LOCAL_VAULT_AAD)));
   }
 }

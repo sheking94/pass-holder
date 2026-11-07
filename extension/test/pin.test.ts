@@ -1,38 +1,20 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { buildApp } from "@passholder/server/src/app.ts";
-import { Database } from "@passholder/server/src/db.ts";
+import { describe, expect, it } from "vitest";
 import { fromBase64 } from "@passholder/core";
-import { createPinLock, INVALID_REMEMBERED_PIN, MAX_PIN_ATTEMPTS, type PinLock } from "../src/pin-lock.ts";
+import { createPinLock, INVALID_REMEMBERED_PIN, MAX_PIN_ATTEMPTS, openPinLock, type PinLock } from "../src/pin-lock.ts";
 import { memoryStore, STORAGE_KEYS, VaultStore } from "../src/vault-store.ts";
+import { pairedBrowser, PASSWORD } from "./fake-phone.ts";
 
-const SETUP_TOKEN = "token";
-const PASSWORD = "hasło główne do testów PIN";
 const PIN = "4821";
 /** A PIN kept on disk must be long (S4 of the security review). */
 const LONG_PIN = "kot-4821-psa";
-const servers: { close(): Promise<unknown> }[] = [];
-
-afterEach(async () => {
-  await Promise.all(servers.splice(0).map((s) => s.close()));
-});
-
-async function startServer() {
-  const app = buildApp({ db: new Database(":memory:"), setupToken: SETUP_TOKEN });
-  servers.push(app);
-  return app.listen({ host: "127.0.0.1", port: 0 });
-}
 
 /** A browser with a vault and one entry, locked, with the PIN on. */
 async function lockedBrowserWithPin(rememberAfterRestart = false, pin = rememberAfterRestart ? LONG_PIN : PIN) {
-  const url = await startServer();
-  const local = memoryStore();
-  const session = memoryStore();
-  const store = new VaultStore(local, session);
-  await store.createVault([url], SETUP_TOKEN, PASSWORD);
+  const { local, session, store, makeClient } = await pairedBrowser();
   await store.upsert("1", { name: "bank.pl", username: "jan", password: "s3cret" });
   await store.enablePin(pin, rememberAfterRestart);
   await store.lock();
-  return { url, local, session, store };
+  return { local, session, store, makeClient };
 }
 
 const names = (store: VaultStore) => store.entries().map((e) => e.data.name);
@@ -45,7 +27,7 @@ describe("Unlocking with a PIN", () => {
 
     await store.unlockWithPin(PIN);
     expect(names(store)).toEqual(["bank.pl"]);
-    await store.sync(); // needs the auth key, which came out of the PIN lock too
+    await store.sync(); // the static key is unsealed with the vault key that came out of the PIN lock
     expect(store.pendingCount()).toBe(0);
   }, 60_000);
 
@@ -87,12 +69,12 @@ describe("Unlocking with a PIN", () => {
   it("forgets a session PIN when the browser restarts, keeps a remembered one", async () => {
     const memoryOnly = await lockedBrowserWithPin(false);
     expect(await memoryOnly.local.get(STORAGE_KEYS.pinLock)).toBeUndefined();
-    const restarted = new VaultStore(memoryOnly.local, memoryStore()); // session storage is empty after a restart
+    const restarted = new VaultStore(memoryOnly.local, memoryStore(), memoryOnly.makeClient); // session storage is empty after a restart
     expect(await restarted.pinStatus()).toBeUndefined();
 
     const remembered = await lockedBrowserWithPin(true);
     expect(await remembered.session.get(STORAGE_KEYS.pinLock)).toBeUndefined();
-    const restarted2 = new VaultStore(remembered.local, memoryStore());
+    const restarted2 = new VaultStore(remembered.local, memoryStore(), remembered.makeClient);
     expect(await restarted2.pinStatus()).toEqual({ rememberedAfterRestart: true, attemptsLeft: MAX_PIN_ATTEMPTS });
     expect(await restarted2.unlockWithPin(LONG_PIN)).toEqual({ movedToMemory: false });
     expect(names(restarted2)).toEqual(["bank.pl"]);
@@ -103,6 +85,8 @@ describe("Unlocking with a PIN", () => {
     await store.unlock(PASSWORD);
     const lock = await local.get<PinLock>(STORAGE_KEYS.pinLock);
     expect(Object.keys(lock!).sort()).toEqual(["failedAttempts", "kdf", "wrappedKeys"]);
+    // Only the vault key is wrapped; the P2P static key is sealed under it in the account.
+    expect(Object.keys(await openPinLock(LONG_PIN, lock!))).toEqual(["vaultKey"]);
     expect(lock!.kdf.salt).not.toBe((await store.getAccount())!.kdf.salt);
 
     await store.disablePin();
@@ -129,9 +113,9 @@ describe("Unlocking with a PIN", () => {
     const { store, local, session } = await lockedBrowserWithPin();
     // What version 1.0 saved with "remember after restart": a 4-digit PIN in local storage.
     await store.unlock(PASSWORD);
-    const keys = (await session.get<{ vaultKey: string; authKey: string }>(STORAGE_KEYS.sessionKeys))!;
+    const keys = (await session.get<{ vaultKey: string }>(STORAGE_KEYS.sessionKeys))!;
     await store.disablePin();
-    await local.set(STORAGE_KEYS.pinLock, await createPinLock(PIN, { vaultKey: fromBase64(keys.vaultKey), authKey: fromBase64(keys.authKey) }));
+    await local.set(STORAGE_KEYS.pinLock, await createPinLock(PIN, { vaultKey: fromBase64(keys.vaultKey) }));
     await store.lock();
     expect(await store.pinStatus()).toEqual({ rememberedAfterRestart: true, attemptsLeft: MAX_PIN_ATTEMPTS });
 

@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { deriveKeys, newKdfParams, newVaultKey, wrapVaultKey } from "@passholder/core";
 import { AUTO_LOCK_ALARM, IDLE_CHECK_INTERVAL_MS, onAutoLockAlarm, scheduleAutoLock, watchIdle, type AlarmApi } from "../src/auto-lock.ts";
 import { ACTIVITY_WRITE_INTERVAL_MS, AUTO_LOCK_MS, memoryStore, STORAGE_KEYS, VaultStore } from "../src/vault-store.ts";
-
-const PASSWORD = "Zażółć gęślą jaźń 2026";
+import { pairedBrowser } from "./fake-phone.ts";
 
 function fakeAlarms() {
   const alarms = new Map<string, number>();
@@ -14,18 +12,10 @@ function fakeAlarms() {
   return { alarms, api };
 }
 
-/** A browser with an unlocked vault, without a server: the account is copied from a vault made offline. */
+/** A browser paired with a fake phone (cheapest allowed KDF), unlocked, with an empty vault. */
 async function unlockedBrowser(clock: { now: number }) {
-  const local = memoryStore();
-  const session = memoryStore();
   const now = () => clock.now;
-  const store = new VaultStore(local, session, undefined, now);
-  // createVault needs a server; build the account by hand the same way (with the cheapest allowed KDF).
-  const kdf = { ...newKdfParams(), memoryKiB: 19456, iterations: 2, parallelism: 1 };
-  const keys = await deriveKeys(PASSWORD, kdf);
-  const wrappedVaultKey = await wrapVaultKey(keys.encKey, newVaultKey());
-  await local.set(STORAGE_KEYS.account, { serverUrls: ["https://pi.local:8443"], kdf, wrappedVaultKey });
-  await store.unlock(PASSWORD);
+  const { local, session, store } = await pairedBrowser({ now });
   return { local, session, store, now };
 }
 

@@ -14,7 +14,7 @@ export function openAddresses() {
 export async function addressesView() {
   const account = await store.getAccount();
   if (!account) return showConnect();
-  const addresses = serverUrlFields(account.serverUrls);
+  const addresses = serverUrlFields(account.phoneUrls);
   const status = statusLine();
   // The separate ?addresses tab has no list to go back to; it can just be closed.
   const ownTab = MODE === "addresses";
@@ -24,7 +24,7 @@ export async function addressesView() {
     if (typeof typed === "string") return setStatus(status, typed, true);
     requestHostPermission(typed.origins, status, () => {
       void busy(status, "Zapisuję…", async () => {
-        await store.setServerUrls(typed.urls);
+        await store.setPhoneUrls(typed.urls);
         setStatus(status, "Zapisano. Przy synchronizacji wtyczka sama wybierze adres, który odpowiada." + (ownTab ? " Możesz zamknąć tę kartę." : ""));
       });
     });

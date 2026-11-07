@@ -1,4 +1,4 @@
-import { normalizeServerUrls } from "../server-urls.ts";
+import { normalizePhoneUrls } from "../server-urls.ts";
 import { h, setStatus } from "./dom.ts";
 
 const URL_EXAMPLE = "https://passholder.local:8443";
@@ -24,13 +24,14 @@ export function serverUrlFields(current: readonly string[] = []) {
     ],
     /** The typed addresses and the host permission patterns they need, or an error message. */
     read(): { urls: string[]; origins: string[] } | string {
-      const urls = normalizeServerUrls([main.value, second.value]);
-      if (urls.length === 0) return `Podaj pełny adres, np. ${URL_EXAMPLE}`;
+      let urls: string[];
       try {
-        return { urls, origins: [...new Set(urls.map(originPattern))] };
-      } catch {
-        return `Podaj pełne adresy, np. ${URL_EXAMPLE}`;
+        urls = normalizePhoneUrls([main.value, second.value]);
+      } catch (error) {
+        return (error as Error).message;
       }
+      if (urls.length === 0) return `Podaj pełny adres, np. ${URL_EXAMPLE}`;
+      return { urls, origins: [...new Set(urls.map(originPattern))] };
     },
   };
 }
