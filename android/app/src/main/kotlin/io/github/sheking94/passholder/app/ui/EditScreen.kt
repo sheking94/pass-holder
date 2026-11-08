@@ -27,11 +27,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.github.sheking94.passholder.app.AppViewModel
 import io.github.sheking94.passholder.app.UiState
+import io.github.sheking94.passholder.app.entries.EntryType
+import io.github.sheking94.passholder.app.entries.emptyContent
 import io.github.sheking94.passholder.app.loginCredentials
 import io.github.sheking94.passholder.core.CharacterGroup
-import io.github.sheking94.passholder.core.Credentials
 import io.github.sheking94.passholder.core.GeneratorOptions
 import io.github.sheking94.passholder.core.PasswordGenerator
+import io.github.sheking94.passholder.core.p2p.EntryContentV3
+import io.github.sheking94.passholder.core.p2p.LoginFields
 import kotlin.math.roundToInt
 
 private val GROUP_LABELS = mapOf(
@@ -45,6 +48,7 @@ private val GROUP_LABELS = mapOf(
 @Composable
 fun EditScreen(id: String?, state: UiState, vm: AppViewModel) {
     // Read from the store when the entry was opened (AppViewModel.openEntry), not from the list on screen.
+    val original = remember(id) { state.editing?.takeIf { it.id == id }?.content }
     val existing = remember(id) { state.editing?.takeIf { it.id == id }?.loginCredentials() }
     // remember, not rememberSaveable: entry passwords stay out of the saved instance state.
     var name by remember(id) { mutableStateOf(existing?.name ?: "") }
@@ -100,7 +104,7 @@ fun EditScreen(id: String?, state: UiState, vm: AppViewModel) {
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { vm.save(id, Credentials(name, username, password)) }, enabled = !state.busy) { Text("Zapisz") }
+            Button(onClick = { vm.save(id, loginContent(original, name, username, password), original) }, enabled = !state.busy) { Text("Zapisz") }
             OutlinedButton(onClick = vm::backToList, enabled = !state.busy) { Text("Anuluj") }
             if (existing != null) {
                 TextButton(onClick = { askDelete = true }, enabled = !state.busy) { Text("Usuń", color = MaterialTheme.colorScheme.error) }
@@ -118,4 +122,15 @@ fun EditScreen(id: String?, state: UiState, vm: AppViewModel) {
             dismissButton = { TextButton(onClick = { askDelete = false }) { Text("Anuluj") } },
         )
     }
+}
+
+/**
+ * The form's three login fields over [original] (or an empty login): its other fields (TOTP, URLs, apps, note,
+ * custom fields) stay as they were. Temporary: the full login form replaces it.
+ */
+private fun loginContent(original: EntryContentV3?, name: String, username: String, password: String): EntryContentV3 {
+    val base = original ?: emptyContent(EntryType.LOGIN)
+    // Another type is passed on as it is: the vault refuses to turn it into a login.
+    val fields = (base.fields as? LoginFields)?.copy(username = username, password = password) ?: base.fields
+    return base.copy(name = name, fields = fields)
 }

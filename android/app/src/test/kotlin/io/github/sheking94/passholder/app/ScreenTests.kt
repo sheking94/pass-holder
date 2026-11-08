@@ -5,12 +5,14 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.printToLog
 import androidx.compose.ui.test.printToString
+import androidx.lifecycle.ViewModelProvider
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -105,6 +107,19 @@ abstract class ScreenTestBase {
 
     protected fun click(text: String) = compose.onNodeWithText(text).performClick()
 
+    /** Opens ⋮ in the list's top bar and picks [item]. */
+    protected fun menu(item: String) {
+        compose.onNodeWithContentDescription("Więcej").performClick()
+        waitFor(item)
+        click(item)
+    }
+
+    protected fun viewModel(): AppViewModel {
+        lateinit var vm: AppViewModel
+        scenario.onActivity { vm = ViewModelProvider(it)[AppViewModel::class.java] }
+        return vm
+    }
+
     protected fun waitFor(text: String, substring: Boolean = false) {
         try {
             compose.waitUntil(30_000) { compose.onAllNodes(hasText(text, substring = substring)).fetchSemanticsNodes().isNotEmpty() }
@@ -134,7 +149,7 @@ abstract class ScreenTestBase {
     }
 
     protected fun lockAndUnlock() {
-        click("Zablokuj")
+        menu("Zablokuj")
         waitFor("PassHolder jest zablokowany")
         type("Hasło główne", masterPassword)
         click("Odblokuj")
@@ -209,7 +224,7 @@ class WrongPasswordTest : ScreenTestBase() {
     @Test
     fun `a wrong master password on the locked screen shows the error`() {
         createVault()
-        click("Zablokuj")
+        menu("Zablokuj")
         waitFor("PassHolder jest zablokowany")
         type("Hasło główne", "zle haslo glowne")
         click("Odblokuj")
@@ -244,7 +259,7 @@ class RemoveVaultTest : ScreenTestBase() {
         addEntry("bank.pl", "jan.kowalski", "s3cret-haslo")
         click("Zapisz")
         waitFor("Zapisano na telefonie", substring = true)
-        click("Zablokuj")
+        menu("Zablokuj")
         waitFor("Usuń sejf z telefonu")
         click("Usuń sejf z telefonu")
         waitFor("Usunąć sejf z tego telefonu? Wpisy zostaną tylko na sparowanych wtyczkach.")
@@ -273,7 +288,7 @@ class RemoveVaultKeystoreFailureTest : ScreenTestBase() {
     @Test
     fun `a failing fingerprint key deletion still ends on the start screen`() {
         createVault()
-        click("Zablokuj")
+        menu("Zablokuj")
         waitFor("Usuń sejf z telefonu")
         click("Usuń sejf z telefonu")
         waitFor("Usunąć sejf z tego telefonu?", substring = true)

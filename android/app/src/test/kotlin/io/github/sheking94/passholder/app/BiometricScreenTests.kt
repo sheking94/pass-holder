@@ -68,6 +68,8 @@ abstract class BiometricTestBase : ScreenTestBase() {
         addEntry("bank.pl", "jan.kowalski", "s3cret-haslo")
         click("Zapisz")
         waitFor("Zapisano na telefonie", substring = true)
+        menu("Ustawienia")
+        waitFor("Odblokowanie odciskiem palca")
         shot("13-odcisk-wylaczony")
         click("Odblokowanie odciskiem palca")
         waitFor("Włączono odblokowanie odciskiem palca", substring = true)
@@ -76,6 +78,8 @@ abstract class BiometricTestBase : ScreenTestBase() {
         val stored = app.getSharedPreferences("biometric", Context.MODE_PRIVATE).getString("data", null)!!
         assertEquals(32 + 16, android.util.Base64.decode(stored, android.util.Base64.NO_WRAP).size)
         shot("14-odcisk-wlaczony")
+        click("Wróć")
+        waitFor("bank.pl")
     }
 
     /**
@@ -96,7 +100,7 @@ class FingerprintUnlockTest : BiometricTestBase() {
         assertEquals(1, finger.shown)
 
         // After "Zablokuj" the dialog does not pop up by itself; the button opens it.
-        click("Zablokuj")
+        menu("Zablokuj")
         waitFor("Odblokuj odciskiem palca")
         assertEquals(1, finger.shown)
         shot("15-blokada-z-odciskiem")
@@ -123,10 +127,12 @@ class FingerprintFallbackTest : BiometricTestBase() {
         click("Odblokuj")
         waitFor("bank.pl")
 
+        menu("Ustawienia")
         click("Odblokowanie odciskiem palca")
         waitFor("Wyłączono odblokowanie odciskiem palca.")
         assertFalse(app.biometric.isEnabled)
-        click("Zablokuj")
+        click("Wróć")
+        menu("Zablokuj")
         waitFor("PassHolder jest zablokowany")
         assertTrue(gone("Odblokuj odciskiem palca"))
     }
@@ -136,7 +142,7 @@ class FingerprintKeyLostTest : BiometricTestBase() {
     @Test
     fun `a new fingerprint in the phone destroys the key and the app says to use the master password`() {
         createVaultWithFingerprint()
-        click("Zablokuj")
+        menu("Zablokuj")
         waitFor("Odblokuj odciskiem palca")
         keys.deleteKey() // what Android does to the Keystore key when a fingerprint is added
         click("Odblokuj odciskiem palca")
@@ -151,7 +157,7 @@ class FingerprintDisconnectTest : BiometricTestBase() {
     @Test
     fun `removing the vault from the phone also forgets the fingerprint keys`() {
         createVaultWithFingerprint()
-        click("Zablokuj")
+        menu("Zablokuj")
         waitFor("Usuń sejf z telefonu")
         click("Usuń sejf z telefonu")
         waitFor("Usunąć sejf z tego telefonu?", substring = true)
@@ -196,7 +202,7 @@ class FingerprintAfterManualLockTest : BiometricTestBase() {
     @Test
     fun `after Zablokuj, leaving and coming back opens the dialog again`() {
         createVaultWithFingerprint()
-        click("Zablokuj")
+        menu("Zablokuj")
         waitFor("Odblokuj odciskiem palca")
         assertEquals(1, finger.shown)
         scenario.moveToState(Lifecycle.State.CREATED)
@@ -284,6 +290,7 @@ class LockDelaySwitchOffTest : BiometricTestBase() {
     @Test
     fun `the switch turns the delay off, leaving locks at once, and the choice is remembered`() {
         createVaultWithFingerprint()
+        menu("Ustawienia")
         click("Blokuj dopiero po 60 s poza aplikacją")
         waitFor("Sejf blokuje się od razu po wyjściu z aplikacji.")
         assertFalse(app.settings.lockDelay)
@@ -312,7 +319,7 @@ class StaleFingerprintKeysTest : BiometricTestBase() {
         assertFalse(app.biometric.isEnabled)
 
         // Keys that do not fit the vault (as after an upgrade from v1): the finger works, the keys do not.
-        click("Zablokuj")
+        menu("Zablokuj")
         waitFor("PassHolder jest zablokowany")
         scenario.close()
         storeV1Keys()

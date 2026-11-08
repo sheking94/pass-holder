@@ -6,7 +6,6 @@ import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.performClick
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.ViewModelProvider
 import androidx.test.core.app.ApplicationProvider
 import io.github.sheking94.passholder.core.ChangeRequest
 import io.github.sheking94.passholder.core.Encoding
@@ -60,12 +59,6 @@ abstract class SyncScreenTestBase : ScreenTestBase() {
     protected val app get() = ApplicationProvider.getApplicationContext<PassHolderApp>()
 
     protected fun http() = HttpTestTransport(port)
-
-    protected fun viewModel(): AppViewModel {
-        lateinit var vm: AppViewModel
-        scenario.onActivity { vm = ViewModelProvider(it)[AppViewModel::class.java] }
-        return vm
-    }
 
     protected fun keepsScreenOn(): Boolean {
         var on = false
@@ -132,7 +125,7 @@ class SyncAndPairTest : SyncScreenTestBase() {
         assertNotListening(firstPort)
         assertFalse(keepsScreenOn())
 
-        click("Urządzenia")
+        menu("Urządzenia")
         waitFor("test-ext")
         waitFor("Ostatnia synchronizacja:", substring = true)
         shot("23-urzadzenia")

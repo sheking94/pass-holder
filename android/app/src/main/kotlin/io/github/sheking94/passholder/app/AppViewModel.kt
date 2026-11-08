@@ -3,9 +3,13 @@ package io.github.sheking94.passholder.app
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import io.github.sheking94.passholder.core.Credentials
+import io.github.sheking94.passholder.app.entries.EntryType
+import io.github.sheking94.passholder.app.entries.tidyContent
+import io.github.sheking94.passholder.app.entries.validateContent
 import io.github.sheking94.passholder.core.GeneratorOptions
+import io.github.sheking94.passholder.core.p2p.EntryContentV3
 import io.github.sheking94.passholder.core.p2p.EntryTooLargeException
+import io.github.sheking94.passholder.core.p2p.EntryTypeMismatchException
 import io.github.sheking94.passholder.core.p2p.PairingOffer
 import io.github.sheking94.passholder.core.p2p.PhoneEntry
 import kotlinx.coroutines.CancellationException
@@ -30,8 +34,12 @@ sealed interface Screen {
     data object List : Screen {
         override val showsVault get() = true
     }
-    /** [id] is null for a new entry. */
-    data class Edit(val id: String?) : Screen {
+    /** [id] is null for a new entry of [type]. */
+    data class Edit(val id: String?, val type: EntryType) : Screen {
+        override val showsVault get() = true
+    }
+    /** "Ustawienia": fingerprint unlock and the lock delay. */
+    data object Settings : Screen {
         override val showsVault get() = true
     }
     /** Sync mode: the phone serves the extension. */
@@ -59,6 +67,8 @@ data class UiState(
     val editing: PhoneEntry? = null,
     /** host.json cannot be read: the start screen offers only to remove the vault from the phone. */
     val corruptVault: Boolean = false,
+    /** The list's tab: the type of entries it shows. */
+    val tab: EntryType = EntryType.LOGIN,
 )
 
 /**
@@ -296,15 +306,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     // --- Entries ----------------------------------------------------------------------------------
 
+    fun selectTab(type: EntryType) = _state.update { it.copy(tab = type) }
+
+    /** "+ Dodaj": an empty form for an entry of [type]. */
+    fun newEntry(type: EntryType) = _state.update { it.copy(screen = Screen.Edit(null, type), editing = null, status = null) }
+
     /**
-     * The edit form for [id] (null: a new entry). An existing entry is read from the store, off the main thread:
-     * the list on screen may predate a sync, and saving its stale fields would overwrite the extension's change.
+     * The edit form for [id]. The entry is read from the store, off the main thread: the list on screen may
+     * predate a sync, and saving its stale fields would overwrite the extension's change.
      */
-    fun openEntry(id: String?) {
-        if (id == null) {
-            _state.update { it.copy(screen = Screen.Edit(null), editing = null, status = null) }
-            return
-        }
+    fun openEntry(id: String) {
         if (_state.value.busy) return
         viewModelScope.launch {
             val read = withContext(Dispatchers.IO) { runCatching { store.entry(id) } }
@@ -315,32 +326,60 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
             // Not if the vault locked or the screen changed in the meantime.
             _state.update {
-                if (store.isUnlocked && it.screen == Screen.List) it.copy(screen = Screen.Edit(id), editing = entry, status = null) else it
+                if (store.isUnlocked && it.screen == Screen.List) {
+                    it.copy(screen = Screen.Edit(id, EntryType.of(entry.content.fields)), editing = entry, status = null)
+                } else {
+                    it
+                }
             }
         }
     }
 
-    fun backToList() = _state.update { it.copy(screen = Screen.List, status = null, editing = null) }
+    /** Back to the list, on the tab of the entry that was being edited (or the tab it was on). */
+    fun backToList() = _state.update { it.copy(screen = Screen.List, status = null, editing = null, tab = it.returnTab()) }
 
-    fun save(id: String?, credentials: Credentials) {
-        if (credentials.name.isBlank()) return fail("Podaj nazwę serwisu")
-        if (credentials.password.isEmpty()) return fail("Podaj albo wygeneruj hasło")
+    fun openSettings() = _state.update { it.copy(screen = Screen.Settings, status = null) }
+
+    /**
+     * "Zapisz" on the form. [original] is the content the form was opened with (null for a new entry): only the
+     * values changed against it are format-checked.
+     */
+    fun save(id: String?, content: EntryContentV3, original: EntryContentV3?) {
+        val tidy = tidyContent(content)
+        validateContent(tidy, original)?.let { return fail(it) }
         launchVaultOperation("Zapisuję…") {
             try {
-                store.upsert(id ?: UUID.randomUUID().toString(), credentials.copy(name = credentials.name.trim()))
+                store.upsertContent(id ?: UUID.randomUUID().toString(), tidy)
             } catch (e: EntryTooLargeException) {
                 return@launchVaultOperation fail("Wpis jest za duży")
-            } catch (e: IllegalArgumentException) {
-                // PhoneVault.upsert refuses an id that holds an entry of another type.
-                return@launchVaultOperation fail("Ten wpis nie jest loginem")
+            } catch (e: EntryTypeMismatchException) {
+                return@launchVaultOperation fail("Ten wpis ma inny typ")
             }
-            showList(SAVED)
+            showList(SAVED, EntryType.of(tidy.fields))
         }
     }
 
-    fun delete(id: String) = launchVaultOperation("Usuwam…") {
-        store.delete(id)
-        showList(DELETED)
+    fun delete(id: String) {
+        val tab = _state.value.returnTab()
+        launchVaultOperation("Usuwam…") {
+            store.delete(id)
+            showList(DELETED, tab)
+        }
+    }
+
+    /**
+     * Copies a field of an entry. A [sensitive] one (password, TOTP, card number…) is marked sensitive and the
+     * clipboard is cleared after [SecureClipboard.CLEAR_AFTER_MINUTES].
+     */
+    fun copy(label: String, value: String, sensitive: Boolean) {
+        if (sensitive) {
+            val what = label.lowercase()
+            SecureClipboard.copyPassword(app, what, value)
+            showStatus("Skopiowano $what. Schowek zostanie wyczyszczony za ${SecureClipboard.CLEAR_AFTER_MINUTES} min.")
+        } else {
+            SecureClipboard.copyText(app, label, value)
+            showStatus("Skopiowano $label.")
+        }
     }
 
     // --- Sync mode and devices -----------------------------------------------------------------------
@@ -407,16 +446,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun copyLogin(username: String) {
-        SecureClipboard.copyText(app, "login", username)
-        showStatus("Skopiowano login.")
-    }
-
-    fun copyPassword(password: String) {
-        SecureClipboard.copyPassword(app, "hasło", password)
-        showStatus("Skopiowano hasło. Schowek zostanie wyczyszczony za ${SecureClipboard.CLEAR_AFTER_MINUTES} min.")
-    }
-
     var generatorOptions: GeneratorOptions
         get() = app.settings.generatorOptions
         set(value) { app.settings.generatorOptions = value }
@@ -427,9 +456,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun showStatus(text: String) = _state.update { it.copy(status = Status(text)) }
 
-    private fun showList(message: String?) {
-        _state.value = UiState(Screen.List, entries = store.entries(), unreadable = store.unreadableIds().size, status = message?.let { Status(it) })
+    private fun showList(message: String?, tab: EntryType = EntryType.LOGIN) {
+        _state.value = UiState(
+            Screen.List,
+            entries = store.entries(),
+            unreadable = store.unreadableIds().size,
+            status = message?.let { Status(it) },
+            tab = tab,
+        )
     }
+
+    /** The tab the list comes back to: the edited entry's type, otherwise the current tab. */
+    private fun UiState.returnTab(): EntryType = (screen as? Screen.Edit)?.type ?: tab
 
     /**
      * Reads the entries off the main thread (decrypting every record). Does nothing if the vault locked meanwhile:
