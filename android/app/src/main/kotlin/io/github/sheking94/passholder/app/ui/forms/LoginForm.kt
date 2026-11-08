@@ -52,7 +52,9 @@ fun LoginForm(fields: LoginFields, onChange: (LoginFields) -> Unit, vm: AppViewM
         { "" },
         extraActions = { TextButton(onClick = { picking = true }) { Text("+ Wybierz aplikację") } },
     ) { app, update ->
-        val label = labels[app]
+        // Decided once per row (rows have stable keys) and again when the app list arrives, never while typing:
+        // a hand-typed package stays an editable field even if it equals an installed one on the way.
+        val label = remember(apps != null) { labels[app] }
         if (label != null) Text("$label · $app") else PlainField(app, update, "Nazwa pakietu", placeholder = "np. pl.mbank")
     }
     if (picking) {
@@ -73,6 +75,7 @@ fun LoginForm(fields: LoginFields, onChange: (LoginFields) -> Unit, vm: AppViewM
 private fun rememberInstalledApps(): List<InstalledApp>? {
     val app = LocalContext.current.applicationContext as PassHolderApp
     var apps by remember { mutableStateOf<List<InstalledApp>?>(null) }
-    LaunchedEffect(Unit) { apps = withContext(Dispatchers.IO) { app.installedApps.list() } }
+    // A failing PackageManager must not leave the picker on "Ładuję…".
+    LaunchedEffect(Unit) { apps = withContext(Dispatchers.IO) { runCatching { app.installedApps.list() }.getOrDefault(emptyList()) } }
     return apps
 }

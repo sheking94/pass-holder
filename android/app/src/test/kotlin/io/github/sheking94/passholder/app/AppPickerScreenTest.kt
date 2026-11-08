@@ -49,3 +49,33 @@ class AppPickerScreenTest : ScreenTestBase() {
     /** The "mBank / pl.mbank" row of the picker (its own text, not the list row "mBank · pl.mbank"). */
     private fun pick() = compose.onNode(hasText("pl.mbank") and hasText("mBank")).performClick()
 }
+
+/** A hand-typed package stays an editable field even when, on the way, it equals an installed package. */
+class ManualPackageStaysEditableTest : ScreenTestBase() {
+    override fun beforeLaunch(app: PassHolderApp) {
+        app.installedApps = InstalledApps { listOf(InstalledApp("mBank", "pl.mbank")) }
+    }
+
+    @Test
+    fun `typing a package that passes through an installed one keeps the field editable`() {
+        createVault()
+        click("+ Dodaj")
+        waitFor("Nowy login")
+        type("Nazwa", "mBank lite")
+        type("Hasło", "s3cret-haslo")
+        Thread.sleep(500) // the app list loads off the main thread
+        compose.waitForIdle()
+        click("+ Wpisz pakiet")
+        type("Nazwa pakietu", "pl.mbank")
+        compose.waitForIdle()
+        assertEquals("pl.mbank", editable("Nazwa pakietu"))
+        type("Nazwa pakietu", "pl.mbank.lite")
+        compose.waitForIdle()
+        assertEquals("pl.mbank.lite", editable("Nazwa pakietu"))
+
+        click("Zapisz")
+        waitFor("Zapisano na telefonie", substring = true)
+        val store = ApplicationProvider.getApplicationContext<PassHolderApp>().phoneStore
+        assertEquals(listOf("pl.mbank.lite"), (store.entry(store.entries().single().id)!!.content.fields as LoginFields).androidApps)
+    }
+}

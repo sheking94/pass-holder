@@ -6,8 +6,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Surface
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -18,7 +18,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -51,13 +50,11 @@ fun AppPickerDialog(apps: List<InstalledApp>, onPick: (String) -> Unit, onDismis
                 when {
                     loading -> Text("Ładuję…")
                     shown.isEmpty() -> Text("Nic nie pasuje.")
-                    else -> Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) {
-                        shown.forEach { app ->
-                            key(app.packageName) {
-                                Column(Modifier.fillMaxWidth().clickable { onPick(app.packageName) }.padding(vertical = 8.dp)) {
-                                    Text(app.label)
-                                    Text(app.packageName, style = MaterialTheme.typography.bodySmall)
-                                }
+                    else -> LazyColumn(Modifier.heightIn(max = 320.dp)) {
+                        items(shown, key = { it.packageName }) { app ->
+                            Column(Modifier.fillMaxWidth().clickable { onPick(app.packageName) }.padding(vertical = 8.dp)) {
+                                Text(app.label)
+                                Text(app.packageName, style = MaterialTheme.typography.bodySmall)
                             }
                         }
                     }
