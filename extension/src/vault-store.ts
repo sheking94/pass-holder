@@ -223,7 +223,6 @@ function loginContent(existing: p2p.LocalEntryV2 | undefined, fields: EntryField
 
 function storedView(e: p2p.LocalEntryV2): StoredEntry | undefined {
   if (e.deleted) return undefined;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { v, hlc, ...data } = e.data;
   return { id: e.id, dirty: e.dirty, data: data as p2p.EntryContentV3 };
 }

@@ -35,7 +35,6 @@ export function statusLine() {
   return h("div", { class: "status", role: "status" });
 }
 
-
 /** Runs an async action with the buttons disabled and errors shown in the status line. */
 export async function busy(status: HTMLElement, message: string, action: () => Promise<void>) {
   const buttons = [...app.querySelectorAll("button")];
@@ -73,7 +72,10 @@ export function secretField(input: HTMLInputElement, what: string, status: HTMLE
   const copy = h("button", {
     type: "button",
     title: `Kopiuj: ${what}`,
-    onclick: () => void (secret ? copySecret : copyText)(input.value, what, status).catch((error: Error) => setStatus(status, error.message, true)),
+    onclick: () => {
+      if (input.value === "") return setStatus(status, "Pole jest puste");
+      void (secret ? copySecret : copyText)(input.value, what, status).catch((error: Error) => setStatus(status, error.message, true));
+    },
   }, "Kopiuj");
   const setVisible = (visible: boolean) => {
     input.type = visible || !secret ? "text" : "password";

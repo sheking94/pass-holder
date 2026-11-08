@@ -50,6 +50,19 @@ describe("secretField", () => {
     field.setVisible(true);
     expect(input.type).toBe("text");
   }, 30_000);
+
+  it("„Kopiuj” on an empty field copies nothing and says „Pole jest puste”", async () => {
+    const { clipboard, messages } = await setupPopup();
+    const { h, statusLine, secretField } = await import("../../src/ui/dom.ts");
+    const input = h("input", { value: "" });
+    const status = statusLine();
+    const field = secretField(input, "PIN", status);
+    document.body.append(field.row, status);
+    await click(byText(field.row, "Kopiuj"));
+    expect(clipboard).toEqual([]);
+    expect(messages).toEqual([]);
+    expect(status.textContent).toBe("Pole jest puste");
+  }, 30_000);
 });
 
 describe("listEditor", () => {

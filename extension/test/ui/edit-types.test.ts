@@ -64,6 +64,31 @@ describe("contact form", () => {
     }]);
   }, 30_000);
 
+  it("labels every list input; an e-mail with surrounding spaces saves unchanged", async () => {
+    const { app, store } = await setupPopup();
+    const { editView } = await import("../../src/views/edit.ts");
+    await editView("contact");
+    fill(input(app, "Nazwa"), "Ola");
+    await click(byText(after(app, "Telefony"), "+ Dodaj telefon"));
+    await click(byText(after(app, "E-maile"), "+ Dodaj e-mail"));
+    await click(byText(after(app, "Adresy"), "+ Dodaj adres"));
+    const aria = (label: string) =>
+      [...after(app, label).querySelectorAll<HTMLInputElement>("input")].map((i) => i.getAttribute("aria-label"));
+    expect(aria("Telefony")).toEqual(["Etykieta", "Numer telefonu"]);
+    expect(aria("E-maile")).toEqual(["Etykieta", "Adres e-mail"]);
+    expect(aria("Adresy")).toEqual(["Etykieta", "Ulica", "Kod pocztowy", "Miasto", "Kraj"]);
+    const phone = after(app, "Telefony").querySelectorAll<HTMLInputElement>("input")[1]!;
+    expect(phone.placeholder).toBe("Numer telefonu");
+    expect(phone.inputMode).toBe("tel");
+    const mail = after(app, "E-maile").querySelectorAll<HTMLInputElement>("input")[1]!;
+    expect(mail.placeholder).toBe("Adres e-mail");
+    expect(mail.type).toBe("text");
+    expect(mail.inputMode).toBe("email");
+    fill(mail, " ola@firma.pl ");
+    await save(app);
+    expect((store.listEntries("contact")[0]!.data.fields as p2p.ContactFields).emails).toEqual([{ label: "", value: " ola@firma.pl " }]);
+  }, 30_000);
+
   it("only an added, unfilled phone saves phones: []", async () => {
     const { app, store } = await setupPopup();
     const { editView } = await import("../../src/views/edit.ts");

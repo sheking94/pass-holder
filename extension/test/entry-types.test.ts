@@ -63,6 +63,21 @@ describe("tidyContent", () => {
     expect(tidyContent({ ...login(), custom: [{ label: "", value: "", hidden: false }] }).custom).toEqual([]);
     expect((tidyContent(login({ username: " u" })).fields as p2p.LoginFields).username).toBe(" u");
   });
+
+  it("drops empty apps, e-mails and addresses, keeps partly filled ones", () => {
+    expect((tidyContent(login({ androidApps: ["", "pl.bank", ""] })).fields as p2p.LoginFields).androidApps).toEqual(["pl.bank"]);
+    const t = tidyContent(contact({
+      emails: [{ label: "", value: "" }, { label: "", value: "a@b.pl" }],
+      addresses: [
+        { label: "", street: "", postalCode: "", city: "", country: "" },
+        { label: "", street: "", postalCode: "", city: "Kraków", country: "" },
+      ],
+    })).fields as p2p.ContactFields;
+    expect(t.emails).toEqual([{ label: "", value: "a@b.pl" }]);
+    expect(t.addresses).toEqual([{ label: "", street: "", postalCode: "", city: "Kraków", country: "" }]);
+    const custom = [{ label: "Tylko etykieta", value: "", hidden: false }, { label: "", value: "tylko wartość", hidden: true }];
+    expect(tidyContent({ ...login(), custom }).custom).toEqual(custom);
+  });
 });
 
 describe("validateContent", () => {
@@ -87,6 +102,11 @@ describe("validateContent", () => {
     const l = login({ androidApps: ["bad"] });
     expect(validateContent(login({ androidApps: ["bad"] }), l)).toBeUndefined();
     expect(validateContent(login({ androidApps: ["bad", "x"] }), l)).toBe("Aplikacje Androida: zła nazwa pakietu x");
+  });
+
+  it("an original of another type checks every value", () => {
+    expect(validateContent(card({ expiry: "2/2030" }), doc())).toBe("Ważność: wpisz MM/RR");
+    expect(validateContent(contact({ birthDate: "01.02.1990" }), card())).toBe("Data urodzenia: wpisz datę RRRR-MM-DD");
   });
 });
 

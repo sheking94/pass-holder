@@ -28,8 +28,9 @@ export async function loginForm(fields: p2p.LoginFields, status: HTMLElement): P
   });
   const totp = h("input", { type: "password", class: "mono", value: fields.totp, autocomplete: "off" });
   const totpRow = secretField(totp, "kod TOTP", status);
-  const urls = stringList(fields.urls, "Dodaj adres", { type: "url", placeholder: "https://" });
-  const apps = stringList(fields.androidApps, "Dodaj aplikację", { type: "text", placeholder: "np. pl.mbank" });
+  // Not type="url": Chrome sanitizes its value (trims, punycode), so a stored address would change on save.
+  const urls = stringList(fields.urls, "Dodaj adres", { type: "text", inputmode: "url", placeholder: "https://", "aria-label": "Adres strony" });
+  const apps = stringList(fields.androidApps, "Dodaj aplikację", { type: "text", placeholder: "np. pl.mbank", "aria-label": "Nazwa pakietu" });
 
   return {
     nodes: [

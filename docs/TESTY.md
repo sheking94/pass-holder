@@ -53,7 +53,7 @@ katalogu pakietu.
 | Pakiet | Pliki | Testy | Uwagi |
 |---|---|---|---|
 | `core` | 16 | 213 | w tym `core/test/p2p/` |
-| `extension` | 14 | 143 | w tym widoki w happy-dom (`extension/test/ui/`); service worker bez testów |
+| `extension` | 14 | 149 | w tym widoki w happy-dom (`extension/test/ui/`); service worker bez testów |
 | `android/core` | 27 | 350 | 4 pomijane bez `PASSHOLDER_INTEROP_TEST=1` |
 | `android/app` | 6 | 31 | Robolectric, zrzuty ekranów |
 
@@ -89,8 +89,8 @@ wartości losowe mają stałe klucze i nonce.
 | `auto-lock.test.ts` | blokada po 15 min na stronie i alarm service workera |
 | `entry-types.test.ts`, `vault-store-types.test.ts` | opis wiersza, wyszukiwanie, sprzątanie, formaty i nazwa pakietu (tylko zmienione pola); `listEntries`/`getEntry`/`putEntry`, odmowa innego typu, za duży wpis, synchronizacja kart i kontaktów |
 | `ui/list-view.test.ts` | zakładki, opis wiersza, wyszukiwanie w obrębie zakładki, powrót na zakładkę typu |
-| `ui/edit-login.test.ts`, `ui/edit-types.test.ts` | formularze: zapis każdego pola, puste elementy list pomijane, data w innym zapisie zapisuje się bez zmian, błędy formatów, zachowanie pól spoza formularza, ukryte własne pole, generator, „Usuń” |
-| `ui/widgets.test.ts` | `secretField` (zakrycie, „Pokaż”, kopia czyści schowek), `listEditor`, przyciski kopiowania w wierszu |
+| `ui/edit-login.test.ts`, `ui/edit-types.test.ts` | formularze: zapis każdego pola, puste elementy list pomijane, data w innym zapisie oraz e-mail i adres strony ze spacjami zapisują się bez zmian, etykiety pól list, błędy formatów, zachowanie pól spoza formularza, ukryte własne pole, generator, „Usuń” |
+| `ui/widgets.test.ts` | `secretField` (zakrycie, „Pokaż”, kopia czyści schowek, puste pole się nie kopiuje), `listEditor`, przyciski kopiowania w wierszu |
 
 Testy wtyczki używają `extension/test/fake-phone.ts`: parowanie z prawdziwym CPace przed referencyjnym
 `P2pHost`. Testy widoków (`// @vitest-environment happy-dom`) biorą z `extension/test/ui/fake-chrome.ts`
@@ -104,6 +104,7 @@ stronę z `popup.css` w Chromium (360 px, skala 2) i zapisuje `01-loginy.png` �
 `06`–`09` (formularze loginu, kontaktu, karty, dokumentu) i `10-pole-ukryte-pokazane.png`. Kończy się błędem,
 gdy strona ma poziomy pasek przewijania, zakładki nie mieszczą się w jednym rzędzie albo ich podpis jest
 ucięty, albo pole wrażliwe jest odkryte (poza zrzutem 10). Zrzutów nie ma w repozytorium.
+Playwright z Chromium nie jest zależnością repozytorium: w kontenerze w chmurze jest zainstalowany, gdzie indziej `npx playwright install chromium`.
 
 ### `android/core` i `android/app`
 

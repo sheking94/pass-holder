@@ -12,8 +12,8 @@ export function customFieldsEditor(
     empty: () => ({ label: "", value: "", hidden: false }),
     addLabel: "Dodaj pole",
     row: (item) => {
-      const label = h("input", { type: "text", placeholder: "Etykieta", value: item.label, autocomplete: "off" });
-      const value = h("input", { type: "text", placeholder: "Wartość", value: item.value, autocomplete: "off" });
+      const label = h("input", { type: "text", placeholder: "Etykieta", "aria-label": "Etykieta", value: item.label, autocomplete: "off" });
+      const value = h("input", { type: "text", placeholder: "Wartość", "aria-label": "Wartość", value: item.value, autocomplete: "off" });
       const field = secretField(value, "wartość pola", status);
       const hidden = h("input", { type: "checkbox", checked: item.hidden });
       field.setSecret(item.hidden);

@@ -51,11 +51,14 @@ describe("login form", () => {
     fill(input(app, "TOTP"), "ABCDEF");
     await click(byText(after(app, "Adresy stron"), "+ Dodaj adres"));
     const url = after(app, "Adresy stron").querySelector<HTMLInputElement>("input")!;
-    expect(url.type).toBe("url");
+    expect(url.type).toBe("text");
+    expect(url.inputMode).toBe("url");
+    expect(url.getAttribute("aria-label")).toBe("Adres strony");
     fill(url, "https://poczta.pl");
     await click(byText(after(app, "Aplikacje Androida"), "+ Dodaj aplikację"));
     const pkg = after(app, "Aplikacje Androida").querySelector<HTMLInputElement>("input")!;
     expect(pkg.placeholder).toBe("np. pl.mbank");
+    expect(pkg.getAttribute("aria-label")).toBe("Nazwa pakietu");
     fill(pkg, "pl.poczta");
     // An added and unfilled address is dropped.
     await click(byText(after(app, "Adresy stron"), "+ Dodaj adres"));
@@ -136,6 +139,33 @@ describe("login form", () => {
     expect(input(app, "Hasło").type).toBe("text");
     const stored = await chrome.storage.local.get("generator");
     expect(Object.values(stored)[0]).toEqual(expect.objectContaining({ length: 24 }));
+  }, 30_000);
+
+  it("an address with a trailing space saves unchanged", async () => {
+    const { app, store } = await setupPopup();
+    const { editView } = await import("../../src/views/edit.ts");
+    await editView("login");
+    fill(input(app, "Nazwa"), "Poczta");
+    fill(input(app, "Hasło"), "sekret");
+    await click(byText(after(app, "Adresy stron"), "+ Dodaj adres"));
+    fill(after(app, "Adresy stron").querySelector<HTMLInputElement>("input")!, "https://poczta.pl ");
+    await click(byText(app, "Zapisz"));
+    await settle(() => app.querySelector(".status")?.textContent === SAVED);
+    expect((store.listEntries("login")[0]!.data.fields as p2p.LoginFields).urls).toEqual(["https://poczta.pl "]);
+  }, 30_000);
+
+  it("a bad Android package name is refused and nothing is saved", async () => {
+    const { app, store } = await setupPopup();
+    const { editView } = await import("../../src/views/edit.ts");
+    await editView("login");
+    fill(input(app, "Nazwa"), "Bank");
+    fill(input(app, "Hasło"), "sekret");
+    await click(byText(after(app, "Aplikacje Androida"), "+ Dodaj aplikację"));
+    fill(after(app, "Aplikacje Androida").querySelector<HTMLInputElement>("input")!, "com");
+    await click(byText(app, "Zapisz"));
+    await settle(() => app.querySelector(".status")?.textContent === "Aplikacje Androida: zła nazwa pakietu com");
+    expect(app.querySelector(".status")!.classList.contains("error")).toBe(true);
+    expect(store.listEntries("login")).toEqual([]);
   }, 30_000);
 
   it("no password → „Podaj albo wygeneruj hasło”, no name → „Podaj nazwę”", async () => {

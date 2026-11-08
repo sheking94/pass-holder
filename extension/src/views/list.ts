@@ -30,7 +30,7 @@ function entryRow(e: StoredEntry, status: HTMLElement) {
     h(
       "span",
       { class: "text" },
-      h("span", { class: "name", title: e.data.name }, e.data.name, e.dirty ? " •" : ""),
+      h("span", { class: "name" }, e.data.name, e.dirty ? " •" : ""),
       h("span", { class: "user", title: summary }, summary),
     ),
   );
@@ -39,8 +39,8 @@ function entryRow(e: StoredEntry, status: HTMLElement) {
     "li",
     {},
     open,
-    fields && h("button", { title: "Kopiuj login", onclick: () => copyText(fields.username, "login", status) }, "Login"),
-    fields && h("button", { title: "Kopiuj hasło", onclick: () => copySecret(fields.password, "hasło", status) }, "Hasło"),
+    fields && h("button", { title: "Kopiuj login", onclick: () => copyText(fields.username, "login", status).catch((err: Error) => setStatus(status, err.message, true)) }, "Login"),
+    fields && h("button", { title: "Kopiuj hasło", onclick: () => copySecret(fields.password, "hasło", status).catch((err: Error) => setStatus(status, err.message, true)) }, "Hasło"),
   );
 }
 
