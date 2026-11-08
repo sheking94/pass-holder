@@ -63,3 +63,11 @@ button.small { padding: 2px 8px; font-size: 0.92em; color: var(--muted); }
 .url-list + button.small { margin-top: 4px; }
 .ok { color: var(--accent); }
 ol.steps { margin: 0 0 8px; padding-left: 18px; }
+/* List editors (addresses, apps, custom fields): one row per item, its „Usuń” on the right. */
+.list-rows { display: flex; flex-direction: column; gap: 4px; }
+.list-rows:not(:empty) + button.small { margin-top: 4px; }
+.list-row { align-items: flex-start; }
+.custom-field { display: flex; flex-direction: column; gap: 4px; }
+.list-row + .list-row .custom-field { border-top: 1px solid var(--line); padding-top: 6px; }
+.custom-field label.check { margin: 0; align-items: center; }
+textarea { resize: vertical; }
