@@ -265,7 +265,7 @@ class PhoneVaultStore(
 
     // ---- Entries ----
 
-    /** Live logins sorted by name (the UI shows only logins for now). */
+    /** Live entries of every type sorted by name. */
     @Synchronized
     fun entries(): List<PhoneEntry> = requireSession().vault.entries()
 
@@ -278,7 +278,7 @@ class PhoneVaultStore(
         touch()
     }
 
-    /** Writes any entry content; [EntryTooLargeException] leaves the store as it was. */
+    /** Writes any entry content; [EntryTypeMismatchException] for another live type, [EntryTooLargeException] leaves the store as it was. */
     @Synchronized
     fun upsertContent(id: String, content: EntryContentV3) {
         requireSession().vault.upsertContent(id, content)

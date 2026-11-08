@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.github.sheking94.passholder.app.AppViewModel
 import io.github.sheking94.passholder.app.UiState
+import io.github.sheking94.passholder.app.loginCredentials
 import io.github.sheking94.passholder.core.CharacterGroup
 import io.github.sheking94.passholder.core.Credentials
 import io.github.sheking94.passholder.core.GeneratorOptions
@@ -44,7 +45,7 @@ private val GROUP_LABELS = mapOf(
 @Composable
 fun EditScreen(id: String?, state: UiState, vm: AppViewModel) {
     // Read from the store when the entry was opened (AppViewModel.openEntry), not from the list on screen.
-    val existing = remember(id) { state.editing?.takeIf { it.id == id }?.credentials }
+    val existing = remember(id) { state.editing?.takeIf { it.id == id }?.loginCredentials() }
     // remember, not rememberSaveable: entry passwords stay out of the saved instance state.
     var name by remember(id) { mutableStateOf(existing?.name ?: "") }
     var username by remember(id) { mutableStateOf(existing?.username ?: "") }

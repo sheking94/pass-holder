@@ -34,12 +34,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.sheking94.passholder.app.AppViewModel
 import io.github.sheking94.passholder.app.BiometricAvailability
 import io.github.sheking94.passholder.app.UiState
+import io.github.sheking94.passholder.app.loginCredentials
 
 @Composable
 fun ListScreen(state: UiState, vm: AppViewModel) {
     var query by rememberSaveable { mutableStateOf("") }
-    val rows = state.entries.filter {
-        val c = it.credentials
+    // Logins only for now; every type comes with the tabbed list.
+    val rows = state.entries.mapNotNull { e -> e.loginCredentials()?.let { e to it } }.filter { (_, c) ->
         query.isBlank() || "${c.name} ${c.username}".contains(query.trim(), ignoreCase = true)
     }
 
@@ -59,8 +60,7 @@ fun ListScreen(state: UiState, vm: AppViewModel) {
             if (rows.isEmpty()) {
                 item { Text(if (query.isBlank()) "Brak wpisów. Dodaj pierwszy." else "Nic nie pasuje.", Modifier.padding(vertical = 16.dp)) }
             }
-            items(rows, key = { it.id }) { entry ->
-                val c = entry.credentials
+            items(rows, key = { it.first.id }) { (entry, c) ->
                 Row(
                     Modifier.fillMaxWidth().clickable(enabled = !state.busy) { vm.openEntry(entry.id) }.padding(vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,

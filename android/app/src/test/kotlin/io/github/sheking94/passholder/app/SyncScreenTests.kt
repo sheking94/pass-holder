@@ -25,6 +25,7 @@ import io.github.sheking94.passholder.core.p2p.P2pSyncRequest
 import io.github.sheking94.passholder.core.p2p.PairResult
 import io.github.sheking94.passholder.core.p2p.TestP2pClient
 import io.github.sheking94.passholder.core.p2p.VaultInfo
+import io.github.sheking94.passholder.core.p2p.credentials
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
