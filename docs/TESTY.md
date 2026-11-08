@@ -54,7 +54,7 @@ katalogu pakietu.
 |---|---|---|---|
 | `core` | 16 | 213 | w tym `core/test/p2p/` |
 | `extension` | 14 | 149 | w tym widoki w happy-dom (`extension/test/ui/`); service worker bez testów |
-| `android/core` | 27 | 350 | 4 pomijane bez `PASSHOLDER_INTEROP_TEST=1` |
+| `android/core` | 27 | 354 | 4 pomijane bez `PASSHOLDER_INTEROP_TEST=1` |
 | `android/app` | 16 | 55 | Robolectric, zrzuty ekranów |
 
 ## Co testują pliki
@@ -195,7 +195,7 @@ wraca do hasła. Po 10 min: „Parowanie wygasło…”.
 **T14. Typy wpisów we wtyczce.** Dodaj we wtyczce po jednym wpisie każdego typu (login, kontakt, karta,
 notatka, dokument) → „Synchronizuj” → przeładuj wtyczkę (`chrome://extensions` → odśwież) i odblokuj: wpisy są
 na swoich zakładkach, pola wrażliwe zakryte. Na telefonie zmień dowolny login → „Synchronizuj”: wpisy innych
-typów we wtyczce zostają bez zmian (telefon ich nie pokazuje, ale nie gubi).
+typów we wtyczce zostają bez zmian.
 
 **T15. Typy wpisów na telefonie.** Na telefonie dodaj po jednym wpisie każdego typu na jego zakładce (login z
 aplikacją wybraną z „Wybierz aplikację”, kontakt, karta z numerem i PIN-em, notatka, dokument): pola wrażliwe

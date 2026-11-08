@@ -58,7 +58,7 @@ Kod: `extension/src/entry-types.ts` (zakładki, opis wiersza, `tidyContent`, `va
 - **Formularz** jak we wtyczce (Nazwa, pola typu, Notatka/Treść, Własne pola z „ukryte”). Pola wrażliwe: zakryte,
   „Pokaż/Ukryj” i „Kopiuj”; kopia czyści schowek po minucie, status „Skopiowano PIN. Schowek zostanie wyczyszczony
   za 1 min.”. Błędy i formaty jak we wtyczce; „Ten wpis ma inny typ” gdy `id` należy do żywego wpisu innego typu.
-- **Aplikacje Androida** (login): „+ Dodaj” otwiera „Wybierz aplikację” z wyszukiwaniem (wiersz „nazwa · pakiet”);
+- **Aplikacje Androida** (login): „+ Wybierz aplikację” otwiera „Wybierz aplikację” z wyszukiwaniem (wiersz „nazwa · pakiet”);
   „+ Wpisz pakiet” pozwala wpisać nazwę ręcznie. Lista zawiera tylko aplikacje z ikoną w launcherze (`<queries>`
   MAIN + LAUNCHER, bez `QUERY_ALL_PACKAGES`), więc usług bez ikony brak: te wpisuje się ręcznie.
 - **Stare wpisy** i wpisy dodane we wtyczce są widoczne od razu; zapis zachowuje pola, których formularz nie zna.
@@ -67,7 +67,7 @@ Kod: `extension/src/entry-types.ts` (zakładki, opis wiersza, `tidyContent`, `va
 
 Kod: `app/entries/EntryTypes.kt` (typy, opisy, wyszukiwanie, `tidy`, walidacja), `ui/ListScreen.kt`,
 `ui/VaultTopBar.kt`, `ui/SettingsScreen.kt`, `ui/EditScreen.kt`, `ui/forms/*`, `InstalledApps.kt`;
-`PhoneVault.entries()`, `upsert`.
+`PhoneVault.entries()`, `upsertContent`.
 
 ## Automatyczna blokada
 

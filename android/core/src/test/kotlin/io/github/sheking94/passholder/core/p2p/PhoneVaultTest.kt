@@ -95,6 +95,14 @@ class PhoneVaultTest {
     }
 
     @Test
+    fun entriesSortedByNameIgnoringCase() {
+        val v = vault()
+        v.upsert("1", cred("Zeta"))
+        v.upsert("2", cred("alfa"))
+        assertEquals(listOf("alfa", "Zeta"), v.entries().map { it.credentials.name })
+    }
+
+    @Test
     fun entriesSortedByNameWithoutTombstones() {
         val v = vault()
         v.upsert("1", cred("Zeta"))

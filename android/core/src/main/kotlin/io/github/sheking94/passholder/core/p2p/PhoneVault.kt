@@ -88,7 +88,7 @@ class PhoneVault(
     fun entries(): List<PhoneEntry> = synchronized(store) {
         store.listSince(0).filter { !it.deleted }.mapNotNull { r ->
             readData(r)?.let { PhoneEntry(r.id, r.revision, it) }
-        }.sortedBy { it.content.name }
+        }.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.content.name })
     }
 
     /** Records that cannot be decrypted or parsed. */

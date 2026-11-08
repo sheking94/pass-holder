@@ -46,6 +46,8 @@ class EditCardScreenTest : ScreenTestBase() {
         assertTrue(app.phoneStore.entries().isEmpty())
 
         type("Ważność", "12/27")
+        compose.waitForIdle()
+        assertTrue("the error goes away with the next edit", compose.onAllNodes(hasText("Ważność: wpisz MM/RR")).fetchSemanticsNodes().isEmpty())
         compose.onNode(hasText("Nowa karta")).performScrollTo()
         shot("40-formularz-karta")
         click("Zapisz")

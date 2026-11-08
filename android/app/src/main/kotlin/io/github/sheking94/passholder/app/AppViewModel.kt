@@ -378,6 +378,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      * karty"…), used as given in the status.
      */
     fun copy(label: String, value: String, sensitive: Boolean) {
+        if (value.isEmpty()) return
         if (sensitive) {
             SecureClipboard.copyPassword(app, label, value)
             showStatus("Skopiowano $label. Schowek zostanie wyczyszczony za ${SecureClipboard.CLEAR_AFTER_MINUTES} min.")
@@ -454,6 +455,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var generatorOptions: GeneratorOptions
         get() = app.settings.generatorOptions
         set(value) { app.settings.generatorOptions = value }
+
+    /** Drops the status line when it shows an error, so a fixed field does not keep its stale message. */
+    fun clearError() = _state.update { if (it.status?.isError == true) it.copy(status = null) else it }
 
     fun fail(message: String) = _state.update { it.copy(status = Status(message, isError = true)) }
 
