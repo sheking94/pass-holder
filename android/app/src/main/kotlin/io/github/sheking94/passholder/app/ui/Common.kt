@@ -177,6 +177,7 @@ fun MultilineField(value: String, onValueChange: (String) -> Unit, label: String
         label = { Text(label) },
         minLines = minLines,
         modifier = Modifier.fillMaxWidth(),
+        keyboardOptions = KeyboardOptions(autoCorrectEnabled = false),
     )
 }
 

@@ -374,13 +374,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Copies a field of an entry. A [sensitive] one (password, TOTP, card number…) is marked sensitive and the
-     * clipboard is cleared after [SecureClipboard.CLEAR_AFTER_MINUTES].
+     * clipboard is cleared after [SecureClipboard.CLEAR_AFTER_MINUTES]. [label] is a copy noun ("hasło", "numer
+     * karty"…), used as given in the status.
      */
     fun copy(label: String, value: String, sensitive: Boolean) {
         if (sensitive) {
-            val what = label.lowercase()
-            SecureClipboard.copyPassword(app, what, value)
-            showStatus("Skopiowano $what. Schowek zostanie wyczyszczony za ${SecureClipboard.CLEAR_AFTER_MINUTES} min.")
+            SecureClipboard.copyPassword(app, label, value)
+            showStatus("Skopiowano $label. Schowek zostanie wyczyszczony za ${SecureClipboard.CLEAR_AFTER_MINUTES} min.")
         } else {
             SecureClipboard.copyText(app, label, value)
             showStatus("Skopiowano $label.")

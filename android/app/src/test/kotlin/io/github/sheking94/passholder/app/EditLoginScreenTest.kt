@@ -96,7 +96,7 @@ class EditLoginKeepsFieldsTest : ScreenTestBase() {
         shot("37-pole-ukryte-pokazane")
 
         fieldButton("Wartość", "Kopiuj").performClick()
-        waitFor("Skopiowano pin. Schowek zostanie wyczyszczony za 1 min.")
+        waitFor("Skopiowano PIN. Schowek zostanie wyczyszczony za 1 min.")
         val app = ApplicationProvider.getApplicationContext<PassHolderApp>()
         assertEquals("4321", app.getSystemService(ClipboardManager::class.java).primaryClip!!.getItemAt(0).text.toString())
         assertEquals(1, WorkManager.getInstance(app).getWorkInfosForUniqueWork("clear-clipboard").get().size)
@@ -134,5 +134,5 @@ class EditLoginKeepsFieldsTest : ScreenTestBase() {
             .contains(SemanticsProperties.Password)
 
     /** Shown as dots: the field's text is the masked one, not the value. */
-    private fun isMasked(index: Int): Boolean = editable("Wartość", index).all { it == '•' }
+    private fun isMasked(index: Int): Boolean = editable("Wartość", index).let { it.isNotEmpty() && it.all { c -> c == '•' } }
 }

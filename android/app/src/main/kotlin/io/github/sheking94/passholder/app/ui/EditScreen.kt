@@ -19,9 +19,16 @@ import io.github.sheking94.passholder.app.AppViewModel
 import io.github.sheking94.passholder.app.UiState
 import io.github.sheking94.passholder.app.entries.EntryType
 import io.github.sheking94.passholder.app.entries.emptyContent
+import io.github.sheking94.passholder.app.ui.forms.CardForm
+import io.github.sheking94.passholder.app.ui.forms.ContactForm
 import io.github.sheking94.passholder.app.ui.forms.CustomFieldsEditor
+import io.github.sheking94.passholder.app.ui.forms.DocumentForm
 import io.github.sheking94.passholder.app.ui.forms.LoginForm
+import io.github.sheking94.passholder.core.p2p.CardFields
+import io.github.sheking94.passholder.core.p2p.ContactFields
+import io.github.sheking94.passholder.core.p2p.DocumentFields
 import io.github.sheking94.passholder.core.p2p.LoginFields
+import io.github.sheking94.passholder.core.p2p.NoteFields
 
 /**
  * The entry form of every type: "Nazwa", the type's section, "Notatka" ("Treść" for a note), "Własne pola",
@@ -43,8 +50,11 @@ fun EditScreen(id: String?, type: EntryType, state: UiState, vm: AppViewModel) {
 
         when (val fields = content.fields) {
             is LoginFields -> LoginForm(fields, { content = content.copy(fields = it) }, vm)
-            // A note has no fields of its own: its text is "Treść" below. Contacts, cards and documents: task 6.
-            else -> {}
+            is ContactFields -> ContactForm(fields, { content = content.copy(fields = it) }, vm)
+            is CardFields -> CardForm(fields, { content = content.copy(fields = it) }, vm)
+            is DocumentFields -> DocumentForm(fields, { content = content.copy(fields = it) }, vm)
+            // A note has no fields of its own: its text is "Treść" below.
+            NoteFields -> {}
         }
 
         MultilineField(

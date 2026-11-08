@@ -15,12 +15,12 @@ import io.github.sheking94.passholder.core.p2p.LoginFields
 @Composable
 fun LoginForm(fields: LoginFields, onChange: (LoginFields) -> Unit, vm: AppViewModel) {
     var passwordShown by remember { mutableStateOf(false) }
-    PlainField(fields.username, { onChange(fields.copy(username = it)) }, "Login", onCopy = { vm.copy("Login", fields.username, sensitive = false) })
+    PlainField(fields.username, { onChange(fields.copy(username = it)) }, "Login", onCopy = { vm.copy("login", fields.username, sensitive = false) })
     SecretField(
         fields.password,
         { onChange(fields.copy(password = it)) },
         "Hasło",
-        onCopy = { vm.copy("Hasło", fields.password, sensitive = true) },
+        onCopy = { vm.copy("hasło", fields.password, sensitive = true) },
         monospace = true,
         revealed = passwordShown,
         onRevealedChange = { passwordShown = it },
@@ -29,7 +29,7 @@ fun LoginForm(fields: LoginFields, onChange: (LoginFields) -> Unit, vm: AppViewM
         onChange(fields.copy(password = it))
         passwordShown = true
     }
-    SecretField(fields.totp, { onChange(fields.copy(totp = it)) }, "TOTP", onCopy = { vm.copy("TOTP", fields.totp, sensitive = true) }, monospace = true)
+    SecretField(fields.totp, { onChange(fields.copy(totp = it)) }, "TOTP", onCopy = { vm.copy("kod TOTP", fields.totp, sensitive = true) }, monospace = true)
     ListEditor("Adresy stron", fields.urls, { onChange(fields.copy(urls = it)) }, "Dodaj adres", { "" }) { url, update ->
         PlainField(url, update, "Adres strony", keyboardType = KeyboardType.Uri, placeholder = "https://")
     }
