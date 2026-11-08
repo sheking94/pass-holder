@@ -44,9 +44,25 @@ private val GROUP_LABELS = mapOf(
     CharacterGroup.SYMBOLS to "symbole",
 )
 
+@Composable
+fun EditScreen(id: String?, type: EntryType, state: UiState, vm: AppViewModel) {
+    if (type == EntryType.LOGIN) LoginEditScreen(id, state, vm) else EditShell(type, id, state, vm)
+}
+
+/** Placeholder until the typed forms: the title and "Anuluj", nothing that could mangle the entry. */
+@Composable
+private fun EditShell(type: EntryType, id: String?, state: UiState, vm: AppViewModel) {
+    BackHandler(onBack = vm::backToList)
+    FormColumn {
+        Text(if (id == null) type.newTitle else type.editTitle, style = MaterialTheme.typography.headlineSmall)
+        OutlinedButton(onClick = vm::backToList, enabled = !state.busy) { Text("Anuluj") }
+        StatusLine(state.status, state.busy)
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun EditScreen(id: String?, state: UiState, vm: AppViewModel) {
+private fun LoginEditScreen(id: String?, state: UiState, vm: AppViewModel) {
     // Read from the store when the entry was opened (AppViewModel.openEntry), not from the list on screen.
     val original = remember(id) { state.editing?.takeIf { it.id == id }?.content }
     val existing = remember(id) { state.editing?.takeIf { it.id == id }?.loginCredentials() }

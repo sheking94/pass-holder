@@ -37,9 +37,9 @@ fun VaultTopBar(state: UiState, vm: AppViewModel) {
                     Text("⋮", style = MaterialTheme.typography.titleLarge)
                 }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    DropdownMenuItem(text = { Text("Urządzenia") }, onClick = { menuOpen = false; vm.openDevices() })
-                    DropdownMenuItem(text = { Text("Ustawienia") }, onClick = { menuOpen = false; vm.openSettings() })
-                    DropdownMenuItem(text = { Text("Zablokuj") }, onClick = { menuOpen = false; vm.lock() })
+                    DropdownMenuItem(text = { Text("Urządzenia") }, enabled = !state.busy, onClick = { menuOpen = false; vm.openDevices() })
+                    DropdownMenuItem(text = { Text("Ustawienia") }, enabled = !state.busy, onClick = { menuOpen = false; vm.openSettings() })
+                    DropdownMenuItem(text = { Text("Zablokuj") }, enabled = !state.busy, onClick = { menuOpen = false; vm.lock() })
                 }
             }
         },

@@ -20,6 +20,7 @@ import androidx.work.testing.WorkManagerTestInitHelper
 import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.sheking94.passholder.core.Credentials
 import io.github.sheking94.passholder.core.RemoteRecord
+import io.github.sheking94.passholder.core.p2p.EntryContentV3
 import io.github.sheking94.passholder.core.p2p.FileSyncStore
 import io.github.sheking94.passholder.core.p2p.PhoneVaultStore
 import io.github.sheking94.passholder.core.p2p.SecretWrapper
@@ -139,6 +140,15 @@ abstract class ScreenTestBase {
         type("Powtórz hasło główne", masterPassword)
         click("Załóż sejf")
         waitFor("Brak wpisów. Dodaj pierwszy.")
+    }
+
+    /** Writes an entry of any type straight into the store and refreshes the list. */
+    protected fun putEntry(content: EntryContentV3): String {
+        val id = java.util.UUID.randomUUID().toString()
+        ApplicationProvider.getApplicationContext<PassHolderApp>().phoneStore.upsertContent(id, content)
+        viewModel().reloadEntries()
+        compose.waitForIdle()
+        return id
     }
 
     protected fun addEntry(name: String, login: String, password: String?) {

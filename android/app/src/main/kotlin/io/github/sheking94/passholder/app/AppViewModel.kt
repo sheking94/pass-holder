@@ -306,6 +306,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     // --- Entries ----------------------------------------------------------------------------------
 
+    /** Re-reads the entries from the store (after a change made outside the screens). */
+    fun reloadEntries() {
+        viewModelScope.launch { refresh() }
+    }
+
     fun selectTab(type: EntryType) = _state.update { it.copy(tab = type) }
 
     /** "+ Dodaj": an empty form for an entry of [type]. */

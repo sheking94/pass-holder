@@ -241,7 +241,12 @@ class LockDelayTest : BiometricTestBase() {
     fun `with the delay on, a short trip keeps the vault and the form, after 60 s it locks`() {
         createVaultWithFingerprint()
         assertEquals(1, finger.shown)
+        // The lock-delay switch lives in Settings.
+        menu("Ustawienia")
+        waitFor("Blokuj dopiero po 60 s poza aplikacją")
         shot("18-opoznienie-blokady")
+        click("Wróć")
+        waitFor("bank.pl")
 
         // Half-filled form, then out to another app for 30 s.
         click("+ Dodaj")
