@@ -187,7 +187,7 @@ uprawnienia `tabs` (Chrome 116+), `chrome.tabs.update` + `chrome.windows.update`
 
 ### Co widzi użytkownik
 
-- Przełącznik **„Odblokowanie odciskiem palca”** na liście wpisów (bez czytnika go nie ma; bez zapisanego
+- Przełącznik **„Odblokowanie odciskiem palca”** w **Ustawieniach** (menu ⋮ „Więcej”; bez czytnika go nie ma; bez zapisanego
   odcisku jest wyszarzony).
 - Okno odcisku otwiera się samo przy każdym otwarciu aplikacji i po blokadzie po 15 min. Po ręcznym
   „Zablokuj” trzeba nacisnąć przycisk „Odblokuj odciskiem palca”. Hasło główne działa zawsze.
