@@ -1,6 +1,5 @@
 package io.github.sheking94.passholder.app
 
-import androidx.compose.ui.semantics.SemanticsProperties
 import io.github.sheking94.passholder.app.entries.EntryType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -52,11 +51,12 @@ class SettingsScreenTest : ScreenTestBase() {
         compose.runOnIdle { vm.selectTab(EntryType.CARD) }
         assertEquals(EntryType.CARD, vm.state.value.tab)
         click("+ Dodaj")
-        // Only the title for now: the typed forms arrive with task 5.
         waitFor("Nowa karta")
+        type("Nazwa", "Visa firmowa")
+        waitFor("Visa firmowa")
         compose.runOnIdle { vm.lock() }
         waitFor("PassHolder jest zablokowany")
-        assertTrue(gone("Nowa karta"))
+        assertTrue(gone("Nowa karta") && gone("Visa firmowa"))
         unlock()
         waitFor("Brak wpisów. Dodaj pierwszy.")
         val state = vm.state.value
@@ -66,10 +66,18 @@ class SettingsScreenTest : ScreenTestBase() {
         assertNull(state.editing)
         assertTrue(gone("Nowa karta"))
 
-        // The form starts empty again.
+        assertTrue(gone("Visa firmowa"))
+
+        // The forms start empty again: the login form on Loginy, and the card form that was half-filled.
         click("+ Dodaj")
-        compose.waitForIdle()
-        assertEquals("", field("Nazwa serwisu").fetchSemanticsNode().config[SemanticsProperties.EditableText].text)
+        waitFor("Nowy login")
+        assertEquals("", editable("Nazwa"))
+        click("Anuluj")
+        compose.runOnIdle { vm.selectTab(EntryType.CARD) }
+        click("+ Dodaj")
+        waitFor("Nowa karta")
+        assertEquals("", editable("Nazwa"))
+        assertTrue(gone("Visa firmowa"))
     }
 
     private fun unlock() {

@@ -2,6 +2,7 @@ package io.github.sheking94.passholder.app
 
 import android.content.ClipboardManager
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
@@ -9,6 +10,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.printToLog
 import androidx.compose.ui.test.printToString
@@ -106,7 +108,21 @@ abstract class ScreenTestBase {
 
     protected fun type(label: String, text: String) = field(label).performTextReplacement(text)
 
-    protected fun click(text: String) = compose.onNodeWithText(text).performClick()
+    /** Clicks the node with exactly [text], scrolled into view first when it sits in a scrolling form. */
+    protected fun click(text: String) {
+        val node = compose.onNodeWithText(text)
+        runCatching { node.performScrollTo() }
+        node.performClick()
+    }
+
+    /** The button [button] ("Pokaż", "Kopiuj"…) inside the [index]-th text field labelled [fieldLabel]. */
+    protected fun fieldButton(fieldLabel: String, button: String, index: Int = 0) =
+        compose.onAllNodes(hasText(button) and hasAnyAncestor(hasSetTextAction() and hasText(fieldLabel)))[index]
+
+    /** The text in the [index]-th text field labelled [label]. */
+    protected fun editable(label: String, index: Int = 0): String =
+        compose.onAllNodes(hasSetTextAction() and hasText(label))[index].fetchSemanticsNode()
+            .config[androidx.compose.ui.semantics.SemanticsProperties.EditableText].text
 
     /** Opens ⋮ in the list's top bar and picks [item]. */
     protected fun menu(item: String) {
@@ -153,7 +169,8 @@ abstract class ScreenTestBase {
 
     protected fun addEntry(name: String, login: String, password: String?) {
         click("+ Dodaj")
-        type("Nazwa serwisu", name)
+        waitFor("Nowy login")
+        type("Nazwa", name)
         type("Login", login)
         if (password != null) type("Hasło", password) else click("Generuj")
     }
@@ -212,7 +229,7 @@ class FullFlowScreensTest : ScreenTestBase() {
         shot("06-skopiowane-haslo")
 
         click("poczta.onet.pl")
-        waitFor("Edytuj wpis")
+        waitFor("Edytuj login")
         click("Usuń")
         waitFor("Usunąć wpis?")
         shot("07-usuwanie")

@@ -348,13 +348,10 @@ class SyncRefreshesEntriesTest : SyncScreenTestBase() {
 
         // The edit form is filled from the store, not from a list cached before the sync.
         click("bank.pl")
-        waitFor("Edytuj wpis")
-        click("Pokaż")
+        waitFor("Edytuj login")
+        fieldButton("Hasło", "Pokaż").performClick()
         compose.waitForIdle()
         assertEquals("jan.nowak", editable("Login"))
         assertEquals("nowe-haslo-456", editable("Hasło"))
     }
-
-    private fun editable(label: String) =
-        field(label).fetchSemanticsNode().config[SemanticsProperties.EditableText].text
 }

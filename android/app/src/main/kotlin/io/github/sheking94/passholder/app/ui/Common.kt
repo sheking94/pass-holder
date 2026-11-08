@@ -4,6 +4,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
@@ -107,15 +108,78 @@ fun PasswordField(
     )
 }
 
+/**
+ * A secret of an entry (password, TOTP, card number, hidden custom field): masked, "Pokaż/Ukryj" and "Kopiuj".
+ * The keyboard stays in [keyboardType] (Password by default) also when shown, so it does not learn the value.
+ * Pass [revealed] and [onRevealedChange] to show it from outside (a generated password) or to mask it again.
+ */
 @Composable
-fun PlainField(value: String, onValueChange: (String) -> Unit, label: String, keyboardType: KeyboardType = KeyboardType.Text, monospace: Boolean = false) {
+fun SecretField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    onCopy: () -> Unit,
+    monospace: Boolean = false,
+    keyboardType: KeyboardType = KeyboardType.Password,
+    revealed: Boolean? = null,
+    onRevealedChange: ((Boolean) -> Unit)? = null,
+) {
+    var localRevealed by remember { mutableStateOf(false) }
+    val shown = revealed ?: localRevealed
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         label = { Text(label) },
         singleLine = true,
         modifier = Modifier.fillMaxWidth(),
-        textStyle = if (monospace) MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace) else MaterialTheme.typography.bodyLarge,
+        textStyle = fieldTextStyle(monospace),
+        visualTransformation = if (shown) VisualTransformation.None else PasswordVisualTransformation(),
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType, autoCorrectEnabled = false, imeAction = ImeAction.Next),
+        trailingIcon = {
+            Row {
+                TextButton(onClick = { localRevealed = !shown; onRevealedChange?.invoke(!shown) }) { Text(if (shown) "Ukryj" else "Pokaż") }
+                TextButton(onClick = onCopy) { Text("Kopiuj") }
+            }
+        },
     )
 }
+
+/** A plain one-line field; with [onCopy] it has a "Kopiuj" button. */
+@Composable
+fun PlainField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    keyboardType: KeyboardType = KeyboardType.Text,
+    monospace: Boolean = false,
+    placeholder: String? = null,
+    onCopy: (() -> Unit)? = null,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        placeholder = placeholder?.let { { Text(it) } },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+        textStyle = fieldTextStyle(monospace),
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType, autoCorrectEnabled = false, imeAction = ImeAction.Next),
+        trailingIcon = onCopy?.let { copy -> { TextButton(onClick = copy) { Text("Kopiuj") } } },
+    )
+}
+
+/** A multi-line text field (an entry's note, a note's text). */
+@Composable
+fun MultilineField(value: String, onValueChange: (String) -> Unit, label: String, minLines: Int = 3) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        minLines = minLines,
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+@Composable
+private fun fieldTextStyle(monospace: Boolean) =
+    if (monospace) MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace) else MaterialTheme.typography.bodyLarge

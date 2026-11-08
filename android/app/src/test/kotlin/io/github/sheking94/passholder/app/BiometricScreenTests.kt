@@ -250,7 +250,7 @@ class LockDelayTest : BiometricTestBase() {
 
         // Half-filled form, then out to another app for 30 s.
         click("+ Dodaj")
-        type("Nazwa serwisu", "poczta.pl")
+        type("Nazwa", "poczta.pl")
         scenario.moveToState(Lifecycle.State.CREATED)
         passTime(30)
         assertTrue(app.phoneStore.isUnlocked)
