@@ -4,6 +4,9 @@ import { busy, confirmButton, h, show, statusLine } from "../ui/dom.ts";
 import { openInTabButton } from "../ui/page.ts";
 import { store } from "../ui/state.ts";
 import { customFieldsEditor } from "./forms/custom-fields.ts";
+import { cardForm } from "./forms/card.ts";
+import { contactForm } from "./forms/contact.ts";
+import { documentForm } from "./forms/document.ts";
 import { loginForm } from "./forms/login.ts";
 import { noteForm } from "./forms/note.ts";
 import type { FieldsForm, FieldsOf } from "./forms/types.ts";
@@ -14,18 +17,13 @@ const DELETED = "Usunięto lokalnie. Zsynchronizuj, żeby usunąć też na innyc
 
 type Section<T extends p2p.EntryType> = (fields: FieldsOf<T>, status: HTMLElement) => FieldsForm<T> | Promise<FieldsForm<T>>;
 
-/** Until a type has its own section: no inputs, the fields are saved as they were. */
-function keepFields<T extends p2p.EntryType>(fields: FieldsOf<T>): FieldsForm<T> {
-  return { nodes: [], read: () => fields };
-}
-
 /** The form section of each type (between „Nazwa” and „Notatka”). */
 const SECTIONS: { [T in p2p.EntryType]: Section<T> } = {
   login: loginForm,
-  contact: keepFields,
-  card: keepFields,
+  contact: contactForm,
+  card: cardForm,
   note: noteForm,
-  document: keepFields,
+  document: documentForm,
 };
 
 /**
