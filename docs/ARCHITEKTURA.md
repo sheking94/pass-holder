@@ -56,7 +56,8 @@ Chrome, wybór pliku), dlatego parowanie, adresy i CSV pokazują się w karcie. 
 | Plik | Co robi |
 |---|---|
 | `src/popup.ts` | `start()`: wybiera pierwszy widok i włącza automatyczną blokadę strony |
-| `src/vault-store.ts` | `VaultStore`: konto, lokalny sejf, parowanie (`pairStart`, `pairFinish`, `repair`), `sync`, adresy, PIN, CSV; serce wtyczki. Widzi tylko loginy (`loginView`), zapis zachowuje resztę pól (`loginContent`), starą treść v2 czyta jako login |
+| `src/vault-store.ts` | `VaultStore`: konto, lokalny sejf, parowanie (`pairStart`, `pairFinish`, `repair`), `sync`, adresy, PIN, CSV; serce wtyczki. Wpisy każdego typu: `listEntries(typ)`, `getEntry`, `putEntry` (odmowa zapisu pod `id` innego typu); CSV dalej przez loginowe `entries`/`upsert`/`importEntries`; starą treść v2 czyta jako login |
+| `src/entry-types.ts` | typy wpisów w kolejności zakładek (`ENTRY_TYPES`, `TYPE_INFO`), rodzaje dokumentu, pusty wpis, opis wiersza (`entrySummary`), wyszukiwanie, sprzątanie przed zapisem (`tidyContent`) i sprawdzanie formatów (`validateContent`) |
 | `src/storage.ts` | klucze `chrome.storage` (`STORAGE_KEYS`), `chromeStore`, `memoryStore` do testów |
 | `src/phone-client.ts` | `PhoneClient`: JSON `POST` do telefonu z limitem 30 s, polskie komunikaty błędów (też „Zaktualizuj aplikację na telefonie”) |
 | `src/phone-urls.ts` | adresy telefonu: `normalizePhoneUrl` (tylko IPv4), `learnedPhoneUrls`, `pickPhone` (wybór działającego adresu, ping 4 s) |
@@ -65,11 +66,15 @@ Chrome, wybór pliku), dlatego parowanie, adresy i CSV pokazują się w karcie. 
 | `src/csv-transfer.ts` | CSV w układzie NordPass: parser, eksport, podsumowanie importu |
 | `src/clipboard.ts`, `src/background.ts`, `src/offscreen.ts` | czyszczenie schowka po minucie (alarm + dokument offscreen) |
 | `src/page-mode.ts`, `src/open-in-tab.ts` | tryby strony, przycisk „Otwórz w karcie ↗” |
-| `src/ui/dom.ts` | pomocniki DOM: `h`, `show`, `form`, `passwordField`, `pinInput`, `confirmButton`, `busy` |
+| `src/ui/dom.ts` | pomocniki DOM: `h`, `show`, `form`, `passwordField`, `secretField` (pole wrażliwe: „Pokaż/Ukryj”, „Kopiuj”), `pinInput`, `confirmButton`, `busy` |
+| `src/ui/copy.ts`, `src/ui/status.ts` | kopiowanie (`copyText`, `copySecret` z czyszczeniem schowka), linia statusu |
+| `src/ui/list-editor.ts` | `listEditor`: lista z „+ Dodaj” i „Usuń” (adresy, aplikacje, telefony, własne pola) |
 | `src/ui/page.ts` | `MODE`, `IN_TAB`, `showInTab(tryb, widok)`, `openInTabButton` |
 | `src/ui/phone-url-fields.ts` | pola adresów telefonu (`phoneUrlFields`), wzorzec zgody, prośby o zgodę Chrome |
 | `src/ui/state.ts` | jeden `VaultStore` strony, wspólny dla widoków |
-| `src/views/*.ts` | ekrany: `connect` (parowanie), `locked`, `list`, `edit`, `addresses`, `pin-settings`, `transfer` |
+| `src/views/*.ts` | ekrany: `connect` (parowanie), `locked`, `list` (zakładki typów), `edit` (formularz wpisu), `addresses`, `pin-settings`, `transfer` |
+| `src/views/forms/*.ts` | części formularza: `login` (z `generator`), `contact`, `card`, `document`, `note`, `custom-fields` (własne pola) |
+| `scripts/screenshots.mjs`, `test/screens/harness.ts` | zrzuty ekranów w Chromium z przykładowymi wpisami ([TESTY.md](TESTY.md#zrzuty-ekranów-wtyczki)) |
 
 ## `android/`
 

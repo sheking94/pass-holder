@@ -48,12 +48,12 @@ Testy ekranów (`:app:testDebugUnitTest`, Robolectric + Roborazzi, ok. 5 min) za
 Pokrycie TypeScript (opcjonalnie): `npm i --no-save @vitest/coverage-v8 && npx vitest run --coverage` w
 katalogu pakietu.
 
-## Liczby (2026-11-07)
+## Liczby (2026-11-08)
 
 | Pakiet | Pliki | Testy | Uwagi |
 |---|---|---|---|
 | `core` | 16 | 213 | w tym `core/test/p2p/` |
-| `extension` | 8 | 94 | widoki i service worker bez testów |
+| `extension` | 14 | 143 | w tym widoki w happy-dom (`extension/test/ui/`); service worker bez testów |
 | `android/core` | 27 | 350 | 4 pomijane bez `PASSHOLDER_INTEROP_TEST=1` |
 | `android/app` | 6 | 31 | Robolectric, zrzuty ekranów |
 
@@ -87,9 +87,23 @@ wartości losowe mają stałe klucze i nonce.
 | `csv-transfer.test.ts` | parser i eksport CSV, duplikaty, import trafia na telefon |
 | `open-in-tab.test.ts` | tryby strony, przełączanie na otwartą kartę |
 | `auto-lock.test.ts` | blokada po 15 min na stronie i alarm service workera |
+| `entry-types.test.ts`, `vault-store-types.test.ts` | opis wiersza, wyszukiwanie, sprzątanie, formaty i nazwa pakietu (tylko zmienione pola); `listEntries`/`getEntry`/`putEntry`, odmowa innego typu, za duży wpis, synchronizacja kart i kontaktów |
+| `ui/list-view.test.ts` | zakładki, opis wiersza, wyszukiwanie w obrębie zakładki, powrót na zakładkę typu |
+| `ui/edit-login.test.ts`, `ui/edit-types.test.ts` | formularze: zapis każdego pola, puste elementy list pomijane, data w innym zapisie zapisuje się bez zmian, błędy formatów, zachowanie pól spoza formularza, ukryte własne pole, generator, „Usuń” |
+| `ui/widgets.test.ts` | `secretField` (zakrycie, „Pokaż”, kopia czyści schowek), `listEditor`, przyciski kopiowania w wierszu |
 
 Testy wtyczki używają `extension/test/fake-phone.ts`: parowanie z prawdziwym CPace przed referencyjnym
-`P2pHost`.
+`P2pHost`. Testy widoków (`// @vitest-environment happy-dom`) biorą z `extension/test/ui/fake-chrome.ts`
+atrapę `chrome.*` i sparowany sejf (`setupPopup`, `teardownPopup`, `click`, `settle`, `byText`).
+
+### Zrzuty ekranów wtyczki
+
+`node extension/scripts/screenshots.mjs <katalog>` (poza `npm test`; potrzebny Playwright z Chromium) pakuje
+`extension/test/screens/harness.ts` (te same atrapy co testy widoków, fałszywe wpisy każdego typu), otwiera
+stronę z `popup.css` w Chromium (360 px, skala 2) i zapisuje `01-loginy.png` … `05-dokumenty.png` (zakładki),
+`06`–`09` (formularze loginu, kontaktu, karty, dokumentu) i `10-pole-ukryte-pokazane.png`. Kończy się błędem,
+gdy strona ma poziomy pasek przewijania, zakładki nie mieszczą się w jednym rzędzie albo ich podpis jest
+ucięty, albo pole wrażliwe jest odkryte (poza zrzutem 10). Zrzutów nie ma w repozytorium.
 
 ### `android/core` i `android/app`
 
@@ -169,13 +183,18 @@ wraca do hasła. Po 10 min: „Parowanie wygasło…”.
 
 **T13. Nowa wtyczka + stary telefon.** Nowa wtyczka, na telefonie stara aplikacja (sparowany sejf) → „Synchronizuj”: „Zaktualizuj aplikację na telefonie”. Po aktualizacji aplikacji synchronizacja działa bez ponownego parowania.
 
+**T14. Typy wpisów we wtyczce.** Dodaj we wtyczce po jednym wpisie każdego typu (login, kontakt, karta,
+notatka, dokument) → „Synchronizuj” → przeładuj wtyczkę (`chrome://extensions` → odśwież) i odblokuj: wpisy są
+na swoich zakładkach, pola wrażliwe zakryte. Na telefonie zmień dowolny login → „Synchronizuj”: wpisy innych
+typów we wtyczce zostają bez zmian (telefon ich nie pokazuje, ale nie gubi).
+
 **PIN i karta.** PIN `4821` → Zablokuj → zły PIN „Pozostało prób: 4”, dobry otwiera; restart Chrome prosi o
 hasło główne. „Otwórz w karcie ↗” dwa razy: drugi raz przełącza na istniejącą kartę.
 
 ## Czego brakuje
 
-- Testów widoków wtyczki (`views/`, `ui/`), `offscreen.ts` i `clipboard.ts` (DOM, API Chrome). Następny krok:
-  test w Chromium (Playwright).
+- Testów `offscreen.ts` i `clipboard.ts` (API Chrome). Widoki są testowane w happy-dom, w prawdziwym Chromium
+  tylko zrzutami ekranów (bez asercji na wyglądzie poza szerokością i zakryciem pól).
 - Testów automatycznych prośby o zgodę Chrome, Private Network Access i Tailscale (T4, T7 ręcznie).
 - Testów na prawdziwym telefonie (Keystore, `BiometricPrompt`, port 8787) i wydajności Argon2id.
 - Na telefonie: zajętego portu, obrotu ekranu przy działającym serwerze, wygasania kodu przez zegar.

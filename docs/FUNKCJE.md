@@ -1,30 +1,53 @@
 # Funkcje wtyczki i aplikacji
 
 Funkcje działające tylko na urządzeniu: nie zmieniają formatu danych ani protokołu synchronizacji. Dla
-każdej: jak działa, gdzie jest kod, ograniczenia. Na początku: [stan ekranów po zmianie formatu
-wpisów](#stan-ekranów-po-zmianie-formatu-wpisów).
+każdej: jak działa, gdzie jest kod, ograniczenia. Na początku: [typy wpisów we
+wtyczce](#typy-wpisów-we-wtyczce).
 
 Spis: [Automatyczna blokada](#automatyczna-blokada) · [PIN we wtyczce](#pin-we-wtyczce) ·
 [Import i eksport CSV](#import-i-eksport-csv) · [Otwórz w karcie](#otwórz-w-karcie) ·
 [Odcisk palca i blokada po wyjściu (Android)](#odcisk-palca-i-blokada-po-wyjściu-android) ·
 [Czyszczenie schowka](#czyszczenie-schowka)
 
-## Stan ekranów po zmianie formatu wpisów
+## Typy wpisów we wtyczce
 
-Sejf używa formatu wpisu v3 ([SPEC.md](SPEC.md) punkt 4: login, kontakt, karta, notatka, dokument), ale
-**ekrany obu aplikacji pokazują i edytują tylko loginy** (nazwa, login, hasło). Reszta pól i wpisy innych typów
-są synchronizowane i nietknięte: edycja loginu zachowuje jego notatkę, TOTP, adresy i własne pola.
+Sejf używa formatu wpisu v3 ([SPEC.md](SPEC.md) punkt 4). Wtyczka pokazuje i edytuje wszystkie pięć typów;
+**telefon do kroku 3 pokazuje tylko loginy** (nazwa, login, hasło).
 
-- Wpisy innych typów nie pojawiają się na liście; żadna aplikacja nie potrafi ich jeszcze dodać.
-- Zapis pod `id` wpisu innego typu jest odrzucany („Ten wpis nie jest loginem” we wtyczce).
-- Za duży wpis (blob > 64 KiB): „Wpis jest za duży”; import CSV pomija taki wiersz i pisze „Uwaga, pominięto
-  za duże: N”.
+- **Zakładki** nad listą, w jednym rzędzie (ikona + podpis, 360 px bez przewijania w poziomie): 🔑 Loginy
+  (startowa), 👤 Kontakty, 💳 Karty, 📝 Notatki, 🪪 Dokumenty. „+ Dodaj” dodaje wpis typu otwartej zakładki.
+  Po zapisie, anulowaniu i usunięciu lista wraca na zakładkę typu wpisu.
+- **Wiersz:** ikona, nazwa i opis: login → `username`; karta → `•••• ` + 4 ostatnie znaki numeru bez spacji; dokument →
+  rodzaj (Dowód osobisty, Paszport, Prawo jazdy, Legitymacja, Inny); kontakt → pierwszy telefon; notatka →
+  pierwsza niepusta linia. Kliknięcie wiersza otwiera formularz (bez podglądu); login ma też „Login” i „Hasło”.
+- **Wyszukiwanie** w obrębie zakładki: podciąg nazwy i opisu, bez rozróżniania wielkości liter. Zmiana
+  zakładki czyści frazę.
+- **Formularz:** Nazwa, pola typu (listy z „+ Dodaj” i „Usuń”), Notatka (w notatce „Treść”), Własne pola
+  (etykieta, wartość, „ukryte”). Generator haseł przy haśle loginu jak dotąd. Aplikacje Androida wpisuje się
+  ręcznie (nazwa pakietu, np. `com.example.app`).
+- **Pola wrażliwe** (hasło, TOTP, numer karty, CVC, PIN, własne pola „ukryte”): zakryte, „Pokaż/Ukryj” i
+  „Kopiuj”; kopia czyści schowek po minucie ([Czyszczenie schowka](#czyszczenie-schowka)). Kopia jawnego pola
+  nie czyści schowka. Zaznaczenie „ukryte” zakrywa pole od razu.
+- **Formaty:** daty `RRRR-MM-DD` (prawdziwa data), ważność karty `MM/RR`; puste wolno. Sprawdzane jest tylko
+  pole zmienione w formularzu, więc wpis z innym zapisem (z telefonu, z importu) da się otworzyć i zapisać.
+  Błędy: „Podaj nazwę”, „Podaj albo wygeneruj hasło”, „<Pole>: wpisz datę RRRR-MM-DD”, „Ważność: wpisz
+  MM/RR”, „Aplikacje Androida: zła nazwa pakietu <x>”, „Wpis jest za duży” (blob > 64 KiB), „Ten wpis ma
+  inny typ”.
+- **Zapis:** tekst bez zmian (przycinana tylko nazwa); puste elementy list i puste własne pola są pomijane.
+  Pola, których formularz nie zna, zostają; typu wpisu nie da się zmienić.
+- **CSV nadal tylko loginy** ([Import i eksport CSV](#import-i-eksport-csv)).
+- **Telefon:** wpisy innych typów dodane we wtyczce są synchronizowane i przechowywane, ale do kroku 3
+  niewidoczne; edycja loginu na telefonie zachowuje pola, których ekran nie edytuje.
 - **Obie aplikacje trzeba zaktualizować razem.** Stara wtyczka dostaje od nowego telefonu 410 i pokazuje
   ogólny błąd synchronizacji; nowa wtyczka ze starym telefonem pokazuje „Zaktualizuj aplikację na telefonie”
   ([SYNCHRONIZACJA.md](SYNCHRONIZACJA.md#41-transport-noise-kk)).
 - Stare bloby v2 są czytane jako loginy. Na telefonie zostają v2, dopóki wpis nie zostanie edytowany; we wtyczce
   cały lokalny sejf jest przy odblokowaniu w pamięci zamieniany na v3 i zapisywany jako v3 przy najbliższym
   zapisie dowolnego rodzaju, a po zmianie epoki (`adoptEpoch`) wpisy idą na telefon ponownie jako v3.
+
+Kod: `extension/src/entry-types.ts` (zakładki, opis wiersza, `tidyContent`, `validateContent`),
+`views/list.ts`, `views/edit.ts`, `views/forms/*.ts`, `ui/dom.ts` (`secretField`), `ui/list-editor.ts`,
+`ui/copy.ts`; `VaultStore.listEntries`, `getEntry`, `putEntry`.
 
 ## Automatyczna blokada
 
