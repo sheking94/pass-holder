@@ -1,6 +1,6 @@
 /** Copying to the clipboard from the views; secrets are cleared from it after a minute. */
 import { CLEAR_AFTER_MINUTES, sha256Hex, type ClipboardMessage } from "../clipboard.ts";
-import { setStatus } from "./dom.ts";
+import { setStatus } from "./status.ts";
 
 /** Copies text that is not secret (the clipboard is left alone): "Skopiowano <what>.". */
 export async function copyText(text: string, what: string, status: HTMLElement): Promise<void> {

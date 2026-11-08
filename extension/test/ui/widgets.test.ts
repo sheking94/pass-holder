@@ -1,7 +1,9 @@
 // @vitest-environment happy-dom
 import { p2p } from "@passholder/core";
-import { describe, expect, it } from "vitest";
-import { byText, click, setupPopup } from "./fake-chrome.ts";
+import { afterEach, describe, expect, it } from "vitest";
+import { byText, click, settle, setupPopup, teardownPopup } from "./fake-chrome.ts";
+
+afterEach(teardownPopup);
 
 describe("secretField", () => {
   it("starts hidden, shows on „Pokaż” and copies with a clipboard clear request", async () => {
@@ -20,6 +22,7 @@ describe("secretField", () => {
     expect(input.type).toBe("password");
 
     await click(byText(field.row, "Kopiuj"));
+    await settle(() => messages.length > 0);
     expect(clipboard).toEqual(["tajne-123"]);
     expect(messages).toEqual([expect.objectContaining({ target: "background", type: "password-copied" })]);
     expect(status.textContent).toBe("Skopiowano PIN. Schowek zostanie wyczyszczony za 1 min.");
@@ -74,8 +77,10 @@ describe("listEditor", () => {
 
     const remove = editor.node.querySelectorAll("button");
     expect([...remove].every((b) => b.type === "button")).toBe(true);
+    await click(byText(editor.node, "Usuń", 1)); // the second row
+    expect(editor.read()).toEqual(["a", "c"]);
     await click(byText(editor.node, "Usuń")); // the first row
-    expect(editor.read()).toEqual(["b", "c"]);
+    expect(editor.read()).toEqual(["c"]);
   }, 30_000);
 });
 
@@ -101,8 +106,23 @@ describe("list view copy buttons", () => {
     expect(status.textContent).toBe("Skopiowano login.");
     expect(messages).toEqual([]);
     await click(byText(app, "Hasło"));
+    await settle(() => messages.length > 0);
     expect(status.textContent).toBe("Skopiowano hasło. Schowek zostanie wyczyszczony za 1 min.");
     expect(clipboard).toEqual(["jan", "x"]);
     expect(messages).toEqual([expect.objectContaining({ type: "password-copied" })]);
+  }, 30_000);
+});
+
+describe("teardownPopup", () => {
+  it("removes the fake chrome, fetch and clipboard and empties the page", async () => {
+    const realFetch = globalThis.fetch;
+    const before = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+    await setupPopup();
+    expect(globalThis.fetch).not.toBe(realFetch);
+    teardownPopup();
+    expect((globalThis as { chrome?: unknown }).chrome).toBeUndefined();
+    expect(globalThis.fetch).toBe(realFetch);
+    expect(Object.getOwnPropertyDescriptor(navigator, "clipboard")).toEqual(before);
+    expect(document.getElementById("app")).toBeNull();
   }, 30_000);
 });

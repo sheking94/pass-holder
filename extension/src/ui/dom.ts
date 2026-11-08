@@ -1,6 +1,9 @@
 /** Small DOM helpers shared by all views of popup.html. */
 import { LONG_PIN_MAX_LENGTH } from "../pin-lock.ts";
 import { copySecret, copyText } from "./copy.ts";
+import { setStatus } from "./status.ts";
+
+export { setStatus };
 
 const app = document.getElementById("app")!;
 
@@ -32,10 +35,6 @@ export function statusLine() {
   return h("div", { class: "status", role: "status" });
 }
 
-export function setStatus(el: HTMLElement, text: string, isError = false) {
-  el.textContent = text;
-  el.classList.toggle("error", isError);
-}
 
 /** Runs an async action with the buttons disabled and errors shown in the status line. */
 export async function busy(status: HTMLElement, message: string, action: () => Promise<void>) {

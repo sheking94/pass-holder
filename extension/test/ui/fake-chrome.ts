@@ -1,6 +1,8 @@
 /**
  * Popup views under happy-dom: a fake chrome.* and a vault paired with a FakePhone, so a test can render
- * a view and click through it. UI test files start with: // @vitest-environment happy-dom
+ * a view and click through it. Every UI test file starts with // @vitest-environment happy-dom and calls
+ * teardownPopup() in afterEach. click() only lets quick handlers finish: await anything slower (saving,
+ * syncing) with settle().
  */
 import type { p2p } from "@passholder/core";
 import { vi } from "vitest";
@@ -35,6 +37,20 @@ function strict<T extends object>(name: string, api: T): T {
   });
 }
 
+/** navigator.clipboard as it was before the first setupPopup (saved is undefined when it had none). */
+let clipboardDescriptor: { saved: PropertyDescriptor | undefined } | undefined;
+
+/** Undoes setupPopup: restores chrome, fetch and navigator.clipboard, and empties the page. */
+export function teardownPopup(): void {
+  vi.unstubAllGlobals();
+  if (clipboardDescriptor) {
+    if (clipboardDescriptor.saved) Object.defineProperty(navigator, "clipboard", clipboardDescriptor.saved);
+    else delete (navigator as unknown as Record<string, unknown>).clipboard;
+    clipboardDescriptor = undefined;
+  }
+  document.body.replaceChildren();
+}
+
 /**
  * Creates <main id="app">, installs the fake chrome (storage, runtime.sendMessage into messages,
  * runtime.getURL, permissions.contains → true), navigator.clipboard (writes into clipboard) and a fetch
@@ -59,6 +75,7 @@ export async function setupPopup(entries: { id: string; content: p2p.EntryConten
     }),
     permissions: strict("chrome.permissions", { contains: async () => true }),
   }));
+  clipboardDescriptor ??= { saved: Object.getOwnPropertyDescriptor(navigator, "clipboard") };
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
     value: { writeText: async (text: string) => void clipboard.push(text) },
@@ -82,17 +99,30 @@ export async function setupPopup(entries: { id: string; content: p2p.EntryConten
 }
 
 /**
- * Clicks and lets the handler's promises settle: microtasks and a few timer turns, enough for local work
- * such as crypto.subtle or storage. For a sync with the phone wait for its result with vi.waitFor.
+ * Clicks and lets quick handlers finish (microtasks and a few timer turns, e.g. a copy). A result that
+ * takes longer (encryption on save, a sync) must be awaited with settle().
  */
 export async function click(el: Element): Promise<void> {
   (el as HTMLElement).click();
   for (let i = 0; i < 10; i++) await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-/** The first visible (not inside [hidden]) button or label whose text is exactly text; throws when there is none. */
-export function byText(root: Element, text: string): HTMLElement {
-  const found = [...root.querySelectorAll<HTMLElement>("button, label")].find((el) => !el.closest("[hidden]") && el.textContent?.trim() === text);
-  if (!found) throw new Error(`No button or label „${text}”`);
+/** Waits until predicate returns something truthy (and does not throw); fails after timeout ms. */
+export async function settle<T>(predicate: () => T, timeout = 5_000): Promise<T> {
+  return vi.waitFor(() => {
+    const value = predicate();
+    if (!value) throw new Error("settle: not yet");
+    return value;
+  }, { timeout, interval: 5 });
+}
+
+/**
+ * The index-th (from 0) visible (not inside [hidden]) button or label whose text is exactly text;
+ * throws when there is none.
+ */
+export function byText(root: Element, text: string, index = 0): HTMLElement {
+  const found = [...root.querySelectorAll<HTMLElement>("button, label")]
+    .filter((el) => !el.closest("[hidden]") && el.textContent?.trim() === text)[index];
+  if (!found) throw new Error(`No button or label „${text}” #${index}`);
   return found;
 }
