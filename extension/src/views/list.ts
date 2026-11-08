@@ -1,4 +1,4 @@
-import { CLEAR_AFTER_MINUTES, sha256Hex, type ClipboardMessage } from "../clipboard.ts";
+import { copySecret, copyText } from "../ui/copy.ts";
 import { busy, h, setStatus, show, statusLine } from "../ui/dom.ts";
 import { openInTabButton } from "../ui/page.ts";
 import { store } from "../ui/state.ts";
@@ -7,19 +7,6 @@ import { editView } from "./edit.ts";
 import { showLocked } from "./locked.ts";
 import { pinSettingsView } from "./pin-settings.ts";
 import { openTransfer } from "./transfer.ts";
-
-async function copyLogin(username: string, status: HTMLElement) {
-  await navigator.clipboard.writeText(username);
-  setStatus(status, "Skopiowano login.");
-}
-
-/** Copies the password and asks the service worker to clear the clipboard after a minute. */
-async function copyPassword(password: string, status: HTMLElement) {
-  await navigator.clipboard.writeText(password);
-  const message: ClipboardMessage = { target: "background", type: "password-copied", hash: await sha256Hex(password) };
-  await chrome.runtime.sendMessage(message);
-  setStatus(status, `Skopiowano hasło. Schowek zostanie wyczyszczony za ${CLEAR_AFTER_MINUTES} min.`);
-}
 
 /** One sentence about addresses a sync skipped because Chrome does not allow them yet; "" when none. */
 export function skippedNote(skipped: readonly string[]): string {
@@ -52,8 +39,8 @@ export function listView(message = "", isError = false) {
                 h("div", { class: "name", title: e.data.name }, e.data.name, e.dirty ? " •" : ""),
                 h("div", { class: "user", title: e.data.username }, e.data.username),
               ),
-              h("button", { title: "Kopiuj login", onclick: () => copyLogin(e.data.username, status) }, "Login"),
-              h("button", { title: "Kopiuj hasło", onclick: () => copyPassword(e.data.password, status) }, "Hasło"),
+              h("button", { title: "Kopiuj login", onclick: () => copyText(e.data.username, "login", status) }, "Login"),
+              h("button", { title: "Kopiuj hasło", onclick: () => copySecret(e.data.password, "hasło", status) }, "Hasło"),
               h("button", { title: "Edytuj", onclick: () => editView(e.id) }, "Edytuj"),
             ),
           )),

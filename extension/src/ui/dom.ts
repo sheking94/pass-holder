@@ -1,5 +1,6 @@
 /** Small DOM helpers shared by all views of popup.html. */
 import { LONG_PIN_MAX_LENGTH } from "../pin-lock.ts";
+import { copySecret, copyText } from "./copy.ts";
 
 const app = document.getElementById("app")!;
 
@@ -61,6 +62,33 @@ export function passwordField(input: HTMLInputElement) {
   toggle.addEventListener("click", () => setVisible(input.type === "password"));
   setVisible(false);
   return { row: h("div", { class: "row" }, h("div", { class: "grow" }, input), toggle), setVisible };
+}
+
+/**
+ * A field with „Kopiuj” and, while secret, hidden behind „Pokaż/Ukryj”; copying a secret clears the
+ * clipboard after a minute. setSecret(false) makes it a plain field (e.g. a custom field not marked hidden).
+ */
+export function secretField(input: HTMLInputElement, what: string, status: HTMLElement) {
+  let secret = true;
+  const toggle = h("button", { type: "button", title: `Pokaż lub ukryj: ${what}` });
+  const copy = h("button", {
+    type: "button",
+    title: `Kopiuj: ${what}`,
+    onclick: () => void (secret ? copySecret : copyText)(input.value, what, status).catch((error: Error) => setStatus(status, error.message, true)),
+  }, "Kopiuj");
+  const setVisible = (visible: boolean) => {
+    input.type = visible || !secret ? "text" : "password";
+    toggle.textContent = visible ? "Ukryj" : "Pokaż";
+    toggle.setAttribute("aria-pressed", String(visible));
+  };
+  const setSecret = (value: boolean) => {
+    secret = value;
+    toggle.hidden = !value;
+    setVisible(false);
+  };
+  toggle.addEventListener("click", () => setVisible(input.type === "password"));
+  setSecret(true);
+  return { row: h("div", { class: "row" }, h("div", { class: "grow" }, input), toggle, copy), setVisible, setSecret };
 }
 
 /** A PIN input: 4-6 digits, or with long=true a long PIN (letters too, see pin-lock.ts). */
