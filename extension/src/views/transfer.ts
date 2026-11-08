@@ -32,6 +32,7 @@ function exportSection(status: HTMLElement) {
     {},
     h("legend", {}, "Eksport"),
     h("p", { class: "warning" }, "Uwaga: plik CSV nie jest zaszyfrowany. Każdy, kto go zobaczy (inny program, kopia zapasowa, synchronizacja folderu Pobrane z chmurą), pozna wszystkie Twoje hasła. Usuń go zaraz po użyciu."),
+    h("p", { class: "hint" }, "Na razie eksportowane są tylko loginy."),
     h("label", { class: "check" }, understood, "Rozumiem, plik będzie zawierał hasła jawnym tekstem"),
     h("div", { class: "actions" }, exportButton),
   );

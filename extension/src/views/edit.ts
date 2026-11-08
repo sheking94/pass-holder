@@ -1,105 +1,84 @@
-import {
-  CHARACTER_GROUPS,
-  DEFAULT_GENERATOR_OPTIONS,
-  MAX_LENGTH,
-  MIN_LENGTH,
-  generatePassword,
-  type CharacterGroup,
-  type GeneratorOptions,
-} from "@passholder/core";
-import { STORAGE_KEYS } from "../storage.ts";
-import { busy, confirmButton, h, passwordField, setStatus, show, statusLine } from "../ui/dom.ts";
+import type { p2p } from "@passholder/core";
+import { TYPE_INFO, emptyContent, tidyContent, validateContent } from "../entry-types.ts";
+import { busy, confirmButton, h, show, statusLine } from "../ui/dom.ts";
 import { openInTabButton } from "../ui/page.ts";
-import { local, store } from "../ui/state.ts";
+import { store } from "../ui/state.ts";
+import { customFieldsEditor } from "./forms/custom-fields.ts";
+import { cardForm } from "./forms/card.ts";
+import { contactForm } from "./forms/contact.ts";
+import { documentForm } from "./forms/document.ts";
+import { loginForm } from "./forms/login.ts";
+import { noteForm } from "./forms/note.ts";
+import type { FieldsForm, FieldsOf } from "./forms/types.ts";
 import { listView } from "./list.ts";
 
-const GROUP_LABELS: Record<CharacterGroup, string> = {
-  lowercase: "małe litery",
-  uppercase: "wielkie litery",
-  digits: "cyfry",
-  symbols: "symbole",
+const SAVED = "Zapisano lokalnie. Zsynchronizuj, gdy telefon będzie w trybie Synchronizacja.";
+const DELETED = "Usunięto lokalnie. Zsynchronizuj, żeby usunąć też na innych urządzeniach.";
+
+type Section<T extends p2p.EntryType> = (fields: FieldsOf<T>, status: HTMLElement) => FieldsForm<T> | Promise<FieldsForm<T>>;
+
+/** The form section of each type (between „Nazwa” and „Notatka”). */
+const SECTIONS: { [T in p2p.EntryType]: Section<T> } = {
+  login: loginForm,
+  contact: contactForm,
+  card: cardForm,
+  note: noteForm,
+  document: documentForm,
 };
 
-async function loadGeneratorOptions(): Promise<GeneratorOptions> {
-  return (await local.get<GeneratorOptions>(STORAGE_KEYS.generator)) ?? DEFAULT_GENERATOR_OPTIONS;
-}
-
-/** Edits the entry with this id, or a new one without it. */
-export async function editView(id?: string) {
-  const data = id ? store.entry(id)?.data : undefined;
-  const name = h("input", { type: "text", value: data?.name ?? "" });
-  const username = h("input", { type: "text", value: data?.username ?? "", autocomplete: "off" });
-  const password = h("input", { type: "password", class: "mono", value: data?.password ?? "", autocomplete: "off" });
-  const passwordRow = passwordField(password);
+/**
+ * Edits the entry of this type with this id, or a new one without it. What the form does not edit
+ * (fields of an unknown shape, an id of another type) is kept as it was or refused by the store.
+ */
+export async function editView(type: p2p.EntryType, id?: string): Promise<void> {
+  const existing = id ? store.getEntry(id)?.data : undefined;
+  const original = existing && existing.type === type ? existing : undefined;
+  const base = original ?? emptyContent(type);
   const status = statusLine();
 
-  const options = await loadGeneratorOptions();
-  const length = h("input", { type: "range", min: MIN_LENGTH, max: MAX_LENGTH, value: options.length });
-  const lengthLabel = h("span", { class: "mono" }, String(options.length));
-  length.addEventListener("input", () => (lengthLabel.textContent = length.value));
-  const groupBoxes = (Object.keys(CHARACTER_GROUPS) as CharacterGroup[]).map((group) => ({
-    group,
-    box: h("input", { type: "checkbox", checked: options.groups.includes(group) }),
-  }));
-
-  const generate = async () => {
-    const chosen: GeneratorOptions = {
-      length: Number(length.value),
-      groups: groupBoxes.filter((g) => g.box.checked).map((g) => g.group),
-    };
-    if (chosen.groups.length === 0) return setStatus(status, "Wybierz co najmniej jedną grupę znaków", true);
-    password.value = generatePassword(chosen);
-    passwordRow.setVisible(true);
-    await local.set(STORAGE_KEYS.generator, chosen);
-    setStatus(status, "");
-  };
+  const name = h("input", { type: "text", value: base.name });
+  const note = h("textarea", { rows: type === "note" ? 8 : 3 });
+  note.value = base.note;
+  const section = await (SECTIONS[type] as Section<p2p.EntryType>)(base.fields, status);
+  const custom = customFieldsEditor(base.custom, status);
 
   const save = () =>
     busy(status, "Zapisuję…", async () => {
-      if (!name.value.trim()) throw new Error("Podaj nazwę serwisu");
-      if (!password.value) throw new Error("Podaj albo wygeneruj hasło");
-      await store.upsert(id ?? crypto.randomUUID(), {
-        name: name.value.trim(),
-        username: username.value,
-        password: password.value,
-      });
-      listView("Zapisano lokalnie. Zsynchronizuj, gdy telefon będzie w trybie Synchronizacja.");
+      const content = tidyContent({
+        ...base,
+        name: name.value,
+        note: note.value,
+        custom: custom.read(),
+        fields: section.read(),
+      } as p2p.EntryContentV3);
+      const error = validateContent(content, original);
+      if (error) throw new Error(error);
+      await store.putEntry(id ?? crypto.randomUUID(), content);
+      listView(SAVED, false, type);
     });
 
   const remove = confirmButton("Usuń", { class: "danger" }, () => {
     void busy(status, "Usuwam…", async () => {
       await store.delete(id!);
-      listView("Usunięto lokalnie. Zsynchronizuj, żeby usunąć też na innych urządzeniach.");
+      listView(DELETED, false, type);
     });
   });
 
   show(
     openInTabButton(),
-    h("h1", {}, data ? "Edytuj wpis" : "Nowy wpis"),
-    h("label", {}, "Nazwa serwisu"),
+    h("h1", {}, original ? TYPE_INFO[type].editTitle : TYPE_INFO[type].newTitle),
+    h("label", {}, "Nazwa"),
     name,
-    h("label", {}, "Login"),
-    username,
-    h("label", {}, "Hasło"),
-    passwordRow.row,
-    h(
-      "fieldset",
-      {},
-      h("legend", {}, "Generator haseł"),
-      h("div", { class: "row" }, h("span", {}, "Długość"), length, lengthLabel),
-      h(
-        "div",
-        { class: "groups" },
-        ...groupBoxes.map(({ group, box }) => h("label", {}, box, GROUP_LABELS[group])),
-      ),
-      h("div", { class: "actions" }, h("button", { onclick: generate }, "Generuj")),
-    ),
+    ...section.nodes,
+    h("label", {}, type === "note" ? "Treść" : "Notatka"),
+    note,
+    custom.node,
     h(
       "div",
       { class: "actions" },
       h("button", { class: "primary", onclick: save }, "Zapisz"),
-      h("button", { onclick: () => listView() }, "Anuluj"),
-      data && remove,
+      h("button", { onclick: () => listView("", false, type) }, "Anuluj"),
+      original && remove,
     ),
     status,
   );

@@ -181,6 +181,14 @@ export interface ImportResult {
   tooLarge: number;
 }
 
+/** An entry of any type that is not deleted, as the typed screens list and edit it; data has no `v` or `hlc`. */
+export interface StoredEntry {
+  id: string;
+  dirty: boolean;
+  data: p2p.EntryContentV3;
+}
+
+const OTHER_TYPE = "Ten wpis ma inny typ";
 const NOT_A_LOGIN = "Ten wpis nie jest loginem";
 const ENTRY_TOO_LARGE_PL = "Wpis jest za duży";
 
@@ -211,6 +219,12 @@ function loginContent(existing: p2p.LocalEntryV2 | undefined, fields: EntryField
     custom: base.custom,
     fields: { ...base.fields, username: fields.username, password: fields.password },
   };
+}
+
+function storedView(e: p2p.LocalEntryV2): StoredEntry | undefined {
+  if (e.deleted) return undefined;
+  const { v, hlc, ...data } = e.data;
+  return { id: e.id, dirty: e.dirty, data: data as p2p.EntryContentV3 };
 }
 
 function tooLargeInPolish(error: unknown): unknown {
@@ -331,6 +345,33 @@ export class VaultStore {
   entry(id: string): LiveEntry | undefined {
     const entry = this.requireVault().entries.get(id);
     return entry && loginView(entry);
+  }
+
+  /** Live entries of one type, sorted by name (Polish collation). */
+  listEntries(type: p2p.EntryType): StoredEntry[] {
+    return [...this.requireVault().entries.values()]
+      .flatMap((e) => storedView(e) ?? [])
+      .filter((e) => e.data.type === type)
+      .sort((a, b) => a.data.name.localeCompare(b.data.name, "pl"));
+  }
+
+  /** A live entry of any type. */
+  getEntry(id: string): StoredEntry | undefined {
+    const entry = this.requireVault().entries.get(id);
+    return entry && storedView(entry);
+  }
+
+  /** Saves exactly this content under id; a live entry of another type under that id is refused. */
+  async putEntry(id: string, content: p2p.EntryContentV3): Promise<void> {
+    const vault = this.requireVault();
+    const existing = vault.entries.get(id);
+    if (existing && !existing.deleted && existing.data.type !== content.type) throw new Error(OTHER_TYPE);
+    try {
+      p2p.upsertEntryV2(vault, this.requireClock(), id, content);
+    } catch (error) {
+      throw tooLargeInPolish(error);
+    }
+    await this.save();
   }
 
   /** Number of local changes the phone has not seen yet. */
