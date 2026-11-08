@@ -36,6 +36,8 @@ class PassHolderApp : Application() {
     lateinit var biometric: BiometricUnlock
     /** Locks the vault 60 s after leaving the app, when the delay is on in the settings. */
     lateinit var leaveLock: LeaveLock
+    /** The launcher apps a login can be tied to; tests replace it. */
+    var installedApps: InstalledApps = SystemInstalledApps(this)
     var fingerprintPrompt: FingerprintPrompt = SystemFingerprintPrompt
 
     override fun onCreate() {

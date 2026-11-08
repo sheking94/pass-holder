@@ -1,6 +1,14 @@
 package io.github.sheking94.passholder.app.ui.forms
 
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
+import io.github.sheking94.passholder.app.InstalledApp
+import io.github.sheking94.passholder.app.PassHolderApp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,8 +41,38 @@ fun LoginForm(fields: LoginFields, onChange: (LoginFields) -> Unit, vm: AppViewM
     ListEditor("Adresy stron", fields.urls, { onChange(fields.copy(urls = it)) }, "Dodaj adres", { "" }) { url, update ->
         PlainField(url, update, "Adres strony", keyboardType = KeyboardType.Uri, placeholder = "https://")
     }
-    // Typed by hand for now; picking an installed app comes later.
-    ListEditor("Aplikacje Androida", fields.androidApps, { onChange(fields.copy(androidApps = it)) }, "Dodaj aplikację", { "" }) { app, update ->
-        PlainField(app, update, "Nazwa pakietu", placeholder = "np. pl.mbank")
+    val apps = rememberInstalledApps()
+    val labels = apps.orEmpty().associate { it.packageName to it.label }
+    var picking by remember { mutableStateOf(false) }
+    ListEditor(
+        "Aplikacje Androida",
+        fields.androidApps,
+        { onChange(fields.copy(androidApps = it)) },
+        "Wpisz pakiet",
+        { "" },
+        extraActions = { TextButton(onClick = { picking = true }) { Text("+ Wybierz aplikację") } },
+    ) { app, update ->
+        val label = labels[app]
+        if (label != null) Text("$label · $app") else PlainField(app, update, "Nazwa pakietu", placeholder = "np. pl.mbank")
     }
+    if (picking) {
+        AppPickerDialog(
+            apps.orEmpty(),
+            onPick = { pkg ->
+                if (pkg !in fields.androidApps) onChange(fields.copy(androidApps = fields.androidApps + pkg))
+                picking = false
+            },
+            onDismiss = { picking = false },
+            loading = apps == null,
+        )
+    }
+}
+
+/** The installed launcher apps, read off the main thread; null until loaded. */
+@Composable
+private fun rememberInstalledApps(): List<InstalledApp>? {
+    val app = LocalContext.current.applicationContext as PassHolderApp
+    var apps by remember { mutableStateOf<List<InstalledApp>?>(null) }
+    LaunchedEffect(Unit) { apps = withContext(Dispatchers.IO) { app.installedApps.list() } }
+    return apps
 }

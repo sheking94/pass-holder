@@ -4,6 +4,14 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Launcher apps only: enough to list the apps a login can be tied to, without QUERY_ALL_PACKAGES. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
     <!-- allowBackup=false: the vault is encrypted anyway, but it has no business in cloud backups. -->
     <application
         android:name=".PassHolderApp"

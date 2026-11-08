@@ -38,7 +38,7 @@ class EditLoginScreenTest : ScreenTestBase() {
         type("TOTP", "JBSWY3DPEHPK3PXP")
         click("+ Dodaj adres")
         type("Adres strony", "https://mbank.pl")
-        click("+ Dodaj aplikację")
+        click("+ Wpisz pakiet")
         // The hint shows in the focused, empty field.
         field("Nazwa pakietu").apply { performScrollTo() }.performClick()
         waitFor("np. pl.mbank")

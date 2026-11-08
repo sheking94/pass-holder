@@ -32,7 +32,7 @@ private class RowKeys {
 
 /**
  * An editable list (addresses, apps, phones, custom fields…): [title], a row per item with "Usuń" and
- * "+ [addLabel]", which appends [empty]. Empty items are dropped on save (tidyContent), not here.
+ * "+ [addLabel]", which appends [empty], plus [extraActions] beside it. Empty items are dropped on save (tidyContent), not here.
  */
 @Composable
 fun <T> ListEditor(
@@ -41,6 +41,7 @@ fun <T> ListEditor(
     onChange: (List<T>) -> Unit,
     addLabel: String,
     empty: () -> T,
+    extraActions: @Composable () -> Unit = {},
     item: @Composable (T, (T) -> Unit) -> Unit,
 ) {
     val rowKeys = remember { RowKeys() }
@@ -60,6 +61,9 @@ fun <T> ListEditor(
                 }
             }
         }
-        TextButton(onClick = { onChange(items + empty()) }) { Text("+ $addLabel") }
+        Row {
+            TextButton(onClick = { onChange(items + empty()) }) { Text("+ $addLabel") }
+            extraActions()
+        }
     }
 }
