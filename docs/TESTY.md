@@ -55,7 +55,7 @@ katalogu pakietu.
 | `core` | 16 | 213 | w tym `core/test/p2p/` |
 | `extension` | 14 | 149 | w tym widoki w happy-dom (`extension/test/ui/`); service worker bez testów |
 | `android/core` | 27 | 350 | 4 pomijane bez `PASSHOLDER_INTEROP_TEST=1` |
-| `android/app` | 6 | 31 | Robolectric, zrzuty ekranów |
+| `android/app` | 16 | 55 | Robolectric, zrzuty ekranów |
 
 ## Co testują pliki
 
@@ -117,7 +117,15 @@ Playwright z Chromium nie jest zależnością repozytorium: w kontenerze w chmur
 | `P2pInteropTest`, `PhoneInteropTest` (opcjonalne) | prawdziwy klient wtyczki w Node przeciw hostowi w Kotlinie: wpisy w obie strony, 1300/1200 wpisów, odtworzenie |
 | `ScreenTests`, `SyncScreenTests`, `SyncControllerTest`, `CorruptHostStateTest` (app) | ekrany, tryb Synchronizacja, odświeżenie po synchronizacji, uszkodzony stan |
 | `BiometricScreenTests` (app) | odcisk palca, blokada po wyjściu, opóźnienie 60 s (zegar Robolectric) |
+| `EntryTypesTest` (app) | opisy wierszy, wyszukiwanie, `tidy`, walidacja (te same reguły co `entry-types.ts`) |
+| `ListTabsScreenTest`, `SettingsScreenTests` (app) | pięć zakładek, wyszukiwanie czyszczone przy zmianie zakładki, „+ Dodaj” typu zakładki, górny pasek i Ustawienia |
+| `EditLoginScreenTest`, `EditNoteScreenTest`, `EditContactScreenTest`, `EditCardScreenTest`, `EditDocumentScreenTest` (app) | formularze: pola wrażliwe i kopiowanie, listy, własne pola, formaty tylko zmienionych pól, „Ten wpis ma inny typ” |
+| `AppPickerScreenTest`, `InstalledAppsTest` (app) | wybór aplikacji, ręczny pakiet, lista tylko aplikacji z launchera |
 | `BackupRulesTest`, `ClearClipboardWorkerTest` (app) | brak kopii zapasowych, czyszczenie schowka |
+
+Zrzuty ekranów telefonu (`android/app/screenshots/`, przepisywane przy każdym przebiegu testów): 30 Ustawienia,
+31-35 zakładki (Loginy, Karty, Kontakty, Notatki, Dokumenty), 36 formularz loginu, 37 pole ukryte pokazane,
+38-41 formularze notatki, kontaktu, karty i dokumentu, 42 wybór aplikacji. Zmieniły się też 03-08, 12-14, 18, 19 i 28.
 
 ## Znaleziony błąd: walidacja KDF
 
@@ -188,6 +196,14 @@ wraca do hasła. Po 10 min: „Parowanie wygasło…”.
 notatka, dokument) → „Synchronizuj” → przeładuj wtyczkę (`chrome://extensions` → odśwież) i odblokuj: wpisy są
 na swoich zakładkach, pola wrażliwe zakryte. Na telefonie zmień dowolny login → „Synchronizuj”: wpisy innych
 typów we wtyczce zostają bez zmian (telefon ich nie pokazuje, ale nie gubi).
+
+**T15. Typy wpisów na telefonie.** Na telefonie dodaj po jednym wpisie każdego typu na jego zakładce (login z
+aplikacją wybraną z „Wybierz aplikację”, kontakt, karta z numerem i PIN-em, notatka, dokument): pola wrażliwe
+zakryte, „Pokaż” odkrywa, „Kopiuj” PIN-u daje „Skopiowano PIN. Schowek zostanie wyczyszczony za 1 min.” i po minucie
+schowek jest pusty. Wyszukiwanie działa na zakładce i znika po zmianie zakładki. „Synchronizuj”: wpisy są we
+wtyczce na swoich zakładkach. We wtyczce zmień po jednym wpisie każdego typu → „Synchronizuj”: zmiany są na
+telefonie. W „Wybierz aplikację” są aplikacje z ikoną w launcherze (np. Chrome); „+ Wpisz pakiet” przyjmuje
+`com.example.app` i odrzuca `zlyPakiet`.
 
 **PIN i karta.** PIN `4821` → Zablokuj → zły PIN „Pozostało prób: 4”, dobry otwiera; restart Chrome prosi o
 hasło główne. „Otwórz w karcie ↗” dwa razy: drugi raz przełącza na istniejącą kartę.

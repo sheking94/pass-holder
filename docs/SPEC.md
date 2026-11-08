@@ -14,8 +14,7 @@ bit w bit. Synchronizację telefon–wtyczka opisuje [SYNCHRONIZACJA.md](SYNCHRO
 - **Offline-first:** wtyczka i telefon działają w pełni bez połączenia i synchronizują się, gdy telefon
   jest w trybie Synchronizacja.
 - Zakres: wpisy typów login, kontakt, karta, notatka i dokument (format v3, punkt 4), generator haseł. Wtyczka
-  pokazuje i edytuje wszystkie typy ([FUNKCJE.md](FUNKCJE.md#typy-wpisów-we-wtyczce)); telefon na razie tylko
-  loginy (nazwa, login, hasło), a pozostałe typy przechowuje, synchronizuje i zostawia nietknięte.
+  i telefon pokazują i edytują wszystkie typy ([FUNKCJE.md](FUNKCJE.md#typy-wpisów-wtyczka-i-telefon)).
 
 ## 2. Klucze
 
@@ -94,8 +93,7 @@ AAD z `id` wiąże szyfrogram z wpisem, więc host nie może podmienić treści 
 - **Limit:** blob (Base64) ≤ `MAX_ENTRY_BLOB_LENGTH = 65536` znaków. Długość liczona przed szyfrowaniem:
   `4 · ceil((29 + bajtyUTF8(json)) / 3)`. Większy wpis nie zostanie zapisany (`Entry too large`, w aplikacjach
   „Wpis jest za duży”), import go pomija, a host odrzuca żądanie z większym blobem (400).
-- Zapis z ekranu zachowuje pola, których ten ekran nie edytuje; np. ekran loginu na telefonie nie pokazuje notatki, TOTP,
-  adresów stron, aplikacji ani własnych pól, a zapis zostawia je bez zmian.
+- Zapis z ekranu zachowuje pola, których ten ekran nie edytuje; np. formularz nie zna pola dodanego przez nowszą wersję, a zapis zostawia je bez zmian.
   Zapis pod `id`, który zawiera wpis innego typu, jest odrzucany.
 - Wpis, który nigdy nie trafił na telefon, wtyczka kasuje lokalnie.
 - HLC (hybrydowy zegar logiczny) jest wewnątrz szyfrogramu, więc host nie zna czasów zmian. Konflikty
