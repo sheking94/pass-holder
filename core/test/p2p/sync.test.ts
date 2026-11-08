@@ -7,8 +7,15 @@ import {
   clockForVault,
   decryptPayloadV2,
   deleteEntryV2,
+  emptyLogin,
   emptyVaultV2,
   encryptPayloadV2,
+  ENTRY_TOO_LARGE_TO_SYNC,
+  entryBlobLength,
+  MAX_BLOB_BYTES_PER_ROUND,
+  MAX_ENTRY_BLOB_LENGTH,
+  validateP2pSyncRequest,
+  type EntryContentV3,
   HlcClock,
   liveEntriesV2,
   MAX_CHANGES_PER_REQUEST,
@@ -19,13 +26,18 @@ import {
   upsertEntryV2,
   type LocalVaultV2,
   type P2pSyncRequest,
+  type P2pSyncResponse,
   type P2pTransport,
 } from "../../src/p2p/index.ts";
 import { MemorySyncStore } from "../../src/protocol.ts";
 
 const newEpoch = () => toBase64(randomBytes(16));
 const ADDRESS = "192.168.1.5:8787";
-const entry = (name: string) => ({ name, username: "u", password: "p" });
+const login = (name: string, username = "u", password = "p"): EntryContentV3 => ({
+  ...emptyLogin(name),
+  fields: { username, password, totp: "", urls: [], androidApps: [] },
+});
+const entry = (name: string) => login(name);
 
 function setup(epoch = newEpoch()) {
   const store = new MemorySyncStore();
@@ -163,7 +175,7 @@ describe("p2p sync", () => {
       epoch: newEpoch(),
       sinceRevision: 0,
       changes: [
-        { id: "1", baseRevision: 0, deleted: false, blob: await encryptPayloadV2(vaultKey, "1", { name: "x", username: "u", password: "p", hlc: { ms: 1, c: 0, d: "d" } }) },
+        { id: "1", baseRevision: 0, deleted: false, blob: await encryptPayloadV2(vaultKey, "1", { ...login("x"), v: 3, hlc: { ms: 1, c: 0, d: "d" } }) },
       ],
     };
     const response = processP2pSync(store, epoch, [ADDRESS], request);
@@ -175,7 +187,7 @@ describe("p2p sync", () => {
 
   it("payloads are bound to their id and to v2", async () => {
     const key = newVaultKey();
-    const data = { name: "x", username: "u", password: "p", hlc: { ms: 1, c: 0, d: "d" } };
+    const data = { ...login("x"), v: 3 as const, hlc: { ms: 1, c: 0, d: "d" } };
     const blob = await encryptPayloadV2(key, "1", data);
 
     expect(await decryptPayloadV2(key, "1", blob)).toEqual(data);
@@ -188,19 +200,19 @@ describe("p2p sync", () => {
 
 describe("p2p sync: final review fixes", () => {
   const password = async (s: ReturnType<typeof setup>, id: string) =>
-    ((await decryptPayloadV2(s.vaultKey, id, s.store.get(id)!.blob)) as { password?: string }).password;
+    ((await decryptPayloadV2(s.vaultKey, id, s.store.get(id)!.blob)) as { fields?: { password?: string } }).fields?.password;
 
   it("an edit made while its push is in flight stays dirty and reaches the phone on the next sync", async () => {
     const s = setup();
     const ext = emptyVaultV2();
     const clock = new HlcClock("ext", () => 1000);
-    upsertEntryV2(ext, clock, "1", { name: "Bank", username: "u", password: "old" });
+    upsertEntryV2(ext, clock, "1", login("Bank", "u", "old"));
     let edited = false;
     await syncVaultV2(ext, s.vaultKey, clock, async (r) => {
       const res = await s.send(r);
       if (!edited && r.epoch === s.epoch && r.changes.length > 0) {
         edited = true;
-        upsertEntryV2(ext, clock, "1", { name: "Bank", username: "u", password: "NEW" });
+        upsertEntryV2(ext, clock, "1", login("Bank", "u", "NEW"));
       }
       return res;
     });
@@ -236,12 +248,12 @@ describe("p2p sync: final review fixes", () => {
     const phone = emptyVaultV2();
     const phoneClock = new HlcClock("phone", () => 5_000_000);
     const a = emptyVaultV2();
-    upsertEntryV2(phone, phoneClock, "x", { name: "X", username: "u", password: "phone-v1" });
+    upsertEntryV2(phone, phoneClock, "x", login("X", "u", "phone-v1"));
     await first.sync(phone, phoneClock);
     await first.sync(a, new HlcClock("a", () => 1000));
 
     const restarted = new HlcClock("a", () => 2000);
-    upsertEntryV2(a, restarted, "x", { name: "X", username: "u", password: "a-edit" });
+    upsertEntryV2(a, restarted, "x", login("X", "u", "a-edit"));
     const hlc = a.entries.get("x")!.data.hlc;
     expect(hlc.ms).toBeGreaterThanOrEqual(5_000_000);
 
@@ -387,5 +399,124 @@ describe("p2p sync: paging", () => {
     };
     await expect(syncVaultV2(ext, s.vaultKey, clock, endless)).rejects.toThrow("Sync exceeded");
     expect(calls).toBe(MAX_SYNC_ROUNDS);
+  });
+});
+
+describe("p2p sync: v3 entries and byte budget", () => {
+  const big = (name: string, kib = 44) => login(name, "u", "p".repeat(kib * 1024));
+  const blobSum = (xs: { blob: string }[]) => xs.reduce((n, x) => n + x.blob.length, 0);
+
+  it("pages request by bytes", async () => {
+    const s = setup();
+    const ext = emptyVaultV2();
+    const clock = new HlcClock("ext", () => 1000);
+    for (let i = 0; i < 20; i++) upsertEntryV2(ext, clock, `id${i}`, big(`n${i}`));
+    const requests: P2pSyncRequest[] = [];
+    await syncVaultV2(ext, s.vaultKey, clock, async (r) => {
+      requests.push(structuredClone(r));
+      return s.send(r);
+    });
+    expect(requests.length).toBeGreaterThan(1);
+    for (const r of requests) expect(blobSum(r.changes)).toBeLessThanOrEqual(MAX_BLOB_BYTES_PER_ROUND);
+    expect(s.store.listSince(0)).toHaveLength(20);
+    expect([...ext.entries.values()].every((e) => !e.dirty)).toBe(true);
+  });
+
+  it("pages response by bytes", async () => {
+    const s = setup();
+    const phone = emptyVaultV2();
+    const pc = new HlcClock("phone", () => 1000);
+    for (let i = 0; i < 20; i++) upsertEntryV2(phone, pc, `id${i}`, big(`n${i}`));
+    await s.sync(phone, pc);
+    const ext = emptyVaultV2();
+    const responses: P2pSyncResponse[] = [];
+    await syncVaultV2(ext, s.vaultKey, new HlcClock("ext", () => 1000), async (r) => {
+      const res = await s.send(r);
+      responses.push(res);
+      return res;
+    });
+    const real = responses.filter((r) => r.epoch === s.epoch && (r.changes.length > 0 || r.more));
+    for (const r of real) expect(blobSum([...r.conflicts, ...r.changes])).toBeLessThanOrEqual(MAX_BLOB_BYTES_PER_ROUND);
+    expect(real.slice(0, -1).every((r) => r.more)).toBe(true);
+    expect(real.at(-1)!.more).toBe(false);
+    expect(real.length).toBeGreaterThan(1);
+    expect(liveEntriesV2(ext)).toHaveLength(20);
+  });
+
+  it("truncated conflicts settle", async () => {
+    const s = setup();
+    const phone = emptyVaultV2();
+    const ext = emptyVaultV2();
+    const pc = new HlcClock("phone", () => 5000);
+    for (let i = 0; i < 20; i++) upsertEntryV2(phone, pc, `id${i}`, login(`n${i}`));
+    await s.sync(phone, pc);
+    await s.sync(ext, new HlcClock("ext", () => 1000));
+    // The phone writes big newer versions; the ext edits every entry on a stale base with a later HLC, so it wins.
+    for (let i = 0; i < 20; i++) upsertEntryV2(phone, pc, `id${i}`, big(`p${i}`));
+    await s.sync(phone, pc);
+    const extClock = new HlcClock("ext", () => 9_000_000);
+    for (let i = 0; i < 20; i++) upsertEntryV2(ext, extClock, `id${i}`, login(`e${i}`));
+    const responses: P2pSyncResponse[] = [];
+    await syncVaultV2(ext, s.vaultKey, extClock, async (r) => {
+      const res = await s.send(r);
+      responses.push(res);
+      return res;
+    });
+    // Conflicts really were cut by the byte budget along the way.
+    expect(responses.some((r) => r.more && r.conflicts.length > 0)).toBe(true);
+    const expected = Array.from({ length: 20 }, (_, i) => `e${i}`).sort();
+    expect(names(ext)).toEqual(expected);
+    expect([...ext.entries.values()].every((e) => !e.dirty)).toBe(true);
+    const fresh = emptyVaultV2();
+    await s.sync(fresh, new HlcClock("fresh", () => 1000));
+    expect(names(fresh)).toEqual(expected);
+  });
+
+  it("host rejects blob over 64 KiB", () => {
+    const s = setup();
+    const request = (len: number, epoch = s.epoch) => ({
+      epoch, sinceRevision: 0,
+      changes: [{ id: "1", baseRevision: 0, deleted: false, blob: "x".repeat(len) }],
+    });
+    expect(validateP2pSyncRequest(s.store, s.epoch, request(MAX_ENTRY_BLOB_LENGTH + 1))).toBe("blob too large");
+    expect(validateP2pSyncRequest(s.store, s.epoch, request(MAX_ENTRY_BLOB_LENGTH + 1, "other"))).toBe("blob too large");
+    expect(validateP2pSyncRequest(s.store, s.epoch, request(MAX_ENTRY_BLOB_LENGTH))).toBeUndefined();
+  });
+
+  it("upsert rejects too large entry", () => {
+    const v = emptyVaultV2();
+    const clock = new HlcClock("a", () => 1000);
+    upsertEntryV2(v, clock, "ok", entry("ok"));
+    const before = structuredClone([...v.entries]);
+    const note = { ...emptyLogin("big"), note: "a".repeat(70_000) };
+    expect(() => upsertEntryV2(v, clock, "big", note)).toThrow("Entry too large");
+    // Overwriting an existing entry must not change it either.
+    expect(() => upsertEntryV2(v, clock, "ok", note)).toThrow("Entry too large");
+    expect([...v.entries]).toEqual(before);
+    expect(entryBlobLength({ ...note, v: 3, hlc: { ms: 1, c: 0, d: "a" } })).toBeGreaterThan(MAX_ENTRY_BLOB_LENGTH);
+  });
+
+  it("throws a clear error, before sending, for a dirty entry too large to sync", async () => {
+    const s = setup();
+    const v = emptyVaultV2();
+    const clock = new HlcClock("a", () => 1000);
+    upsertEntryV2(v, clock, "ok", entry("ok"));
+    // Saved before v3 and near the limit: it no longer fits once serialized as v3.
+    const huge = { ...emptyLogin("Huge"), note: "a".repeat(70_000) };
+    v.entries.set("huge", { id: "huge", revision: 0, dirty: true, deleted: false, data: { ...huge, v: 3, hlc: { ms: 1, c: 0, d: "a" } } });
+    const requests: P2pSyncRequest[] = [];
+    await expect(syncVaultV2(v, s.vaultKey, clock, async (r) => { requests.push(r); return s.send(r); }))
+      .rejects.toThrow(`${ENTRY_TOO_LARGE_TO_SYNC}: Huge`);
+    expect(requests).toHaveLength(0);
+  });
+
+  it("remote v2 payload is read as login", async () => {
+    const s = setup();
+    const legacy = { name: "Old", username: "u", password: "p", hlc: { ms: 1, c: 0, d: "d" } };
+    const blob = await seal(s.vaultKey, utf8(JSON.stringify(legacy)), "passholder/v2/entry/1");
+    s.store.put({ id: "1", revision: 1, deleted: false, blob });
+    const ext = emptyVaultV2();
+    await s.sync(ext, new HlcClock("ext", () => 1000));
+    expect(ext.entries.get("1")).toMatchObject({ deleted: false, data: { type: "login", name: "Old" } });
   });
 });

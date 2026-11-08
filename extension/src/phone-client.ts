@@ -12,6 +12,7 @@ export class ApiError extends Error {
 export const PHONE_UNREACHABLE = "Telefon nie odpowiada. Czy tryb Synchronizacja jest włączony?";
 export const PHONE_FORGOT_BROWSER =
   "Telefon nie zna tej przeglądarki. Sparuj ją ponownie w „Adresy telefonu” → „Sparuj z innym telefonem / odtwórz telefon”.";
+export const PHONE_UPDATE_REQUIRED_PL = "Zaktualizuj aplikację na telefonie";
 export const PHONE_MALFORMED = "Telefon odpowiedział niepoprawnie.";
 
 /**
@@ -27,9 +28,14 @@ export const POST_TIMEOUT_MS = 30_000;
 export function phoneErrorInPolish(error: unknown): unknown {
   if (!(error instanceof Error) || error instanceof ApiError) return error;
   const message = error.message;
+  if (message === p2p.PHONE_UPDATE_REQUIRED) return new Error(PHONE_UPDATE_REQUIRED_PL);
   if (message === "P2P host returned 403: device not paired") return new Error(PHONE_FORGOT_BROWSER);
   // A bad shape, or a Noise message that does not open: either way the answer is not what a PassHolder phone sends.
   if (message === "P2P host returned a malformed response" || message.startsWith("Noise:")) return new Error(PHONE_MALFORMED);
+  const tooLarge = `${p2p.ENTRY_TOO_LARGE_TO_SYNC}: `;
+  if (message.startsWith(tooLarge)) {
+    return new Error(`Wpis „${message.slice(tooLarge.length)}” jest za duży (ponad 64 KiB) i nie może zostać zsynchronizowany. Skróć go.`);
+  }
   const status = /^P2P host returned (\d+): (.*)$/.exec(message);
   if (status) return new Error(`Telefon odpowiedział błędem ${status[1]} (${status[2]}).`);
   return error;

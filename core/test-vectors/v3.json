@@ -1,0 +1,421 @@
+{
+  "format": "passholder-test-vectors",
+  "version": 3,
+  "notes": "AAD is passholder/v2/entry/<id>; blob = Base64(0x01 || nonce(12) || ciphertext || tag(16)), AES-256-GCM; payload is the exact UTF-8 plaintext. Entry payloads are compact JSON in canonical key order, escaped as JS JSON.stringify does.",
+  "limits": {
+    "MAX_ENTRY_BLOB_LENGTH": 65536,
+    "MAX_BLOB_BYTES_PER_ROUND": 524288,
+    "MAX_CHANGES_PER_REQUEST": 500,
+    "MAX_CHANGES_PER_RESPONSE": 500
+  },
+  "entries": [
+    {
+      "description": "login with every field filled, escapes and emoji",
+      "vaultKey": "5f9d1c3a7b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7",
+      "id": "3f2a8c1e-6b4d-4e9a-9c7f-1a2b3c4d5e01",
+      "nonce": "1112131415161718191a1b1c",
+      "deleted": false,
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"Poczta żółć 🙂\",\"note\":\"Linia 1\\nLinia\\t2 \\\"cudzysłów\\\" i \\\\ ukośnik; zażółć gęślą jaźń 🙂🔐 \\r\\b\\f\\u0001\\u001f  <>&'=\",\"fields\":{\"username\":\"jan.kowalski@example.com\",\"password\":\"p@ss wörd!\\\"\\\\\\t\",\"totp\":\"JBSWY3DPEHPK3PXP\",\"urls\":[\"https://example.com/login\",\"https://mail.example.org\"],\"androidApps\":[\"com.example.mail\",\"pl.example.app\"]},\"custom\":[{\"label\":\"PIN \\\"awaryjny\\\"\",\"value\":\"12\\\\34\\n🙂\\r\\b\\f\\u0001\\u001f  <>&'=\",\"hidden\":true},{\"label\":\"Dział\",\"value\":\"Źródło\",\"hidden\":false}],\"hlc\":{\"ms\":1793404800001,\"c\":1,\"d\":\"device-1\"}}",
+      "parsed": {
+        "v": 3,
+        "type": "login",
+        "name": "Poczta żółć 🙂",
+        "note": "Linia 1\nLinia\t2 \"cudzysłów\" i \\ ukośnik; zażółć gęślą jaźń 🙂🔐 \r\b\f\u0001\u001f  <>&'=",
+        "fields": {
+          "username": "jan.kowalski@example.com",
+          "password": "p@ss wörd!\"\\\t",
+          "totp": "JBSWY3DPEHPK3PXP",
+          "urls": [
+            "https://example.com/login",
+            "https://mail.example.org"
+          ],
+          "androidApps": [
+            "com.example.mail",
+            "pl.example.app"
+          ]
+        },
+        "custom": [
+          {
+            "label": "PIN \"awaryjny\"",
+            "value": "12\\34\n🙂\r\b\f\u0001\u001f  <>&'=",
+            "hidden": true
+          },
+          {
+            "label": "Dział",
+            "value": "Źródło",
+            "hidden": false
+          }
+        ],
+        "hlc": {
+          "ms": 1793404800001,
+          "c": 1,
+          "d": "device-1"
+        }
+      },
+      "blob": "ARESExQVFhcYGRobHKD8nFWvbAPkGY89vYLJh/JJkklG/qtcannMzok+dfMeY84l4Fh9B7yTUf1zgjmwpLbrV89WSefyz8U9EHC9H4NWLcJGh624p85rNV+vSNFmC2ezHFZ0MzZELGQPBchVBoGwHiJHWbGJwrPaIW6MVtE3s3p+RYWW3YEg0SVQ8nzi3AXXN7/HmOWTs0hplpFHuzkokcL9JkPBy7bZpme/WRI0bTnN0ge5JX22afbfeE1tUpKGm0qs3RFKSOrJRE/osofl4lEEaQervkbJ539bVy1CvvjgrSe5cNVqaZHl6hDnJ519zEQLp4FrDxXRdBHY5hM7wBCoqNDyjuI5b2G4qHEkWYr/rTQgp2mpO3mkgkA7vNHCAhVSuorDkTGZalfEw3wbzV4uFes7o5/hFXrMDY+q7s9A7Xf5e+3k3bd3AunoBVEj+dL6eD2s/32SuxYB8YgU0f6UDTpPM0mpxAYPtOP7K/JK/g8QLK73ftK56UeGIS/vvm9BW84aZWyiqJbmrZZ9TIJE3z9pWEB5QHyb5q+ubkSoCF92HqpoG/adotVAIefdyI7CPVLBlS15bSOg5MXzDvl+/VGu0hgrYXZXhDFmxZLF3aevBa+knYfBg0uwxDc82QXt0RBNkZArr7y5ZH7CBjB7UMxRF5fP3l6GJCPrjwZ8QWFX17G5Xz8zR9eknXlmrvDpe6USeKbABIMYf+CZfLCzGv5Z64zWiMporq7SUJmC2ehtmZs+mVlpQTqSXbNzEPmf8RTnS3/K79xFyQfFO56otcEDMYbZTgRHpK+2/9EoEXerr9pqUgvV8+lUVlmsiOJfre9PW7WQbBTYwQ=="
+    },
+    {
+      "description": "contact with every field filled",
+      "vaultKey": "5f9d1c3a7b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7",
+      "id": "3f2a8c1e-6b4d-4e9a-9c7f-1a2b3c4d5e02",
+      "nonce": "2122232425262728292a2b2c",
+      "deleted": false,
+      "payload": "{\"v\":3,\"type\":\"contact\",\"name\":\"Anna Nowak\",\"note\":\"Linia 1\\nLinia\\t2 \\\"cudzysłów\\\" i \\\\ ukośnik; zażółć gęślą jaźń 🙂🔐 \\r\\b\\f\\u0001\\u001f  <>&'=\",\"fields\":{\"firstName\":\"Anna\",\"lastName\":\"Nowak-Żółkiewska\",\"birthDate\":\"1990-02-03\",\"phones\":[{\"label\":\"komórka\",\"value\":\"+48 600 100 200\"},{\"label\":\"dom\",\"value\":\"+48 22 123 45 67\"}],\"emails\":[{\"label\":\"praca\",\"value\":\"anna@example.com\"},{\"label\":\"prywatny\",\"value\":\"anna@example.org\"}],\"addresses\":[{\"label\":\"dom\",\"street\":\"ul. Łąkowa 5/7\",\"postalCode\":\"00-001\",\"city\":\"Łódź\",\"country\":\"Polska\"},{\"label\":\"praca\",\"street\":\"Main St 1\",\"postalCode\":\"10001\",\"city\":\"New York\",\"country\":\"USA\"}]},\"custom\":[{\"label\":\"PIN \\\"awaryjny\\\"\",\"value\":\"12\\\\34\\n🙂\\r\\b\\f\\u0001\\u001f  <>&'=\",\"hidden\":true},{\"label\":\"Dział\",\"value\":\"Źródło\",\"hidden\":false}],\"hlc\":{\"ms\":1793404800002,\"c\":2,\"d\":\"device-2\"}}",
+      "parsed": {
+        "v": 3,
+        "type": "contact",
+        "name": "Anna Nowak",
+        "note": "Linia 1\nLinia\t2 \"cudzysłów\" i \\ ukośnik; zażółć gęślą jaźń 🙂🔐 \r\b\f\u0001\u001f  <>&'=",
+        "fields": {
+          "firstName": "Anna",
+          "lastName": "Nowak-Żółkiewska",
+          "birthDate": "1990-02-03",
+          "phones": [
+            {
+              "label": "komórka",
+              "value": "+48 600 100 200"
+            },
+            {
+              "label": "dom",
+              "value": "+48 22 123 45 67"
+            }
+          ],
+          "emails": [
+            {
+              "label": "praca",
+              "value": "anna@example.com"
+            },
+            {
+              "label": "prywatny",
+              "value": "anna@example.org"
+            }
+          ],
+          "addresses": [
+            {
+              "label": "dom",
+              "street": "ul. Łąkowa 5/7",
+              "postalCode": "00-001",
+              "city": "Łódź",
+              "country": "Polska"
+            },
+            {
+              "label": "praca",
+              "street": "Main St 1",
+              "postalCode": "10001",
+              "city": "New York",
+              "country": "USA"
+            }
+          ]
+        },
+        "custom": [
+          {
+            "label": "PIN \"awaryjny\"",
+            "value": "12\\34\n🙂\r\b\f\u0001\u001f  <>&'=",
+            "hidden": true
+          },
+          {
+            "label": "Dział",
+            "value": "Źródło",
+            "hidden": false
+          }
+        ],
+        "hlc": {
+          "ms": 1793404800002,
+          "c": 2,
+          "d": "device-2"
+        }
+      },
+      "blob": "ASEiIyQlJicoKSorLFKw4l1a8dn0rLlyuB9/TeYNMcT/G8qVCGssLZml9tlMy/BeL5RRrZYfG2z6MS+OchUv41XpS6myWR4DHYUl3ITSGO8VcK1A9hT5DxfNEw5Fr3PXsUy5i1Nn4UH10zHfMg54QfFS9jhvnR2+2VWJvnhfHG72ZBsLhhYpXgcB/a1N1tBO6vIUKc+fUtOkfivO92KyJWK993YZ4hQa+XltJ9YMDJaZx1rC50zqf0aTsFjFZtHG2JXXQBCTPJVR3tv3O1DnSaDYP3YfHOflO8DF9Grix7RLgO2PRKPNNbyd+i3Q4/QvHUNB51PxgN/1TtfoysplgG2URBL5h9+94oVqitpntXuvJE0s04ySWWJ6mYn23JVU0gXJvgCCgI8gAJf9pxrVceDNUB2Wpf+WryK6gqoRxvFl3rrHUgCSfa1Cv8IaCZbRygbM8J7S6CYTaIOi0yLY4RKNf4wi/OfgcKs0sb8qj4KzbbXHSWEIzgzMwH7xEvXK6DVe2dCuFIhzUZUtvEJ5v9NzlZLVWfVRnEChEP0rWjSEhVHEt02NlMS+QtuQAKmeNN7R4CybFs+/yYh+1UeEpMzVYctJwTpX/+igkRfxB6QzSdSwxwYQ3/hM8VhAZGiZ9iQ2jry4LgNIGIrqBHZqQGrVa+AiAmFdr9Qs1fO5Mye/m6vnXv1Q2C04J/2GT/eRcMJNQUddIBQzkCEdCGQ98vHfi2E78kylGkYHBxkHFbLwp1WVZoPgV6XHIOMfPJlVLENJIv4ozWBCMrMtIlsTSKrKXHVWHNgl6oKe3AaeMt+1QDBPm5+AID5VrBHrtMkvqIfefbwp07TmEOs6PtotoRVgkbTacCf0IF/eUDMydtaRbFRFYTz0ft5a5oD/9FtQq2IclazQTrHNr1EMpp4Tw5qpSdKsMHwc5yFmYPQ1/+9Vxwiet5Xrf8voNWTbcDj9Qe9tdZ0WFGkpnX++cUf40zjaK/uRihGlfcHxsO3b0e3vWki2eynlfwh8usZZqsS/UuUvT+SUUv+1j3fJMiW4sOS/GQckw5QlqfKGwgUeZC4Xc0GOhnny+CO9xHe6l+d680JHBx/StZ6os/Y21FuBCXSuh54awK9nmxaTDOl4XtkcdvHzDGKRDzUt7dUMfhGJO2c1kC7/1gMay7blqPXHokFgO57mxUoRiZkSJHSrXH9mLtO7zt8BpwwoOBaHzA=="
+    },
+    {
+      "description": "card with every field filled",
+      "vaultKey": "5f9d1c3a7b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7",
+      "id": "3f2a8c1e-6b4d-4e9a-9c7f-1a2b3c4d5e03",
+      "nonce": "3132333435363738393a3b3c",
+      "deleted": false,
+      "payload": "{\"v\":3,\"type\":\"card\",\"name\":\"Karta główna\",\"note\":\"Linia 1\\nLinia\\t2 \\\"cudzysłów\\\" i \\\\ ukośnik; zażółć gęślą jaźń 🙂🔐 \\r\\b\\f\\u0001\\u001f  <>&'=\",\"fields\":{\"holder\":\"JAN KOWALSKI\",\"number\":\"4111111111111111\",\"expiry\":\"01/30\",\"cvc\":\"123\",\"pin\":\"4321\"},\"custom\":[{\"label\":\"PIN \\\"awaryjny\\\"\",\"value\":\"12\\\\34\\n🙂\\r\\b\\f\\u0001\\u001f  <>&'=\",\"hidden\":true},{\"label\":\"Dział\",\"value\":\"Źródło\",\"hidden\":false}],\"hlc\":{\"ms\":1793404800003,\"c\":3,\"d\":\"device-3\"}}",
+      "parsed": {
+        "v": 3,
+        "type": "card",
+        "name": "Karta główna",
+        "note": "Linia 1\nLinia\t2 \"cudzysłów\" i \\ ukośnik; zażółć gęślą jaźń 🙂🔐 \r\b\f\u0001\u001f  <>&'=",
+        "fields": {
+          "holder": "JAN KOWALSKI",
+          "number": "4111111111111111",
+          "expiry": "01/30",
+          "cvc": "123",
+          "pin": "4321"
+        },
+        "custom": [
+          {
+            "label": "PIN \"awaryjny\"",
+            "value": "12\\34\n🙂\r\b\f\u0001\u001f  <>&'=",
+            "hidden": true
+          },
+          {
+            "label": "Dział",
+            "value": "Źródło",
+            "hidden": false
+          }
+        ],
+        "hlc": {
+          "ms": 1793404800003,
+          "c": 3,
+          "d": "device-3"
+        }
+      },
+      "blob": "ATEyMzQ1Njc4OTo7PIbWPQ/ACLiZt95IC9pAx7XelsSavKP7BXbZi7f7BhSirn2KwqtBcqkjnJ1mH2t5dSEZ7SGwQgAJi3UBFBx2n8maakWFFJPW2ZS3J9hXaXtxLndYNDsdvAL5WfKtaIWjslINLuVkWbrkmyyGGbxqvfkcvrGMGKy6nWo2LB9jFMQWXuxHf4zGWNY6AtHcrWsg5Y6iCAR7R+xIyMJSwa6PjJ7jdbkpcYUvVJWOUB3Kj7ykrJkB4kOq49bgr2ex1C8+cCvMDDuJQ9weEff7Wq2vf5dDGRTVf5I3sv/KAPpzjG3Xdjp4jeDTIAz1+CWb/DMVWPns4l3TiGJ9FUKyk99Vt2tURyt9nwGbe5+iv0Tyj+KoUsL6QZuywo9zbBdY0qZGPlmhgtpbtozWou1MpDdrezsFAMsdm09q65pmOXiXDse9rovVhoGOF5VdKEx11O7mxfJnAS10TtKtvkHbp0DiWa9Y5w/YL+z6Fg3bUbHa8uDrc3HeCHB/65cdg+s6WEBRT8/ikqJm5b1eJgL3UegaW9a+MdbSK0ppDhnb283Dcv/3sxE1QJ3OO3ahlw7CamteXAYiP7yvCyHS4NS/y4CnI+cJxa4f6KhHpA2mObQ3T6LQWv1ibdutKuZ1L6Q84UtXuSHKs7aK8ql1R3gQKdX7qGtMn6f8"
+    },
+    {
+      "description": "note (empty fields object)",
+      "vaultKey": "5f9d1c3a7b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7",
+      "id": "3f2a8c1e-6b4d-4e9a-9c7f-1a2b3c4d5e04",
+      "nonce": "4142434445464748494a4b4c",
+      "deleted": false,
+      "payload": "{\"v\":3,\"type\":\"note\",\"name\":\"Notatka\",\"note\":\"Linia 1\\nLinia\\t2 \\\"cudzysłów\\\" i \\\\ ukośnik; zażółć gęślą jaźń 🙂🔐 \\r\\b\\f\\u0001\\u001f  <>&'=\",\"fields\":{},\"custom\":[{\"label\":\"PIN \\\"awaryjny\\\"\",\"value\":\"12\\\\34\\n🙂\\r\\b\\f\\u0001\\u001f  <>&'=\",\"hidden\":true},{\"label\":\"Dział\",\"value\":\"Źródło\",\"hidden\":false}],\"hlc\":{\"ms\":1793404800004,\"c\":4,\"d\":\"device-4\"}}",
+      "parsed": {
+        "v": 3,
+        "type": "note",
+        "name": "Notatka",
+        "note": "Linia 1\nLinia\t2 \"cudzysłów\" i \\ ukośnik; zażółć gęślą jaźń 🙂🔐 \r\b\f\u0001\u001f  <>&'=",
+        "fields": {},
+        "custom": [
+          {
+            "label": "PIN \"awaryjny\"",
+            "value": "12\\34\n🙂\r\b\f\u0001\u001f  <>&'=",
+            "hidden": true
+          },
+          {
+            "label": "Dział",
+            "value": "Źródło",
+            "hidden": false
+          }
+        ],
+        "hlc": {
+          "ms": 1793404800004,
+          "c": 4,
+          "d": "device-4"
+        }
+      },
+      "blob": "AUFCQ0RFRkdISUpLTM5XTsSBqB5vABBfsW7sdf0V/c6Jl7Dwd7oJNdoDPFcWlJ5xH2CGAF5SghxV7EGG06YAjvtBnY9Tj5ELkCb6FZtmznAcXHryEuekKzC3r/AAjffsb8nLy5gITABgTGO3up14rPr2tmy/UI5lOdECi5ScK1/OqciQtMHBJd68hJuPV4h8ZIxnCb9W/adf9PZTfSnjXBBbusQLKG4A9Os/JZ4IKjobpIwW29j6d84QTW+HjszsrakGFtwLvZu1tQYRgC/ioM8TkHczwY4WgOvaTMXGklxcNphzz1BTFphCaErIMBRWHyVkM2aKScyqul9MUbLFCy/oXZ0CEHS3HLg6ZRUuisbMhb2sSpnZGl5neytfr9YbecLnn4hOn8xwsQ4B9mijfSLZLmY8KCyTOUpWawB8O5cImIAxmKSfTs6SSPOuintf8I6MURj1HBkl7yhZSjooF8nrzy0gDLKvXGsQmnuyOs+kfli5Rc2Nce2lDQvxTbmFEOWlRZyd1OWCjJako0cMwBTENOGFkQdoM9tkruc="
+    },
+    {
+      "description": "document (passport) with every field filled",
+      "vaultKey": "5f9d1c3a7b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7",
+      "id": "3f2a8c1e-6b4d-4e9a-9c7f-1a2b3c4d5e05",
+      "nonce": "5152535455565758595a5b5c",
+      "deleted": false,
+      "payload": "{\"v\":3,\"type\":\"document\",\"name\":\"Paszport\",\"note\":\"Linia 1\\nLinia\\t2 \\\"cudzysłów\\\" i \\\\ ukośnik; zażółć gęślą jaźń 🙂🔐 \\r\\b\\f\\u0001\\u001f  <>&'=\",\"fields\":{\"kind\":\"passport\",\"number\":\"AB1234567\",\"fullName\":\"Jan Kowalski\",\"issueDate\":\"2020-05-06\",\"expiryDate\":\"2030-05-05\",\"issuer\":\"Wojewoda Mazowiecki\"},\"custom\":[{\"label\":\"PIN \\\"awaryjny\\\"\",\"value\":\"12\\\\34\\n🙂\\r\\b\\f\\u0001\\u001f  <>&'=\",\"hidden\":true},{\"label\":\"Dział\",\"value\":\"Źródło\",\"hidden\":false}],\"hlc\":{\"ms\":1793404800005,\"c\":5,\"d\":\"device-5\"}}",
+      "parsed": {
+        "v": 3,
+        "type": "document",
+        "name": "Paszport",
+        "note": "Linia 1\nLinia\t2 \"cudzysłów\" i \\ ukośnik; zażółć gęślą jaźń 🙂🔐 \r\b\f\u0001\u001f  <>&'=",
+        "fields": {
+          "kind": "passport",
+          "number": "AB1234567",
+          "fullName": "Jan Kowalski",
+          "issueDate": "2020-05-06",
+          "expiryDate": "2030-05-05",
+          "issuer": "Wojewoda Mazowiecki"
+        },
+        "custom": [
+          {
+            "label": "PIN \"awaryjny\"",
+            "value": "12\\34\n🙂\r\b\f\u0001\u001f  <>&'=",
+            "hidden": true
+          },
+          {
+            "label": "Dział",
+            "value": "Źródło",
+            "hidden": false
+          }
+        ],
+        "hlc": {
+          "ms": 1793404800005,
+          "c": 5,
+          "d": "device-5"
+        }
+      },
+      "blob": "AVFSU1RVVldYWVpbXIIYQcJJuO14P6QvrlmkqWttGSQz6mrxuFlbU70Ch9mjo3M3/a1ZGYID8LrEmAuYyZWnqCCCiVoFVtlo+uE9FDUZf3PtQ+q/g7cbuVfZrK/VRrPClkHa8HCBro6Iq2u0uL/jSCQvmZ8mHjc5odA2CuAJHc8uVjuwQLrsnDsc3RZFQ5TVAXi1qplNcJL3jXYgjDOWt4WNJk5cf8J0XnupEXnkAIMbK8BZRQxoqovc64izVVFWajZC9BTtJkKAT0lEyQVicZg2om8UcHWVquXJp6AHE00vlt4aTn6s1TNI8cXx0Boyr9sqqTIZczVHgQd11Jos69vRUG+ltR89tXDnFnVo7jr3iV/D+fPZa998mPksqjUaP8Hro6z8LSX8Z3WrzjPwLZPBv+7grvloz1nfqjQHVnRCnp7SEf5VOZRljWUgVle4b+Hh/0JcpatDlJ4d7pUFGcPnRVXOTOtF88PBlKXqWXHBSdPi325f4zpIoROjlTWdlX38sIkUhDPQ5XHto8V0v9KpuIbFv4BqUgcxzEasEKOlYworlMBXY+aQnLFmZilfi+BGfjZb7B4ZYeA2R2W7moLcrUrr4wgFUZHTTs5X1muYCtVX+z1NhNjo6xa4gIC5gwew5d2gIeEgMUEvD4iO5IN3e+3pUCqKCuaiyfOFotq+q/Ert65DErhsRjfSBee9555YWUeFngoDCZ8n7uevinW8PeXSzVKUN5Ge4rFderVmViEq"
+    },
+    {
+      "description": "legacy v2 entry (old key order, no v), read as a login",
+      "vaultKey": "5f9d1c3a7b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7",
+      "id": "3f2a8c1e-6b4d-4e9a-9c7f-1a2b3c4d5e06",
+      "nonce": "6162636465666768696a6b6c",
+      "deleted": false,
+      "payload": "{\"name\":\"example.com\",\"username\":\"jan@example.com\",\"password\":\"p@ss wörd!\",\"hlc\":{\"ms\":1793404800000,\"c\":2,\"d\":\"device-a\"}}",
+      "parsed": {
+        "v": 3,
+        "type": "login",
+        "name": "example.com",
+        "note": "",
+        "fields": {
+          "username": "jan@example.com",
+          "password": "p@ss wörd!",
+          "totp": "",
+          "urls": [],
+          "androidApps": []
+        },
+        "custom": [],
+        "hlc": {
+          "ms": 1793404800000,
+          "c": 2,
+          "d": "device-a"
+        }
+      },
+      "blob": "AWFiY2RlZmdoaWprbAMvcbiq7xrgSRM3CohjqWtiKxsm+gthuieLyj8XZVmOsbgT3FY3PrpnI0ej8+r70VE9gjNMqycRuLHrcVHqrNMA9edmmfd2SMaSiQsfYNY34vuyOA1eXNwKOOECaHT+MEUbWRu3URI0f5AjfOwiUqlOj98GFEf0BADdYnUlxbVu9a7Ou18yiFCBGWm4"
+    },
+    {
+      "description": "tombstone",
+      "vaultKey": "5f9d1c3a7b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7",
+      "id": "3f2a8c1e-6b4d-4e9a-9c7f-1a2b3c4d5e07",
+      "nonce": "7172737475767778797a7b7c",
+      "deleted": true,
+      "payload": "{\"hlc\":{\"ms\":1793404900000,\"c\":0,\"d\":\"device-b\"}}",
+      "parsed": null,
+      "blob": "AXFyc3R1dnd4eXp7fGEP6ACgE5AEtLpUiDaXu97sMan8Ks+DHukGsTr3RZllQOS0IPTB4o0+sdBFekjjBsOJYaAoZOI/6YrdZwt/iuES"
+    }
+  ],
+  "rejected": [
+    {
+      "description": "unknown type",
+      "deleted": false,
+      "payload": "{\"v\":3,\"type\":\"wifi\",\"name\":\"Poczta żółć 🙂\",\"note\":\"Linia 1\\nLinia\\t2 \\\"cudzysłów\\\" i \\\\ ukośnik; zażółć gęślą jaźń 🙂🔐 \\r\\b\\f\\u0001\\u001f  <>&'=\",\"fields\":{\"username\":\"jan.kowalski@example.com\",\"password\":\"p@ss wörd!\\\"\\\\\\t\",\"totp\":\"JBSWY3DPEHPK3PXP\",\"urls\":[\"https://example.com/login\",\"https://mail.example.org\"],\"androidApps\":[\"com.example.mail\",\"pl.example.app\"]},\"custom\":[{\"label\":\"PIN \\\"awaryjny\\\"\",\"value\":\"12\\\\34\\n🙂\\r\\b\\f\\u0001\\u001f  <>&'=\",\"hidden\":true},{\"label\":\"Dział\",\"value\":\"Źródło\",\"hidden\":false}],\"hlc\":{\"ms\":1793404800001,\"c\":1,\"d\":\"device-1\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "v 2",
+      "deleted": false,
+      "payload": "{\"v\":2,\"type\":\"login\",\"name\":\"Poczta żółć 🙂\",\"note\":\"Linia 1\\nLinia\\t2 \\\"cudzysłów\\\" i \\\\ ukośnik; zażółć gęślą jaźń 🙂🔐 \\r\\b\\f\\u0001\\u001f  <>&'=\",\"fields\":{\"username\":\"jan.kowalski@example.com\",\"password\":\"p@ss wörd!\\\"\\\\\\t\",\"totp\":\"JBSWY3DPEHPK3PXP\",\"urls\":[\"https://example.com/login\",\"https://mail.example.org\"],\"androidApps\":[\"com.example.mail\",\"pl.example.app\"]},\"custom\":[{\"label\":\"PIN \\\"awaryjny\\\"\",\"value\":\"12\\\\34\\n🙂\\r\\b\\f\\u0001\\u001f  <>&'=\",\"hidden\":true},{\"label\":\"Dział\",\"value\":\"Źródło\",\"hidden\":false}],\"hlc\":{\"ms\":1793404800001,\"c\":1,\"d\":\"device-1\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "v string",
+      "deleted": false,
+      "payload": "{\"v\":\"3\",\"type\":\"login\",\"name\":\"Poczta żółć 🙂\",\"note\":\"Linia 1\\nLinia\\t2 \\\"cudzysłów\\\" i \\\\ ukośnik; zażółć gęślą jaźń 🙂🔐 \\r\\b\\f\\u0001\\u001f  <>&'=\",\"fields\":{\"username\":\"jan.kowalski@example.com\",\"password\":\"p@ss wörd!\\\"\\\\\\t\",\"totp\":\"JBSWY3DPEHPK3PXP\",\"urls\":[\"https://example.com/login\",\"https://mail.example.org\"],\"androidApps\":[\"com.example.mail\",\"pl.example.app\"]},\"custom\":[{\"label\":\"PIN \\\"awaryjny\\\"\",\"value\":\"12\\\\34\\n🙂\\r\\b\\f\\u0001\\u001f  <>&'=\",\"hidden\":true},{\"label\":\"Dział\",\"value\":\"Źródło\",\"hidden\":false}],\"hlc\":{\"ms\":1793404800001,\"c\":1,\"d\":\"device-1\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "v fractional",
+      "deleted": false,
+      "payload": "{\"v\":3.5,\"type\":\"login\",\"name\":\"Poczta żółć 🙂\",\"note\":\"Linia 1\\nLinia\\t2 \\\"cudzysłów\\\" i \\\\ ukośnik; zażółć gęślą jaźń 🙂🔐 \\r\\b\\f\\u0001\\u001f  <>&'=\",\"fields\":{\"username\":\"jan.kowalski@example.com\",\"password\":\"p@ss wörd!\\\"\\\\\\t\",\"totp\":\"JBSWY3DPEHPK3PXP\",\"urls\":[\"https://example.com/login\",\"https://mail.example.org\"],\"androidApps\":[\"com.example.mail\",\"pl.example.app\"]},\"custom\":[{\"label\":\"PIN \\\"awaryjny\\\"\",\"value\":\"12\\\\34\\n🙂\\r\\b\\f\\u0001\\u001f  <>&'=\",\"hidden\":true},{\"label\":\"Dział\",\"value\":\"Źródło\",\"hidden\":false}],\"hlc\":{\"ms\":1793404800001,\"c\":1,\"d\":\"device-1\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "missing totp",
+      "deleted": false,
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"Poczta żółć 🙂\",\"note\":\"Linia 1\\nLinia\\t2 \\\"cudzysłów\\\" i \\\\ ukośnik; zażółć gęślą jaźń 🙂🔐 \\r\\b\\f\\u0001\\u001f  <>&'=\",\"fields\":{\"username\":\"jan.kowalski@example.com\",\"password\":\"p@ss wörd!\\\"\\\\\\t\",\"urls\":[\"https://example.com/login\",\"https://mail.example.org\"],\"androidApps\":[\"com.example.mail\",\"pl.example.app\"]},\"custom\":[{\"label\":\"PIN \\\"awaryjny\\\"\",\"value\":\"12\\\\34\\n🙂\\r\\b\\f\\u0001\\u001f  <>&'=\",\"hidden\":true},{\"label\":\"Dział\",\"value\":\"Źródło\",\"hidden\":false}],\"hlc\":{\"ms\":1793404800001,\"c\":1,\"d\":\"device-1\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "urls number",
+      "deleted": false,
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"Poczta żółć 🙂\",\"note\":\"Linia 1\\nLinia\\t2 \\\"cudzysłów\\\" i \\\\ ukośnik; zażółć gęślą jaźń 🙂🔐 \\r\\b\\f\\u0001\\u001f  <>&'=\",\"fields\":{\"username\":\"jan.kowalski@example.com\",\"password\":\"p@ss wörd!\\\"\\\\\\t\",\"totp\":\"JBSWY3DPEHPK3PXP\",\"urls\":[1],\"androidApps\":[\"com.example.mail\",\"pl.example.app\"]},\"custom\":[{\"label\":\"PIN \\\"awaryjny\\\"\",\"value\":\"12\\\\34\\n🙂\\r\\b\\f\\u0001\\u001f  <>&'=\",\"hidden\":true},{\"label\":\"Dział\",\"value\":\"Źródło\",\"hidden\":false}],\"hlc\":{\"ms\":1793404800001,\"c\":1,\"d\":\"device-1\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "hidden string",
+      "deleted": false,
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"Poczta żółć 🙂\",\"note\":\"Linia 1\\nLinia\\t2 \\\"cudzysłów\\\" i \\\\ ukośnik; zażółć gęślą jaźń 🙂🔐 \\r\\b\\f\\u0001\\u001f  <>&'=\",\"fields\":{\"username\":\"jan.kowalski@example.com\",\"password\":\"p@ss wörd!\\\"\\\\\\t\",\"totp\":\"JBSWY3DPEHPK3PXP\",\"urls\":[\"https://example.com/login\",\"https://mail.example.org\"],\"androidApps\":[\"com.example.mail\",\"pl.example.app\"]},\"custom\":[{\"label\":\"PIN \\\"awaryjny\\\"\",\"value\":\"12\\\\34\\n🙂\\r\\b\\f\\u0001\\u001f  <>&'=\",\"hidden\":\"true\"},{\"label\":\"Dział\",\"value\":\"Źródło\",\"hidden\":false}],\"hlc\":{\"ms\":1793404800001,\"c\":1,\"d\":\"device-1\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "extra top key",
+      "deleted": false,
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"Poczta żółć 🙂\",\"note\":\"Linia 1\\nLinia\\t2 \\\"cudzysłów\\\" i \\\\ ukośnik; zażółć gęślą jaźń 🙂🔐 \\r\\b\\f\\u0001\\u001f  <>&'=\",\"fields\":{\"username\":\"jan.kowalski@example.com\",\"password\":\"p@ss wörd!\\\"\\\\\\t\",\"totp\":\"JBSWY3DPEHPK3PXP\",\"urls\":[\"https://example.com/login\",\"https://mail.example.org\"],\"androidApps\":[\"com.example.mail\",\"pl.example.app\"]},\"custom\":[{\"label\":\"PIN \\\"awaryjny\\\"\",\"value\":\"12\\\\34\\n🙂\\r\\b\\f\\u0001\\u001f  <>&'=\",\"hidden\":true},{\"label\":\"Dział\",\"value\":\"Źródło\",\"hidden\":false}],\"hlc\":{\"ms\":1793404800001,\"c\":1,\"d\":\"device-1\"},\"extra\":1}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "extra fields key",
+      "deleted": false,
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"Poczta żółć 🙂\",\"note\":\"Linia 1\\nLinia\\t2 \\\"cudzysłów\\\" i \\\\ ukośnik; zażółć gęślą jaźń 🙂🔐 \\r\\b\\f\\u0001\\u001f  <>&'=\",\"fields\":{\"username\":\"jan.kowalski@example.com\",\"password\":\"p@ss wörd!\\\"\\\\\\t\",\"totp\":\"JBSWY3DPEHPK3PXP\",\"urls\":[\"https://example.com/login\",\"https://mail.example.org\"],\"androidApps\":[\"com.example.mail\",\"pl.example.app\"],\"extra\":1},\"custom\":[{\"label\":\"PIN \\\"awaryjny\\\"\",\"value\":\"12\\\\34\\n🙂\\r\\b\\f\\u0001\\u001f  <>&'=\",\"hidden\":true},{\"label\":\"Dział\",\"value\":\"Źródło\",\"hidden\":false}],\"hlc\":{\"ms\":1793404800001,\"c\":1,\"d\":\"device-1\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "extra custom key",
+      "deleted": false,
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"Poczta żółć 🙂\",\"note\":\"Linia 1\\nLinia\\t2 \\\"cudzysłów\\\" i \\\\ ukośnik; zażółć gęślą jaźń 🙂🔐 \\r\\b\\f\\u0001\\u001f  <>&'=\",\"fields\":{\"username\":\"jan.kowalski@example.com\",\"password\":\"p@ss wörd!\\\"\\\\\\t\",\"totp\":\"JBSWY3DPEHPK3PXP\",\"urls\":[\"https://example.com/login\",\"https://mail.example.org\"],\"androidApps\":[\"com.example.mail\",\"pl.example.app\"]},\"custom\":[{\"label\":\"PIN \\\"awaryjny\\\"\",\"value\":\"12\\\\34\\n🙂\\r\\b\\f\\u0001\\u001f  <>&'=\",\"hidden\":true,\"extra\":1},{\"label\":\"Dział\",\"value\":\"Źródło\",\"hidden\":false}],\"hlc\":{\"ms\":1793404800001,\"c\":1,\"d\":\"device-1\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "extra address key",
+      "deleted": false,
+      "payload": "{\"v\":3,\"type\":\"contact\",\"name\":\"Anna Nowak\",\"note\":\"Linia 1\\nLinia\\t2 \\\"cudzysłów\\\" i \\\\ ukośnik; zażółć gęślą jaźń 🙂🔐 \\r\\b\\f\\u0001\\u001f  <>&'=\",\"fields\":{\"firstName\":\"Anna\",\"lastName\":\"Nowak-Żółkiewska\",\"birthDate\":\"1990-02-03\",\"phones\":[{\"label\":\"komórka\",\"value\":\"+48 600 100 200\"},{\"label\":\"dom\",\"value\":\"+48 22 123 45 67\"}],\"emails\":[{\"label\":\"praca\",\"value\":\"anna@example.com\"},{\"label\":\"prywatny\",\"value\":\"anna@example.org\"}],\"addresses\":[{\"label\":\"dom\",\"street\":\"ul. Łąkowa 5/7\",\"postalCode\":\"00-001\",\"city\":\"Łódź\",\"country\":\"Polska\",\"extra\":1},{\"label\":\"praca\",\"street\":\"Main St 1\",\"postalCode\":\"10001\",\"city\":\"New York\",\"country\":\"USA\"}]},\"custom\":[{\"label\":\"PIN \\\"awaryjny\\\"\",\"value\":\"12\\\\34\\n🙂\\r\\b\\f\\u0001\\u001f  <>&'=\",\"hidden\":true},{\"label\":\"Dział\",\"value\":\"Źródło\",\"hidden\":false}],\"hlc\":{\"ms\":1793404800002,\"c\":2,\"d\":\"device-2\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "note with fields",
+      "deleted": false,
+      "payload": "{\"v\":3,\"type\":\"note\",\"name\":\"Notatka\",\"note\":\"Linia 1\\nLinia\\t2 \\\"cudzysłów\\\" i \\\\ ukośnik; zażółć gęślą jaźń 🙂🔐 \\r\\b\\f\\u0001\\u001f  <>&'=\",\"fields\":{\"x\":\"\"},\"custom\":[{\"label\":\"PIN \\\"awaryjny\\\"\",\"value\":\"12\\\\34\\n🙂\\r\\b\\f\\u0001\\u001f  <>&'=\",\"hidden\":true},{\"label\":\"Dział\",\"value\":\"Źródło\",\"hidden\":false}],\"hlc\":{\"ms\":1793404800004,\"c\":4,\"d\":\"device-4\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "bad document kind",
+      "deleted": false,
+      "payload": "{\"v\":3,\"type\":\"document\",\"name\":\"Paszport\",\"note\":\"Linia 1\\nLinia\\t2 \\\"cudzysłów\\\" i \\\\ ukośnik; zażółć gęślą jaźń 🙂🔐 \\r\\b\\f\\u0001\\u001f  <>&'=\",\"fields\":{\"kind\":\"visa\",\"number\":\"AB1234567\",\"fullName\":\"Jan Kowalski\",\"issueDate\":\"2020-05-06\",\"expiryDate\":\"2030-05-05\",\"issuer\":\"Wojewoda Mazowiecki\"},\"custom\":[{\"label\":\"PIN \\\"awaryjny\\\"\",\"value\":\"12\\\\34\\n🙂\\r\\b\\f\\u0001\\u001f  <>&'=\",\"hidden\":true},{\"label\":\"Dział\",\"value\":\"Źródło\",\"hidden\":false}],\"hlc\":{\"ms\":1793404800005,\"c\":5,\"d\":\"device-5\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "v2 extra deleted",
+      "deleted": false,
+      "payload": "{\"name\":\"example.com\",\"username\":\"jan@example.com\",\"password\":\"p@ss wörd!\",\"hlc\":{\"ms\":1793404800000,\"c\":2,\"d\":\"device-a\"},\"deleted\":true}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "hlc extra key",
+      "deleted": false,
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"Poczta żółć 🙂\",\"note\":\"Linia 1\\nLinia\\t2 \\\"cudzysłów\\\" i \\\\ ukośnik; zażółć gęślą jaźń 🙂🔐 \\r\\b\\f\\u0001\\u001f  <>&'=\",\"fields\":{\"username\":\"jan.kowalski@example.com\",\"password\":\"p@ss wörd!\\\"\\\\\\t\",\"totp\":\"JBSWY3DPEHPK3PXP\",\"urls\":[\"https://example.com/login\",\"https://mail.example.org\"],\"androidApps\":[\"com.example.mail\",\"pl.example.app\"]},\"custom\":[{\"label\":\"PIN \\\"awaryjny\\\"\",\"value\":\"12\\\\34\\n🙂\\r\\b\\f\\u0001\\u001f  <>&'=\",\"hidden\":true},{\"label\":\"Dział\",\"value\":\"Źródło\",\"hidden\":false}],\"hlc\":{\"ms\":1793404800001,\"c\":1,\"d\":\"device-1\",\"extra\":1}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "hlc missing key",
+      "deleted": false,
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"Poczta żółć 🙂\",\"note\":\"Linia 1\\nLinia\\t2 \\\"cudzysłów\\\" i \\\\ ukośnik; zażółć gęślą jaźń 🙂🔐 \\r\\b\\f\\u0001\\u001f  <>&'=\",\"fields\":{\"username\":\"jan.kowalski@example.com\",\"password\":\"p@ss wörd!\\\"\\\\\\t\",\"totp\":\"JBSWY3DPEHPK3PXP\",\"urls\":[\"https://example.com/login\",\"https://mail.example.org\"],\"androidApps\":[\"com.example.mail\",\"pl.example.app\"]},\"custom\":[{\"label\":\"PIN \\\"awaryjny\\\"\",\"value\":\"12\\\\34\\n🙂\\r\\b\\f\\u0001\\u001f  <>&'=\",\"hidden\":true},{\"label\":\"Dział\",\"value\":\"Źródło\",\"hidden\":false}],\"hlc\":{\"ms\":1793404800001,\"c\":1,\"z\":1}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "v2 hlc extra key",
+      "deleted": false,
+      "payload": "{\"name\":\"example.com\",\"username\":\"jan@example.com\",\"password\":\"p@ss wörd!\",\"hlc\":{\"ms\":1793404800000,\"c\":2,\"d\":\"device-a\",\"extra\":1}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "v2 no password",
+      "deleted": false,
+      "payload": "{\"name\":\"example.com\",\"username\":\"jan@example.com\",\"hlc\":{\"ms\":1793404800000,\"c\":2,\"d\":\"device-a\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "tombstone with extra key name",
+      "deleted": true,
+      "payload": "{\"hlc\":{\"ms\":1793404900000,\"c\":0,\"d\":\"device-b\"},\"name\":\"x\"}",
+      "error": "Invalid tombstone payload"
+    },
+    {
+      "description": "tombstone with extra key deleted",
+      "deleted": true,
+      "payload": "{\"hlc\":{\"ms\":1793404900000,\"c\":0,\"d\":\"device-b\"},\"deleted\":true}",
+      "error": "Invalid tombstone payload"
+    },
+    {
+      "description": "tombstone hlc extra key",
+      "deleted": true,
+      "payload": "{\"hlc\":{\"ms\":1793404900000,\"c\":0,\"d\":\"device-b\",\"extra\":1}}",
+      "error": "Invalid tombstone payload"
+    },
+    {
+      "description": "tombstone hlc missing key",
+      "deleted": true,
+      "payload": "{\"hlc\":{\"ms\":1793404900000,\"c\":0,\"z\":1}}",
+      "error": "Invalid tombstone payload"
+    }
+  ],
+  "oldPaths": {
+    "status": 410,
+    "body": {
+      "error": "update required"
+    }
+  }
+}

@@ -75,8 +75,10 @@ Telefon jako host dalej nie odszyfrowuje wpisów. Zmiany:
 - **Stara wtyczka** wołająca `/p2p/v1/handshake` lub `/p2p/v1/sync` dostaje `410 {"error":"update required"}`;
   starej wersji nie da się już zmienić, więc pokaże swój ogólny błąd synchronizacji.
 - **Nowa wtyczka** przy starym telefonie dostaje 404 i pokazuje „Zaktualizuj aplikację na telefonie”.
-- **Stronicowanie po bajtach:** w obu kierunkach na rundę najwyżej 500 zmian i najwyżej 768 KiB sumy blobów;
-  nadmiar idzie w kolejnych rundach (istniejące `more` i pętla rund). Ciało żądania dalej ≤ 1 MiB.
+- **Stronicowanie po bajtach:** w obu kierunkach na rundę najwyżej 500 zmian i najwyżej 512 KiB sumy blobów
+  (ramki są w Base64, ×4/3: 768 KiB przekroczyłoby limit ciała 1 MiB); nadmiar idzie w kolejnych rundach
+  (istniejące `more` i pętla rund). Host tnie też `conflicts` (budżet bajtów schodzi najpierw na nie, potem na
+  `changes`). Ciało żądania dalej ≤ 1 MiB.
 - Walidacja żądania (`validateP2pSyncRequest`, `HostSync.validate`): dodatkowo blob ≤ 64 KiB.
 
 ## 5. Ekrany (wtyczka i Android)

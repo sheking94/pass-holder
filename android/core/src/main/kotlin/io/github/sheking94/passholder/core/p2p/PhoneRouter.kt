@@ -14,7 +14,7 @@ object PhoneSync {
 }
 
 /**
- * Every request the phone's HTTP server gets: ping, pairing ([pairing]) and Noise sync ([host]).
+ * Every request the phone's HTTP server gets: ping, pairing ([pairing]) and Noise sync ([host]; the old v1 paths are forwarded too, the host answers them 410).
  * Checks in order: unknown path 404, then [onRequest], body not a JSON object 400, then the path's own handler.
  * [host] is null until the phone has a vault (or a restore in progress): handshake and sync then answer 503.
  */
@@ -28,8 +28,7 @@ class PhoneRouter(
 ) {
     private companion object {
         const val PING = "/p2p/v1/ping"
-        const val HANDSHAKE = "/p2p/v1/handshake"
-        const val SYNC = "/p2p/v1/sync"
+        val SYNC_PATHS = setOf("/p2p/v1/handshake", "/p2p/v1/sync", "/p2p/v2/handshake", "/p2p/v2/sync")
         val PAIRING_PATHS = setOf("/p2p/v1/pair/hello", "/p2p/v1/pair/start", "/p2p/v1/pair/finish")
     }
 
@@ -37,7 +36,7 @@ class PhoneRouter(
         HostReply(status, buildJsonObject { put("error", error) }.toString())
 
     fun handle(path: String, body: ByteArray): HostReply {
-        if (path != PING && path != HANDSHAKE && path != SYNC && path !in PAIRING_PATHS) return fail(404, "not found")
+        if (path != PING && path !in SYNC_PATHS && path !in PAIRING_PATHS) return fail(404, "not found")
         // Only known paths count as activity, so a LAN scanner cannot keep sync mode awake.
         onRequest()
         val obj = try {
@@ -48,7 +47,7 @@ class PhoneRouter(
         return try {
             when (path) {
                 PING -> HostReply(200, buildJsonObject { put("ok", true) }.toString())
-                HANDSHAKE, SYNC -> host()?.handle(path, body) ?: fail(503, "vault not ready")
+                in SYNC_PATHS -> host()?.handle(path, body) ?: fail(503, "vault not ready")
                 else -> pairing.handle(path, obj) ?: fail(404, "not found")
             }
         } catch (e: Exception) {

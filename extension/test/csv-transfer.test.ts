@@ -77,19 +77,24 @@ describe("NordPass CSV", () => {
 });
 
 describe("importSummary", () => {
+  it("mentions entries skipped as too large only when there are some", () => {
+    expect(importSummary({ entries: [], skipped: [] }, { added: 0, duplicates: 0, tooLarge: 2 })).toContain("pominięto za duże: 2");
+    expect(importSummary({ entries: [], skipped: [] }, { added: 0, duplicates: 0, tooLarge: 0 })).not.toContain("za duże");
+  });
+
   it("says only what was added when nothing was skipped", () => {
-    expect(importSummary({ entries: [], skipped: [] }, { added: 2, duplicates: 0 })).toBe(
+    expect(importSummary({ entries: [], skipped: [] }, { added: 2, duplicates: 0, tooLarge: 0 })).toBe(
       "Dodano 2 wpisów (lokalnie, zsynchronizuj, żeby trafiły na telefon). Usuń plik CSV z dysku, zawiera hasła jawnym tekstem.",
     );
   });
 
   it("lists duplicates and up to five skipped rows", () => {
     const skipped = [2, 3, 4, 5, 6, 7].map((line) => ({ line, reason: "brak hasła" }));
-    const text = importSummary({ entries: [], skipped }, { added: 1, duplicates: 3 });
+    const text = importSummary({ entries: [], skipped }, { added: 1, duplicates: 3, tooLarge: 0 });
     expect(text).toContain("Pominięto 3 takich, które już są w sejfie.");
     expect(text).toContain("Pominięto 6 wierszy: wiersz 2: brak hasła; wiersz 3: brak hasła; wiersz 4: brak hasła; wiersz 5: brak hasła; wiersz 6: brak hasła; …");
     expect(text).not.toContain("wiersz 7");
-    expect(importSummary({ entries: [], skipped: skipped.slice(0, 1) }, { added: 0, duplicates: 0 })).toContain("wiersz 2: brak hasła.");
+    expect(importSummary({ entries: [], skipped: skipped.slice(0, 1) }, { added: 0, duplicates: 0, tooLarge: 0 })).toContain("wiersz 2: brak hasła.");
   });
 });
 
@@ -108,7 +113,7 @@ describe("VaultStore.importEntries", () => {
       ],
       () => `new-${++n}`,
     );
-    expect(result).toEqual({ added: 2, duplicates: 2 });
+    expect(result).toEqual({ added: 2, duplicates: 2, tooLarge: 0 });
     expect(store.entries().map((e) => e.data.password).sort()).toEqual(["nowe", "x", "y"]);
     expect(store.pendingCount()).toBe(3);
     expect(store.entries().filter((e) => e.id.startsWith("new-")).every((e) => e.dirty)).toBe(true);

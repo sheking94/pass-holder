@@ -65,7 +65,7 @@ class TestP2pClient(
             put("deviceId", deviceId)
             put("message", first)
         }
-        return transport("/p2p/v1/handshake", body.toString().toByteArray())
+        return transport("/p2p/v2/handshake", body.toString().toByteArray())
     }
 
     /** The raw reply to a handshake, for tests that expect a refusal. */
@@ -87,7 +87,7 @@ class TestP2pClient(
             put("session", session)
             put("frames", JsonArray(frames.map { JsonPrimitive(it) }))
         }
-        val reply = transport("/p2p/v1/sync", body.toString().toByteArray())
+        val reply = transport("/p2p/v2/sync", body.toString().toByteArray())
         if (reply.status != 200) return reply
         val incoming = (P2pJson.json.parseToJsonElement(reply.body) as JsonObject)["frames"] as JsonArray
         val plain = Frames.decrypt(ciphers.recv, incoming.map { (it as JsonPrimitive).content })

@@ -46,7 +46,7 @@ class P2pHostTest {
         fun rawHandshake(deviceId: String, key: KeyPair = addDevice(deviceId)): Pair<String, TransportCiphers> {
             val noise = NoiseKK.initiator(key, hostKey.publicKey, P2P_PROLOGUE)
             val message = Encoding.toBase64(noise.writeMessage(ByteArray(0)))
-            val res = post("/p2p/v1/handshake", """{"deviceId":"$deviceId","message":"$message"}""")
+            val res = post("/p2p/v2/handshake", """{"deviceId":"$deviceId","message":"$message"}""")
             assertEquals(200, res.status)
             val obj = P2pJson.json.parseToJsonElement(res.body) as JsonObject
             noise.readMessage(Encoding.fromBase64((obj["message"] as JsonPrimitive).content))
@@ -64,7 +64,7 @@ class P2pHostTest {
         fun sendRaw(request: String): HostReply {
             val id = "d${devices.size}"
             val (session, ciphers) = rawHandshake(id)
-            return post("/p2p/v1/sync", syncBody(session, Frames.encrypt(ciphers.send, request)))
+            return post("/p2p/v2/sync", syncBody(session, Frames.encrypt(ciphers.send, request)))
         }
     }
 
@@ -94,7 +94,7 @@ class P2pHostTest {
         val s = Setup()
         val stranger = TestP2pClient("nobody", NoiseKeys.generate(), s.hostKey.publicKey, s.host)
         assertTrue(runCatching { stranger.handshake() }.exceptionOrNull()!!.message!!.contains("403"))
-        assertError(403, "device not paired", s.post("/p2p/v1/handshake", s.handshakeBody("nobody", NoiseKeys.generate())))
+        assertError(403, "device not paired", s.post("/p2p/v2/handshake", s.handshakeBody("nobody", NoiseKeys.generate())))
 
         val client = s.client("a")
         assertEquals(s.epoch, client.syncResponse(P2pSyncRequest(s.epoch, 0, emptyList())).epoch)
@@ -108,16 +108,16 @@ class P2pHostTest {
         val key = s.addDevice("a")
         val (session, ciphers) = s.rawHandshake("a", key)
         val frames = Frames.encrypt(ciphers.send, s.emptyRequest())
-        assertEquals(200, s.post("/p2p/v1/sync", s.syncBody(session, frames)).status)
-        assertError(401, "unknown or expired session", s.post("/p2p/v1/sync", s.syncBody(session, frames)))
+        assertEquals(200, s.post("/p2p/v2/sync", s.syncBody(session, frames)).status)
+        assertError(401, "unknown or expired session", s.post("/p2p/v2/sync", s.syncBody(session, frames)))
 
         val (second, ciphers2) = s.rawHandshake("a", key)
         s.time += 61_000
-        val expired = s.post("/p2p/v1/sync", s.syncBody(second, Frames.encrypt(ciphers2.send, s.emptyRequest())))
+        val expired = s.post("/p2p/v2/sync", s.syncBody(second, Frames.encrypt(ciphers2.send, s.emptyRequest())))
         assertError(401, "unknown or expired session", expired)
 
         val unknown = Encoding.toBase64(Encoding.randomBytes(16))
-        assertError(401, "unknown or expired session", s.post("/p2p/v1/sync", s.syncBody(unknown, listOf("AA=="))))
+        assertError(401, "unknown or expired session", s.post("/p2p/v2/sync", s.syncBody(unknown, listOf("AA=="))))
     }
 
     @Test
@@ -125,7 +125,7 @@ class P2pHostTest {
         val s = Setup()
         val (session, ciphers) = s.rawHandshake("a")
         s.time += P2pHost.SESSION_TTL_MS
-        val res = s.post("/p2p/v1/sync", s.syncBody(session, Frames.encrypt(ciphers.send, s.emptyRequest())))
+        val res = s.post("/p2p/v2/sync", s.syncBody(session, Frames.encrypt(ciphers.send, s.emptyRequest())))
         assertEquals(401, res.status)
     }
 
@@ -144,7 +144,7 @@ class P2pHostTest {
         val (session, ciphers) = s.rawHandshake("a")
         val ct = Encoding.fromBase64(Frames.encrypt(ciphers.send, s.emptyRequest())[0])
         ct[ct.size - 1] = (ct[ct.size - 1].toInt() xor 1).toByte()
-        val res = s.post("/p2p/v1/sync", s.syncBody(session, listOf(Encoding.toBase64(ct))))
+        val res = s.post("/p2p/v2/sync", s.syncBody(session, listOf(Encoding.toBase64(ct))))
         assertError(400, "cannot decrypt request", res)
         assertEquals(0, s.store.currentRevision())
     }
@@ -159,7 +159,7 @@ class P2pHostTest {
         val (session, ciphers) = s.rawHandshake("a")
         val frames = Frames.encrypt(ciphers.send, request)
         assertTrue(frames.size > 2)
-        val res = s.post("/p2p/v1/sync", s.syncBody(session, frames))
+        val res = s.post("/p2p/v2/sync", s.syncBody(session, frames))
         assertEquals(200, res.status, res.body)
         assertEquals(500, s.store.currentRevision())
     }
@@ -175,7 +175,7 @@ class P2pHostTest {
         val mid = Encoding.fromBase64(frames[1])
         mid[5] = (mid[5].toInt() xor 1).toByte()
         frames[1] = Encoding.toBase64(mid)
-        assertError(400, "cannot decrypt request", s.post("/p2p/v1/sync", s.syncBody(session, frames)))
+        assertError(400, "cannot decrypt request", s.post("/p2p/v2/sync", s.syncBody(session, frames)))
         assertEquals(0, s.store.currentRevision())
     }
 
@@ -183,31 +183,31 @@ class P2pHostTest {
     fun rejectsAnOversizedBodyBeforeAnythingElse() {
         val s = Setup()
         val big = ByteArray(P2pHost.MAX_BODY_BYTES + 1) { 'A'.code.toByte() }
-        assertError(413, "body too large", s.host.handle("/p2p/v1/sync", big))
+        assertError(413, "body too large", s.host.handle("/p2p/v2/sync", big))
         assertError(413, "body too large", s.host.handle("/nope", big))
         // Exactly the limit passes the size check and fails later.
         val ok = ByteArray(P2pHost.MAX_BODY_BYTES) { 'A'.code.toByte() }
-        assertError(400, "malformed request", s.host.handle("/p2p/v1/sync", ok))
+        assertError(400, "malformed request", s.host.handle("/p2p/v2/sync", ok))
     }
 
     @Test
     fun mapsMalformedRequestsAndUnknownPaths() {
         val s = Setup()
         assertError(404, "not found", s.post("/p2p/v1/nope", "{}"))
-        assertError(400, "malformed request", s.post("/p2p/v1/handshake", """{"deviceId":1}"""))
-        assertError(400, "malformed request", s.post("/p2p/v1/sync", "null"))
+        assertError(400, "malformed request", s.post("/p2p/v2/handshake", """{"deviceId":1}"""))
+        assertError(400, "malformed request", s.post("/p2p/v2/sync", "null"))
         s.addDevice("a")
         val garbage = Encoding.toBase64(Encoding.randomBytes(48))
-        assertError(400, "handshake failed", s.post("/p2p/v1/handshake", """{"deviceId":"a","message":"$garbage"}"""))
-        assertError(400, "handshake failed", s.post("/p2p/v1/handshake", """{"deviceId":"a","message":""}"""))
-        assertError(400, "malformed request", s.post("/p2p/v1/handshake", """{"deviceId":"a","message":"***"}"""))
+        assertError(400, "handshake failed", s.post("/p2p/v2/handshake", """{"deviceId":"a","message":"$garbage"}"""))
+        assertError(400, "handshake failed", s.post("/p2p/v2/handshake", """{"deviceId":"a","message":""}"""))
+        assertError(400, "malformed request", s.post("/p2p/v2/handshake", """{"deviceId":"a","message":"***"}"""))
     }
 
     @Test
     fun handshakeFromAnotherKeyFails() {
         val s = Setup()
         s.addDevice("a")
-        assertError(400, "handshake failed", s.post("/p2p/v1/handshake", s.handshakeBody("a", NoiseKeys.generate())))
+        assertError(400, "handshake failed", s.post("/p2p/v2/handshake", s.handshakeBody("a", NoiseKeys.generate())))
     }
 
     @Test
@@ -215,7 +215,7 @@ class P2pHostTest {
         val s = Setup()
         val key = NoiseKeys.generate()
         s.devices.add(PairedDevice("a", "a", ByteArray(31)))
-        assertError(400, "handshake failed", s.post("/p2p/v1/handshake", s.handshakeBody("a", key)))
+        assertError(400, "handshake failed", s.post("/p2p/v2/handshake", s.handshakeBody("a", key)))
     }
 
     @Test
@@ -232,9 +232,9 @@ class P2pHostTest {
             """{"session":"x","frames":"AA=="}""",
             """{"session":"x","frames":[$frames19]}""",
         )
-        for (b in bad) assertError(400, "malformed request", s.post("/p2p/v1/sync", b))
+        for (b in bad) assertError(400, "malformed request", s.post("/p2p/v2/sync", b))
         // 18 frames is within the limit, so an unknown session is a 401.
-        assertEquals(401, s.post("/p2p/v1/sync", """{"session":"x","frames":[$frames18]}""").status)
+        assertEquals(401, s.post("/p2p/v2/sync", """{"session":"x","frames":[$frames18]}""").status)
     }
 
     @Test
@@ -248,7 +248,7 @@ class P2pHostTest {
             ByteArray(0),
             "\"text\"".toByteArray(),
         )
-        for (path in listOf("/p2p/v1/handshake", "/p2p/v1/sync")) {
+        for (path in listOf("/p2p/v2/handshake", "/p2p/v2/sync")) {
             for (b in bodies) assertError(400, "malformed request", s.host.handle(path, b))
         }
     }
@@ -260,10 +260,10 @@ class P2pHostTest {
         val (session, ciphers) = s.rawHandshake("a", key)
         s.devices.clear()
         val frames = Frames.encrypt(ciphers.send, s.emptyRequest())
-        assertError(403, "device not paired", s.post("/p2p/v1/sync", s.syncBody(session, frames)))
+        assertError(403, "device not paired", s.post("/p2p/v2/sync", s.syncBody(session, frames)))
         // The session is consumed even though the device comes back.
         s.devices.add(PairedDevice("a", "a", key.publicKey))
-        assertEquals(401, s.post("/p2p/v1/sync", s.syncBody(session, frames)).status)
+        assertEquals(401, s.post("/p2p/v2/sync", s.syncBody(session, frames)).status)
     }
 
     @Test
@@ -271,7 +271,7 @@ class P2pHostTest {
         val s = Setup()
         val (session, ciphers) = s.rawHandshake("a")
         s.devices[0] = PairedDevice("a", "a", NoiseKeys.generate().publicKey)
-        val res = s.post("/p2p/v1/sync", s.syncBody(session, Frames.encrypt(ciphers.send, s.emptyRequest())))
+        val res = s.post("/p2p/v2/sync", s.syncBody(session, Frames.encrypt(ciphers.send, s.emptyRequest())))
         assertError(403, "device not paired", res)
     }
 
@@ -281,7 +281,7 @@ class P2pHostTest {
         val (session, ciphers) = s.rawHandshake("a")
         // Changing the stored array in place afterwards must not make the session match a different key.
         s.devices[0].staticPublicKey.fill(0)
-        val res = s.post("/p2p/v1/sync", s.syncBody(session, Frames.encrypt(ciphers.send, s.emptyRequest())))
+        val res = s.post("/p2p/v2/sync", s.syncBody(session, Frames.encrypt(ciphers.send, s.emptyRequest())))
         assertEquals(403, res.status)
     }
 
@@ -362,9 +362,9 @@ class P2pHostTest {
         val s = Setup()
         val key = s.addDevice("a")
         repeat(P2pHost.MAX_SESSIONS) { s.rawHandshake("a", key) }
-        assertError(503, "too many sessions", s.post("/p2p/v1/handshake", s.handshakeBody("a", key)))
+        assertError(503, "too many sessions", s.post("/p2p/v2/handshake", s.handshakeBody("a", key)))
         // The pairing check comes first.
-        assertError(403, "device not paired", s.post("/p2p/v1/handshake", s.handshakeBody("nobody", key)))
+        assertError(403, "device not paired", s.post("/p2p/v2/handshake", s.handshakeBody("nobody", key)))
         s.time += 61_000
         s.rawHandshake("a", key)
     }
@@ -375,7 +375,7 @@ class P2pHostTest {
         val key = s.addDevice("a")
         val sessions = (1..P2pHost.MAX_SESSIONS).map { s.rawHandshake("a", key) }
         val (id, ciphers) = sessions.first()
-        s.post("/p2p/v1/sync", s.syncBody(id, Frames.encrypt(ciphers.send, s.emptyRequest())))
+        s.post("/p2p/v2/sync", s.syncBody(id, Frames.encrypt(ciphers.send, s.emptyRequest())))
         s.rawHandshake("a", key)
     }
 
@@ -436,5 +436,14 @@ class P2pHostTest {
         assertEquals(1, res.accepted.size)
         assertEquals(1, store.currentRevision())
         assertEquals(listOf("disk full"), errors.map { it.message })
+    }
+
+    @Test
+    fun oldPathsAnswer410() {
+        val s = Setup()
+        val gone = HostReply(410, """{"error":"update required"}""")
+        assertEquals(gone, s.post("/p2p/v1/handshake", "{}"))
+        assertEquals(gone, s.post("/p2p/v1/sync", "{}"))
+        assertError(404, "not found", s.post("/p2p/v3/sync", "{}"))
     }
 }

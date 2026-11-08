@@ -65,7 +65,7 @@ class P2pInteropTest {
         web.dispatcher = object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse {
                 val path = request.path!!
-                if (path == "/p2p/v1/sync") syncCalls.incrementAndGet()
+                if (path == "/p2p/v2/sync") syncCalls.incrementAndGet()
                 val reply = host.handle(path, request.body.readByteArray())
                 return MockResponse().setResponseCode(reply.status)
                     .setHeader("Content-Type", "application/json").setBody(reply.body)

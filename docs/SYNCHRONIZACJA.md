@@ -7,7 +7,7 @@ Noise KK po zwykłym HTTP. Klucze i format szyfrogramu opisuje [SPEC.md](SPEC.md
 
 Implementacja referencyjna to TypeScript w `core/src/p2p/`. Telefon ma tę samą logikę w Kotlinie
 (`android/core/.../core/p2p/`); przy rozbieżności wzorcem jest TypeScript. Zgodność sprawdzają wektory
-`core/test-vectors/v2.json` i testy współpracy ([TESTY.md](TESTY.md)).
+`core/test-vectors/v2.json`, `v3.json` i testy współpracy ([TESTY.md](TESTY.md)).
 
 Spis: [1. Założenia](#1-założenia) · [2. Architektura](#2-architektura) · [3. Parowanie](#3-parowanie) ·
 [4. Synchronizacja](#4-synchronizacja) · [5. Kontrakt HTTP](#5-kontrakt-http) · [6. Telefon](#6-telefon) ·
@@ -43,7 +43,7 @@ Cel projektu to nauka, więc projekt świadomie zawiera własne CPace, Noise i H
 ```
  ┌──────────────────────┐   HTTP + Noise KK    ┌───────────────────────────────┐
  │ Wtyczka Chrome (1..n)│ ───────────────────► │ Android: tryb „Synchronizacja”│
- │ pełna zaszyfrowana   │  POST /p2p/v1/...    │ - lista sparowanych urządzeń  │
+ │ pełna zaszyfrowana   │  POST /p2p/v2/...    │ - lista sparowanych urządzeń  │
  │ kopia sejfu          │ ◄─────────────────── │ - licznik revision, epoch     │
  └──────────────────────┘                      │ - pełna zaszyfrowana kopia    │
                                                └───────────────────────────────┘
@@ -106,21 +106,30 @@ wtyczka robi reset (punkt 4.2). **`vault.epoch` nigdy nie przypisuje się bezpo�
 
 - Wzorzec **Noise_KK_25519_AESGCM_SHA256** (rev. 34), prolog `passholder/v2/noise`. Obie strony znają swoje
   klucze statyczne z parowania: obustronne uwierzytelnienie i poufność do przodu.
-- Każde żądanie to osobne uzgadnianie: `POST /p2p/v1/handshake`, potem jedno `POST /p2p/v1/sync`.
+- Każde żądanie to osobne uzgadnianie: `POST /p2p/v2/handshake`, potem jedno `POST /p2p/v2/sync`.
+- **Wersje ścieżek:** parowanie (`/p2p/v1/pair/*`) i `/p2p/v1/ping` bez zmian. Synchronizacja przeniosła się na
+  `/p2p/v2/*` razem z formatem wpisu v3 ([SPEC.md](SPEC.md) punkt 4). Stara wtyczka wołająca
+  `/p2p/v1/handshake` albo `/p2p/v1/sync` dostaje `410 {"error":"update required"}` i pokazuje swój ogólny
+  błąd synchronizacji. Nowa wtyczka przy starym telefonie dostaje 404 na `/p2p/v2/*` i pokazuje „Zaktualizuj
+  aplikację na telefonie”. Obie aplikacje trzeba więc zaktualizować razem.
 - Noise chroni metadane (które `id`, kiedy, ile). Wpisy są dodatkowo zaszyfrowane kluczem sejfu end-to-end.
 - **Tożsamość to klucz, nie adres.** Zmiana IP nie wymaga parowania; obce urządzenie pod starym adresem nie
   przejdzie Noise KK.
 
 ### 4.2. Runda synchronizacji
 
-1. Wtyczka (`syncVaultV2`) wysyła `{epoch, sinceRevision, changes}`: wpisy `dirty`, najwyżej 500 naraz.
-   Nieznana epoka idzie jako `""`.
+1. Wtyczka (`syncVaultV2`) wysyła `{epoch, sinceRevision, changes}`: wpisy `dirty`, najwyżej 500 naraz i
+   najwyżej `MAX_BLOB_BYTES_PER_ROUND` znaków bloba (pierwszy wpis zawsze wchodzi). Nieznana epoka idzie jako `""`.
 2. Telefon (`processP2pSync` / `HostSync.process`):
    - inna epoka: odpowiada samą epoką i adresami, nic nie zapisuje,
    - ta sama epoka: walidacja całego żądania (punkt 5.2), potem `processSync` (przyjęte zmiany, konflikty,
      zmiany od `sinceRevision`),
-   - odpowiedź ma najwyżej 500 rekordów w kolejności `revision`; przy ucięciu `more = true`, a
-     `currentRevision` to rewizja ostatniego zwróconego rekordu.
+   - odpowiedź: najwyżej 500 rekordów w `changes` (konflikty ogranicza tylko budżet bajtów i rozmiar żądania)
+     oraz `MAX_BLOB_BYTES_PER_ROUND` znaków bloba łącznie; zmiany idą w kolejności `revision`. Budżet
+     schodzi najpierw na `conflicts`, potem na `changes`, a pierwszy rekord zawsze wchodzi. `changes` trafiają
+     do odpowiedzi tylko wtedy, gdy zmieściły się wszystkie konflikty. Przy każdym ucięciu `more = true`, a
+     `currentRevision` to rewizja ostatniego rekordu w `changes` albo `sinceRevision` żądania, gdy żadna zmiana
+     nie weszła (pominięte konflikty zostają `dirty` u wtyczki, która wyśle je ponownie).
 3. Wtyczka po odpowiedzi:
    - **inna epoka:** `adoptEpoch` zeruje `lastSyncRevision` i oznacza wszystkie wpisy i nagrobki jako `dirty`
      z `revision = 0`; pętla rusza od nowa (najwyżej jedna zmiana epoki na synchronizację),
@@ -129,7 +138,13 @@ wtyczka robi reset (punkt 4.2). **`vault.epoch` nigdy nie przypisuje się bezpo�
      gdy ma nadal HLC z chwili wysłania.
 4. Kolejne rundy, dopóki są zmiany ponad limit albo `more = true`; razem najwyżej 1000 rund
    („Sync exceeded the round limit”). Gdy wygrała zmiana lokalna, idzie jeszcze raz (do 3 rund, potem
-   „Sync did not settle”).
+   „Sync did not settle”); rundy ucięte (`more`) nie wliczają się do tych 3, bo każda rozstrzyga co najmniej
+   jeden rekord.
+
+**Budżet rundy: 512 KiB** (`MAX_BLOB_BYTES_PER_ROUND = 524288`), liczony jako suma długości blobów w jednym
+żądaniu i w jednej odpowiedzi. Specyfikacja podawała 768 KiB, ale ramki idą jako Base64 (×4/3), więc 768 KiB
+blobów dałoby ≥ 1 MiB i przekroczyło limit ciała (413); 512 KiB plus metadane 500 zmian mieści się w nim z
+zapasem. Wpis do 64 KiB zawsze się mieści, a ucięty nadmiar idzie w następnych rundach.
 5. Adresy z odpowiedzi są dopisywane do listy; przy zmianie epoki lista jest zastępowana.
 
 ### 4.3. Konflikty (HLC)
@@ -155,14 +170,15 @@ JSON, binaria w Base64 z dopełnieniem.
 
 | Ścieżka | Żądanie | Odpowiedź 200 |
 |---|---|---|
-| `POST /p2p/v1/handshake` | `{deviceId, message}` | `{session, message}` (`session` = 16 B) |
-| `POST /p2p/v1/sync` | `{session, frames: string[]}` | `{frames: string[]}` |
+| `POST /p2p/v2/handshake` | `{deviceId, message}` | `{session, message}` (`session` = 16 B) |
+| `POST /p2p/v2/sync` | `{session, frames: string[]}` | `{frames: string[]}` |
 
 Błędy `{error: "…"}`, w tej kolejności:
 
 | Kod | Kiedy |
 |---|---|
 | 413 | ciało > 1 MiB (sprawdzane pierwsze) |
+| 410 | stare ścieżki `/p2p/v1/handshake` i `/p2p/v1/sync` (`update required`) |
 | 404 | nieznana ścieżka |
 | 400 | handshake: brak pól, zły Base64, nieudane uzgadnianie; ciało nie jest obiektem JSON |
 | 403 | handshake: `deviceId` spoza listy urządzeń |
@@ -185,7 +201,7 @@ zawsze jest obiektem JSON.
 
 `validateP2pSyncRequest` / `HostSync.validate` (400, nic nie zapisane): `epoch` tekstem, `sinceRevision`
 bezpieczną liczbą całkowitą ≥ 0, najwyżej 500 zmian, w każdej `id` 1..128 znaków, `baseRevision` ≥ 0,
-`deleted` logiczne, `blob` tekstem. Powtórzone `id` → `duplicate change`; `baseRevision != 0` dla
+`deleted` logiczne, `blob` tekstem o długości ≤ 65536 (`blob too large`). Powtórzone `id` → `duplicate change`; `baseRevision != 0` dla
 nieznanego `id` → `unknown base revision`. Gdy `sinceRevision > currentRevision` (telefon cofnięty), host
 niczego nie zapisuje i odpowiada swoim `currentRevision`.
 
@@ -304,7 +320,8 @@ druga dostaje 500. „Przerwij odtwarzanie” kasuje wszystko.
 - **Bez telefonu nie ma synchronizacji** (także między dwoma komputerami).
 - **Odwołanie nie wymazuje danych:** usunięta wtyczka zachowuje kopię chronioną hasłem głównym. Pełne
   odcięcie (nowy vaultKey) jest poza zakresem.
-- **Rozmiar:** stronicowanie dzieli po 500 zmian, nie po bajtach; 500 zmian musi zmieścić się w 1 MiB.
+- **Rozmiar:** wpis ≤ 64 KiB (blob), runda ≤ 500 zmian i 512 KiB blobów; nadmiar idzie w kolejnych rundach.
+  Host nie widzi treści, więc nie sprawdza typów wpisów, tylko rozmiar.
 - **Cofnięcie telefonu wykrywane częściowo** (tylko gdy `currentRevision` spadnie). Dlatego kopie zapasowe
   telefonu są wyłączone.
 - **Własne CPace i Noise** w dwóch językach: wektory testowe zmniejszają ryzyko, ale to nie audyt.

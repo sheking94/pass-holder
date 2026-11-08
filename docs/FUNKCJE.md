@@ -1,12 +1,30 @@
 # Funkcje wtyczki i aplikacji
 
 Funkcje działające tylko na urządzeniu: nie zmieniają formatu danych ani protokołu synchronizacji. Dla
-każdej: jak działa, gdzie jest kod, ograniczenia.
+każdej: jak działa, gdzie jest kod, ograniczenia. Na początku: [stan ekranów po zmianie formatu
+wpisów](#stan-ekranów-po-zmianie-formatu-wpisów).
 
 Spis: [Automatyczna blokada](#automatyczna-blokada) · [PIN we wtyczce](#pin-we-wtyczce) ·
 [Import i eksport CSV](#import-i-eksport-csv) · [Otwórz w karcie](#otwórz-w-karcie) ·
 [Odcisk palca i blokada po wyjściu (Android)](#odcisk-palca-i-blokada-po-wyjściu-android) ·
 [Czyszczenie schowka](#czyszczenie-schowka)
+
+## Stan ekranów po zmianie formatu wpisów
+
+Sejf używa formatu wpisu v3 ([SPEC.md](SPEC.md) punkt 4: login, kontakt, karta, notatka, dokument), ale
+**ekrany obu aplikacji pokazują i edytują tylko loginy** (nazwa, login, hasło). Reszta pól i wpisy innych typów
+są synchronizowane i nietknięte: edycja loginu zachowuje jego notatkę, TOTP, adresy i własne pola.
+
+- Wpisy innych typów nie pojawiają się na liście; żadna aplikacja nie potrafi ich jeszcze dodać.
+- Zapis pod `id` wpisu innego typu jest odrzucany („Ten wpis nie jest loginem” we wtyczce).
+- Za duży wpis (blob > 64 KiB): „Wpis jest za duży”; import CSV pomija taki wiersz i pisze „Uwaga, pominięto
+  za duże: N”.
+- **Obie aplikacje trzeba zaktualizować razem.** Stara wtyczka dostaje od nowego telefonu 410 i pokazuje
+  ogólny błąd synchronizacji; nowa wtyczka ze starym telefonem pokazuje „Zaktualizuj aplikację na telefonie”
+  ([SYNCHRONIZACJA.md](SYNCHRONIZACJA.md#41-transport-noise-kk)).
+- Stare bloby v2 są czytane jako loginy. Na telefonie zostają v2, dopóki wpis nie zostanie edytowany; we wtyczce
+  cały lokalny sejf jest przy odblokowaniu w pamięci zamieniany na v3 i zapisywany jako v3 przy najbliższym
+  zapisie dowolnego rodzaju, a po zmianie epoki (`adoptEpoch`) wpisy idą na telefon ponownie jako v3.
 
 ## Automatyczna blokada
 
@@ -69,7 +87,7 @@ Widoki: `views/locked.ts` (`pinLockedView`), `views/pin-settings.ts`.
 
 ## Import i eksport CSV
 
-Format CSV NordPass. Lista → **CSV** otwiera kartę `?transfer` (okno wyboru pliku zamknęłoby okienko).
+Format CSV NordPass (tylko loginy). Lista → **CSV** otwiera kartę `?transfer` (okno wyboru pliku zamknęłoby okienko).
 
 - **Eksport:** zaznacz „Rozumiem, plik będzie zawierał hasła jawnym tekstem” → **Pobierz plik CSV**
   (`passholder-RRRR-MM-DD.csv`). Wypełnia `name`, `username`, `password`, `type=password`; reszta kolumn

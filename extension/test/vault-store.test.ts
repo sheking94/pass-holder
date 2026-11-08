@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fromBase64 } from "@passholder/core";
-import { AUTO_LOCK_MS, STORAGE_KEYS, UnsyncedChanges, VaultStore, type Account } from "../src/vault-store.ts";
+import { fromBase64, p2p, seal, utf8 } from "@passholder/core";
+import { AUTO_LOCK_MS, LOCAL_VAULT_AAD, STORAGE_KEYS, UnsyncedChanges, VaultStore, type Account } from "../src/vault-store.ts";
 import {
   CODE,
   FakePhone,
@@ -121,7 +121,7 @@ describe("pairing an existing browser again (repair)", () => {
     const { store, local, session } = await pairedBrowser();
     for (const name of ["a.pl", "b.pl", "c.pl"]) await store.upsert(name, { name, username: "u", password: "p" });
     await store.sync(); // the entries now have revisions on the old phone
-    expect(store.entry("a.pl")!.revision).toBeGreaterThan(0);
+    expect(store.entry("a.pl")!.dirty).toBe(false);
     const vaultKey = fromBase64((await session.get<{ vaultKey: string }>(STORAGE_KEYS.sessionKeys))!.vaultKey);
     const before = (await store.getAccount())!;
 
@@ -327,4 +327,108 @@ describe("VaultStore offline", () => {
     const typed: Account | undefined = await store.getAccount();
     expect(typed).toBeUndefined();
   });
+});
+
+describe("v3 entries", () => {
+  it("names an old entry too large to sync as v3 in Polish", async () => {
+    const { store, local, session } = await pairedBrowser();
+    const vaultKey = fromBase64((await session.get<{ vaultKey: string }>(STORAGE_KEYS.sessionKeys))!.vaultKey);
+    await store.lock();
+    const hlc = { ms: 1_700_000_000_000, c: 0, d: "old-browser" };
+    const oldVault = {
+      epoch: null, lastSyncRevision: 0, addresses: [],
+      entries: [{ id: "1", revision: 0, dirty: true, deleted: false, data: { name: "Wielki", username: "u", password: "x".repeat(49_000), hlc } }],
+    };
+    await local.set(STORAGE_KEYS.vault, await seal(vaultKey, utf8(JSON.stringify(oldVault)), LOCAL_VAULT_AAD));
+    await store.unlock(PASSWORD);
+    await expect(store.sync()).rejects.toThrow("Wpis „Wielki” jest za duży (ponad 64 KiB) i nie może zostać zsynchronizowany. Skróć go.");
+  }, 30_000);
+
+  it("opens vault saved in v2 format", async () => {
+    const { store, phone, local, session } = await pairedBrowser();
+    const vaultKey = fromBase64((await session.get<{ vaultKey: string }>(STORAGE_KEYS.sessionKeys))!.vaultKey);
+    await store.lock();
+    // What the previous extension wrote: v2-shaped data (no v, no type).
+    const hlc = { ms: 1_700_000_000_000, c: 0, d: "old-browser" };
+    const oldVault = {
+      epoch: null,
+      lastSyncRevision: 0,
+      addresses: [],
+      entries: [
+        { id: "1", revision: 0, dirty: true, deleted: false, data: { name: "stary.pl", username: "jan", password: "tajne", hlc } },
+        { id: "2", revision: 3, dirty: false, deleted: true, data: { hlc } },
+      ],
+    };
+    await local.set(STORAGE_KEYS.vault, await seal(vaultKey, utf8(JSON.stringify(oldVault)), LOCAL_VAULT_AAD));
+
+    await store.unlock(PASSWORD);
+    expect(store.pendingCount()).toBe(1);
+    expect(store.entry("1")).toMatchObject({ dirty: true });
+    expect(store.entry("2")).toBeUndefined();
+    const tombstone = (store as unknown as { vault: p2p.LocalVaultV2 }).vault.entries.get("2");
+    expect(tombstone).toMatchObject({ revision: 3, deleted: true, dirty: false });
+    expect(store.entries().map((e) => e.data)).toEqual([{ name: "stary.pl", username: "jan", password: "tajne" }]);
+    await store.sync();
+    expect(await phone.passwords()).toEqual({ "1": "tajne" });
+    expect((await phone.entryData("1")).type).toBe("login");
+  }, 30_000);
+
+  it("edit keeps v3 fields", async () => {
+    const { store, phone } = await pairedBrowser();
+    const login = p2p.emptyLogin("bank.pl");
+    await phone.addContent("1", {
+      ...login,
+      note: "notatka",
+      custom: [{ label: "PIN", value: "1234", hidden: true }],
+      fields: { username: "jan", password: "old", totp: "JBSWY3DP", urls: ["https://bank.pl"], androidApps: ["pl.bank"] },
+    });
+    await store.sync();
+    expect(store.entry("1")!.data).toEqual({ name: "bank.pl", username: "jan", password: "old" });
+
+    await store.upsert("1", { name: "bank.pl", username: "jan", password: "new" });
+    await store.sync();
+    const data = await phone.entryData("1");
+    expect(data).toMatchObject({
+      type: "login",
+      name: "bank.pl",
+      note: "notatka",
+      custom: [{ label: "PIN", value: "1234", hidden: true }],
+      fields: { username: "jan", password: "new", totp: "JBSWY3DP", urls: ["https://bank.pl"], androidApps: ["pl.bank"] },
+    });
+  }, 30_000);
+
+  it("other types are hidden", async () => {
+    const { store, phone } = await pairedBrowser();
+    const base = { name: "Jan", note: "", custom: [] };
+    await phone.addContent("c", {
+      ...base,
+      type: "contact",
+      fields: { firstName: "Jan", lastName: "K", birthDate: "", phones: [], emails: [], addresses: [] },
+    });
+    await phone.addEntry("l", "login.pl");
+    await store.sync();
+    expect(names(store)).toEqual(["login.pl"]);
+    expect(store.entry("c")).toBeUndefined();
+    expect(store.pendingCount()).toBe(0);
+  }, 30_000);
+
+  it("refuses to overwrite a live non-login entry with a login", async () => {
+    const { store, phone } = await pairedBrowser();
+    await phone.addContent("n", { ...p2p.emptyLogin("x"), type: "note", fields: {} });
+    await store.sync();
+    expect(store.pendingCount()).toBe(0);
+    await expect(store.upsert("n", { name: "a", username: "b", password: "c" })).rejects.toThrow("Ten wpis nie jest loginem");
+    expect(store.pendingCount()).toBe(0);
+    await store.sync();
+    expect((await phone.entryData("n")).type).toBe("note");
+  }, 30_000);
+
+  it("too large entry", async () => {
+    const { store } = await pairedBrowser();
+    const big = { name: "big", username: "u", password: "x".repeat(70_000) };
+    await expect(store.upsert("1", big)).rejects.toThrow("Wpis jest za duży");
+    expect(store.entries()).toEqual([]);
+    expect(await store.importEntries([big], () => "2")).toEqual({ added: 0, duplicates: 0, tooLarge: 1 });
+    expect(store.entries()).toEqual([]);
+  }, 30_000);
 });

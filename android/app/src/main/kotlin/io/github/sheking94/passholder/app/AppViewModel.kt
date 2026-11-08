@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.sheking94.passholder.core.Credentials
 import io.github.sheking94.passholder.core.GeneratorOptions
+import io.github.sheking94.passholder.core.p2p.EntryTooLargeException
 import io.github.sheking94.passholder.core.p2p.PairingOffer
 import io.github.sheking94.passholder.core.p2p.PhoneEntry
 import kotlinx.coroutines.CancellationException
@@ -325,7 +326,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         if (credentials.name.isBlank()) return fail("Podaj nazwę serwisu")
         if (credentials.password.isEmpty()) return fail("Podaj albo wygeneruj hasło")
         launchVaultOperation("Zapisuję…") {
-            store.upsert(id ?: UUID.randomUUID().toString(), credentials.copy(name = credentials.name.trim()))
+            try {
+                store.upsert(id ?: UUID.randomUUID().toString(), credentials.copy(name = credentials.name.trim()))
+            } catch (e: EntryTooLargeException) {
+                return@launchVaultOperation fail("Wpis jest za duży")
+            } catch (e: IllegalArgumentException) {
+                // PhoneVault.upsert refuses an id that holds an entry of another type.
+                return@launchVaultOperation fail("Ten wpis nie jest loginem")
+            }
             showList(SAVED)
         }
     }

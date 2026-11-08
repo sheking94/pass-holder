@@ -241,4 +241,70 @@ class HostSyncTest {
         assertNull(HostSync.validate(store, epoch, request(0, changeJson("ghost", 5), epoch = "")))
         assertEquals(0, store.currentRevision())
     }
+
+    // --- byte budget and blob limit ---
+
+    private fun bigStore(sizes: List<Int>) = MemorySyncStore().also { s ->
+        sizes.forEachIndexed { i, n -> s.put(RemoteRecord("id${i + 1}", (i + 1).toLong(), false, "x".repeat(n))) }
+    }
+
+    @Test
+    fun pagesResponseByBytes() {
+        // 3 x 200 KiB: two fit into 512 KiB (400 KiB), the third would make 600 KiB.
+        val store = bigStore(List(3) { 200 * 1024 })
+        val first = HostSync.process(store, epoch, emptyList(), request(0))
+        assertEquals(listOf(1L, 2L), first.changes.map { it.revision })
+        assertTrue(first.more)
+        assertEquals(2, first.currentRevision)
+        val second = HostSync.process(store, epoch, emptyList(), request(2))
+        assertEquals(listOf(3L), second.changes.map { it.revision })
+        assertTrue(!second.more)
+        assertEquals(3, second.currentRevision)
+    }
+
+    @Test
+    fun firstRecordGoesInEvenOverBudget() {
+        val store = bigStore(listOf(HostSync.MAX_BLOB_BYTES_PER_ROUND + 1, 10))
+        val res = HostSync.process(store, epoch, emptyList(), request(0))
+        assertEquals(listOf(1L), res.changes.map { it.revision })
+        assertTrue(res.more)
+        assertEquals(1, res.currentRevision)
+    }
+
+    @Test
+    fun truncatesConflictsByBytes() {
+        val store = MemorySyncStore()
+        val size = 200 * 1024
+        for (i in 1..3) store.put(RemoteRecord("c$i", i.toLong(), false, "x".repeat(size)))
+        store.put(RemoteRecord("later", 4, false, "y"))
+        // Three changes on stale base revisions conflict with the three big records.
+        val res = HostSync.process(
+            store, epoch, emptyList(),
+            request(3, changeJson("c1", 99), changeJson("c2", 99), changeJson("c3", 99)),
+        )
+        assertEquals(listOf("c1", "c2"), res.conflicts.map { it.id })
+        assertTrue(res.changes.isEmpty())
+        assertTrue(res.more)
+        assertEquals(3, res.currentRevision)
+    }
+
+    @Test
+    fun rejectsBlobOver64KiB() {
+        val store = MemorySyncStore()
+        fun withBlob(n: Int) = P2pJson.json.encodeToJsonElement(
+            ChangeRequest.serializer(), ChangeRequest("a", 0, false, "x".repeat(n)),
+        )
+        assertNull(HostSync.validate(store, epoch, request(0, withBlob(EntryV3.MAX_BLOB_LENGTH))))
+        assertEquals("blob too large", HostSync.validate(store, epoch, request(0, withBlob(EntryV3.MAX_BLOB_LENGTH + 1))))
+        // The check comes before the epoch check.
+        assertEquals(
+            "blob too large",
+            HostSync.validate(store, epoch, request(0, withBlob(EntryV3.MAX_BLOB_LENGTH + 1), epoch = "other")),
+        )
+        val e = assertThrows(IllegalArgumentException::class.java) {
+            HostSync.process(store, epoch, emptyList(), request(0, withBlob(EntryV3.MAX_BLOB_LENGTH + 1)))
+        }
+        assertEquals("blob too large", e.message)
+        assertEquals(0, store.currentRevision())
+    }
 }

@@ -12,16 +12,24 @@ import {
   MAX_FRAMES,
   MAX_FRAME_PLAINTEXT,
   openPairingMessage,
+  parseEntryData,
   pairingAad,
   pairingKey,
   sealPairingMessage,
-  type EntryDataV2,
   type Hlc,
   type PairingKind,
   type PairingRole,
   type TombstoneDataV2,
 } from "../../src/p2p/index.ts";
 import { encryptFrames } from "../../src/p2p/frames.ts";
+
+/** The v2 live entry content, still present in v2.json as the old format a v3 reader must accept. */
+interface LegacyEntryData {
+  name: string;
+  username: string;
+  password: string;
+  hlc: Hlc;
+}
 
 interface Vectors {
   hlcCompare: { description: string; a: Hlc; b: Hlc; expected: -1 | 0 | 1 }[];
@@ -30,7 +38,7 @@ interface Vectors {
     vaultKey: string;
     id: string;
     aad: string;
-    data: EntryDataV2 | TombstoneDataV2;
+    data: LegacyEntryData | TombstoneDataV2;
     nonce: string;
     blob: string;
   }[];
@@ -74,8 +82,18 @@ describe("test vectors v2", () => {
     it(`entryPayload: ${e.description}`, async () => {
       const key = fromHex(e.vaultKey);
       expect(entryAadV2(e.id)).toBe(e.aad);
-      expect(await encryptPayloadV2(key, e.id, e.data, fromHex(e.nonce))).toBe(e.blob);
       expect(await decryptPayloadV2(key, e.id, e.blob)).toEqual(e.data);
+      if ("name" in e.data) {
+        // Old v2 content: not written any more, but read as a login.
+        const parsed = parseEntryData(await decryptPayloadV2(key, e.id, e.blob));
+        expect(parsed).toMatchObject({
+          v: 3, type: "login", name: e.data.name, note: "",
+          fields: { username: e.data.username, password: e.data.password, totp: "", urls: [], androidApps: [] },
+          custom: [], hlc: e.data.hlc,
+        });
+      } else {
+        expect(await encryptPayloadV2(key, e.id, e.data, fromHex(e.nonce))).toBe(e.blob);
+      }
     });
   }
 

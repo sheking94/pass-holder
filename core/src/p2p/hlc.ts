@@ -43,6 +43,11 @@ export class HlcClock {
     return this.#last && { ...this.#last };
   }
 
+  /** An independent copy with the same state, to try out a tick without moving this clock. */
+  clone(): HlcClock {
+    return new HlcClock(this.#deviceId, this.#now, this.#last);
+  }
+
   tick(): Hlc {
     const last = this.#last;
     const wall = this.#now();
