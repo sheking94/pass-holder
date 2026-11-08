@@ -6,7 +6,9 @@ import {
   generatePassword,
   type CharacterGroup,
   type GeneratorOptions,
+  type p2p,
 } from "@passholder/core";
+import { TYPE_INFO, emptyContent, tidyContent, validateContent } from "../entry-types.ts";
 import { STORAGE_KEYS } from "../storage.ts";
 import { busy, confirmButton, h, passwordField, setStatus, show, statusLine } from "../ui/dom.ts";
 import { openInTabButton } from "../ui/page.ts";
@@ -24,8 +26,12 @@ async function loadGeneratorOptions(): Promise<GeneratorOptions> {
   return (await local.get<GeneratorOptions>(STORAGE_KEYS.generator)) ?? DEFAULT_GENERATOR_OPTIONS;
 }
 
-/** Edits the entry with this id, or a new one without it. */
-export async function editView(id?: string) {
+const SAVED = "Zapisano lokalnie. Zsynchronizuj, gdy telefon będzie w trybie Synchronizacja.";
+const DELETED = "Usunięto lokalnie. Zsynchronizuj, żeby usunąć też na innych urządzeniach.";
+
+/** Edits the entry of this type with this id, or a new one without it. */
+export async function editView(type: p2p.EntryType, id?: string) {
+  if (type !== "login") return otherTypeForm(type, id);
   const data = id ? store.entry(id)?.data : undefined;
   const name = h("input", { type: "text", value: data?.name ?? "" });
   const username = h("input", { type: "text", value: data?.username ?? "", autocomplete: "off" });
@@ -63,19 +69,19 @@ export async function editView(id?: string) {
         username: username.value,
         password: password.value,
       });
-      listView("Zapisano lokalnie. Zsynchronizuj, gdy telefon będzie w trybie Synchronizacja.");
+      listView(SAVED, false, "login");
     });
 
   const remove = confirmButton("Usuń", { class: "danger" }, () => {
     void busy(status, "Usuwam…", async () => {
       await store.delete(id!);
-      listView("Usunięto lokalnie. Zsynchronizuj, żeby usunąć też na innych urządzeniach.");
+      listView(DELETED, false, "login");
     });
   });
 
   show(
     openInTabButton(),
-    h("h1", {}, data ? "Edytuj wpis" : "Nowy wpis"),
+    h("h1", {}, data ? TYPE_INFO.login.editTitle : TYPE_INFO.login.newTitle),
     h("label", {}, "Nazwa serwisu"),
     name,
     h("label", {}, "Login"),
@@ -98,8 +104,55 @@ export async function editView(id?: string) {
       "div",
       { class: "actions" },
       h("button", { class: "primary", onclick: save }, "Zapisz"),
-      h("button", { onclick: () => listView() }, "Anuluj"),
+      h("button", { onclick: () => listView("", false, "login") }, "Anuluj"),
       data && remove,
+    ),
+    status,
+  );
+  name.focus();
+}
+
+/**
+ * Stopgap form for the non-login types until their own forms exist: only name and note,
+ * the other fields of an existing entry are kept as they are.
+ */
+function otherTypeForm(type: p2p.EntryType, id?: string) {
+  const existing = id ? store.getEntry(id)?.data : undefined;
+  const original = existing && existing.type === type ? existing : undefined;
+  const name = h("input", { type: "text", value: original?.name ?? "" });
+  const note = h("textarea", { rows: 6 });
+  note.value = original?.note ?? "";
+  const status = statusLine();
+
+  const save = () =>
+    busy(status, "Zapisuję…", async () => {
+      const content = tidyContent({ ...(original ?? emptyContent(type)), name: name.value, note: note.value });
+      const error = validateContent(content, original);
+      if (error) throw new Error(error);
+      await store.putEntry(id ?? crypto.randomUUID(), content);
+      listView(SAVED, false, type);
+    });
+
+  const remove = confirmButton("Usuń", { class: "danger" }, () => {
+    void busy(status, "Usuwam…", async () => {
+      await store.delete(id!);
+      listView(DELETED, false, type);
+    });
+  });
+
+  show(
+    openInTabButton(),
+    h("h1", {}, original ? TYPE_INFO[type].editTitle : TYPE_INFO[type].newTitle),
+    h("label", {}, "Nazwa"),
+    name,
+    h("label", {}, "Notatka"),
+    note,
+    h(
+      "div",
+      { class: "actions" },
+      h("button", { class: "primary", onclick: save }, "Zapisz"),
+      h("button", { onclick: () => listView("", false, type) }, "Anuluj"),
+      original && remove,
     ),
     status,
   );
