@@ -5,7 +5,13 @@ import io.github.sheking94.passholder.core.RemoteRecord
 
 private const val MAX_DEVICE_ID_LENGTH = 64
 
-data class PhoneEntry(val id: String, val revision: Long, val credentials: Credentials, val hlc: Hlc, val data: EntryDataV3)
+data class PhoneEntry(val id: String, val revision: Long, val data: EntryDataV3) {
+    val content: EntryContentV3 get() = data.content
+    val hlc: Hlc get() = data.hlc
+}
+
+/** An id holds a live entry of another type than the one being written. */
+class EntryTypeMismatchException : IllegalArgumentException("Entry has another type")
 
 /** The phone's own edits to its vault, written straight into the store with HLC stamps. */
 class PhoneVault(
@@ -26,7 +32,7 @@ class PhoneVault(
     /**
      * Saves a login edited on the phone: an existing login keeps everything but name, username and password;
      * a new one starts with empty note, URLs and custom fields. An id holding a live entry of another type is
-     * refused (IllegalArgumentException) and nothing is written. [EntryTooLargeException] leaves the store as it was.
+     * refused ([EntryTypeMismatchException]) and nothing is written. [EntryTooLargeException] leaves the store as it was.
      */
     fun upsert(id: String, credentials: Credentials) {
         requireValidId(id)
@@ -35,7 +41,7 @@ class PhoneVault(
             val content = when (val old = existing?.content) {
                 null -> EntryContentV3(credentials.name, "", LoginFields(credentials.username, credentials.password), emptyList())
                 else -> {
-                    val fields = old.fields as? LoginFields ?: throw IllegalArgumentException("Entry is not a login")
+                    val fields = old.fields as? LoginFields ?: throw EntryTypeMismatchException()
                     old.copy(
                         name = credentials.name,
                         fields = fields.copy(username = credentials.username, password = credentials.password),
@@ -46,10 +52,18 @@ class PhoneVault(
         }
     }
 
-    /** Writes any entry content (no type check); [EntryTooLargeException] leaves the store as it was. */
+    /**
+     * Writes any entry content. An id holding a live entry of another type is refused
+     * ([EntryTypeMismatchException]); over a tombstone or an unreadable record the type may differ.
+     * [EntryTooLargeException] leaves the store as it was.
+     */
     fun upsertContent(id: String, content: EntryContentV3) {
         requireValidId(id)
-        synchronized(store) { write(id, content) }
+        synchronized(store) {
+            val old = store.get(id)?.takeIf { !it.deleted }?.let(::readData)
+            if (old != null && old.content.fields.type != content.fields.type) throw EntryTypeMismatchException()
+            write(id, content)
+        }
     }
 
     /** Caller holds the store's monitor. */
@@ -70,16 +84,14 @@ class PhoneVault(
         }
     }
 
-    /** Live logins sorted by name; other types and unreadable records are skipped (see [unreadableIds]). */
+    /** Live readable entries of every type sorted by name (see [unreadableIds] for the rest). */
     fun entries(): List<PhoneEntry> = synchronized(store) {
         store.listSince(0).filter { !it.deleted }.mapNotNull { r ->
-            val data = readData(r) ?: return@mapNotNull null
-            val login = data.content.fields as? LoginFields ?: return@mapNotNull null
-            PhoneEntry(r.id, r.revision, Credentials(data.content.name, login.username, login.password), data.hlc, data)
-        }.sortedBy { it.credentials.name }
+            readData(r)?.let { PhoneEntry(r.id, r.revision, it) }
+        }.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.content.name })
     }
 
-    /** Records that cannot be decrypted or parsed; entries of other types are readable, so not listed. */
+    /** Records that cannot be decrypted or parsed. */
     fun unreadableIds(): List<String> = synchronized(store) {
         store.listSince(0).filter { read(it) == null }.map { it.id }
     }

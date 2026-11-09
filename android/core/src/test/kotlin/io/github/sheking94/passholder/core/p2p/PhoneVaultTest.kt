@@ -95,6 +95,14 @@ class PhoneVaultTest {
     }
 
     @Test
+    fun entriesSortedByNameIgnoringCase() {
+        val v = vault()
+        v.upsert("1", cred("Zeta"))
+        v.upsert("2", cred("alfa"))
+        assertEquals(listOf("alfa", "Zeta"), v.entries().map { it.credentials.name })
+    }
+
+    @Test
     fun entriesSortedByNameWithoutTombstones() {
         val v = vault()
         v.upsert("1", cred("Zeta"))
@@ -195,13 +203,55 @@ class PhoneVaultTest {
         assertEquals(EntryContentV3("A", "", LoginFields("user-A", "pw-A"), emptyList()), readEntry("a").content)
     }
 
+    private fun note(name: String) = EntryContentV3(name, "tekst", NoteFields, emptyList())
+    private fun cardContent(name: String) = EntryContentV3(name, "", CardFields("H", "4111 1111 1111 1111", "01/30", "123", "0000"), emptyList())
+
     @Test
-    fun otherTypesHidden() {
+    fun `entries returns every type sorted by name`() {
         val v = vault()
-        v.upsert("l", cred("L"))
-        v.upsertContent("c", EntryContentV3("Kontakt", "", ContactFields("J", "K", "", emptyList(), emptyList(), emptyList()), emptyList()))
-        assertEquals(listOf("l"), v.entries().map { it.id })
+        v.upsert("l", cred("B"))
+        v.upsertContent("c", cardContent("A"))
+        v.upsertContent("n", note("C"))
+        val list = v.entries()
+        assertEquals(listOf("A", "B", "C"), list.map { it.content.name })
+        assertEquals(listOf("card", "login", "note"), list.map { it.content.fields.type })
         assertTrue(v.unreadableIds().isEmpty())
+    }
+
+    @Test
+    fun `upsertContent refuses an id holding another type`() {
+        val v = vault()
+        v.upsertContent("e1", cardContent("Karta"))
+        val before = store.get("e1")
+        assertThrows<EntryTypeMismatchException> {
+            v.upsertContent("e1", EntryContentV3("L", "", LoginFields("u", "p"), emptyList()))
+        }
+        assertEquals(before, store.get("e1"))
+        assertEquals(1L, store.currentRevision())
+        assertEquals("card", v.entries().single().content.fields.type)
+    }
+
+    @Test
+    fun `upsertContent over a tombstone may change the type`() {
+        val v = vault()
+        v.upsertContent("e1", cardContent("Karta"))
+        v.delete("e1")
+        v.upsertContent("e1", note("Notatka"))
+        assertEquals("note", v.entries().single().content.fields.type)
+    }
+
+    @Test
+    fun `upsert of a login keeps totp, urls, androidApps, note and custom`() {
+        val v = vault()
+        v.upsertContent("a", rich)
+        v.upsert("a", Credentials("Renamed", "u2", "p2"))
+        val c = readEntry("a").content
+        val f = c.fields as LoginFields
+        assertEquals("totp-secret", f.totp)
+        assertEquals(listOf("https://a.pl"), f.urls)
+        assertEquals(listOf("pl.app"), f.androidApps)
+        assertEquals("my note", c.note)
+        assertEquals(listOf(CustomField("pin", "1234", true)), c.custom)
     }
 
     @Test
@@ -239,7 +289,7 @@ class PhoneVaultTest {
         val v = vault()
         v.upsertContent("n", EntryContentV3("Notatka", "tekst", NoteFields, emptyList()))
         val before = store.get("n")
-        assertThrows<IllegalArgumentException> { v.upsert("n", cred("X")) }
+        assertThrows<EntryTypeMismatchException> { v.upsert("n", cred("X")) }
         assertEquals(before, store.get("n"))
         assertEquals(1L, store.currentRevision())
     }

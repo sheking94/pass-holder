@@ -2,106 +2,76 @@ package io.github.sheking94.passholder.app.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.github.sheking94.passholder.app.AppViewModel
 import io.github.sheking94.passholder.app.UiState
-import io.github.sheking94.passholder.core.CharacterGroup
-import io.github.sheking94.passholder.core.Credentials
-import io.github.sheking94.passholder.core.GeneratorOptions
-import io.github.sheking94.passholder.core.PasswordGenerator
-import kotlin.math.roundToInt
+import io.github.sheking94.passholder.app.entries.EntryType
+import io.github.sheking94.passholder.app.entries.emptyContent
+import io.github.sheking94.passholder.app.ui.forms.CardForm
+import io.github.sheking94.passholder.app.ui.forms.ContactForm
+import io.github.sheking94.passholder.app.ui.forms.CustomFieldsEditor
+import io.github.sheking94.passholder.app.ui.forms.DocumentForm
+import io.github.sheking94.passholder.app.ui.forms.LoginForm
+import io.github.sheking94.passholder.core.p2p.CardFields
+import io.github.sheking94.passholder.core.p2p.ContactFields
+import io.github.sheking94.passholder.core.p2p.DocumentFields
+import io.github.sheking94.passholder.core.p2p.EntryContentV3
+import io.github.sheking94.passholder.core.p2p.LoginFields
+import io.github.sheking94.passholder.core.p2p.NoteFields
 
-private val GROUP_LABELS = mapOf(
-    CharacterGroup.LOWERCASE to "małe litery",
-    CharacterGroup.UPPERCASE to "wielkie litery",
-    CharacterGroup.DIGITS to "cyfry",
-    CharacterGroup.SYMBOLS to "symbole",
-)
-
-@OptIn(ExperimentalLayoutApi::class)
+/**
+ * The entry form of every type: "Nazwa", the type's section, "Notatka" ("Treść" for a note), "Własne pola",
+ * Zapisz/Anuluj/Usuń. The form edits a copy of the whole content, so what it does not show is saved as it was.
+ */
 @Composable
-fun EditScreen(id: String?, state: UiState, vm: AppViewModel) {
+fun EditScreen(id: String?, type: EntryType, state: UiState, vm: AppViewModel) {
     // Read from the store when the entry was opened (AppViewModel.openEntry), not from the list on screen.
-    val existing = remember(id) { state.editing?.takeIf { it.id == id }?.credentials }
-    // remember, not rememberSaveable: entry passwords stay out of the saved instance state.
-    var name by remember(id) { mutableStateOf(existing?.name ?: "") }
-    var username by remember(id) { mutableStateOf(existing?.username ?: "") }
-    var password by remember(id) { mutableStateOf(existing?.password ?: "") }
-    var revealed by remember(id) { mutableStateOf(false) }
+    val original = remember(id, type) { state.editing?.takeIf { it.id == id }?.content }
+    // remember, not rememberSaveable: entry secrets stay out of the saved instance state.
+    var content by remember(id, type) { mutableStateOf(original ?: emptyContent(type)) }
+    // Any edit drops an error status (e.g. "Ważność: wpisz MM/RR") left by an earlier save attempt.
+    fun edit(updated: EntryContentV3) { content = updated; vm.clearError() }
     var askDelete by remember { mutableStateOf(false) }
-
-    val saved = remember { vm.generatorOptions }
-    var length by remember { mutableFloatStateOf(saved.length.toFloat()) }
-    var groups by remember { mutableStateOf(saved.groups) }
 
     BackHandler(onBack = vm::backToList)
 
     FormColumn {
-        Text(if (existing != null) "Edytuj wpis" else "Nowy wpis", style = MaterialTheme.typography.headlineSmall)
-        PlainField(name, { name = it }, "Nazwa serwisu")
-        PlainField(username, { username = it }, "Login")
-        PasswordField(password, { password = it }, "Hasło", monospace = true, revealed = revealed, onRevealedChange = { revealed = it })
+        Text(if (original != null) type.editTitle else type.newTitle, style = MaterialTheme.typography.headlineSmall)
+        PlainField(content.name, { edit(content.copy(name = it)) }, "Nazwa")
 
-        Card {
-            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Generator haseł", style = MaterialTheme.typography.titleSmall)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Długość: ${length.roundToInt()}")
-                    Slider(
-                        value = length,
-                        onValueChange = { length = it },
-                        valueRange = PasswordGenerator.MIN_LENGTH.toFloat()..PasswordGenerator.MAX_LENGTH.toFloat(),
-                        modifier = Modifier.padding(start = 12.dp),
-                    )
-                }
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    CharacterGroup.entries.forEach { group ->
-                        FilterChip(
-                            selected = group in groups,
-                            onClick = { groups = if (group in groups) groups - group else groups + group },
-                            label = { Text(GROUP_LABELS.getValue(group)) },
-                        )
-                    }
-                }
-                OutlinedButton(onClick = {
-                    val options = GeneratorOptions(length.roundToInt(), groups)
-                    runCatching { PasswordGenerator.generate(options) }
-                        .onSuccess {
-                            password = it
-                            revealed = true
-                            vm.generatorOptions = options
-                        }
-                        .onFailure { vm.fail(it.message ?: "Błąd generatora") }
-                }) { Text("Generuj") }
-            }
+        when (val fields = content.fields) {
+            is LoginFields -> LoginForm(fields, { edit(content.copy(fields = it)) }, vm)
+            is ContactFields -> ContactForm(fields, { edit(content.copy(fields = it)) }, vm)
+            is CardFields -> CardForm(fields, { edit(content.copy(fields = it)) }, vm)
+            is DocumentFields -> DocumentForm(fields, { edit(content.copy(fields = it)) }, vm)
+            // A note has no fields of its own: its text is "Treść" below.
+            NoteFields -> {}
         }
 
+        MultilineField(
+            content.note,
+            { edit(content.copy(note = it)) },
+            if (type == EntryType.NOTE) "Treść" else "Notatka",
+            minLines = if (type == EntryType.NOTE) 8 else 3,
+        )
+        CustomFieldsEditor(content.custom, { edit(content.copy(custom = it)) }, vm)
+
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { vm.save(id, Credentials(name, username, password)) }, enabled = !state.busy) { Text("Zapisz") }
+            Button(onClick = { vm.save(id, content, original) }, enabled = !state.busy) { Text("Zapisz") }
             OutlinedButton(onClick = vm::backToList, enabled = !state.busy) { Text("Anuluj") }
-            if (existing != null) {
+            if (original != null) {
                 TextButton(onClick = { askDelete = true }, enabled = !state.busy) { Text("Usuń", color = MaterialTheme.colorScheme.error) }
             }
         }

@@ -1,18 +1,19 @@
 # Funkcje wtyczki i aplikacji
 
 Funkcje działające tylko na urządzeniu: nie zmieniają formatu danych ani protokołu synchronizacji. Dla
-każdej: jak działa, gdzie jest kod, ograniczenia. Na początku: [typy wpisów we
-wtyczce](#typy-wpisów-we-wtyczce).
+każdej: jak działa, gdzie jest kod, ograniczenia. Na początku: [typy wpisów](#typy-wpisów-wtyczka-i-telefon).
 
 Spis: [Automatyczna blokada](#automatyczna-blokada) · [PIN we wtyczce](#pin-we-wtyczce) ·
 [Import i eksport CSV](#import-i-eksport-csv) · [Otwórz w karcie](#otwórz-w-karcie) ·
 [Odcisk palca i blokada po wyjściu (Android)](#odcisk-palca-i-blokada-po-wyjściu-android) ·
 [Czyszczenie schowka](#czyszczenie-schowka)
 
-## Typy wpisów we wtyczce
+## Typy wpisów (wtyczka i telefon)
 
-Sejf używa formatu wpisu v3 ([SPEC.md](SPEC.md) punkt 4). Wtyczka pokazuje i edytuje wszystkie pięć typów;
-**telefon do kroku 3 pokazuje tylko loginy** (nazwa, login, hasło).
+Sejf używa formatu wpisu v3 ([SPEC.md](SPEC.md) punkt 4). Wtyczka i telefon pokazują i edytują wszystkie pięć
+typów; reguły (opis wiersza, pola wrażliwe, formaty, zapis) są wspólne, różni się układ ekranów.
+
+### Wtyczka
 
 - **Zakładki** nad listą, w jednym rzędzie (ikona + podpis, 360 px bez przewijania w poziomie): 🔑 Loginy
   (startowa), 👤 Kontakty, 💳 Karty, 📝 Notatki, 🪪 Dokumenty. „+ Dodaj” dodaje wpis typu otwartej zakładki.
@@ -36,8 +37,6 @@ Sejf używa formatu wpisu v3 ([SPEC.md](SPEC.md) punkt 4). Wtyczka pokazuje i ed
 - **Zapis:** tekst bez zmian (przycinana tylko nazwa); puste elementy list i puste własne pola są pomijane.
   Pola, których formularz nie zna, zostają; typu wpisu nie da się zmienić.
 - **CSV nadal tylko loginy** ([Import i eksport CSV](#import-i-eksport-csv)).
-- **Telefon:** wpisy innych typów dodane we wtyczce są synchronizowane i przechowywane, ale do kroku 3
-  niewidoczne; edycja loginu na telefonie zachowuje pola, których ekran nie edytuje.
 - **Obie aplikacje trzeba zaktualizować razem.** Stara wtyczka dostaje od nowego telefonu 410 i pokazuje
   ogólny błąd synchronizacji; nowa wtyczka ze starym telefonem pokazuje „Zaktualizuj aplikację na telefonie”
   ([SYNCHRONIZACJA.md](SYNCHRONIZACJA.md#41-transport-noise-kk)).
@@ -48,6 +47,27 @@ Sejf używa formatu wpisu v3 ([SPEC.md](SPEC.md) punkt 4). Wtyczka pokazuje i ed
 Kod: `extension/src/entry-types.ts` (zakładki, opis wiersza, `tidyContent`, `validateContent`),
 `views/list.ts`, `views/edit.ts`, `views/forms/*.ts`, `ui/dom.ts` (`secretField`), `ui/list-editor.ts`,
 `ui/copy.ts`; `VaultStore.listEntries`, `getEntry`, `putEntry`.
+
+### Telefon (Android)
+
+- **Górny pasek:** „Synchronizacja” i menu ⋮ „Więcej” (Urządzenia, Ustawienia, Zablokuj). **Ustawienia**: przełączniki
+  odcisku palca i opóźnienia blokady po wyjściu z aplikacji ([opis](#odcisk-palca-i-blokada-po-wyjściu-android)).
+- **Dolny pasek** z pięcioma zakładkami jak we wtyczce (🔑 Loginy startowa, 👤 Kontakty, 💳 Karty, 📝 Notatki,
+  🪪 Dokumenty). Każda zakładka ma własne wyszukiwanie, czyszczone przy zmianie zakładki; „+ Dodaj” dodaje wpis
+  typu otwartej zakładki. Wiersz: ikona, nazwa, opis; login zachowuje „Login” i „Hasło”.
+- **Formularz** jak we wtyczce (Nazwa, pola typu, Notatka/Treść, Własne pola z „ukryte”). Pola wrażliwe: zakryte,
+  „Pokaż/Ukryj” i „Kopiuj”; kopia czyści schowek po minucie, status „Skopiowano PIN. Schowek zostanie wyczyszczony
+  za 1 min.”. Błędy i formaty jak we wtyczce; „Ten wpis ma inny typ” gdy `id` należy do żywego wpisu innego typu.
+- **Aplikacje Androida** (login): „+ Wybierz aplikację” otwiera „Wybierz aplikację” z wyszukiwaniem (wiersz „nazwa · pakiet”);
+  „+ Wpisz pakiet” pozwala wpisać nazwę ręcznie. Lista zawiera tylko aplikacje z ikoną w launcherze (`<queries>`
+  MAIN + LAUNCHER, bez `QUERY_ALL_PACKAGES`), więc usług bez ikony brak: te wpisuje się ręcznie.
+- **Stare wpisy** i wpisy dodane we wtyczce są widoczne od razu; zapis zachowuje pola, których formularz nie zna.
+- Stan formularza jest tylko w pamięci (nie w stanie zapisanym przez system); blokada zamyka formularz i Ustawienia,
+  a po odblokowaniu lista jest na zakładce Loginy.
+
+Kod: `app/entries/EntryTypes.kt` (typy, opisy, wyszukiwanie, `tidy`, walidacja), `ui/ListScreen.kt`,
+`ui/VaultTopBar.kt`, `ui/SettingsScreen.kt`, `ui/EditScreen.kt`, `ui/forms/*`, `InstalledApps.kt`;
+`PhoneVault.entries()`, `upsertContent`.
 
 ## Automatyczna blokada
 
@@ -167,7 +187,7 @@ uprawnienia `tabs` (Chrome 116+), `chrome.tabs.update` + `chrome.windows.update`
 
 ### Co widzi użytkownik
 
-- Przełącznik **„Odblokowanie odciskiem palca”** na liście wpisów (bez czytnika go nie ma; bez zapisanego
+- Przełącznik **„Odblokowanie odciskiem palca”** w **Ustawieniach** (menu ⋮ „Więcej”; bez czytnika go nie ma; bez zapisanego
   odcisku jest wyszarzony).
 - Okno odcisku otwiera się samo przy każdym otwarciu aplikacji i po blokadzie po 15 min. Po ręcznym
   „Zablokuj” trzeba nacisnąć przycisk „Odblokuj odciskiem palca”. Hasło główne działa zawsze.

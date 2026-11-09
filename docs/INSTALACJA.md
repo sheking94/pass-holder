@@ -169,8 +169,9 @@ dopiero po **Zapisz** w „Adresy telefonu” (wtedy Chrome pyta o zgodę).
   jeszcze niewysłane, mają kropkę •.
 - **Wtyczka:** **+ Dodaj** (z generatorem haseł), kopiowanie loginu i hasła (schowek czyszczony po minucie),
   **PIN**, **CSV**, **Adresy telefonu**, **Otwórz w karcie ↗** (opis: [FUNKCJE.md](FUNKCJE.md)).
-- **Telefon:** **+ Dodaj**, **Zablokuj**, **Urządzenia** (sparowane wtyczki, daty ostatniej synchronizacji,
-  **Usuń**: wtyczka przestaje się synchronizować).
+- **Telefon:** zakładki na dole (Loginy, Kontakty, Karty, Notatki, Dokumenty) i **+ Dodaj** dla otwartej zakładki;
+  menu ⋮ **Więcej**: **Urządzenia** (sparowane wtyczki, daty ostatniej synchronizacji, **Usuń**: wtyczka przestaje
+  się synchronizować), **Ustawienia** (odcisk palca, opóźnienie blokady), **Zablokuj**.
 - **Blokada:** obie części blokują się po 15 minutach bez aktywności; telefon także 60 s po wyjściu z
   aplikacji (albo od razu, gdy wyłączysz opóźnienie), wtyczka po zamknięciu przeglądarki.
 

@@ -96,6 +96,9 @@ Telefon jako host dalej nie odszyfrowuje wpisów. Zmiany:
 - **Aplikacje Androida:** na telefonie wybór z listy zainstalowanych aplikacji, we wtyczce ręczne wpisanie
   nazwy pakietu.
 - Daty jako tekst z kontrolą formatu, bez kalendarza.
+- **Odstępstwo (krok 3):** wybór aplikacji pokazuje tylko aplikacje z ikoną w launcherze (`<queries>` MAIN + LAUNCHER),
+  a nie „listę zainstalowanych aplikacji”: pełna lista wymagałaby uprawnienia `QUERY_ALL_PACKAGES`. Pozostałe
+  aplikacje wpisuje się ręcznie przyciskiem „+ Wpisz pakiet”.
 
 ## 6. Import i eksport (wtyczka i Android)
 

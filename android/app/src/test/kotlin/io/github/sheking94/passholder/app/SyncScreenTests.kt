@@ -6,7 +6,6 @@ import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.performClick
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.ViewModelProvider
 import androidx.test.core.app.ApplicationProvider
 import io.github.sheking94.passholder.core.ChangeRequest
 import io.github.sheking94.passholder.core.Encoding
@@ -25,6 +24,7 @@ import io.github.sheking94.passholder.core.p2p.P2pSyncRequest
 import io.github.sheking94.passholder.core.p2p.PairResult
 import io.github.sheking94.passholder.core.p2p.TestP2pClient
 import io.github.sheking94.passholder.core.p2p.VaultInfo
+import io.github.sheking94.passholder.core.p2p.credentials
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -59,12 +59,6 @@ abstract class SyncScreenTestBase : ScreenTestBase() {
     protected val app get() = ApplicationProvider.getApplicationContext<PassHolderApp>()
 
     protected fun http() = HttpTestTransport(port)
-
-    protected fun viewModel(): AppViewModel {
-        lateinit var vm: AppViewModel
-        scenario.onActivity { vm = ViewModelProvider(it)[AppViewModel::class.java] }
-        return vm
-    }
 
     protected fun keepsScreenOn(): Boolean {
         var on = false
@@ -131,7 +125,7 @@ class SyncAndPairTest : SyncScreenTestBase() {
         assertNotListening(firstPort)
         assertFalse(keepsScreenOn())
 
-        click("Urządzenia")
+        menu("Urządzenia")
         waitFor("test-ext")
         waitFor("Ostatnia synchronizacja:", substring = true)
         shot("23-urzadzenia")
@@ -354,13 +348,10 @@ class SyncRefreshesEntriesTest : SyncScreenTestBase() {
 
         // The edit form is filled from the store, not from a list cached before the sync.
         click("bank.pl")
-        waitFor("Edytuj wpis")
-        click("Pokaż")
+        waitFor("Edytuj login")
+        fieldButton("Hasło", "Pokaż").performClick()
         compose.waitForIdle()
         assertEquals("jan.nowak", editable("Login"))
         assertEquals("nowe-haslo-456", editable("Hasło"))
     }
-
-    private fun editable(label: String) =
-        field(label).fetchSemanticsNode().config[SemanticsProperties.EditableText].text
 }
