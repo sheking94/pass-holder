@@ -18,15 +18,18 @@ chrome.runtime.onMessage.addListener((message: ClipboardMessage) => {
 // Autofill: a fresh store per event, because the service worker may have been stopped in between.
 const newStore = () => new VaultStore(chromeStore(chrome.storage.local), chromeStore(chrome.storage.session));
 
-chrome.runtime.onMessage.addListener((message: FillMessage, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message: FillMessage, sender, sendResponse) => {
   if (message.target !== "background" || message.type !== "fill") return;
+  // Only PassHolder's own pages may ask for a fill (not other extensions, not content scripts).
+  if (sender.id !== chrome.runtime.id) return;
   void fillTab(newStore(), chromeTabApi(), message.tabId, message.entryId).then(sendResponse);
   return true;
 });
 
 chrome.commands.onCommand.addListener((command, tab) => {
   if (command !== "fill-login") return;
-  void onFillCommand(newStore(), chromeTabApi(), tab, () => chrome.action.openPopup());
+  onFillCommand(newStore(), chromeTabApi(), tab, () => chrome.action.openPopup())
+    .catch((error: unknown) => console.warn("PassHolder: fill command failed", error));
 });
 
 // Auto-lock also when no PassHolder page is open: follow the deadline the pages write (see auto-lock.ts).

@@ -105,18 +105,25 @@ function fillLogin(plan: autofill.FillPlan, doc: Document): number {
   return first ? fillCandidates(plan, [first], username !== undefined) : 0;
 }
 
-function sameOriginAsTop(doc: Document): boolean {
+/** The origin of the top frame when it is the frame's own or same-origin with it; undefined when cross-origin. */
+function topOrigin(doc: Document): string | undefined {
   const win = doc.defaultView;
-  if (!win) return false;
+  if (!win) return undefined;
   try {
-    return win.top === win || win.top?.location.origin === win.location.origin;
+    const top = win.top;
+    if (top === win) return win.location.origin;
+    return top?.location.origin === win.location.origin ? win.location.origin : undefined;
   } catch {
-    return false;
+    return undefined;
   }
 }
 
-export function fillPage(plan: autofill.FillPlan, doc: Document = document): { filled: number } {
-  if (!sameOriginAsTop(doc)) return { filled: 0 };
+/**
+ * Fills the page, but only when this frame is same-origin with the top frame and that origin is
+ * expectedOrigin (the one the service worker checked the plan against; the tab may have navigated since).
+ */
+export function fillPage(plan: autofill.FillPlan, expectedOrigin: string, doc: Document = document): { filled: number } {
+  if (topOrigin(doc) !== expectedOrigin) return { filled: 0 };
   if (plan.kind === "login") return { filled: fillLogin(plan, doc) };
   const cands = candidatesIn(doc);
   return { filled: fillCandidates(plan, cands, hasUsername(cands)) };

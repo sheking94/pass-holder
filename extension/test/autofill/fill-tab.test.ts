@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { p2p } from "@passholder/core";
 import type { FillPlan } from "@passholder/core/autofill";
 import {
-  CARD_NEEDS_HTTPS, fillTab, LOCKED, NO_FIELDS, NOT_MATCHING, onFillCommand, UNSUPPORTED_PAGE, type TabApi,
+  CANNOT_FILL_ENTRY, CARD_NEEDS_HTTPS, fillTab, LOCKED, NO_FIELDS, NOT_MATCHING, onFillCommand, UNSUPPORTED_PAGE, type TabApi,
 } from "../../src/autofill/fill-tab.ts";
 import { STORAGE_KEYS } from "../../src/storage.ts";
 import { pairedBrowser } from "../fake-phone.ts";
@@ -20,11 +20,12 @@ const contact: p2p.EntryContentV3 = {
 
 function fakeTabs(url: string | undefined, filled = 1) {
   const injected: FillPlan[] = [];
+  const origins: string[] = [];
   const api: TabApi = {
     get: async (id) => ({ id, url }),
-    inject: async (_id, plan) => { injected.push(plan); return filled; },
+    inject: async (_id, plan, origin) => { injected.push(plan); origins.push(origin); return filled; },
   };
-  return { api, injected };
+  return { api, injected, origins };
 }
 
 async function setup() {
@@ -41,6 +42,13 @@ describe("fillTab", () => {
     const { api, injected } = fakeTabs("https://bank.pl/login");
     expect(await fillTab(store, api, 7, "l1")).toEqual({ ok: true });
     expect(injected).toEqual([{ kind: "login", username: "jan", password: "s3cret" }]);
+  }, 30_000);
+
+  it("pins the origin of the checked URL for the injected script", async () => {
+    const { store } = await setup();
+    const { api, origins } = fakeTabs("https://shop.pl:8443/pay?x=1#y");
+    await fillTab(store, api, 7, "p1");
+    expect(origins).toEqual(["https://shop.pl:8443"]);
   }, 30_000);
 
   it("refuses a login when the tab moved to another site", async () => {
@@ -94,8 +102,15 @@ describe("fillTab", () => {
   it("reports a missing entry", async () => {
     const { store } = await setup();
     const { api, injected } = fakeTabs("https://bank.pl/");
-    const result = await fillTab(store, api, 7, "nope");
-    expect(result.ok).toBe(false);
+    expect(await fillTab(store, api, 7, "nope")).toEqual({ ok: false, error: CANNOT_FILL_ENTRY });
+    expect(injected).toEqual([]);
+  }, 30_000);
+
+  it("refuses an entry type that has no fill plan (note)", async () => {
+    const { store } = await setup();
+    await store.putEntry("n1", { type: "note", name: "Notka", note: "tekst", custom: [], fields: {} } as p2p.EntryContentV3);
+    const { api, injected } = fakeTabs("https://bank.pl/");
+    expect(await fillTab(store, api, 7, "n1")).toEqual({ ok: false, error: CANNOT_FILL_ENTRY });
     expect(injected).toEqual([]);
   }, 30_000);
 

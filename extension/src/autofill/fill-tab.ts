@@ -14,8 +14,11 @@ export const NO_FIELDS = {
 
 export interface TabApi {
   get(tabId: number): Promise<{ id?: number; url?: string }>;
-  /** Runs the page script in the tab and returns how many fields it filled (all frames summed). */
-  inject(tabId: number, plan: FillPlan): Promise<number>;
+  /**
+   * Runs the page script in the tab and returns how many fields it filled (all frames summed).
+   * Frames whose top origin is not expectedOrigin (the tab navigated after the check) fill nothing.
+   */
+  inject(tabId: number, plan: FillPlan, expectedOrigin: string): Promise<number>;
 }
 
 export type FillMessage = { target: "background"; type: "fill"; entryId: string; tabId: number };
@@ -24,12 +27,13 @@ export type FillResult = { ok: true } | { ok: false; error: string };
 export function chromeTabApi(): TabApi {
   return {
     get: (tabId) => chrome.tabs.get(tabId),
-    async inject(tabId, plan) {
+    async inject(tabId, plan, expectedOrigin) {
       await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, files: ["autofill-content.js"] });
       const results = await chrome.scripting.executeScript({
         target: { tabId, allFrames: true },
-        func: (p: FillPlan) => (globalThis as { passholderFill?: (p: FillPlan) => { filled: number } }).passholderFill?.(p).filled ?? 0,
-        args: [plan],
+        func: (p: FillPlan, origin: string) =>
+          (globalThis as { passholderFill?: (p: FillPlan, origin: string) => { filled: number } }).passholderFill?.(p, origin).filled ?? 0,
+        args: [plan, expectedOrigin],
       });
       return results.reduce((sum, r) => sum + (typeof r.result === "number" ? r.result : 0), 0);
     },
@@ -68,7 +72,7 @@ export async function fillTab(store: VaultStore, tabs: TabApi, tabId: number, en
 
   let filled: number;
   try {
-    filled = await tabs.inject(tabId, plan);
+    filled = await tabs.inject(tabId, plan, url.origin);
   } catch {
     return fail(UNSUPPORTED_PAGE);
   }
