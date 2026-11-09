@@ -1,4 +1,5 @@
-import { exportNordPassCsv, importSummary, parseNordPassCsv } from "../csv-transfer.ts";
+import { transfer } from "@passholder/core";
+import { importSummary } from "../import-summary.ts";
 import { busy, h, setStatus, show, statusLine } from "../ui/dom.ts";
 import { showInTab } from "../ui/page.ts";
 import { store } from "../ui/state.ts";
@@ -22,8 +23,8 @@ function exportSection(status: HTMLElement) {
   const exportButton = h("button", { type: "button", class: "danger" }, "Pobierz plik CSV");
   exportButton.addEventListener("click", () => {
     if (!understood.checked) return setStatus(status, "Najpierw zaznacz, że rozumiesz ryzyko.", true);
-    const entries = store.entries().map((e) => e.data);
-    downloadText(`passholder-${new Date().toISOString().slice(0, 10)}.csv`, exportNordPassCsv(entries));
+    const entries = store.allContents();
+    downloadText(`passholder-${new Date().toISOString().slice(0, 10)}.csv`, transfer.exportFile("nordpass", entries));
     setStatus(status, `Wyeksportowano ${entries.length} wpisów. Usuń plik, gdy nie będzie już potrzebny.`);
   });
 
@@ -32,22 +33,22 @@ function exportSection(status: HTMLElement) {
     {},
     h("legend", {}, "Eksport"),
     h("p", { class: "warning" }, "Uwaga: plik CSV nie jest zaszyfrowany. Każdy, kto go zobaczy (inny program, kopia zapasowa, synchronizacja folderu Pobrane z chmurą), pozna wszystkie Twoje hasła. Usuń go zaraz po użyciu."),
-    h("p", { class: "hint" }, "Na razie eksportowane są tylko loginy."),
+    h("p", { class: "hint" }, "Eksportowane są wszystkie typy wpisów."),
     h("label", { class: "check" }, understood, "Rozumiem, plik będzie zawierał hasła jawnym tekstem"),
     h("div", { class: "actions" }, exportButton),
   );
 }
 
 function importSection(status: HTMLElement) {
-  const file = h("input", { type: "file", accept: ".csv,text/csv" });
+  const file = h("input", { type: "file", accept: ".csv,.json,text/csv,application/json" });
   const importButton = h("button", { type: "button", class: "primary" }, "Importuj");
   importButton.addEventListener("click", () => {
     const chosen = file.files?.[0];
-    if (!chosen) return setStatus(status, "Wybierz plik CSV.", true);
+    if (!chosen) return setStatus(status, "Wybierz plik CSV lub JSON.", true);
     void busy(status, "Importuję…", async () => {
-      const parsed = parseNordPassCsv(await chosen.text());
-      const result = await store.importEntries(parsed.entries);
-      setStatus(status, importSummary(parsed, result));
+      const { format, parsed } = transfer.parseImportFile(await chosen.text());
+      const result = await store.importContents(parsed.entries);
+      setStatus(status, importSummary(parsed, result, format));
       file.value = "";
     });
   });

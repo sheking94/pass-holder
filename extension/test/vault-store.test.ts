@@ -428,7 +428,7 @@ describe("v3 entries", () => {
     const big = { name: "big", username: "u", password: "x".repeat(70_000) };
     await expect(store.upsert("1", big)).rejects.toThrow("Wpis jest za duży");
     expect(store.entries()).toEqual([]);
-    expect(await store.importEntries([big], () => "2")).toEqual({ added: 0, duplicates: 0, tooLarge: 1 });
+    expect(await store.importContents([{ ...p2p.emptyLogin("big"), note: "x".repeat(70_000) } as p2p.EntryContentV3], () => "2")).toEqual({ added: 0, duplicates: 0, tooLarge: 1 });
     expect(store.entries()).toEqual([]);
   }, 30_000);
 });
