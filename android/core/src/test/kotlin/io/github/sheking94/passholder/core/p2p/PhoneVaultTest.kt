@@ -313,4 +313,66 @@ class PhoneVaultTest {
         }
         return P2pJson.json.parseToJsonElement("""{"epoch":"$epoch","sinceRevision":$since,"changes":[$cs]}""")
     }
+
+    private fun content(name: String, note: String = "") =
+        EntryContentV3(name, note, LoginFields("u-$name", "p-$name"), emptyList())
+
+    @Test
+    fun importWritesConsecutiveRevisionsAndEntriesShowThem() {
+        val v = vault()
+        v.upsert("old", cred("Old"))
+        var n = 0
+        val result = v.importContents(listOf(content("A"), content("B"), content("C"))) { "id${++n}" }
+        assertEquals(ImportResult(3, 0, 0), result)
+        assertEquals(listOf(2L, 3L, 4L), listOf("id1", "id2", "id3").map { store.get(it)!!.revision })
+        assertEquals(listOf("A", "B", "C", "Old"), v.entries().map { it.content.name })
+        assertTrue(readEntry("id3").hlc > readEntry("id1").hlc)
+    }
+
+    @Test
+    fun importingTheSameAgainIsAllDuplicates() {
+        val v = vault()
+        val list = listOf(content("A"), content("B"), content("C"))
+        v.importContents(list)
+        assertEquals(ImportResult(0, 3, 0), v.importContents(list))
+        assertEquals(3L, store.currentRevision())
+    }
+
+    @Test
+    fun importSkipsDuplicatesInsideTheListIgnoringEdgeSpaces() {
+        val result = vault().importContents(listOf(content("A"), content("  A  ").copy(fields = LoginFields("u-A", "p-A"))))
+        assertEquals(ImportResult(1, 1, 0), result)
+    }
+
+    @Test
+    fun importIgnoresDeletedEntriesForDuplicates() {
+        val v = vault()
+        v.upsertContent("x", content("A"))
+        v.delete("x")
+        assertEquals(ImportResult(1, 0, 0), v.importContents(listOf(content("A"))))
+    }
+
+    @Test
+    fun importCountsTooLargeAndAddsTheRest() {
+        val result = vault().importContents(listOf(content("A"), content("Big", "x".repeat(70_000)), content("B")))
+        assertEquals(ImportResult(2, 0, 1), result)
+        assertEquals(2, store.listSince(0).size)
+    }
+
+    @Test
+    fun importWithFailingStoreLeavesNothingAndVaultStillWorks() {
+        val failing = object : SyncStore by store {
+            var fail = true
+            override fun putAll(records: List<RemoteRecord>) {
+                if (fail) throw java.io.IOException("disk full")
+                store.putAll(records)
+            }
+        }
+        val v = vault(failing)
+        assertThrows<java.io.IOException> { v.importContents(listOf(content("A"), content("B"))) }
+        assertEquals(emptyList<RemoteRecord>(), store.listSince(0))
+        failing.fail = false
+        v.upsertContent("z", content("Z"))
+        assertEquals(1L, store.get("z")!!.revision)
+    }
 }

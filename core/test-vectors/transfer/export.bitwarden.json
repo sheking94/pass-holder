@@ -1,0 +1,622 @@
+{
+  "encrypted": false,
+  "folders": [],
+  "items": [
+    {
+      "type": 4,
+      "name": "Dowód osobisty",
+      "notes": null,
+      "favorite": false,
+      "fields": [
+        {
+          "name": "Rodzaj dokumentu",
+          "value": "id_card",
+          "type": 0
+        },
+        {
+          "name": "Numer dokumentu",
+          "value": "ABC000000",
+          "type": 0
+        }
+      ],
+      "identity": {
+        "title": null,
+        "firstName": null,
+        "middleName": null,
+        "lastName": null,
+        "address1": null,
+        "address2": null,
+        "address3": null,
+        "city": null,
+        "state": null,
+        "postalCode": null,
+        "country": null,
+        "company": null,
+        "email": null,
+        "phone": null,
+        "ssn": null,
+        "username": null,
+        "passportNumber": null,
+        "licenseNumber": null
+      }
+    },
+    {
+      "type": 4,
+      "name": "Dowód testowy",
+      "notes": "Dokument do testów",
+      "favorite": false,
+      "fields": [
+        {
+          "name": "Rodzaj dokumentu",
+          "value": "id_card",
+          "type": 0
+        },
+        {
+          "name": "Numer dokumentu",
+          "value": "ABC123456",
+          "type": 0
+        },
+        {
+          "name": "Imię i nazwisko",
+          "value": "Jan Testowy",
+          "type": 0
+        },
+        {
+          "name": "Data wydania",
+          "value": "2020-01-01",
+          "type": 0
+        },
+        {
+          "name": "Data ważności",
+          "value": "2030-01-01",
+          "type": 0
+        },
+        {
+          "name": "Wystawca",
+          "value": "Urząd Przykładowy",
+          "type": 0
+        },
+        {
+          "name": "Uwagi",
+          "value": "brak",
+          "type": 0
+        },
+        {
+          "name": "PESEL",
+          "value": "00000000000",
+          "type": 1
+        }
+      ],
+      "identity": {
+        "title": null,
+        "firstName": null,
+        "middleName": null,
+        "lastName": null,
+        "address1": null,
+        "address2": null,
+        "address3": null,
+        "city": null,
+        "state": null,
+        "postalCode": null,
+        "country": null,
+        "company": null,
+        "email": null,
+        "phone": null,
+        "ssn": null,
+        "username": null,
+        "passportNumber": null,
+        "licenseNumber": null
+      }
+    },
+    {
+      "type": 4,
+      "name": "Jan Testowy",
+      "notes": "Kontakt testowy",
+      "favorite": false,
+      "fields": [
+        {
+          "name": "Telefon (Praca)",
+          "value": "+48 444 555 666",
+          "type": 0
+        },
+        {
+          "name": "E-mail (Praca)",
+          "value": "jan.praca@example.com",
+          "type": 0
+        },
+        {
+          "name": "Adres (Praca)",
+          "value": "ul. Testowa 2, 30-002 Kraków, Polska",
+          "type": 0
+        },
+        {
+          "name": "Data urodzenia",
+          "value": "1990-01-02",
+          "type": 0
+        },
+        {
+          "name": "Przezwisko",
+          "value": "Janek",
+          "type": 0
+        },
+        {
+          "name": "Sekret",
+          "value": "tajne",
+          "type": 1
+        }
+      ],
+      "identity": {
+        "title": null,
+        "firstName": "Jan",
+        "middleName": null,
+        "lastName": "Testowy",
+        "address1": "ul. Przykładowa 1",
+        "address2": null,
+        "address3": null,
+        "city": "Warszawa",
+        "state": null,
+        "postalCode": "00-001",
+        "country": "Polska",
+        "company": null,
+        "email": "jan@example.com",
+        "phone": "+48 111 222 333",
+        "ssn": null,
+        "username": null,
+        "passportNumber": null,
+        "licenseNumber": null
+      }
+    },
+    {
+      "type": 4,
+      "name": "Jan Testowy",
+      "notes": null,
+      "favorite": false,
+      "fields": [
+        {
+          "name": "Tytuł",
+          "value": "Pan",
+          "type": 0
+        },
+        {
+          "name": "Drugie imię",
+          "value": "Maria",
+          "type": 0
+        },
+        {
+          "name": "Firma",
+          "value": "Example Sp. z o.o.",
+          "type": 0
+        },
+        {
+          "name": "Numer SSN",
+          "value": "00000000000",
+          "type": 0
+        },
+        {
+          "name": "Nazwa użytkownika",
+          "value": "jtestowy",
+          "type": 0
+        },
+        {
+          "name": "Województwo/stan",
+          "value": "mazowieckie",
+          "type": 0
+        },
+        {
+          "name": "Pseudonim",
+          "value": "Janek",
+          "type": 0
+        }
+      ],
+      "identity": {
+        "title": null,
+        "firstName": "Jan",
+        "middleName": null,
+        "lastName": "Testowy",
+        "address1": "ul. Przykładowa 1, m. 2",
+        "address2": null,
+        "address3": null,
+        "city": "Warszawa",
+        "state": null,
+        "postalCode": "00-001",
+        "country": "PL",
+        "company": null,
+        "email": "jan@example.com",
+        "phone": "+48 600 000 000",
+        "ssn": null,
+        "username": null,
+        "passportNumber": null,
+        "licenseNumber": null
+      }
+    },
+    {
+      "type": 3,
+      "name": "Karta testowa",
+      "notes": "Karta do testów",
+      "favorite": false,
+      "fields": [
+        {
+          "name": "PIN",
+          "value": "0000",
+          "type": 1
+        },
+        {
+          "name": "Bank",
+          "value": "Bank Przykładowy",
+          "type": 0
+        },
+        {
+          "name": "Hasło do banku",
+          "value": "fake-bank-pass",
+          "type": 1
+        }
+      ],
+      "card": {
+        "cardholderName": "Jan Testowy",
+        "brand": null,
+        "number": "4111111111111111",
+        "expMonth": "12",
+        "expYear": "2030",
+        "code": "123"
+      }
+    },
+    {
+      "type": 3,
+      "name": "Karta testowa",
+      "notes": null,
+      "favorite": false,
+      "fields": [
+        {
+          "name": "PIN",
+          "value": "9876",
+          "type": 1
+        },
+        {
+          "name": "Marka karty",
+          "value": "Visa",
+          "type": 0
+        },
+        {
+          "name": "PIN",
+          "value": "1111",
+          "type": 1
+        }
+      ],
+      "card": {
+        "cardholderName": "Jan Testowy",
+        "brand": null,
+        "number": "4111111111111111",
+        "expMonth": "3",
+        "expYear": "2027",
+        "code": "123"
+      }
+    },
+    {
+      "type": 4,
+      "name": "Legitymacja Anny",
+      "notes": null,
+      "favorite": false,
+      "fields": [
+        {
+          "name": "Rodzaj dokumentu",
+          "value": "student_id",
+          "type": 0
+        },
+        {
+          "name": "Numer dokumentu",
+          "value": "S-123456",
+          "type": 0
+        },
+        {
+          "name": "Wystawca",
+          "value": "Uczelnia Testowa",
+          "type": 0
+        }
+      ],
+      "identity": {
+        "title": null,
+        "firstName": null,
+        "middleName": null,
+        "lastName": null,
+        "address1": null,
+        "address2": null,
+        "address3": null,
+        "city": null,
+        "state": null,
+        "postalCode": null,
+        "country": null,
+        "company": null,
+        "email": null,
+        "phone": null,
+        "ssn": null,
+        "username": null,
+        "passportNumber": null,
+        "licenseNumber": null
+      }
+    },
+    {
+      "type": 2,
+      "name": "Notatka testowa",
+      "notes": "Treść notatki\nw dwóch wierszach",
+      "favorite": false,
+      "fields": [
+        {
+          "name": "Tag",
+          "value": "test",
+          "type": 0
+        },
+        {
+          "name": "Ukryty tag",
+          "value": "ukryte",
+          "type": 1
+        }
+      ],
+      "secureNote": {
+        "type": 0
+      }
+    },
+    {
+      "type": 2,
+      "name": "Notatka testowa",
+      "notes": "Treść notatki",
+      "favorite": false,
+      "fields": [],
+      "secureNote": {
+        "type": 0
+      }
+    },
+    {
+      "type": 4,
+      "name": "Paszport Jana",
+      "notes": "Dokument testowy",
+      "favorite": false,
+      "fields": [
+        {
+          "name": "Rodzaj dokumentu",
+          "value": "passport",
+          "type": 0
+        },
+        {
+          "name": "Imię i nazwisko",
+          "value": "Jan Testowy",
+          "type": 0
+        },
+        {
+          "name": "Data wydania",
+          "value": "2020-01-15",
+          "type": 0
+        },
+        {
+          "name": "Data ważności",
+          "value": "2030-01-15",
+          "type": 0
+        },
+        {
+          "name": "Wystawca",
+          "value": "Wojewoda Testowy",
+          "type": 0
+        },
+        {
+          "name": "Uwaga",
+          "value": "kopia w szufladzie",
+          "type": 0
+        }
+      ],
+      "identity": {
+        "title": null,
+        "firstName": null,
+        "middleName": null,
+        "lastName": null,
+        "address1": null,
+        "address2": null,
+        "address3": null,
+        "city": null,
+        "state": null,
+        "postalCode": null,
+        "country": null,
+        "company": null,
+        "email": null,
+        "phone": null,
+        "ssn": null,
+        "username": null,
+        "passportNumber": "EA0000000",
+        "licenseNumber": null
+      }
+    },
+    {
+      "type": 1,
+      "name": "Poczta Example",
+      "notes": "Konto testowe",
+      "favorite": false,
+      "fields": [
+        {
+          "name": "Pytanie",
+          "value": "Kolor?",
+          "type": 0
+        },
+        {
+          "name": "Kod odzyskiwania",
+          "value": "0000-1111",
+          "type": 1
+        }
+      ],
+      "login": {
+        "uris": [
+          {
+            "match": null,
+            "uri": "https://mail.example.com"
+          },
+          {
+            "match": null,
+            "uri": "https://example.com/login"
+          },
+          {
+            "match": null,
+            "uri": "androidapp://com.example.mail"
+          },
+          {
+            "match": null,
+            "uri": "androidapp://com.example.mail.beta"
+          }
+        ],
+        "username": "jan.testowy@example.com",
+        "password": "fake-password-1",
+        "totp": "JBSWY3DPEHPK3PXP"
+      }
+    },
+    {
+      "type": 4,
+      "name": "Prawo jazdy Anny",
+      "notes": null,
+      "favorite": false,
+      "fields": [
+        {
+          "name": "Rodzaj dokumentu",
+          "value": "driving_license",
+          "type": 0
+        },
+        {
+          "name": "Imię i nazwisko",
+          "value": "Anna Testowa",
+          "type": 0
+        },
+        {
+          "name": "Data ważności",
+          "value": "2035-05-05",
+          "type": 0
+        },
+        {
+          "name": "Tytuł",
+          "value": "Pani",
+          "type": 0
+        },
+        {
+          "name": "Numer paszportu",
+          "value": "EB1111111",
+          "type": 0
+        },
+        {
+          "name": "E-mail",
+          "value": "anna@example.com",
+          "type": 0
+        },
+        {
+          "name": "Telefon",
+          "value": "+48 500 000 000",
+          "type": 0
+        },
+        {
+          "name": "Adres",
+          "value": "ul. Długa 5, klatka B, 30-001 Kraków, PL",
+          "type": 0
+        },
+        {
+          "name": "Imię",
+          "value": "Anna",
+          "type": 0
+        },
+        {
+          "name": "Nazwisko",
+          "value": "Testowa",
+          "type": 0
+        }
+      ],
+      "identity": {
+        "title": null,
+        "firstName": null,
+        "middleName": null,
+        "lastName": null,
+        "address1": null,
+        "address2": null,
+        "address3": null,
+        "city": null,
+        "state": null,
+        "postalCode": null,
+        "country": null,
+        "company": null,
+        "email": null,
+        "phone": null,
+        "ssn": null,
+        "username": null,
+        "passportNumber": null,
+        "licenseNumber": "PL222222"
+      }
+    },
+    {
+      "type": 1,
+      "name": "Przykładowy bank",
+      "notes": "Konto testowe",
+      "favorite": false,
+      "fields": [
+        {
+          "name": "Pytanie",
+          "value": "Imię psa",
+          "type": 0
+        },
+        {
+          "name": "Kod",
+          "value": "1234",
+          "type": 1
+        },
+        {
+          "name": "Zgoda",
+          "value": "true",
+          "type": 0
+        }
+      ],
+      "login": {
+        "uris": [
+          {
+            "match": null,
+            "uri": "https://example.com/login"
+          },
+          {
+            "match": null,
+            "uri": "androidapp://com.example.app"
+          }
+        ],
+        "username": "jan.testowy",
+        "password": "hasło-testowe-1",
+        "totp": "JBSWY3DPEHPK3PXP"
+      }
+    },
+    {
+      "type": 4,
+      "name": "Tożsamość z numerami",
+      "notes": null,
+      "favorite": false,
+      "fields": [
+        {
+          "name": "Numer paszportu",
+          "value": "EB1111111",
+          "type": 0
+        },
+        {
+          "name": "Numer prawa jazdy",
+          "value": "PL222222",
+          "type": 0
+        }
+      ],
+      "identity": {
+        "title": null,
+        "firstName": "Anna",
+        "middleName": null,
+        "lastName": "Testowa",
+        "address1": "ul. Długa 5, lok. 7, klatka B",
+        "address2": null,
+        "address3": null,
+        "city": "Kraków",
+        "state": null,
+        "postalCode": "30-001",
+        "country": "PL",
+        "company": null,
+        "email": null,
+        "phone": null,
+        "ssn": null,
+        "username": null,
+        "passportNumber": null,
+        "licenseNumber": null
+      }
+    }
+  ]
+}

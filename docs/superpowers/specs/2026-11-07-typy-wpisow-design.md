@@ -181,6 +181,19 @@ Dodatkowe decyzje implementacji:
   polskiego, potem typ: login, kontakt, karta, notatka, dokument) i przejść te same pliki przykładowe z
   `core/test-vectors/transfer/`.
 
+### Decyzje kroku 5 (2026-11-09)
+
+1. Parsery w `android/core`, pakiet `transfer`; testy JUnit na tych samych plikach z `core/test-vectors/transfer/`
+   (doszły wektory `export.*` i `sort.json`).
+2. Ekran „Import i eksport” w menu ⋮ po „Ustawienia”; import jednym przyciskiem z rozpoznaniem formatu, eksport z
+   wyborem formatu, ostrzeżeniem i nazwą `passholder-RRRR-MM-DD.json` / `.csv`.
+3. Sortowanie przez `RuleBasedCollator` (reguły JDK „pl” + reguły spacji i interpunkcji), dopasowane do `sort.json`.
+   Znane różnice względem ICU: apostrof i znaki sterujące ignorowane, położenie `$`, emoji, pełna szerokość, `æ œ ß Ø`.
+4. Plik importu ponad 10 MiB (10 485 760 bajtów) → „Plik jest za duży (limit 10 MiB)”; plik niebędący UTF-8 → błąd.
+5. Podsumowanie na ekranie; nowe wpisy czekają na synchronizację. Import atomowy (`putAll`, jeden zapis).
+6. Okno wyboru pliku: wybór pliku wyprowadza z aplikacji, więc po `expectFilePicker` pierwsze wyjście blokuje po
+   60 s (także przy wyłączonym opóźnieniu); powrót po ponad 60 s → blokada z komunikatem.
+
 ## 7. Testy
 
 - Jednostkowe TS (`core/`, `extension/`) i Kotlin (`:core:test`).

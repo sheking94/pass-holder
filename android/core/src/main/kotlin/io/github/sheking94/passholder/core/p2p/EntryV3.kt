@@ -311,10 +311,59 @@ object EntryV3 {
         val o = record(value, "v", "type", "name", "note", "fields", "custom", "hlc")
         val v = o["v"]
         if (v !is JsonPrimitive || v is JsonNull || v.isString || v.content != "3") fail()
-        val fields = parseFields(str(o["type"]), o["fields"])
-        return EntryDataV3(
-            EntryContentV3(str(o["name"]), str(o["note"]), fields, list(o["custom"], ::customField)),
-            strictHlc(o["hlc"], INVALID_ENTRY),
+        return EntryDataV3(contentOf(o), strictHlc(o["hlc"], INVALID_ENTRY))
+    }
+
+    private fun contentOf(o: JsonObject): EntryContentV3 =
+        EntryContentV3(str(o["name"]), str(o["note"]), parseFields(str(o["type"]), o["fields"]), list(o["custom"], ::customField))
+
+    /** Entry content without the sync metadata: exactly type, name, note, fields and custom, validated as strictly as [parse]. */
+    fun parseContent(value: JsonElement): EntryContentV3 = contentOf(record(value, "type", "name", "note", "fields", "custom"))
+
+    /** The content as a JSON tree: keys in the order type, name, note, fields, custom; fields in the order of [serialize]. */
+    fun contentJson(c: EntryContentV3): JsonObject = JsonObject(
+        linkedMapOf(
+            "type" to JsonPrimitive(c.fields.type),
+            "name" to JsonPrimitive(c.name),
+            "note" to JsonPrimitive(c.note),
+            "fields" to fieldsJson(c.fields),
+            "custom" to JsonArray(
+                c.custom.map {
+                    obj("label" to JsonPrimitive(it.label), "value" to JsonPrimitive(it.value), "hidden" to JsonPrimitive(it.hidden))
+                },
+            ),
+        ),
+    )
+
+    private fun obj(vararg pairs: Pair<String, JsonElement>) = JsonObject(linkedMapOf(*pairs))
+    private fun strs(l: List<String>) = JsonArray(l.map(::JsonPrimitive))
+    private fun labeledJson(l: LabeledValue) = obj("label" to JsonPrimitive(l.label), "value" to JsonPrimitive(l.value))
+
+    private fun fieldsJson(f: EntryFieldsV3): JsonObject = when (f) {
+        is LoginFields -> obj(
+            "username" to JsonPrimitive(f.username), "password" to JsonPrimitive(f.password), "totp" to JsonPrimitive(f.totp),
+            "urls" to strs(f.urls), "androidApps" to strs(f.androidApps),
+        )
+        is ContactFields -> obj(
+            "firstName" to JsonPrimitive(f.firstName), "lastName" to JsonPrimitive(f.lastName), "birthDate" to JsonPrimitive(f.birthDate),
+            "phones" to JsonArray(f.phones.map(::labeledJson)), "emails" to JsonArray(f.emails.map(::labeledJson)),
+            "addresses" to JsonArray(
+                f.addresses.map {
+                    obj(
+                        "label" to JsonPrimitive(it.label), "street" to JsonPrimitive(it.street), "postalCode" to JsonPrimitive(it.postalCode),
+                        "city" to JsonPrimitive(it.city), "country" to JsonPrimitive(it.country),
+                    )
+                },
+            ),
+        )
+        is CardFields -> obj(
+            "holder" to JsonPrimitive(f.holder), "number" to JsonPrimitive(f.number), "expiry" to JsonPrimitive(f.expiry),
+            "cvc" to JsonPrimitive(f.cvc), "pin" to JsonPrimitive(f.pin),
+        )
+        NoteFields -> obj()
+        is DocumentFields -> obj(
+            "kind" to JsonPrimitive(f.kind.json), "number" to JsonPrimitive(f.number), "fullName" to JsonPrimitive(f.fullName),
+            "issueDate" to JsonPrimitive(f.issueDate), "expiryDate" to JsonPrimitive(f.expiryDate), "issuer" to JsonPrimitive(f.issuer),
         )
     }
 

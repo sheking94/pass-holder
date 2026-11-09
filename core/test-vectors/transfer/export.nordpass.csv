@@ -1,0 +1,73 @@
+name,url,username,password,note,cardholdername,cardnumber,cvc,expirydate,zipcode,folder,full_name,phone_number,email,address1,address2,city,country,state,totp,shared_folder
+Dowód osobisty,,,,"Rodzaj dokumentu: Dowód osobisty
+Numer: ABC000000",,,,,,,,,,,,,,,,
+Dowód testowy,,,,"Dokument do testów
+Rodzaj dokumentu: Dowód osobisty
+Numer: ABC123456
+Imię i nazwisko: Jan Testowy
+Data wydania: 2020-01-01
+Data ważności: 2030-01-01
+Wystawca: Urząd Przykładowy
+Uwagi: brak
+PESEL: 00000000000",,,,,,,,,,,,,,,,
+Jan Testowy,,,,"Kontakt testowy
+Telefon (Praca): +48 444 555 666
+E-mail (Praca): jan.praca@example.com
+Adres (Praca): ul. Testowa 2, 30-002 Kraków, Polska
+Data urodzenia: 1990-01-02
+Przezwisko: Janek
+Sekret: tajne",,,,,00-001,,Jan Testowy,+48 111 222 333,jan@example.com,ul. Przykładowa 1,,Warszawa,Polska,,,
+Jan Testowy,,,,"Tytuł: Pan
+Drugie imię: Maria
+Firma: Example Sp. z o.o.
+Numer SSN: 00000000000
+Nazwa użytkownika: jtestowy
+Województwo/stan: mazowieckie
+Pseudonim: Janek",,,,,00-001,,Jan Testowy,+48 600 000 000,jan@example.com,"ul. Przykładowa 1, m. 2",,Warszawa,PL,,,
+Karta testowa,,,,"Karta do testów
+PIN: 0000
+Bank: Bank Przykładowy
+Hasło do banku: fake-bank-pass",Jan Testowy,4111111111111111,123,12/30,,,,,,,,,,,,
+Karta testowa,,,,"PIN: 9876
+Marka karty: Visa
+PIN: 1111",Jan Testowy,4111111111111111,123,03/27,,,,,,,,,,,,
+Legitymacja Anny,,,,"Rodzaj dokumentu: Legitymacja
+Numer: S-123456
+Wystawca: Uczelnia Testowa",,,,,,,,,,,,,,,,
+Notatka testowa,,,,"Treść notatki
+w dwóch wierszach
+Tag: test
+Ukryty tag: ukryte",,,,,,,,,,,,,,,,
+Notatka testowa,,,,Treść notatki,,,,,,,,,,,,,,,,
+Paszport Jana,,,,"Dokument testowy
+Rodzaj dokumentu: Paszport
+Numer: EA0000000
+Imię i nazwisko: Jan Testowy
+Data wydania: 2020-01-15
+Data ważności: 2030-01-15
+Wystawca: Wojewoda Testowy
+Uwaga: kopia w szufladzie",,,,,,,,,,,,,,,,
+Poczta Example,https://mail.example.com,jan.testowy@example.com,fake-password-1,"Konto testowe
+Adres strony: https://example.com/login
+Aplikacja Androida: com.example.mail
+Aplikacja Androida: com.example.mail.beta
+Pytanie: Kolor?
+Kod odzyskiwania: 0000-1111",,,,,,,,,,,,,,,JBSWY3DPEHPK3PXP,
+Prawo jazdy Anny,,,,"Rodzaj dokumentu: Prawo jazdy
+Numer: PL222222
+Imię i nazwisko: Anna Testowa
+Data ważności: 2035-05-05
+Tytuł: Pani
+Numer paszportu: EB1111111
+E-mail: anna@example.com
+Telefon: +48 500 000 000
+Adres: ul. Długa 5, klatka B, 30-001 Kraków, PL
+Imię: Anna
+Nazwisko: Testowa",,,,,,,,,,,,,,,,
+Przykładowy bank,https://example.com/login,jan.testowy,hasło-testowe-1,"Konto testowe
+Aplikacja Androida: com.example.app
+Pytanie: Imię psa
+Kod: 1234
+Zgoda: true",,,,,,,,,,,,,,,JBSWY3DPEHPK3PXP,
+Tożsamość z numerami,,,,"Numer paszportu: EB1111111
+Numer prawa jazdy: PL222222",,,,,30-001,,Anna Testowa,,,"ul. Długa 5, lok. 7, klatka B",,Kraków,PL,,,

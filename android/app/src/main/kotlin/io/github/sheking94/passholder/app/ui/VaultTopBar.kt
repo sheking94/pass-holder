@@ -39,6 +39,7 @@ fun VaultTopBar(state: UiState, vm: AppViewModel) {
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     DropdownMenuItem(text = { Text("Urządzenia") }, enabled = !state.busy, onClick = { menuOpen = false; vm.openDevices() })
                     DropdownMenuItem(text = { Text("Ustawienia") }, enabled = !state.busy, onClick = { menuOpen = false; vm.openSettings() })
+                    DropdownMenuItem(text = { Text("Import i eksport") }, enabled = !state.busy, onClick = { menuOpen = false; vm.openTransfer() })
                     DropdownMenuItem(text = { Text("Zablokuj") }, enabled = !state.busy, onClick = { menuOpen = false; vm.lock() })
                 }
             }

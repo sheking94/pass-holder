@@ -476,4 +476,34 @@ class PhoneVaultStoreTest {
         assertEquals(HostReply(500, """{"error":"internal error"}"""), http("/p2p/v2/handshake", "{}".toByteArray()))
         assertEquals(listOf("no Keystore key"), errors.map { it.message })
     }
+
+    @Test
+    fun importContentsAndAllContents() {
+        val store = newStore()
+        store.createVault("pw")
+        val list = listOf(
+            EntryContentV3("A", "", LoginFields("u", "p"), emptyList()),
+            EntryContentV3("B", "", LoginFields("u", "p"), emptyList()),
+        )
+        assertEquals(ImportResult(2, 0, 0), store.importContents(list))
+        assertEquals(ImportResult(0, 2, 0), store.importContents(list))
+        assertEquals(listOf("A", "B"), store.allContents().map { it.name }.sorted())
+        store.lock()
+        assertThrows<IllegalStateException> { store.importContents(list) }
+        assertThrows<IllegalStateException> { store.allContents() }
+    }
+
+    @Test
+    fun resetStoreRejectsPutAll() {
+        val store = newStore()
+        store.createVault("pw")
+        val field = PhoneVaultStore::class.java.getDeclaredField("records").apply { isAccessible = true }
+        val old = field.get(store)
+        store.disconnect()
+        val putAll = old.javaClass.getMethod("putAll", List::class.java)
+        val e = assertThrows<java.lang.reflect.InvocationTargetException> {
+            putAll.invoke(old, listOf(io.github.sheking94.passholder.core.RemoteRecord("a", 1, false, "x")))
+        }
+        assertTrue(e.cause is IllegalStateException)
+    }
 }

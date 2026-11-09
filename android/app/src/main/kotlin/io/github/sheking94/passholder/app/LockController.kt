@@ -18,6 +18,7 @@ import kotlin.concurrent.thread
  *  - the app comes back after those 60 s ran out ([onReturn]), in case the timer was late,
  *  - nothing was touched for 15 minutes ([checkIdle]),
  *  - the user presses "Zablokuj" (the ViewModel's lock(), which then calls [onLockedByUser]).
+ * A system file picker opened from "Import i eksport" ([expectFilePicker]) gets the 60 s even with the delay off.
  * A lock that comes while a vault operation runs (an unlock or a new vault can take seconds) waits for it to end ([onOperationFinished]).
  *
  * The fingerprint dialog opens by itself on the locked screen when the app starts, after the idle lock and
@@ -38,6 +39,9 @@ class LockController(
     /** The app left (or 60 s ran out) while a vault operation was running: lock as soon as it ends. */
     private var lockWaitsForOperation = false
 
+    /** A file picker is about to open, or is open: see [expectFilePicker]. */
+    private var filePicker = FilePicker.NONE
+
     /** Whether the next locked screen opens the fingerprint dialog by itself; see [takeFingerprintOffer]. */
     private var offerFingerprint = true
 
@@ -57,14 +61,37 @@ class LockController(
     fun onLeftApp() {
         offerFingerprint = true
         _timesLeftApp.update { it + 1 }
+        val picking = filePicker == FilePicker.EXPECTED
+        filePicker = if (picking) FilePicker.OPEN else FilePicker.NONE
         if (!store.isUnlocked) return
-        if (lockDelay()) leaveLock().schedule(LeaveLock.DELAY_MS) else lockNow()
+        if (picking || lockDelay()) leaveLock().schedule(LeaveLock.DELAY_MS) else lockNow()
     }
 
     /** The app is on screen again (MainActivity.onStart). Locks if the 60 s after leaving ran out. */
     fun onReturn() {
-        if (leaveLock().cancel() && store.isUnlocked) lockNow()
+        val picking = filePicker == FilePicker.OPEN
+        filePicker = FilePicker.NONE
+        val expired = leaveLock().cancel()
+        when {
+            // The timer may have locked already; the locked screen still says why.
+            expired && picking -> lockNow(Status(FILE_PICK_TOO_LONG))
+            expired && store.isUnlocked -> lockNow()
+        }
         showLockedIfLocked()
+    }
+
+    /**
+     * The system file picker opens next (called just before it is launched). It is another app, so the activity
+     * stops: that one trip gets the 60 s of [LeaveLock] even with the delay off, and the vault locks if it takes
+     * longer. Only for the picker: the next leave after it locks as the setting says.
+     */
+    fun expectFilePicker() {
+        filePicker = FilePicker.EXPECTED
+    }
+
+    /** The picker returned (a file or a cancel). If it never took the app off screen, the window is dropped. */
+    fun filePickerClosed() {
+        filePicker = FilePicker.NONE
     }
 
     /** The 15-minute idle lock. Checked every 15 s and on return; the check itself runs off the main thread. */
@@ -107,17 +134,23 @@ class LockController(
      * thread; but while an operation is running it holds the vault, so the lock waits until the operation
      * ends instead of blocking the main thread.
      */
-    private fun lockNow() {
+    private fun lockNow(status: Status? = null) {
         if (isBusy()) {
             lockWaitsForOperation = true
             return
         }
         store.lock()
-        showLocked(null)
+        showLocked(status)
     }
 
     /** The 60 s timer locks the vault in the background; the screens must not go on showing entries then. */
     private fun showLockedIfLocked() {
         if (currentScreen().showsVault && !isBusy() && !store.isUnlocked) showLocked(null)
+    }
+
+    private enum class FilePicker { NONE, EXPECTED, OPEN }
+
+    companion object {
+        const val FILE_PICK_TOO_LONG = "Zablokowano: wybór pliku trwał ponad 60 s"
     }
 }
