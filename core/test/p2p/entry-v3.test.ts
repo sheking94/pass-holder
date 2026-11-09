@@ -5,6 +5,7 @@ import {
   encryptPayloadV2,
   entryBlobLength,
   MAX_ENTRY_BLOB_LENGTH,
+  parseEntryContent,
   parseEntryData,
   parseTombstoneData,
   serializeEntryData,
@@ -133,5 +134,22 @@ describe("entry v3", () => {
       fields: { username: "", password: "", totp: "", urls: [], androidApps: [] },
     });
     expect(emptyLogin().name).toBe("");
+  });
+});
+
+describe("parseEntryContent", () => {
+  it("accepts content without v and hlc", () => {
+    const c = { type: "note", name: "N", note: "x", fields: {}, custom: [] };
+    expect(parseEntryContent(c)).toEqual(c);
+  });
+  it("rejects v, hlc or an unknown key", () => {
+    for (const extra of [{ v: 3 }, { hlc: { ms: 0, c: 0, d: "a" } }, { folder: "" }])
+      expect(() => parseEntryContent({ type: "note", name: "N", note: "", fields: {}, custom: [], ...extra })).toThrow("Invalid entry payload");
+  });
+  it("rejects bad field values and non-objects", () => {
+    expect(() => parseEntryContent({ type: "card", name: "N", note: "", fields: { holder: 1 }, custom: [] })).toThrow("Invalid entry payload");
+    expect(() => parseEntryContent({ type: "x", name: "N", note: "", fields: {}, custom: [] })).toThrow("Invalid entry payload");
+    expect(() => parseEntryContent(null)).toThrow("Invalid entry payload");
+    expect(() => parseEntryContent([])).toThrow("Invalid entry payload");
   });
 });

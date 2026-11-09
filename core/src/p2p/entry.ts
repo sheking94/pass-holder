@@ -249,16 +249,24 @@ export function parseEntryData(value: unknown): EntryDataV3 {
   }
   const o = record(value, ["v", "type", "name", "note", "fields", "custom", "hlc"]);
   if (o.v !== 3) fail();
+  return { v: 3, ...contentOf(o), hlc: strictHlc(o.hlc, INVALID_ENTRY) } as EntryDataV3;
+}
+
+/** Fields shared by a stored entry and an exported one; the caller has checked the object's own keys. */
+function contentOf(o: Record<string, unknown>): EntryContentV3 {
   const content = parseContent(str(o.type), o.fields);
   return {
-    v: 3,
     type: content.type,
     name: str(o.name),
     note: str(o.note),
     fields: content.fields,
     custom: list(o.custom, customField),
-    hlc: strictHlc(o.hlc, INVALID_ENTRY),
-  } as EntryDataV3;
+  } as EntryContentV3;
+}
+
+/** Entry content without the sync metadata: exactly type, name, note, fields and custom, validated as strictly as a stored v3 entry. */
+export function parseEntryContent(value: unknown): EntryContentV3 {
+  return contentOf(record(value, ["type", "name", "note", "fields", "custom"]));
 }
 
 export function parseTombstoneData(value: unknown): TombstoneDataV2 {
