@@ -1,0 +1,629 @@
+{
+ "cases": [
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "username"
+    ]
+   },
+   "expected": "username"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "email"
+    ]
+   },
+   "expected": "email"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "current-password"
+    ]
+   },
+   "expected": "password"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "new-password"
+    ]
+   },
+   "expected": "newPassword"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "cc-name"
+    ]
+   },
+   "expected": "ccName"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "cc-number"
+    ]
+   },
+   "expected": "ccNumber"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "cc-exp"
+    ]
+   },
+   "expected": "ccExp"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "cc-exp-month"
+    ]
+   },
+   "expected": "ccExpMonth"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "cc-exp-year"
+    ]
+   },
+   "expected": "ccExpYear"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "cc-csc"
+    ]
+   },
+   "expected": "ccCsc"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "given-name"
+    ]
+   },
+   "expected": "givenName"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "family-name"
+    ]
+   },
+   "expected": "familyName"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "name"
+    ]
+   },
+   "expected": "fullName"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "tel"
+    ]
+   },
+   "expected": "tel"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "street-address"
+    ]
+   },
+   "expected": "street"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "address-line1"
+    ]
+   },
+   "expected": "street"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "postal-code"
+    ]
+   },
+   "expected": "postalCode"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "address-level2"
+    ]
+   },
+   "expected": "city"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "country"
+    ]
+   },
+   "expected": "country"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "country-name"
+    ]
+   },
+   "expected": "country"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "bday"
+    ]
+   },
+   "expected": "bday"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "section-a",
+     "shipping",
+     "postal-code"
+    ]
+   },
+   "expected": "postalCode"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "emailAddress"
+    ]
+   },
+   "expected": "email"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "password"
+    ]
+   },
+   "expected": "password"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "username"
+    ]
+   },
+   "expected": "username"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "creditCardNumber"
+    ]
+   },
+   "expected": "ccNumber"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "creditCardSecurityCode"
+    ]
+   },
+   "expected": "ccCsc"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "creditCardExpirationDate"
+    ]
+   },
+   "expected": "ccExp"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "creditCardExpirationMonth"
+    ]
+   },
+   "expected": "ccExpMonth"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "creditCardExpirationYear"
+    ]
+   },
+   "expected": "ccExpYear"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "postalCode"
+    ]
+   },
+   "expected": "postalCode"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "phone"
+    ]
+   },
+   "expected": "tel"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "personGivenName"
+    ]
+   },
+   "expected": "givenName"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "personFamilyName"
+    ]
+   },
+   "expected": "familyName"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "personName"
+    ]
+   },
+   "expected": "fullName"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "postalAddress"
+    ]
+   },
+   "expected": "street"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "off"
+    ],
+    "name": "email"
+   },
+   "expected": "email"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "foo-bar"
+    ],
+    "name": "user_email"
+   },
+   "expected": "email"
+  },
+  {
+   "field": {
+    "type": "password"
+   },
+   "expected": "password"
+  },
+  {
+   "field": {
+    "type": "tel"
+   },
+   "expected": "tel"
+  },
+  {
+   "field": {
+    "type": "email"
+   },
+   "expected": "email"
+  },
+  {
+   "field": {
+    "type": "password",
+    "label": "Powtórz hasło"
+   },
+   "expected": "newPassword"
+  },
+  {
+   "field": {
+    "type": "password",
+    "name": "confirm_password"
+   },
+   "expected": "newPassword"
+  },
+  {
+   "field": {
+    "type": "password",
+    "label": "Hasło"
+   },
+   "expected": "password"
+  },
+  {
+   "field": {
+    "type": "text",
+    "name": "password"
+   },
+   "expected": "password"
+  },
+  {
+   "field": {
+    "type": "text",
+    "name": "new_password"
+   },
+   "expected": null
+  },
+  {
+   "field": {
+    "type": "text",
+    "label": "Numer karty"
+   },
+   "expected": "ccNumber"
+  },
+  {
+   "field": {
+    "type": "text",
+    "label": "Data ważności"
+   },
+   "expected": "ccExp"
+  },
+  {
+   "field": {
+    "type": "text",
+    "label": "Kod CVV"
+   },
+   "expected": "ccCsc"
+  },
+  {
+   "field": {
+    "type": "text",
+    "label": "Imię"
+   },
+   "expected": "givenName"
+  },
+  {
+   "field": {
+    "type": "text",
+    "label": "Nazwisko"
+   },
+   "expected": "familyName"
+  },
+  {
+   "field": {
+    "type": "text",
+    "label": "Kod pocztowy"
+   },
+   "expected": "postalCode"
+  },
+  {
+   "field": {
+    "type": "text",
+    "label": "Miejscowość"
+   },
+   "expected": "city"
+  },
+  {
+   "field": {
+    "type": "text",
+    "label": "Ulica"
+   },
+   "expected": "street"
+  },
+  {
+   "field": {
+    "type": "text",
+    "label": "Login"
+   },
+   "expected": "username"
+  },
+  {
+   "field": {
+    "type": "text",
+    "label": "Nazwa użytkownika"
+   },
+   "expected": "username"
+  },
+  {
+   "field": {
+    "type": "text",
+    "label": "Imię i nazwisko"
+   },
+   "expected": "fullName"
+  },
+  {
+   "field": {
+    "type": "text",
+    "name": "card_number"
+   },
+   "expected": "ccNumber"
+  },
+  {
+   "field": {
+    "type": "text",
+    "name": "cardholder"
+   },
+   "expected": "ccName"
+  },
+  {
+   "field": {
+    "type": "text",
+    "name": "exp_month"
+   },
+   "expected": "ccExpMonth"
+  },
+  {
+   "field": {
+    "type": "text",
+    "name": "exp_year"
+   },
+   "expected": "ccExpYear"
+  },
+  {
+   "field": {
+    "type": "select",
+    "name": "cc_exp_month",
+    "options": [
+     {
+      "value": "01",
+      "text": "01"
+     }
+    ]
+   },
+   "expected": "ccExpMonth"
+  },
+  {
+   "field": {
+    "type": "text",
+    "name": "zip"
+   },
+   "expected": "postalCode"
+  },
+  {
+   "field": {
+    "type": "text",
+    "name": "first_name"
+   },
+   "expected": "givenName"
+  },
+  {
+   "field": {
+    "type": "text",
+    "name": "last_name"
+   },
+   "expected": "familyName"
+  },
+  {
+   "field": {
+    "type": "text",
+    "name": "phone"
+   },
+   "expected": "tel"
+  },
+  {
+   "field": {
+    "type": "select",
+    "name": "country"
+   },
+   "expected": "country"
+  },
+  {
+   "field": {
+    "type": "text",
+    "placeholder": "Data urodzenia"
+   },
+   "expected": "bday"
+  },
+  {
+   "field": {
+    "type": "text",
+    "id": "name"
+   },
+   "expected": "fullName"
+  },
+  {
+   "field": {
+    "type": "text",
+    "name": "user_name",
+    "id": "name"
+   },
+   "expected": "username"
+  },
+  {
+   "field": {
+    "type": "text",
+    "name": "q"
+   },
+   "expected": null
+  },
+  {
+   "field": {
+    "type": "text",
+    "placeholder": "Szukaj"
+   },
+   "expected": null
+  },
+  {
+   "field": {
+    "type": "hidden",
+    "name": "email"
+   },
+   "expected": null
+  },
+  {
+   "field": {
+    "type": "search",
+    "name": "email",
+    "placeholder": "Szukaj"
+   },
+   "expected": null
+  },
+  {
+   "field": {
+    "type": "checkbox",
+    "name": "login"
+   },
+   "expected": null
+  },
+  {
+   "field": {
+    "type": "hidden",
+    "autocomplete": [
+     "username"
+    ]
+   },
+   "expected": null
+  },
+  {
+   "field": {
+    "type": "text"
+   },
+   "expected": null
+  }
+ ]
+}
