@@ -52,10 +52,10 @@ katalogu pakietu.
 
 | Pakiet | Pliki | Testy | Uwagi |
 |---|---|---|---|
-| `core` | 22 | 264 | w tym `core/test/p2p/` |
+| `core` | 23 | 274 | w tym `core/test/p2p/` |
 | `extension` | 16 | 159 | w tym widoki w happy-dom (`extension/test/ui/`); service worker bez testów |
-| `android/core` | 27 | 354 | 4 pomijane bez `PASSHOLDER_INTEROP_TEST=1` |
-| `android/app` | 16 | 55 | Robolectric, zrzuty ekranów |
+| `android/core` | 35 | 424 | 4 pomijane bez `PASSHOLDER_INTEROP_TEST=1` |
+| `android/app` | 19 | 64 | Robolectric, zrzuty ekranów |
 
 ## Co testują pliki
 
@@ -73,7 +73,12 @@ sortowanie), `passholder-json` (zły typ i nieznany klucz pomijane z numerem), `
 plik zaszyfrowany, własne pola), `nordpass-csv` (typ po kolumnie `type` i po kolumnach, wiersz krótszy niż nagłówek),
 `detect` (rozpoznanie z treści, pusty i uszkodzony plik). Pliki przykładowe z fałszywymi danymi:
 `core/test-vectors/transfer/` (`passholder.json`, `bitwarden.json`, `nordpass.csv`, `nordpass-typed.csv` i
-`*.expected.json`); krok 5 ma je odtworzyć w Kotlinie.
+`*.expected.json`), a do eksportu i sortowania `export.passholder.json`, `export.bitwarden.json`,
+`export.nordpass.csv` (wpisy w tej samej kolejności co po `sortForExport`) i `sort.json` (nazwy z polskimi
+znakami, spacją, cyframi, „résumé”/„resume”); generuje je `core/scripts/transfer-vectors.ts`, sprawdza
+`vectors.test.ts`, a w Kotlinie `android/core/.../transfer/*Test` (te same pliki, wynik 1:1). `.gitattributes`
+wymusza `eol=lf` dla `core/test-vectors/transfer/*.json` i `-text` dla `export.nordpass.csv` (CRLF w pliku),
+żeby Windows (`autocrlf`) nie zmieniał bajtów.
 
 `v3.json` (sekcje `limits`, `entries`, `rejected`, `oldPaths`) trzyma po jednym wpisie każdego typu, stary wpis v2,
 nagrobek, 22 przykłady odrzucane i odpowiedzi na stare ścieżki; odtwarza go `npm run gen-vectors-v3 -w core`,
@@ -130,11 +135,14 @@ Playwright z Chromium nie jest zależnością repozytorium: w kontenerze w chmur
 | `ListTabsScreenTest`, `SettingsScreenTests` (app) | pięć zakładek, wyszukiwanie czyszczone przy zmianie zakładki, „+ Dodaj” typu zakładki, górny pasek i Ustawienia |
 | `EditLoginScreenTest`, `EditNoteScreenTest`, `EditContactScreenTest`, `EditCardScreenTest`, `EditDocumentScreenTest` (app) | formularze: pola wrażliwe i kopiowanie, listy, własne pola, formaty tylko zmienionych pól, „Ten wpis ma inny typ” |
 | `AppPickerScreenTest`, `InstalledAppsTest` (app) | wybór aplikacji, ręczny pakiet, lista tylko aplikacji z launchera |
+| `CommonTest`, `CsvTest`, `JsonTextTest`, `SortVectorTest`, `PassHolderJsonTest`, `BitwardenJsonTest`, `NordPassCsvTest`, `TransferTest` | pakiet `transfer`: wektory z `core/test-vectors/transfer/`, przypadki z testów TS, kolejność sortowania, brzegi JSON/CSV |
+| `FileSyncStoreTest`, `PhoneVaultTest`, `PhoneVaultStoreTest` (dodatki) | `putAll` (jeden dopis, obcięty fragment), `importContents` (duplikaty, za duży wpis, rewizje, HLC), atomowość |
+| `ImportSummaryTest`, `TransferFilesTest`, `TransferScreenTest`, `FilePickerLockTest` (app) | podsumowanie, limit 10 MiB i UTF-8, ekran importu i eksportu (zgoda, ponowny import), okno wyboru pliku 60 s |
 | `BackupRulesTest`, `ClearClipboardWorkerTest` (app) | brak kopii zapasowych, czyszczenie schowka |
 
 Zrzuty ekranów telefonu (`android/app/screenshots/`, przepisywane przy każdym przebiegu testów): 30 Ustawienia,
 31-35 zakładki (Loginy, Karty, Kontakty, Notatki, Dokumenty), 36 formularz loginu, 37 pole ukryte pokazane,
-38-41 formularze notatki, kontaktu, karty i dokumentu, 42 wybór aplikacji. Zmieniły się też 03-08, 12-14, 18, 19 i 28.
+38-41 formularze notatki, kontaktu, karty i dokumentu, 42 wybór aplikacji, 50 Import i eksport (`50-import-eksport.png`). Zmieniły się też 03-08, 12-14, 18, 19 i 28.
 
 ## Znaleziony błąd: walidacja KDF
 
@@ -221,6 +229,13 @@ Ten sam plik drugi raz: „Dodano 0 wpisów”, wszystkie jako pominięte duplik
 (login, notatka, karta, tożsamość; bez szyfrowania) i pliku NordPass CSV: wpisy trafiają na właściwe zakładki, a
 pola bez odpowiednika są własnymi polami. Bitwarden z zaszyfrowanym eksportem: czytelny błąd, nic nie dodano.
 Eksport Bitwarden JSON i NordPass CSV wczytaj w Bitwardenie albo NordPass i sprawdź, że wpisy się pojawiły.
+
+**T17. Import i eksport na telefonie.** Na telefonie wpisy każdego typu (z własnym polem) → ⋮ → **Import i eksport**
+→ eksport w każdym z trzech formatów (zgoda → **Zapisz plik**). Każdy plik wczytaj we wtyczce (**Plik** →
+**Importuj**; nowy sejf): wpisy na swoich zakładkach z tymi samymi polami. Odwrotnie: plik PassHolder JSON ze
+wtyczki zaimportuj na telefonie: „Dodano N wpisów…”, wpisy na zakładkach; ten sam plik drugi raz: „Dodano 0 wpisów”,
+duplikaty. Plik Bitwarden z zaszyfrowanym eksportem i plik w Windows-1250: czytelny błąd, nic nie dodano. Po
+zapisie pliku i powrocie z wyboru przed 60 s sejf jest otwarty; po ponad 60 s zablokowany.
 
 **PIN i karta.** PIN `4821` → Zablokuj → zły PIN „Pozostało prób: 4”, dobry otwiera; restart Chrome prosi o
 hasło główne. „Otwórz w karcie ↗” dwa razy: drugi raz przełącza na istniejącą kartę.

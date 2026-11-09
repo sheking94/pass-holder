@@ -173,10 +173,34 @@ przed formułami arkusza (`'` przed `=`, `+`, `-`, `@`), bo zepsułaby hasła; n
 Usuń plik po użyciu.
 
 **Ograniczenia:** foldery, ulubione, historia haseł i daty z innych menedżerów giną; Bitwarden tylko bez
-szyfrowania; brak importu na Androidzie (krok 5).
+szyfrowania.
+
+### Android
+
+Menu ⋮ → **Import i eksport** (po „Ustawienia”). Te same trzy formaty, te same reguły mapowania, duplikatów i
+sortowania co we wtyczce; pliki przez systemowy wybór pliku (bez uprawnień do pamięci).
+
+- **Import:** **Importuj plik** → wybór pliku, format rozpoznawany z treści. Plik ponad **10 MiB** →
+  „Plik jest za duży (limit 10 MiB)”; plik niebędący UTF-8 (np. Windows-1250 z Excela) → „Plik nie jest zapisany w
+  UTF-8”. Podsumowanie jak we wtyczce („Dodano N wpisów (zsynchronizuj, żeby trafiły do wtyczki).”, w NordPass
+  „wiersze”); nowe wpisy są lokalne do następnej synchronizacji. Import jest atomowy (jeden zapis `putAll`).
+- **Eksport:** wybór formatu, ostrzeżenie, „Rozumiem…”, **Zapisz plik** (nieaktywny do zaznaczenia zgody) →
+  wybór miejsca; nazwa `passholder-RRRR-MM-DD.json` (NordPass `.csv`). Po zapisie: „Zapisano plik. Usuń go zaraz
+  po użyciu, zawiera hasła jawnym tekstem.”
+- **Okno wyboru pliku (60 s):** wybór pliku wyprowadza z aplikacji, więc zwykła blokada po wyjściu zablokowałaby
+  sejf w trakcie. Przy otwieraniu wyboru blokada po pierwszym wyjściu czeka 60 s, nawet gdy opóźnienie jest
+  wyłączone; po powrocie po ponad 60 s sejf jest zablokowany („Zablokowano: wybór pliku trwał ponad 60 s”).
+  Kolejne wyjście blokuje już według ustawienia.
+- **Sortowanie eksportu:** `Collator` JDK „pl” z dodatkowymi regułami (spacja i interpunkcja przed cyframi, jak w
+  ICU). Zgodny z wektorem `sort.json`; znane różnice: apostrof i znaki sterujące są pomijane przy porównaniu,
+  `$`, emoji, pełna szerokość, `æ œ ß Ø` mogą wypaść inaczej niż w przeglądarce. Różni się tylko kolejność wpisów w
+  pliku.
+
+Zrzut: `android/app/screenshots/50-import-eksport.png`.
 
 Kod: `core/src/transfer/` (parsery i eksport, czyste funkcje), `VaultStore.importContents` i `allContents`,
-`import-summary.ts`, `views/transfer.ts`.
+`import-summary.ts`, `views/transfer.ts`; Android: `core/transfer/*.kt`, `PhoneVault.importContents`,
+`ImportSummary.kt`, `TransferFiles.kt`, `ui/TransferScreen.kt`.
 
 ## Otwórz w karcie
 
