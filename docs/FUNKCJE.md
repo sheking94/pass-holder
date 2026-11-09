@@ -4,7 +4,7 @@ Funkcje działające tylko na urządzeniu: nie zmieniają formatu danych ani pro
 każdej: jak działa, gdzie jest kod, ograniczenia. Na początku: [typy wpisów](#typy-wpisów-wtyczka-i-telefon).
 
 Spis: [Automatyczna blokada](#automatyczna-blokada) · [PIN we wtyczce](#pin-we-wtyczce) ·
-[Import i eksport CSV](#import-i-eksport-csv) · [Otwórz w karcie](#otwórz-w-karcie) ·
+[Import i eksport](#import-i-eksport) · [Otwórz w karcie](#otwórz-w-karcie) ·
 [Odcisk palca i blokada po wyjściu (Android)](#odcisk-palca-i-blokada-po-wyjściu-android) ·
 [Czyszczenie schowka](#czyszczenie-schowka)
 
@@ -36,7 +36,7 @@ typów; reguły (opis wiersza, pola wrażliwe, formaty, zapis) są wspólne, ró
   inny typ”.
 - **Zapis:** tekst bez zmian (przycinana tylko nazwa); puste elementy list i puste własne pola są pomijane.
   Pola, których formularz nie zna, zostają; typu wpisu nie da się zmienić.
-- **CSV nadal tylko loginy** ([Import i eksport CSV](#import-i-eksport-csv)).
+- **Import i eksport obejmują wszystkie typy** ([Import i eksport](#import-i-eksport)).
 - **Obie aplikacje trzeba zaktualizować razem.** Stara wtyczka dostaje od nowego telefonu 410 i pokazuje
   ogólny błąd synchronizacji; nowa wtyczka ze starym telefonem pokazuje „Zaktualizuj aplikację na telefonie”
   ([SYNCHRONIZACJA.md](SYNCHRONIZACJA.md#41-transport-noise-kk)).
@@ -128,32 +128,43 @@ zostawia, bo klucz sejfu jest ten sam.
 
 Widoki: `views/locked.ts` (`pinLockedView`), `views/pin-settings.ts`.
 
-## Import i eksport CSV
+## Import i eksport
 
-Format CSV NordPass (tylko loginy). Lista → **CSV** otwiera kartę `?transfer` (okno wyboru pliku zamknęłoby okienko).
+Wszystkie pięć typów wpisów, w trzech formatach. Lista → **Plik** otwiera kartę `?transfer` (okno wyboru pliku
+zamknęłoby okienko).
 
-- **Eksport:** zaznacz „Rozumiem, plik będzie zawierał hasła jawnym tekstem” → **Pobierz plik CSV**
-  (`passholder-RRRR-MM-DD.csv`). Wypełnia `name`, `username`, `password`, `type=password`; reszta kolumn
-  pusta. UTF-8, CRLF.
-- **Import:** wybierz plik → **Importuj**. Podsumowanie mówi, ile dodano, ile pominięto i dlaczego.
-  Wpisy są zmianami lokalnymi (•); na telefon trafiają po **Synchronizuj**.
+- **Eksport:** wybierz format (PassHolder JSON, Bitwarden JSON, NordPass CSV), zaznacz „Rozumiem, plik będzie
+  zawierał hasła jawnym tekstem” → **Pobierz plik** (`<format>-RRRR-MM-DD.json` albo `.csv`). Wpisy posortowane po
+  nazwie (`localeCompare` „pl”), przy równej nazwie w kolejności login, kontakt, karta, notatka, dokument.
+- **Import:** wybierz plik → **Importuj**. Format rozpoznaje się z treści pliku (JSON z `"format":"passholder"` →
+  PassHolder; JSON z `items` → Bitwarden; reszta → NordPass CSV). Podsumowanie mówi, ile dodano, ile pominięto i dlaczego
+  (z numerem wpisu albo wiersza). Wpisy są zmianami lokalnymi (•); na telefon trafiają po **Synchronizuj**.
 
-Nagłówek (kolejność jak w NordPass):
+| Format | Import | Eksport |
+|---|---|---|
+| PassHolder JSON `{"format":"passholder","version":3,"entries":[…]}` | wszystko, bez strat; wpis ze złym typem albo nieznanym kluczem pominięty z numerem | wpisy `{type,name,note,fields,custom}` (bez `v`, `hlc`) |
+| Bitwarden JSON | typy 1–4; plik zaszyfrowany (`"encrypted": true`) → błąd, nic nie wchodzi | wszystkie typy |
+| NordPass CSV | typ z kolumny `type` (`password`, `note`, `credit_card`, `identity`), a bez niej po kolumnach | ze stratą: nadmiar do `note` |
 
-```
-name,url,additional_urls,username,password,note,cardholdername,cardnumber,cvc,expirydate,zipcode,folder,full_name,phone_number,email,address1,address2,city,country,state,type,custom_fields
-```
+**Bitwarden:** login (adresy `androidapp://<pakiet>` → aplikacje), notatka, karta (`expMonth`/`expYear` →
+`MM/RR`), tożsamość → kontakt. Tożsamość z własnym polem „Rodzaj dokumentu” wraca jako dokument. Bez odpowiednika:
+własne pola („Marka karty”, „Tytuł”, „Drugie imię”, „Firma”, „Numer SSN”, …). Eksport: dokument → tożsamość, PIN
+karty, dalsze telefony, e-maile i adresy → własne pola. Pełne mapowania i etykiety:
+[spec typów wpisów](superpowers/specs/2026-11-07-typy-wpisow-design.md) punkt 6.
 
-**Zasady importu** (`parseNordPassCsv`):
+**NordPass:** nagłówek `name,url,username,password,note,cardholdername,cardnumber,cvc,expirydate,zipcode,folder,
+full_name,phone_number,email,address1,address2,city,country,state,totp,shared_folder`; kolumny po nazwie, w dowolnej
+kolejności, brakujące traktowane jak puste. Pusta `name` przy `url` → host bez `www.`. Eksport pierwsze wartości
+wpisuje w kolumny, resztę w `note` jako linie `etykieta: wartość`. (Listę kolumn wzięto z importera NordPass w
+Bitwardenie; prawdziwego pliku NordPass nie sprawdzono.)
 
-- Kolumny są szukane po nazwie, w dowolnej kolejności. Wymagane: `password` oraz `name` albo `url`.
-  (Listę kolumn wzięto z importera NordPass w Bitwardenie; prawdziwego pliku NordPass nie sprawdzono.)
-- `type` = `password` albo brak kolumny → import; inne typy (notatki, karty) → pominięte.
-- Pusta `name`, ale jest `url` → nazwa to host bez `www.`.
-- Duplikat (ta sama nazwa, login i hasło w sejfie albo w pliku) → pominięty. Inne hasło → nowy wpis.
-- Sejf jest zapisywany raz, po całym imporcie.
+**Duplikaty:** wpis jest duplikatem, gdy jego cała treść (typ, nazwa, notatka, pola, własne pola) jest identyczna z
+wpisem w sejfie albo wcześniejszym w pliku, po przycięciu spacji na brzegach każdego tekstu. Ten sam plik
+zaimportowany drugi raz: 0 dodanych. Wpis usunięty nie liczy się. Wpis powyżej 64 KiB po zaszyfrowaniu jest
+pomijany jako „za duży”. Sejf zapisuje się raz, po całym imporcie. Pusty plik, uszkodzony JSON i nierozpoznany
+format dają błąd po polsku, a sejf zostaje bez zmian. Parser nie sprawdza formatu dat ani `expiry`.
 
-**Parser** (`parseCsv`, RFC 4180): cudzysłowy z przecinkami, nowymi liniami i `""`, CRLF/LF, BOM usuwany,
+**Parser CSV** (`parseCsv`, RFC 4180): cudzysłowy z przecinkami, nowymi liniami i `""`, CRLF/LF, BOM usuwany,
 puste linie pomijane, niezamknięty cudzysłów → „Plik CSV jest uszkodzony”. Eksport bierze pole w cudzysłów
 przy przecinku, cudzysłowie, nowej linii albo spacji na brzegu.
 
@@ -161,10 +172,11 @@ przy przecinku, cudzysłowie, nowej linii albo spacji na brzegu.
 przed formułami arkusza (`'` przed `=`, `+`, `-`, `@`), bo zepsułaby hasła; nie otwieraj pliku w Excelu.
 Usuń plik po użyciu.
 
-**Ograniczenia:** przenoszone tylko nazwa, login i hasło (adres, notatki, foldery giną); jeden format; brak
-importu na Androidzie.
+**Ograniczenia:** foldery, ulubione, historia haseł i daty z innych menedżerów giną; Bitwarden tylko bez
+szyfrowania; brak importu na Androidzie (krok 5).
 
-Kod: `extension/src/csv-transfer.ts`, `VaultStore.importEntries`, `views/transfer.ts`.
+Kod: `core/src/transfer/` (parsery i eksport, czyste funkcje), `VaultStore.importContents` i `allContents`,
+`import-summary.ts`, `views/transfer.ts`.
 
 ## Otwórz w karcie
 
@@ -176,7 +188,7 @@ Chrome zamyka okienko wtyczki, gdy traci fokus, i wpisany formularz przepada. Pr
 - To, co już wpisałeś w okienku, nie przechodzi do karty: kliknij przycisk przed pisaniem.
 
 **Tryby strony** (`page-mode.ts`): `popup`, `tab` (karta z przycisku), `setup` (parowanie), `addresses`,
-`transfer` (CSV). `isMainTab` to `tab` albo `setup`; tylko na nie przełącza przycisk. `showInTab(tryb,
+`transfer` (import i eksport). `isMainTab` to `tab` albo `setup`; tylko na nie przełącza przycisk. `showInTab(tryb,
 widok)` (`ui/page.ts`) pokazuje widok od razu w karcie albo otwiera kartę i zamyka okienko.
 
 `open-in-tab.ts`: `chrome.runtime.getContexts({contextTypes: ["TAB"]})` znajduje karty wtyczki bez

@@ -60,7 +60,7 @@ export function otherVaultMessage(deviceName: string): string {
 /** disconnect() without force while the vault is unlocked and has changes the phone has not seen. */
 export class UnsyncedChanges extends Error {
   constructor(readonly count: number) {
-    super(`Niezsynchronizowane zmiany: ${count}. Odłączenie usunie je z tej przeglądarki. Najpierw zsynchronizuj albo wyeksportuj hasła do CSV.`);
+    super(`Niezsynchronizowane zmiany: ${count}. Odłączenie usunie je z tej przeglądarki. Najpierw zsynchronizuj albo wyeksportuj sejf do pliku.`);
   }
 }
 

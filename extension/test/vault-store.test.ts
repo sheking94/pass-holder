@@ -301,7 +301,7 @@ describe("VaultStore offline", () => {
     expect(error).toBeInstanceOf(UnsyncedChanges);
     expect((error as UnsyncedChanges).count).toBe(2);
     expect((error as Error).message).toBe(
-      "Niezsynchronizowane zmiany: 2. Odłączenie usunie je z tej przeglądarki. Najpierw zsynchronizuj albo wyeksportuj hasła do CSV.",
+      "Niezsynchronizowane zmiany: 2. Odłączenie usunie je z tej przeglądarki. Najpierw zsynchronizuj albo wyeksportuj sejf do pliku.",
     );
     expect(await browser.store.getAccount()).toBeDefined();
     expect(names(browser.store)).toEqual(["a.pl", "b.pl"]);

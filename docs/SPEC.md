@@ -103,6 +103,10 @@ AAD z `id` wiąże szyfrogram z wpisem, więc host nie może podmienić treści 
   identyczne bajty. Drobna różnica: TypeScript po `JSON.parse` przyjmuje `v = 3.0` (to samo co `3`), Kotlin je
   odrzuca.
 
+- **Plik PassHolder JSON** (eksport i import wtyczki): `{"format":"passholder","version":3,"entries":[…]}`, wpisy
+  `{type,name,note,fields,custom}` jak wyżej, bez `v` i `hlc`; ścisły odczyt `parseEntryContent`. Eksport
+  posortowany po nazwie (`localeCompare` „pl”), potem po typie. Opis: [FUNKCJE.md](FUNKCJE.md#import-i-eksport).
+
 ## 5. Synchronizacja
 
 Protokół (parowanie CPace, Noise KK, `POST /p2p/v1/pair/*` i `/p2p/v2/*` na porcie 8787 telefonu, numery `revision`, epoka,
@@ -117,11 +121,11 @@ adresy) opisuje [SYNCHRONIZACJA.md](SYNCHRONIZACJA.md).
 
 ## 7. Funkcje urządzeń
 
-Automatyczna blokada, PIN, odcisk palca, CSV, strona w karcie i czyszczenie schowka działają tylko na
+Automatyczna blokada, PIN, odcisk palca, import i eksport plików, strona w karcie i czyszczenie schowka działają tylko na
 urządzeniu i nie zmieniają formatu danych ani protokołu: [FUNKCJE.md](FUNKCJE.md).
 
 ## 8. Poza zakresem
 
 Zmiana hasła głównego, wiele kont, współdzielenie, liczenie kodów TOTP, autouzupełnianie, synchronizacja wtyczka–wtyczka
-bez telefonu. Sejf telefonu odtwarza się z wtyczki („Odtwórz z wtyczki”), a import CSV pozwala wgrać wpisy
+bez telefonu. Sejf telefonu odtwarza się z wtyczki („Odtwórz z wtyczki”), a import pliku pozwala wgrać wpisy
 do nowego sejfu ([INSTALACJA.md](INSTALACJA.md#kopia-zapasowa)).

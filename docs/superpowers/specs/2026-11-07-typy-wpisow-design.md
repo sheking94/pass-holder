@@ -135,6 +135,42 @@ Access Framework), bez uprawnień do pamięci. Przed eksportem ostrzeżenie, że
 dodano, pominięto (z powodem i numerem wiersza/wpisu). Sejf zapisywany raz po całym imporcie. Parsery w TS
 i Kotlinie testowane tymi samymi plikami przykładowymi (z fałszywymi danymi), wynik porównywany 1:1.
 
+### Decyzje kroku 4 (2026-11-09)
+
+1. Parsery w `core/src/transfer/`, pliki przykładowe w `core/test-vectors/transfer/`.
+2. Import rozpoznaje format z treści pliku; format wybiera się tylko przy eksporcie.
+3. Kolumna `type` w CSV, jeśli jest, decyduje o typie (`password`, `note`, `credit_card`, `identity`); bez niej typ
+   wynika z kolumn.
+4. Bitwarden identity z własnym polem „Rodzaj dokumentu” odtwarza dokument.
+5. Duplikat = identyczna cała treść (typ, nazwa, notatka, pola, własne pola) po przycięciu spacji na brzegach
+   każdego tekstu. Parser nie sprawdza formatu dat ani `expiry`.
+
+Etykiety własnych pól (dokładnie takie, krok 5 ma je powtórzyć):
+
+- **Bitwarden, import i eksport:** „Marka karty” (`card.brand`), „Tytuł”, „Drugie imię”, „Firma”, „Numer SSN”,
+  „Numer paszportu”, „Numer prawa jazdy”, „Nazwa użytkownika”, „Województwo/stan” (tożsamość).
+- **Bitwarden, eksport (dodatkowe pola):** „PIN” (ukryte), „Ważność” (gdy `expiry` karty nie jest `MM/RR`),
+  „Telefon”, „E-mail”, „Adres” (z etykietą w nawiasie, np. „Telefon (praca)”), „Data urodzenia”; dokument:
+  „Rodzaj dokumentu” (wartość: `id_card`, `passport`, `driving_license`, `student_id`, `other`), „Numer dokumentu”
+  (tylko gdy rodzaj to nie paszport ani prawo jazdy), „Imię i nazwisko”, „Data wydania”, „Data ważności”,
+  „Wystawca”.
+- **NordPass, import:** „Kod pocztowy” (karta), „Województwo/stan” (kontakt).
+- **NordPass, eksport (linie w `note`, `etykieta: wartość`):** „Adres strony”, „Aplikacja Androida”, „PIN”,
+  „Telefon”, „E-mail”, „Adres” (z etykietą w nawiasie), „Data urodzenia”; dokument: „Rodzaj dokumentu” (polska
+  nazwa: Dowód osobisty, Paszport, Prawo jazdy, Legitymacja, Inny), „Numer”, „Imię i nazwisko”, „Data wydania”,
+  „Data ważności”, „Wystawca”; na końcu własne pola wpisu.
+
+Dodatkowe decyzje implementacji:
+
+- Ważność karty, która nie jest `MM/RR`, trafia przy eksporcie Bitwarden do pola „Ważność”, a `expMonth` i
+  `expYear` zostają puste. Przy imporcie to zwykłe własne pole.
+- Ponowny import dokumentu z Bitwardena wchłania zarezerwowane etykiety („Numer dokumentu”, „Imię i nazwisko”,
+  „Data wydania”, „Data ważności”, „Wystawca”) z powrotem do pól dokumentu; „Rodzaj dokumentu” jest rozpoznawany
+  tylko z jedną z pięciu wartości rodzaju.
+- Port na Kotlina (krok 5) musi odtworzyć kolejność eksportu `localeCompare` z `"pl"` (kolejność alfabetu
+  polskiego, potem typ: login, kontakt, karta, notatka, dokument) i przejść te same pliki przykładowe z
+  `core/test-vectors/transfer/`.
+
 ## 7. Testy
 
 - Jednostkowe TS (`core/`, `extension/`) i Kotlin (`:core:test`).
