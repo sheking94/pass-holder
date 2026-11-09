@@ -6,4 +6,4 @@ android/gradlew text eol=lf
 *.png binary
 *.jar binary
 core/test-vectors/transfer/*.json text eol=lf
-core/test-vectors/transfer/export.nordpass.csv -text
+core/test-vectors/transfer/*.csv -text

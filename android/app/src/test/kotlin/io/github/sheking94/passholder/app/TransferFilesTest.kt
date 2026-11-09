@@ -36,4 +36,39 @@ class TransferFilesTest {
         assertEquals("passholder-2026-11-09.json", TransferFiles.defaultFileName(TransferFormat.BITWARDEN, day))
         assertEquals("passholder-2026-11-09.csv", TransferFiles.defaultFileName(TransferFormat.NORDPASS, day))
     }
+
+    @Test
+    fun `provider failures on read are Polish`() {
+        for (failure in listOf<() -> java.io.InputStream?>(
+            { throw java.io.FileNotFoundException("open failed: ENOENT") },
+            { throw SecurityException("Permission Denial") },
+            { null },
+            { object : java.io.InputStream() { override fun read() = throw java.io.IOException("EIO") } },
+        )) {
+            val e = assertThrows(java.io.IOException::class.java) { TransferFiles.readText(failure) }
+            assertEquals("Nie udało się odczytać pliku.", e.message)
+        }
+    }
+
+    @Test
+    fun `read keeps the size and UTF-8 messages`() {
+        val e = assertThrows(IllegalArgumentException::class.java) {
+            TransferFiles.readText { ByteArrayInputStream("Zażółć".toByteArray(charset("windows-1250"))) }
+        }
+        assertEquals("Plik nie jest zapisany w UTF-8", e.message)
+    }
+
+    @Test
+    fun `provider failures on write are Polish`() {
+        val expected = "Nie udało się zapisać pliku. Jeśli plik powstał, usuń go, bo może zawierać hasła."
+        for (failure in listOf<() -> java.io.OutputStream?>(
+            { throw java.io.FileNotFoundException("open failed") },
+            { throw SecurityException("Permission Denial") },
+            { null },
+            { object : java.io.OutputStream() { override fun write(b: Int) = throw java.io.IOException("ENOSPC") } },
+        )) {
+            val e = assertThrows(java.io.IOException::class.java) { TransferFiles.writeText("x", failure) }
+            assertEquals(expected, e.message)
+        }
+    }
 }

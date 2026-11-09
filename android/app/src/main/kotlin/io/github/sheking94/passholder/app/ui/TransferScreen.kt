@@ -66,7 +66,7 @@ fun TransferScreen(state: UiState, vm: AppViewModel) {
         try {
             launch()
         } catch (_: ActivityNotFoundException) {
-            vm.importFrom(null)
+            vm.endFilePick()
             vm.fail("Na telefonie nie ma aplikacji do wyboru plików.")
         }
     }

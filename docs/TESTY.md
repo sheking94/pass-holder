@@ -77,7 +77,7 @@ plik zaszyfrowany, własne pola), `nordpass-csv` (typ po kolumnie `type` i po ko
 `export.nordpass.csv` (wpisy w tej samej kolejności co po `sortForExport`) i `sort.json` (nazwy z polskimi
 znakami, spacją, cyframi, „résumé”/„resume”); generuje je `core/scripts/transfer-vectors.ts`, sprawdza
 `vectors.test.ts`, a w Kotlinie `android/core/.../transfer/*Test` (te same pliki, wynik 1:1). `.gitattributes`
-wymusza `eol=lf` dla `core/test-vectors/transfer/*.json` i `-text` dla `export.nordpass.csv` (CRLF w pliku),
+wymusza `eol=lf` dla `core/test-vectors/transfer/*.json` i `-text` dla wszystkich `core/test-vectors/transfer/*.csv` (CRLF w plikach),
 żeby Windows (`autocrlf`) nie zmieniał bajtów.
 
 `v3.json` (sekcje `limits`, `entries`, `rejected`, `oldPaths`) trzyma po jednym wpisie każdego typu, stary wpis v2,

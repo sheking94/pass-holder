@@ -13,7 +13,7 @@ data class ImportFile(val format: TransferFormat, val parsed: ParsedImport)
 object Transfer {
     /** Recognises the format from the file's content (JSON starts with "{", anything else is read as NordPass CSV) and parses it. */
     fun parseImportFile(text: String): ImportFile {
-        val body = (if (text.startsWith("﻿")) text.substring(1) else text).jsTrim()
+        val body = (if (text.startsWith("\uFEFF")) text.substring(1) else text).jsTrim()
         if (body == "") throw IllegalArgumentException("Plik jest pusty")
         if (!body.startsWith("{")) return ImportFile(TransferFormat.NORDPASS, NordPassCsv.parse(text))
         val value = try {

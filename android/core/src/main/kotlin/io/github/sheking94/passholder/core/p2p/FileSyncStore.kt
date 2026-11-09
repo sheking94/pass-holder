@@ -14,7 +14,12 @@ import java.nio.file.StandardCopyOption
  * dropped and the file rewritten; an unparsable line anywhere else throws IllegalStateException("Corrupt sync store").
  * The file is also rewritten when it holds more than 2 * records + 100 lines.
  */
-class FileSyncStore(private val file: File) : SyncStore {
+class FileSyncStore internal constructor(
+    private val file: File,
+    private val append: (FileOutputStream, ByteArray) -> Unit,
+) : SyncStore {
+    constructor(file: File) : this(file, ::writeAndSync)
+
     private val records = HashMap<String, RemoteRecord>()
     private var revision = 0L
 
@@ -81,9 +86,16 @@ class FileSyncStore(private val file: File) : SyncStore {
         FileOutputStream(file, true).use { out ->
             // A failed earlier append may have left a fragment; cut it off so it never becomes a middle line.
             if (out.channel.size() != knownLength) out.channel.truncate(knownLength)
-            out.write(bytes)
-            out.flush()
-            out.fd.sync()
+            try {
+                append(out, bytes)
+            } catch (e: Throwable) {
+                // Complete lines may already be on disk and would reappear after a restart; cut them off.
+                try {
+                    out.channel.truncate(knownLength)
+                } catch (_: Exception) {
+                }
+                throw e
+            }
         }
         knownLength += bytes.size
         for (record in records) {
@@ -96,4 +108,10 @@ class FileSyncStore(private val file: File) : SyncStore {
         records.values.filter { it.revision > revision }.sortedBy { it.revision }
 
     override fun currentRevision(): Long = revision
+}
+
+private fun writeAndSync(out: FileOutputStream, bytes: ByteArray) {
+    out.write(bytes)
+    out.flush()
+    out.fd.sync()
 }

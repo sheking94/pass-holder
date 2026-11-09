@@ -6,6 +6,7 @@ import io.github.sheking94.passholder.core.transfer.TransferFormat
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
+import java.io.OutputStream
 import java.nio.ByteBuffer
 import java.nio.charset.CharacterCodingException
 import java.nio.charset.CodingErrorAction
@@ -22,10 +23,23 @@ object TransferFiles {
     const val TOO_LARGE = "Plik jest za duży (limit 10 MiB)"
     const val NOT_UTF8 = "Plik nie jest zapisany w UTF-8"
 
+    const val READ_FAILED = "Nie udało się odczytać pliku."
+    const val WRITE_FAILED = "Nie udało się zapisać pliku. Jeśli plik powstał, usuń go, bo może zawierać hasła."
+
     /** The text of the import file at [uri]: at most [MAX_BYTES], strict UTF-8. */
-    fun readText(resolver: ContentResolver, uri: Uri): String {
-        val input = resolver.openInputStream(uri) ?: throw IOException("Nie udało się otworzyć pliku")
-        return input.use { decode(readCapped(it)) }
+    fun readText(resolver: ContentResolver, uri: Uri): String = readText { resolver.openInputStream(uri) }
+
+    /** Provider failures (IOException, SecurityException, null stream) become the Polish [READ_FAILED]; the size and UTF-8 messages stay. */
+    internal fun readText(open: () -> InputStream?): String {
+        val bytes = try {
+            val input = open() ?: throw IOException("no stream")
+            input.use { readCapped(it) }
+        } catch (_: IOException) {
+            throw IOException(READ_FAILED)
+        } catch (_: SecurityException) {
+            throw IOException(READ_FAILED)
+        }
+        return decode(bytes)
     }
 
     /** Reads at most [MAX_BYTES] + 1 bytes; the extra byte means the file is too large. */
@@ -53,9 +67,19 @@ object TransferFiles {
     }
 
     /** Writes [text] as UTF-8 over the whole document at [uri] ("wt": an existing file is truncated, not overwritten in part). */
-    fun writeText(resolver: ContentResolver, uri: Uri, text: String) {
-        val output = resolver.openOutputStream(uri, "wt") ?: throw IOException("Nie udało się zapisać pliku")
-        output.use { it.write(text.toByteArray(Charsets.UTF_8)) }
+    fun writeText(resolver: ContentResolver, uri: Uri, text: String) =
+        writeText(text) { resolver.openOutputStream(uri, "wt") }
+
+    /** Provider failures (IOException, SecurityException, null stream) become the Polish [WRITE_FAILED]. */
+    internal fun writeText(text: String, open: () -> OutputStream?) {
+        try {
+            val output = open() ?: throw IOException("no stream")
+            output.use { it.write(text.toByteArray(Charsets.UTF_8)) }
+        } catch (_: IOException) {
+            throw IOException(WRITE_FAILED)
+        } catch (_: SecurityException) {
+            throw IOException(WRITE_FAILED)
+        }
     }
 
     /** The name the save dialog suggests: passholder-RRRR-MM-DD.json, or .csv for NordPass. */

@@ -403,12 +403,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** Called just before the system file picker is launched: that trip out of the app gets 60 s (see [LockController]). */
     fun beginFilePick() = locks.expectFilePicker()
 
+    /** The picker returned or could not be launched: its 60 s window ends. */
+    fun endFilePick() = locks.filePickerClosed()
+
     /**
      * The file chosen for "Importuj plik", or null when the picker was cancelled (nothing to say then). The format
      * is recognised from the content; entries already in the vault with the same content are skipped.
      */
     fun importFrom(uri: Uri?) {
-        locks.filePickerClosed()
+        endFilePick()
         // The vault may have locked while the picker was open: the file is not even read then.
         if (uri == null || !store.isUnlocked) return
         launchVaultOperation("Importuję…") {
@@ -422,7 +425,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     /** The document created for "Zapisz plik", or null when the save dialog was cancelled. */
     fun exportTo(format: TransferFormat, uri: Uri?) {
-        locks.filePickerClosed()
+        endFilePick()
         if (uri == null || !store.isUnlocked) return
         launchVaultOperation("Zapisuję plik…") {
             TransferFiles.writeText(app.contentResolver, uri, Transfer.exportFile(format, store.allContents()))

@@ -148,4 +148,22 @@ class FileSyncStoreTest {
         a.putAll(emptyList())
         assertEquals(0, a.currentRevision())
     }
+
+    @Test
+    fun failedPutAllLeavesNothingAfterReopen() {
+        var fail = false
+        val a = FileSyncStore(file()) { out, bytes ->
+            out.write(bytes)
+            if (fail) throw java.io.IOException("disk full")
+            out.flush()
+            out.fd.sync()
+        }
+        a.put(RemoteRecord("a", 1, false, "x"))
+        fail = true
+        assertThrows(java.io.IOException::class.java) {
+            a.putAll(listOf(RemoteRecord("b", 2, false, "y"), RemoteRecord("c", 3, false, "z")))
+        }
+        assertEquals(listOf("a"), a.listSince(0).map { it.id })
+        assertEquals(listOf("a"), FileSyncStore(file()).listSince(0).map { it.id })
+    }
 }

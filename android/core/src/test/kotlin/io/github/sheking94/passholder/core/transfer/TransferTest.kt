@@ -24,7 +24,7 @@ class TransferTest {
 
     @Test
     fun ignoresBomAndLeadingSpaces() =
-        assertEquals(TransferFormat.PASSHOLDER, Transfer.parseImportFile("﻿  \n" + readVector("passholder.json")).format)
+        assertEquals(TransferFormat.PASSHOLDER, Transfer.parseImportFile("\uFEFF  \n" + readVector("passholder.json")).format)
 
     @Test
     fun reportsEmptyBrokenOrUnknownFile() {

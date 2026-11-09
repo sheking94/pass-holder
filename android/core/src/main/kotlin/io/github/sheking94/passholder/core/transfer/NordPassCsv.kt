@@ -36,6 +36,7 @@ object NordPassCsv {
     private val NOTE_COLUMNS = setOf("name", "note", "folder", "shared_folder", "type")
 
     /** Host of a URL without "www.", or the text itself if it is not a URL. Used when a row has no name. */
+    // Simplified host extraction: an IDN host stays Unicode (TS gives punycode) and invalid hosts are handled leniently.
     private fun nameFromUrl(url: String): String {
         val full = if (url.contains("://")) url else "https://$url"
         val rest = full.substringAfter("://")
