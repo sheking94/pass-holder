@@ -1,6 +1,7 @@
 package io.github.sheking94.passholder.app
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.sheking94.passholder.app.entries.EntryType
@@ -12,6 +13,8 @@ import io.github.sheking94.passholder.core.p2p.EntryTooLargeException
 import io.github.sheking94.passholder.core.p2p.EntryTypeMismatchException
 import io.github.sheking94.passholder.core.p2p.PairingOffer
 import io.github.sheking94.passholder.core.p2p.PhoneEntry
+import io.github.sheking94.passholder.core.transfer.Transfer
+import io.github.sheking94.passholder.core.transfer.TransferFormat
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import javax.crypto.Cipher
@@ -40,6 +43,10 @@ sealed interface Screen {
     }
     /** "Ustawienia": fingerprint unlock and the lock delay. */
     data object Settings : Screen {
+        override val showsVault get() = true
+    }
+    /** "Import i eksport": files of PassHolder, Bitwarden and NordPass. */
+    data object Transfer : Screen {
         override val showsVault get() = true
     }
     /** Sync mode: the phone serves the extension. */
@@ -385,6 +392,41 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             SecureClipboard.copyText(app, label, value)
             showStatus("Skopiowano $label.")
+        }
+    }
+
+    // --- Import and export -------------------------------------------------------------------------
+
+    /** ⋮ → "Import i eksport". */
+    fun openTransfer() = _state.update { it.copy(screen = Screen.Transfer, status = null) }
+
+    /** Called just before the system file picker is launched: that trip out of the app gets 60 s (see [LockController]). */
+    fun beginFilePick() = locks.expectFilePicker()
+
+    /**
+     * The file chosen for "Importuj plik", or null when the picker was cancelled (nothing to say then). The format
+     * is recognised from the content; entries already in the vault with the same content are skipped.
+     */
+    fun importFrom(uri: Uri?) {
+        locks.filePickerClosed()
+        // The vault may have locked while the picker was open: the file is not even read then.
+        if (uri == null || !store.isUnlocked) return
+        launchVaultOperation("Importuję…") {
+            val text = TransferFiles.readText(app.contentResolver, uri)
+            val (format, parsed) = Transfer.parseImportFile(text)
+            val result = store.importContents(parsed.entries)
+            showStatus(importSummary(parsed, result, format))
+            viewModelScope.launch { refresh() }
+        }
+    }
+
+    /** The document created for "Zapisz plik", or null when the save dialog was cancelled. */
+    fun exportTo(format: TransferFormat, uri: Uri?) {
+        locks.filePickerClosed()
+        if (uri == null || !store.isUnlocked) return
+        launchVaultOperation("Zapisuję plik…") {
+            TransferFiles.writeText(app.contentResolver, uri, Transfer.exportFile(format, store.allContents()))
+            showStatus("Zapisano plik. Usuń go zaraz po użyciu, zawiera hasła jawnym tekstem.")
         }
     }
 
