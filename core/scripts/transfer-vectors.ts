@@ -12,6 +12,6 @@ write("export.passholder.json", exportFile("passholder", entries));
 write("export.bitwarden.json", exportFile("bitwarden", entries));
 write("export.nordpass.csv", exportFile("nordpass", entries));
 
-const names = ["żaba", "Zebra", "zebra", "Źdźbło", "Łódź", "lody", "Lody", "ćma", "Cma", "cma", "Ąbc", "abc", "Abc", "Ślimak", "sok", "Ósemka", "osa", "Ńa", "na", "10 kotów", "2 koty", "Konto (stare)", "Konto-nowe", "konto_x", " spacja", "Ęka", "ewa"];
+const names = ["żaba", "Zebra", "zebra", "Źdźbło", "Łódź", "lody", "Lody", "ćma", "Cma", "cma", "Ąbc", "abc", "Abc", "Ślimak", "sok", "Ósemka", "osa", "Ńa", "na", "10 kotów", "2 koty", "Konto (stare)", "Konto-nowe", "konto_x", " spacja", "Ęka", "ewa", "résumé", "resume", "Résumé", "café", "cafe"];
 const sorted = [...names].sort((a, b) => a.localeCompare(b, "pl"));
 write("sort.json", JSON.stringify({ names, sorted }, null, 2) + "\n");

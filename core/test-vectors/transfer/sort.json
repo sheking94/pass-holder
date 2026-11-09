@@ -26,7 +26,12 @@
     "konto_x",
     " spacja",
     "Ęka",
-    "ewa"
+    "ewa",
+    "résumé",
+    "resume",
+    "Résumé",
+    "café",
+    "cafe"
   ],
   "sorted": [
     " spacja",
@@ -35,6 +40,8 @@
     "abc",
     "Abc",
     "Ąbc",
+    "cafe",
+    "café",
     "cma",
     "Cma",
     "ćma",
@@ -50,6 +57,9 @@
     "Ńa",
     "osa",
     "Ósemka",
+    "resume",
+    "résumé",
+    "Résumé",
     "sok",
     "Ślimak",
     "zebra",

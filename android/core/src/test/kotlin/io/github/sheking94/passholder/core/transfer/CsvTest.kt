@@ -38,4 +38,9 @@ class CsvTest {
         assertEquals("a,\"b,c\",\"q\"\"q\",\" s \"\r\nx,,\"l\nl\",z\r\n", csv)
         assertEquals(rows, Csv.parse(csv).map { it.fields })
     }
+
+    @Test
+    fun writeQuotesValueWithLeadingNbsp() {
+        assertEquals("\"\u00A0x\"\r\n", Csv.write(listOf(listOf("\u00A0x"))))
+    }
 }

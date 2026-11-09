@@ -25,7 +25,6 @@ private fun trimmed(v: JsonElement): JsonElement = when (v) {
     is JsonObject -> JsonObject(v.entries.sortedBy { it.key }.associate { it.key to trimmed(it.value) })
 }
 
-
 /** Equal keys mean a duplicate: same whole content, every text trimmed at its edges, object keys in sorted order. */
 fun contentKey(c: EntryContentV3): String = JsonText.stringify(trimmed(EntryV3.contentJson(c)))
 
@@ -33,12 +32,15 @@ fun contentKey(c: EntryContentV3): String = JsonText.stringify(trimmed(EntryV3.c
  * Polish collation matching Node's `localeCompare(..., "pl")` (ICU, punctuation not ignorable). The JDK's `pl` collator
  * ignores spaces and punctuation, so its rules are extended: whitespace and the ICU-ordered punctuation/symbols become
  * primary-different characters sorting before digits. Verified against core/test-vectors/transfer/sort.json.
- * Known difference: the apostrophe cannot be expressed in JDK rules and, like control characters, stays ignorable.
+ * The new rules are anchored at '$' (anchoring at an ignorable character such as NUL breaks accent ordering, e.g. resume < résumé).
+ * Known differences from ICU, none covered by the vector: the apostrophe cannot be expressed in JDK rules and, like control
+ * characters, stays ignorable; '$' sorts just before the space instead of after the other symbols; emoji, fullwidth letters
+ * and letters such as æ œ ß Ø may order differently.
  */
 private val POLISH_COLLATOR: Collator = run {
     val base = Collator.getInstance(Locale.forLanguageTag("pl")) as RuleBasedCollator
-    val order = " _-,;:!?.\"()[]{}@*/\\&#%`^+<=>|~$"
-    val rules = order.toList().joinToString(" < ", prefix = "& '\u0000' < ") { "'$it'" }
+    val order = " _-,;:!?.\"()[]{}@*/\\&#%`^+<=>|~"
+    val rules = order.toList().joinToString(" < ", prefix = "& '$' < ") { "'$it'" }
     RuleBasedCollator(base.rules + rules)
 }
 

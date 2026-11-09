@@ -42,4 +42,12 @@ class JsonTextTest {
         val expected = "\"zażółć \\\"x\\\"\\n\\u0001\\u001f\\b\\f\\r\\t\\\\/\""
         assertEquals(expected, JsonText.stringify(input))
     }
+
+    @Test
+    fun keepsLineSeparatorsRawAndEscapesLoneSurrogates() {
+        assertEquals("\"\u2028\u2029\"", JsonText.stringify(JsonPrimitive("\u2028\u2029")))
+        assertEquals("\"\\ud800\"", JsonText.stringify(JsonPrimitive("\uD800")))
+        assertEquals("\"\\udc00x\"", JsonText.stringify(JsonPrimitive("\uDC00x")))
+        assertEquals("\"\uD83D\uDE00\"", JsonText.stringify(JsonPrimitive("\uD83D\uDE00")))
+    }
 }
