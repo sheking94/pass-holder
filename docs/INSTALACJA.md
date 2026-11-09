@@ -28,7 +28,7 @@ Kolejność: [1. narzędzia na Windows](#1-narzędzia-na-windows) → [2. telefo
 
 ## Czego potrzebujesz
 
-- Komputer z Windows 11 i Google Chrome.
+- Komputer z Windows 11 i Google Chrome 127 lub nowszym (wymaga go autouzupełnianie).
 - Telefon z Androidem 8.0 lub nowszym (`minSdk = 26`) i kabel USB.
 - Wspólną sieć Wi-Fi dla telefonu i komputera; spoza domu opcjonalnie darmowe konto Tailscale.
 
@@ -169,6 +169,9 @@ dopiero po **Zapisz** w „Adresy telefonu” (wtedy Chrome pyta o zgodę).
   jeszcze niewysłane, mają kropkę •.
 - **Wtyczka:** **+ Dodaj** (z generatorem haseł), kopiowanie loginu i hasła (schowek czyszczony po minucie),
   **PIN**, **Plik** (import i eksport), **Adresy telefonu**, **Otwórz w karcie ↗** (opis: [FUNKCJE.md](FUNKCJE.md)).
+- **Autouzupełnianie:** na stronie logowania okienko pokazuje „Pasujące do tej strony” → **Wypełnij**; skrót
+  `Ctrl+Shift+L` wypełnia od razu, gdy pasuje jeden login. Skrót zmienisz w `chrome://extensions/shortcuts`
+  (przy PassHolder, „Wypełnij login na tej stronie”). Opis: [FUNKCJE.md](FUNKCJE.md#autouzupełnianie).
 - **Telefon:** zakładki na dole (Loginy, Kontakty, Karty, Notatki, Dokumenty) i **+ Dodaj** dla otwartej zakładki;
   menu ⋮ **Więcej**: **Urządzenia** (sparowane wtyczki, daty ostatniej synchronizacji, **Usuń**: wtyczka przestaje
   się synchronizować), **Ustawienia** (odcisk palca, opóźnienie blokady), **Zablokuj**.
