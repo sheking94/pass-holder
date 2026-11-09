@@ -41,6 +41,7 @@ const SHOTS = [
   ["08-formularz-karta.png", (s) => s.openForm("card")],
   ["09-formularz-dokument.png", (s) => s.openForm("document")],
   ["10-pole-ukryte-pokazane.png", async (s) => { await s.openForm("login"); s.revealCustom(); }],
+  ["11-import-eksport.png", (s) => s.openTransfer()],
 ];
 
 mkdirSync(resolve(outDir), { recursive: true });

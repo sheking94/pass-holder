@@ -66,8 +66,11 @@ async function setup() {
   if (!(await store.resume())) throw new Error("harness: the store did not resume");
   const { listView } = await import("../../src/views/list.ts");
   const { editView } = await import("../../src/views/edit.ts");
+  const { transferView } = await import("../../src/views/transfer.ts");
   const firstOf = (type: p2p.EntryType) => SAMPLES.find((s) => s.content.type === type)!.id;
   return {
+    /** The import and export screen. */
+    openTransfer: () => transferView(),
     /** The list on the tab of this type. */
     show: (type: p2p.EntryType) => listView("", false, type),
     /** The form of the first sample entry of this type. */

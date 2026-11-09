@@ -107,8 +107,17 @@ describe("importSummary", () => {
 
   it("says only what was added when nothing was skipped", () => {
     expect(importSummary(none, { added: 2, duplicates: 0, tooLarge: 0 }, "bitwarden")).toBe(
-      `Dodano 2 wpisów (lokalnie, zsynchronizuj, żeby trafiły na telefon). ${done}`,
+      `Dodano 2 wpisy (lokalnie, zsynchronizuj, żeby trafiły na telefon). ${done}`,
     );
+  });
+
+  it("uses the right plural for added and skipped", () => {
+    expect(importSummary(none, { added: 1, duplicates: 0, tooLarge: 0 }, "nordpass")).toContain("Dodano 1 wpis (");
+    expect(importSummary(none, { added: 5, duplicates: 0, tooLarge: 0 }, "nordpass")).toContain("Dodano 5 wpisów (");
+    const one = importSummary({ entries: [], skipped: [{ at: "wiersz 2", reason: "x" }] }, { added: 0, duplicates: 0, tooLarge: 0 }, "nordpass");
+    expect(one).toContain("Pominięto 1 wiersz:");
+    const three = importSummary({ entries: [], skipped: [2, 3, 4].map((n) => ({ at: `wiersz ${n}`, reason: "x" })) }, { added: 0, duplicates: 0, tooLarge: 0 }, "nordpass");
+    expect(three).toContain("Pominięto 3 wiersze:");
   });
 
   it("lists duplicates and up to five skipped items", () => {
@@ -125,6 +134,6 @@ describe("importSummary", () => {
 describe("importSummary for JSON formats", () => {
   it("calls skipped items entries, not rows", () => {
     const text = importSummary({ entries: [], skipped: [{ at: "wpis 2", reason: "zły typ" }] }, { added: 0, duplicates: 0, tooLarge: 0 }, "passholder");
-    expect(text).toContain("Pominięto 1 wpisów: wpis 2: zły typ.");
+    expect(text).toContain("Pominięto 1 wpis: wpis 2: zły typ.");
   });
 });

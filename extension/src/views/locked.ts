@@ -17,7 +17,7 @@ export async function showLocked(message = "") {
   else lockedView(message);
 }
 
-/** What this page shows once unlocked: the CSV tab stays on import and export, everything else shows the list. */
+/** What this page shows once unlocked: the transfer tab stays on import and export, everything else shows the list. */
 export function showUnlocked(message = "") {
   if (MODE === "transfer") transferView();
   else listView(message);
