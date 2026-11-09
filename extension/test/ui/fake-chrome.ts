@@ -6,6 +6,7 @@
  */
 import type { p2p } from "@passholder/core";
 import { vi } from "vitest";
+import type { FillResult } from "../../src/autofill/fill-tab.ts";
 import { PhoneClient } from "../../src/phone-client.ts";
 import { chromeStore, VaultStore } from "../../src/vault-store.ts";
 import { CODE, FakePhone, networkFetch, PASSWORD, PHONE_URL, type Network } from "../fake-phone.ts";
@@ -53,11 +54,14 @@ export function teardownPopup(): void {
 
 /**
  * Creates <main id="app">, installs the fake chrome (storage, runtime.sendMessage into messages,
- * runtime.getURL, permissions.contains → true), navigator.clipboard (writes into clipboard) and a fetch
+ * runtime.getURL, permissions.contains → true, tabs.query → options.activeTab, window.close → close; a "fill" message gets options.fillResult), navigator.clipboard (writes into clipboard) and a fetch
  * that reaches the fake phone; pairs with a FakePhone, adds entries, then loads the view modules afresh
  * and resumes their store, which it returns.
  */
-export async function setupPopup(entries: { id: string; content: p2p.EntryContentV3 }[] = []) {
+export async function setupPopup(
+  entries: { id: string; content: p2p.EntryContentV3 }[] = [],
+  options: { activeTab?: { id: number; url: string }; fillResult?: FillResult } = {},
+) {
   document.body.replaceChildren();
   const app = document.createElement("main");
   app.id = "app";
@@ -70,11 +74,19 @@ export async function setupPopup(entries: { id: string; content: p2p.EntryConten
   vi.stubGlobal("chrome", strict("chrome", {
     storage: strict("chrome.storage", { local, session }),
     runtime: strict("chrome.runtime", {
-      sendMessage: async (message: unknown) => void messages.push(message),
+      sendMessage: async (message: unknown) => {
+        messages.push(message);
+        return (message as { type?: string }).type === "fill" ? (options.fillResult ?? { ok: true }) : undefined;
+      },
       getURL: (path: string) => `chrome-extension://passholder/${path}`,
+    }),
+    tabs: strict("chrome.tabs", {
+      query: async () => (options.activeTab ? [options.activeTab] : []),
     }),
     permissions: strict("chrome.permissions", { contains: async () => true }),
   }));
+  const close = vi.fn();
+  vi.stubGlobal("close", close);
   clipboardDescriptor ??= { saved: Object.getOwnPropertyDescriptor(navigator, "clipboard") };
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
@@ -95,7 +107,7 @@ export async function setupPopup(entries: { id: string; content: p2p.EntryConten
   vi.resetModules();
   const { store } = await import("../../src/ui/state.ts");
   if (!(await store.resume())) throw new Error("setupPopup: the views' store did not resume");
-  return { app, store, clipboard, messages, phone };
+  return { app, store, clipboard, messages, phone, close };
 }
 
 /**

@@ -77,3 +77,6 @@ ol.steps { margin: 0 0 8px; padding-left: 18px; }
 .pair > :last-child { flex: 1; min-width: 0; }
 .custom-field label.check { margin: 0; align-items: center; }
 textarea { resize: vertical; }
+/* „Pasujące do tej strony”: matching logins above the full list. */
+.matches h2 { font-size: 1em; margin: 8px 0 0; color: var(--muted); }
+.matches { margin-bottom: 8px; }
