@@ -222,15 +222,6 @@
    "field": {
     "type": "text",
     "autocomplete": [
-     "username"
-    ]
-   },
-   "expected": "username"
-  },
-  {
-   "field": {
-    "type": "text",
-    "autocomplete": [
      "creditCardNumber"
     ]
    },
@@ -624,6 +615,20 @@
     "type": "text"
    },
    "expected": null
+  },
+  {
+   "field": {
+    "type": "text",
+    "name": "login_password"
+   },
+   "expected": "password"
+  },
+  {
+   "field": {
+    "type": "text",
+    "name": "user_password"
+   },
+   "expected": "password"
   }
  ]
 }

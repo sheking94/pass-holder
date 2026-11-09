@@ -1,4 +1,4 @@
-import { AUTOCOMPLETE_TOKENS, KEYWORDS, normalizeText, type FieldKind } from "./keywords.ts";
+import { AUTOCOMPLETE_TOKENS, KEYWORDS, NEW_PASSWORD_PATTERN, normalizeText, type FieldKind } from "./keywords.ts";
 
 export interface FieldDescriptor {
   /** autocomplete attribute tokens, or Android autofillHints */
@@ -28,7 +28,7 @@ export function classifyField(field: FieldDescriptor): FieldKind | null {
   const text = normalizeText(`${field.name} ${field.id} ${field.label} ${field.placeholder}`);
   // Rule 2: input type.
   if (type === "password") {
-    return KEYWORDS.find((k) => k.kind === "newPassword")!.pattern.test(text) ? "newPassword" : "password";
+    return NEW_PASSWORD_PATTERN.test(text) ? "newPassword" : "password";
   }
   if (type === "email") return "email";
   if (type === "tel") return "tel";

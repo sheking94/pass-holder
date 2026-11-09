@@ -58,8 +58,10 @@ export const AUTOCOMPLETE_TOKENS: Readonly<Record<string, FieldKind>> = {
  * Order matters: the first match wins. newPassword only applies to type=password fields
  * (enforced in classifyField).
  */
+export const NEW_PASSWORD_PATTERN = /powtorz|potwierdz|confirm|repeat|new.?pass|nowe.?haslo/;
+
 export const KEYWORDS: readonly { kind: FieldKind; pattern: RegExp }[] = [
-  { kind: "newPassword", pattern: /powtorz|potwierdz|confirm|repeat|new.?pass|nowe.?haslo/ },
+  { kind: "newPassword", pattern: NEW_PASSWORD_PATTERN },
   { kind: "ccExpMonth", pattern: /exp.?month|exp.?mm|cc.?month|miesiac.?waznosci/ },
   { kind: "ccExpYear", pattern: /exp.?year|exp.?yy|cc.?year|rok.?waznosci/ },
   { kind: "ccExp", pattern: /cc.?exp|expir|valid.?thru|data.?waznosci|waznosc|mm.?[/-]?.?yy/ },
@@ -67,8 +69,9 @@ export const KEYWORDS: readonly { kind: FieldKind; pattern: RegExp }[] = [
   { kind: "ccNumber", pattern: /card.?n(um|o)|numer.?karty|cc.?num/ },
   { kind: "ccName", pattern: /card.?holder|cc.?name|name.?on.?card|wlasciciel.?karty|imie.?i.?nazwisko.?na.?karcie/ },
   { kind: "email", pattern: /e-?mail/ },
-  { kind: "username", pattern: /login|user|uzytkownik/ },
+  // password before username: login_password / user_password (show-password toggles) are passwords.
   { kind: "password", pattern: /passw|haslo/ },
+  { kind: "username", pattern: /login|user|uzytkownik/ },
   { kind: "fullName", pattern: /full.?name|imie.?i.?nazwisko|nazwisko.?i.?imie/ },
   { kind: "givenName", pattern: /first.?name|given|fname|forename|imie/ },
   { kind: "familyName", pattern: /last.?name|family|surname|lname|nazwisko/ },
