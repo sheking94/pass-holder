@@ -1,6 +1,8 @@
 import { AUTO_LOCK_ALARM, onAutoLockAlarm, scheduleAutoLock } from "./auto-lock.ts";
 import { CLEAR_AFTER_MINUTES, CLEAR_CLIPBOARD_ALARM, type ClipboardMessage } from "./clipboard.ts";
+import { chromeTabApi, fillTab, onFillCommand, type FillMessage } from "./autofill/fill-tab.ts";
 import { chromeStore, STORAGE_KEYS } from "./storage.ts";
+import { VaultStore } from "./vault-store.ts";
 
 // The popup closes as soon as it loses focus, so the one-minute timer lives here, in an alarm that
 // survives the service worker being stopped.
@@ -11,6 +13,20 @@ chrome.runtime.onMessage.addListener((message: ClipboardMessage) => {
     await chrome.storage.session.set({ copiedPasswordHash: message.hash });
     await chrome.alarms.create(CLEAR_CLIPBOARD_ALARM, { delayInMinutes: CLEAR_AFTER_MINUTES });
   })();
+});
+
+// Autofill: a fresh store per event, because the service worker may have been stopped in between.
+const newStore = () => new VaultStore(chromeStore(chrome.storage.local), chromeStore(chrome.storage.session));
+
+chrome.runtime.onMessage.addListener((message: FillMessage, _sender, sendResponse) => {
+  if (message.target !== "background" || message.type !== "fill") return;
+  void fillTab(newStore(), chromeTabApi(), message.tabId, message.entryId).then(sendResponse);
+  return true;
+});
+
+chrome.commands.onCommand.addListener((command, tab) => {
+  if (command !== "fill-login") return;
+  void onFillCommand(newStore(), chromeTabApi(), tab, () => chrome.action.openPopup());
 });
 
 // Auto-lock also when no PassHolder page is open: follow the deadline the pages write (see auto-lock.ts).
