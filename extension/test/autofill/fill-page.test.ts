@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type * as autofill from "../../../core/src/autofill/index.ts";
+import type * as autofill from "@passholder/core/autofill";
 import { fillPage } from "../../src/autofill/fill-page.ts";
 
 type Plan = autofill.FillPlan;
@@ -34,6 +34,13 @@ describe("fillPage", () => {
     html(`<form><input name="email" autocomplete="off"><input type="password"></form>`);
     expect(fillPage(login)).toEqual({ filled: 2 });
     expect(val("[name=email]")).toBe("jan");
+  });
+
+  it("two-step login prefers a username field over an earlier email field", () => {
+    html(`<form><input type="email" id="news"></form><form><input name="login" id="lg"></form>`);
+    expect(fillPage(login)).toEqual({ filled: 1 });
+    expect(val("#lg")).toBe("jan");
+    expect(val("#news")).toBe("");
   });
 
   it("skips passwords in a registration form", () => {
@@ -83,7 +90,7 @@ describe("fillPage", () => {
     document.addEventListener("change", () => events.push("change"));
     fillPage(login);
     expect(own).toBe("");
-    expect(el.getAttribute("value") ?? Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.get!.call(el)).toBe("jan");
+    expect(Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.get!.call(el)).toBe("jan");
     expect(events).toContain("input");
     expect(events).toContain("change");
   });
@@ -136,6 +143,13 @@ describe("fillPage", () => {
     vi.spyOn(window, "top", "get").mockReturnValue({
       get location(): never { throw new Error("cross-origin"); },
     } as unknown as Window);
+    expect(fillPage(login)).toEqual({ filled: 0 });
+    expect(val("[name=username]")).toBe("");
+  });
+
+  it("returns 0 when top is reachable but has a different origin", () => {
+    html(`<form><input name="username"><input type="password"></form>`);
+    vi.spyOn(window, "top", "get").mockReturnValue({ location: { origin: "https://other.example" } } as unknown as Window);
     expect(fillPage(login)).toEqual({ filled: 0 });
     expect(val("[name=username]")).toBe("");
   });

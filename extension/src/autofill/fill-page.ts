@@ -1,5 +1,5 @@
-// Direct module path: the @passholder/core root pulls crypto libraries into the page bundle.
-import * as autofill from "../../../core/src/autofill/index.ts";
+// Subpath import: the @passholder/core root pulls crypto libraries into the page bundle.
+import * as autofill from "@passholder/core/autofill";
 
 type FieldElement = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
 
@@ -100,20 +100,23 @@ function fillLogin(plan: autofill.FillPlan, doc: Document): number {
   }
   // No login form: the first visible username/email field (two-step login) gets the login only.
   const cands = candidatesIn(doc);
-  const first = cands.find((c) => c.kind === "username" || c.kind === "email");
-  return first ? fillCandidates(plan, [first], hasUsername(cands)) : 0;
+  const username = cands.find((c) => c.kind === "username");
+  const first = username ?? cands.find((c) => c.kind === "email");
+  return first ? fillCandidates(plan, [first], username !== undefined) : 0;
 }
 
-function sameOriginAsTop(): boolean {
+function sameOriginAsTop(doc: Document): boolean {
+  const win = doc.defaultView;
+  if (!win) return false;
   try {
-    return window.top === window || window.top?.location.origin === window.location.origin;
+    return win.top === win || win.top?.location.origin === win.location.origin;
   } catch {
     return false;
   }
 }
 
 export function fillPage(plan: autofill.FillPlan, doc: Document = document): { filled: number } {
-  if (!sameOriginAsTop()) return { filled: 0 };
+  if (!sameOriginAsTop(doc)) return { filled: 0 };
   if (plan.kind === "login") return { filled: fillLogin(plan, doc) };
   const cands = candidatesIn(doc);
   return { filled: fillCandidates(plan, cands, hasUsername(cands)) };
