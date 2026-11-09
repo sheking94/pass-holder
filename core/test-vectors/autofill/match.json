@@ -1,0 +1,130 @@
+{
+  "cases": [
+    {
+      "page": "https://google.com/x",
+      "saved": "google.com",
+      "expected": "exact",
+      "why": "same host, saved without scheme"
+    },
+    {
+      "page": "https://www.google.com",
+      "saved": "https://google.com",
+      "expected": "exact",
+      "why": "www on page ignored"
+    },
+    {
+      "page": "https://google.com",
+      "saved": "https://www.google.com/login",
+      "expected": "exact",
+      "why": "www on saved ignored, path ignored"
+    },
+    {
+      "page": "https://accounts.google.com",
+      "saved": "google.com",
+      "expected": "subdomain",
+      "why": "subdomain of saved host"
+    },
+    {
+      "page": "https://evilgoogle.com",
+      "saved": "google.com",
+      "expected": null,
+      "why": "suffix without dot boundary"
+    },
+    {
+      "page": "https://google.com.evil.pl",
+      "saved": "google.com",
+      "expected": null,
+      "why": "saved host as prefix of page host"
+    },
+    {
+      "page": "http://google.com",
+      "saved": "https://google.com",
+      "expected": null,
+      "why": "saved https does not match http page"
+    },
+    {
+      "page": "https://google.com",
+      "saved": "http://google.com",
+      "expected": "exact",
+      "why": "saved http matches https page"
+    },
+    {
+      "page": "https://GOOGLE.com./",
+      "saved": "google.com",
+      "expected": "exact",
+      "why": "case and trailing dot"
+    },
+    {
+      "page": "https://a.example:8443",
+      "saved": "https://a.example:8443",
+      "expected": "exact",
+      "why": "equal explicit port"
+    },
+    {
+      "page": "https://a.example:8443",
+      "saved": "https://a.example",
+      "expected": null,
+      "why": "saved default port vs page custom port"
+    },
+    {
+      "page": "https://a.example",
+      "saved": "https://a.example:443",
+      "expected": "exact",
+      "why": "explicit default port equals default"
+    },
+    {
+      "page": "http://192.168.1.10:8080",
+      "saved": "http://192.168.1.10:8080",
+      "expected": "exact",
+      "why": "IPv4 equality"
+    },
+    {
+      "page": "http://1.192.168.1.10",
+      "saved": "192.168.1.10",
+      "expected": null,
+      "why": "IP never matches as subdomain"
+    },
+    {
+      "page": "http://localhost:3000",
+      "saved": "http://localhost:3000",
+      "expected": "exact",
+      "why": "localhost equality"
+    },
+    {
+      "page": "chrome://settings",
+      "saved": "settings",
+      "expected": null,
+      "why": "non-http page scheme"
+    },
+    {
+      "page": "https://a.example",
+      "saved": "nie adres ::",
+      "expected": null,
+      "why": "unparsable saved address"
+    },
+    {
+      "page": "file:///c:/x.html",
+      "saved": "file:///c:/x.html",
+      "expected": null,
+      "why": "file scheme not supported"
+    },
+    {
+      "page": "https://a.localhost",
+      "saved": "localhost",
+      "expected": null,
+      "why": "localhost has no subdomains"
+    },
+    {
+      "page": "http://[::1]:3000",
+      "saved": "http://[::1]:3000",
+      "expected": "exact",
+      "why": "IPv6 equality"
+    },
+    {
+      "page": "https://login.google.com",
+      "saved": "google.com",
+      "expected": "subdomain",
+      "why": "login subdomain"
+    }
+  ]
+}
