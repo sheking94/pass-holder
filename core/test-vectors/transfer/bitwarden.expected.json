@@ -1,0 +1,277 @@
+{
+  "entries": [
+    {
+      "type": "login",
+      "name": "Przykładowy bank",
+      "note": "Konto testowe",
+      "fields": {
+        "username": "jan.testowy",
+        "password": "hasło-testowe-1",
+        "totp": "JBSWY3DPEHPK3PXP",
+        "urls": [
+          "https://example.com/login"
+        ],
+        "androidApps": [
+          "com.example.app"
+        ]
+      },
+      "custom": [
+        {
+          "label": "Pytanie",
+          "value": "Imię psa",
+          "hidden": false
+        },
+        {
+          "label": "Kod",
+          "value": "1234",
+          "hidden": true
+        },
+        {
+          "label": "Zgoda",
+          "value": "true",
+          "hidden": false
+        }
+      ]
+    },
+    {
+      "type": "note",
+      "name": "Notatka testowa",
+      "note": "Treść notatki",
+      "fields": {},
+      "custom": []
+    },
+    {
+      "type": "card",
+      "name": "Karta testowa",
+      "note": "",
+      "fields": {
+        "holder": "Jan Testowy",
+        "number": "4111111111111111",
+        "expiry": "03/27",
+        "cvc": "123",
+        "pin": "9876"
+      },
+      "custom": [
+        {
+          "label": "Marka karty",
+          "value": "Visa",
+          "hidden": false
+        },
+        {
+          "label": "PIN",
+          "value": "1111",
+          "hidden": true
+        }
+      ]
+    },
+    {
+      "type": "contact",
+      "name": "Jan Testowy",
+      "note": "",
+      "fields": {
+        "firstName": "Jan",
+        "lastName": "Testowy",
+        "birthDate": "",
+        "phones": [
+          {
+            "label": "",
+            "value": "+48 600 000 000"
+          }
+        ],
+        "emails": [
+          {
+            "label": "",
+            "value": "jan@example.com"
+          }
+        ],
+        "addresses": [
+          {
+            "label": "",
+            "street": "ul. Przykładowa 1, m. 2",
+            "postalCode": "00-001",
+            "city": "Warszawa",
+            "country": "PL"
+          }
+        ]
+      },
+      "custom": [
+        {
+          "label": "Tytuł",
+          "value": "Pan",
+          "hidden": false
+        },
+        {
+          "label": "Drugie imię",
+          "value": "Maria",
+          "hidden": false
+        },
+        {
+          "label": "Firma",
+          "value": "Example Sp. z o.o.",
+          "hidden": false
+        },
+        {
+          "label": "Numer SSN",
+          "value": "00000000000",
+          "hidden": false
+        },
+        {
+          "label": "Nazwa użytkownika",
+          "value": "jtestowy",
+          "hidden": false
+        },
+        {
+          "label": "Województwo/stan",
+          "value": "mazowieckie",
+          "hidden": false
+        },
+        {
+          "label": "Pseudonim",
+          "value": "Janek",
+          "hidden": false
+        }
+      ]
+    },
+    {
+      "type": "document",
+      "name": "Paszport Jana",
+      "note": "Dokument testowy",
+      "fields": {
+        "kind": "passport",
+        "number": "EA0000000",
+        "fullName": "Jan Testowy",
+        "issueDate": "2020-01-15",
+        "expiryDate": "2030-01-15",
+        "issuer": "Wojewoda Testowy"
+      },
+      "custom": [
+        {
+          "label": "Uwaga",
+          "value": "kopia w szufladzie",
+          "hidden": false
+        }
+      ]
+    },
+    {
+      "type": "document",
+      "name": "Dowód osobisty",
+      "note": "",
+      "fields": {
+        "kind": "id_card",
+        "number": "ABC000000",
+        "fullName": "",
+        "issueDate": "",
+        "expiryDate": "",
+        "issuer": ""
+      },
+      "custom": []
+    },
+    {
+      "type": "contact",
+      "name": "Tożsamość z numerami",
+      "note": "",
+      "fields": {
+        "firstName": "Anna",
+        "lastName": "Testowa",
+        "birthDate": "",
+        "phones": [],
+        "emails": [],
+        "addresses": [
+          {
+            "label": "",
+            "street": "ul. Długa 5, lok. 7, klatka B",
+            "postalCode": "30-001",
+            "city": "Kraków",
+            "country": "PL"
+          }
+        ]
+      },
+      "custom": [
+        {
+          "label": "Numer paszportu",
+          "value": "EB1111111",
+          "hidden": false
+        },
+        {
+          "label": "Numer prawa jazdy",
+          "value": "PL222222",
+          "hidden": false
+        }
+      ]
+    },
+    {
+      "type": "document",
+      "name": "Prawo jazdy Anny",
+      "note": "",
+      "fields": {
+        "kind": "driving_license",
+        "number": "PL222222",
+        "fullName": "Anna Testowa",
+        "issueDate": "",
+        "expiryDate": "2035-05-05",
+        "issuer": ""
+      },
+      "custom": [
+        {
+          "label": "Tytuł",
+          "value": "Pani",
+          "hidden": false
+        },
+        {
+          "label": "Numer paszportu",
+          "value": "EB1111111",
+          "hidden": false
+        },
+        {
+          "label": "E-mail",
+          "value": "anna@example.com",
+          "hidden": false
+        },
+        {
+          "label": "Telefon",
+          "value": "+48 500 000 000",
+          "hidden": false
+        },
+        {
+          "label": "Adres",
+          "value": "ul. Długa 5, klatka B, 30-001 Kraków, PL",
+          "hidden": false
+        },
+        {
+          "label": "Imię",
+          "value": "Anna",
+          "hidden": false
+        },
+        {
+          "label": "Nazwisko",
+          "value": "Testowa",
+          "hidden": false
+        }
+      ]
+    },
+    {
+      "type": "document",
+      "name": "Legitymacja Anny",
+      "note": "",
+      "fields": {
+        "kind": "student_id",
+        "number": "S-123456",
+        "fullName": "",
+        "issueDate": "",
+        "expiryDate": "",
+        "issuer": "Uczelnia Testowa"
+      },
+      "custom": []
+    }
+  ],
+  "skipped": [
+    {
+      "at": "wpis 7",
+      "reason": "typ 5 nie jest obsługiwany"
+    },
+    {
+      "at": "wpis 8",
+      "reason": "brak nazwy"
+    }
+  ]
+}

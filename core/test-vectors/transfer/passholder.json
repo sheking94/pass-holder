@@ -1,0 +1,106 @@
+{
+  "format": "passholder",
+  "version": 3,
+  "entries": [
+    {
+      "type": "login",
+      "name": "Poczta Example",
+      "note": "Konto testowe",
+      "fields": {
+        "username": "jan.testowy@example.com",
+        "password": "fake-password-1",
+        "totp": "JBSWY3DPEHPK3PXP",
+        "urls": ["https://mail.example.com", "https://example.com/login"],
+        "androidApps": ["com.example.mail", "com.example.mail.beta"]
+      },
+      "custom": [
+        { "label": "Pytanie", "value": "Kolor?", "hidden": false },
+        { "label": "Kod odzyskiwania", "value": "0000-1111", "hidden": true }
+      ]
+    },
+    {
+      "type": "contact",
+      "name": "Jan Testowy",
+      "note": "Kontakt testowy",
+      "fields": {
+        "firstName": "Jan",
+        "lastName": "Testowy",
+        "birthDate": "1990-01-02",
+        "phones": [
+          { "label": "Domowy", "value": "+48 111 222 333" },
+          { "label": "Praca", "value": "+48 444 555 666" }
+        ],
+        "emails": [
+          { "label": "Prywatny", "value": "jan@example.com" },
+          { "label": "Praca", "value": "jan.praca@example.com" }
+        ],
+        "addresses": [
+          { "label": "Dom", "street": "ul. Przykładowa 1", "postalCode": "00-001", "city": "Warszawa", "country": "Polska" },
+          { "label": "Praca", "street": "ul. Testowa 2", "postalCode": "30-002", "city": "Kraków", "country": "Polska" }
+        ]
+      },
+      "custom": [
+        { "label": "Przezwisko", "value": "Janek", "hidden": false },
+        { "label": "Sekret", "value": "tajne", "hidden": true }
+      ]
+    },
+    {
+      "type": "card",
+      "name": "Karta testowa",
+      "note": "Karta do testów",
+      "fields": {
+        "holder": "Jan Testowy",
+        "number": "4111111111111111",
+        "expiry": "12/30",
+        "cvc": "123",
+        "pin": "0000"
+      },
+      "custom": [
+        { "label": "Bank", "value": "Bank Przykładowy", "hidden": false },
+        { "label": "Hasło do banku", "value": "fake-bank-pass", "hidden": true }
+      ]
+    },
+    {
+      "type": "note",
+      "name": "Notatka testowa",
+      "note": "Treść notatki\nw dwóch wierszach",
+      "fields": {},
+      "custom": [
+        { "label": "Tag", "value": "test", "hidden": false },
+        { "label": "Ukryty tag", "value": "ukryte", "hidden": true }
+      ]
+    },
+    {
+      "type": "document",
+      "name": "Dowód testowy",
+      "note": "Dokument do testów",
+      "fields": {
+        "kind": "id_card",
+        "number": "ABC123456",
+        "fullName": "Jan Testowy",
+        "issueDate": "2020-01-01",
+        "expiryDate": "2030-01-01",
+        "issuer": "Urząd Przykładowy"
+      },
+      "custom": [
+        { "label": "Uwagi", "value": "brak", "hidden": false },
+        { "label": "PESEL", "value": "00000000000", "hidden": true }
+      ]
+    },
+    {
+      "type": "note",
+      "name": "Z nieznanym kluczem",
+      "note": "",
+      "fields": {},
+      "custom": [],
+      "folder": "Praca"
+    },
+    {
+      "type": "wifi",
+      "name": "Sieć domowa",
+      "note": "",
+      "fields": {},
+      "custom": []
+    }
+  ]
+}

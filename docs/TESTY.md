@@ -48,12 +48,12 @@ Testy ekranów (`:app:testDebugUnitTest`, Robolectric + Roborazzi, ok. 5 min) za
 Pokrycie TypeScript (opcjonalnie): `npm i --no-save @vitest/coverage-v8 && npx vitest run --coverage` w
 katalogu pakietu.
 
-## Liczby (2026-11-08)
+## Liczby (2026-11-09)
 
 | Pakiet | Pliki | Testy | Uwagi |
 |---|---|---|---|
-| `core` | 16 | 213 | w tym `core/test/p2p/` |
-| `extension` | 14 | 149 | w tym widoki w happy-dom (`extension/test/ui/`); service worker bez testów |
+| `core` | 22 | 264 | w tym `core/test/p2p/` |
+| `extension` | 16 | 159 | w tym widoki w happy-dom (`extension/test/ui/`); service worker bez testów |
 | `android/core` | 27 | 354 | 4 pomijane bez `PASSHOLDER_INTEROP_TEST=1` |
 | `android/app` | 16 | 55 | Robolectric, zrzuty ekranów |
 
@@ -67,6 +67,13 @@ katalogu pakietu.
 | `cipher.test.ts`, `generator.test.ts`, `vectors.test.ts` | szyfrowanie, generator, wektory `v1.json` |
 | `sync-edge.test.ts` | `processSync`: duplikaty, nieznana rewizja, rosnące rewizje |
 | `p2p/*.test.ts` | HLC, ristretto255 (RFC 9496), CPace (draft, dodatek B.3), Noise KK (Cacophony), parowanie, klient parowania, host, transport (ścieżki v2, 410/404), synchronizacja (stronicowanie po bajtach, rundy `more`), wpis v3 (`entry-v3.test.ts`), wektory `v2.json` i `v3.json` |
+
+`core/test/transfer/*.test.ts` (6 plików): `csv` (cudzysłowy, CRLF, BOM, niezamknięty cudzysłów), `common` (klucz duplikatu,
+sortowanie), `passholder-json` (zły typ i nieznany klucz pomijane z numerem), `bitwarden-json` (typy 1–4, dokument,
+plik zaszyfrowany, własne pola), `nordpass-csv` (typ po kolumnie `type` i po kolumnach, wiersz krótszy niż nagłówek),
+`detect` (rozpoznanie z treści, pusty i uszkodzony plik). Pliki przykładowe z fałszywymi danymi:
+`core/test-vectors/transfer/` (`passholder.json`, `bitwarden.json`, `nordpass.csv`, `nordpass-typed.csv` i
+`*.expected.json`); krok 5 ma je odtworzyć w Kotlinie.
 
 `v3.json` (sekcje `limits`, `entries`, `rejected`, `oldPaths`) trzyma po jednym wpisie każdego typu, stary wpis v2,
 nagrobek, 22 przykłady odrzucane i odpowiedzi na stare ścieżki; odtwarza go `npm run gen-vectors-v3 -w core`,
@@ -84,12 +91,14 @@ wartości losowe mają stałe klucze i nonce.
 | `edge-cases.test.ts` | konflikty HLC, zablokowany sejf, słaby KDF od telefonu, telefon, który zapomniał przeglądarkę, limit 30 s |
 | `phone-urls.test.ts` | adresy IPv4, zera wiodące, porty, `pickPhone` (4 s) |
 | `pin.test.ts` | PIN: kształt, 5 prób, licznik przed sprawdzeniem, długi PIN na dysku |
-| `csv-transfer.test.ts` | parser i eksport CSV, duplikaty, import trafia na telefon |
+| `import.test.ts` | `importContents` (wszystkie typy, duplikaty w sejfie i w pliku, ponowny import, wpis za duży, jeden zapis), `allContents`, podsumowanie importu |
+| `plural.test.ts` | odmiana „wpis/wpisy/wpisów” |
 | `open-in-tab.test.ts` | tryby strony, przełączanie na otwartą kartę |
 | `auto-lock.test.ts` | blokada po 15 min na stronie i alarm service workera |
 | `entry-types.test.ts`, `vault-store-types.test.ts` | opis wiersza, wyszukiwanie, sprzątanie, formaty i nazwa pakietu (tylko zmienione pola); `listEntries`/`getEntry`/`putEntry`, odmowa innego typu, za duży wpis, synchronizacja kart i kontaktów |
 | `ui/list-view.test.ts` | zakładki, opis wiersza, wyszukiwanie w obrębie zakładki, powrót na zakładkę typu |
 | `ui/edit-login.test.ts`, `ui/edit-types.test.ts` | formularze: zapis każdego pola, puste elementy list pomijane, data w innym zapisie oraz e-mail i adres strony ze spacjami zapisują się bez zmian, etykiety pól list, błędy formatów, zachowanie pól spoza formularza, ukryte własne pole, generator, „Usuń” |
+| `ui/transfer-view.test.ts` | ekran „Import i eksport”: formaty, zgoda przed eksportem, import pliku, błąd uszkodzonego pliku |
 | `ui/widgets.test.ts` | `secretField` (zakrycie, „Pokaż”, kopia czyści schowek, puste pole się nie kopiuje), `listEditor`, przyciski kopiowania w wierszu |
 
 Testy wtyczki używają `extension/test/fake-phone.ts`: parowanie z prawdziwym CPace przed referencyjnym
@@ -204,6 +213,14 @@ schowek jest pusty. Wyszukiwanie działa na zakładce i znika po zmianie zakład
 wtyczce na swoich zakładkach. We wtyczce zmień po jednym wpisie każdego typu → „Synchronizuj”: zmiany są na
 telefonie. W „Wybierz aplikację” są aplikacje z ikoną w launcherze (np. Chrome); „+ Wpisz pakiet” przyjmuje
 `com.example.app` i odrzuca `zlyPakiet`.
+
+**T16. Import i eksport wszystkich typów.** We wtyczce wpisy każdego typu (z własnym polem) → **Plik** (nowa karta) →
+PassHolder JSON → zaznacz zgodę → **Pobierz plik**. Nowy sejf (albo inna przeglądarka z własnym sejfem) → **Plik** →
+wybierz ten plik → **Importuj**: „Dodano N wpisów…”, wszystkie wpisy na swoich zakładkach z tymi samymi polami.
+Ten sam plik drugi raz: „Dodano 0 wpisów”, wszystkie jako pominięte duplikaty. Potem import pliku Bitwarden JSON
+(login, notatka, karta, tożsamość; bez szyfrowania) i pliku NordPass CSV: wpisy trafiają na właściwe zakładki, a
+pola bez odpowiednika są własnymi polami. Bitwarden z zaszyfrowanym eksportem: czytelny błąd, nic nie dodano.
+Eksport Bitwarden JSON i NordPass CSV wczytaj w Bitwardenie albo NordPass i sprawdź, że wpisy się pojawiły.
 
 **PIN i karta.** PIN `4821` → Zablokuj → zły PIN „Pozostało prób: 4”, dobry otwiera; restart Chrome prosi o
 hasło główne. „Otwórz w karcie ↗” dwa razy: drugi raz przełącza na istniejącą kartę.

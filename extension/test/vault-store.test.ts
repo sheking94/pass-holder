@@ -301,7 +301,7 @@ describe("VaultStore offline", () => {
     expect(error).toBeInstanceOf(UnsyncedChanges);
     expect((error as UnsyncedChanges).count).toBe(2);
     expect((error as Error).message).toBe(
-      "Niezsynchronizowane zmiany: 2. Odłączenie usunie je z tej przeglądarki. Najpierw zsynchronizuj albo wyeksportuj hasła do CSV.",
+      "Niezsynchronizowane zmiany: 2. Odłączenie usunie je z tej przeglądarki. Najpierw zsynchronizuj albo wyeksportuj sejf do pliku.",
     );
     expect(await browser.store.getAccount()).toBeDefined();
     expect(names(browser.store)).toEqual(["a.pl", "b.pl"]);
@@ -428,7 +428,7 @@ describe("v3 entries", () => {
     const big = { name: "big", username: "u", password: "x".repeat(70_000) };
     await expect(store.upsert("1", big)).rejects.toThrow("Wpis jest za duży");
     expect(store.entries()).toEqual([]);
-    expect(await store.importEntries([big], () => "2")).toEqual({ added: 0, duplicates: 0, tooLarge: 1 });
+    expect(await store.importContents([{ ...p2p.emptyLogin("big"), note: "x".repeat(70_000) } as p2p.EntryContentV3], () => "2")).toEqual({ added: 0, duplicates: 0, tooLarge: 1 });
     expect(store.entries()).toEqual([]);
   }, 30_000);
 });

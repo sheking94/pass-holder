@@ -8,6 +8,7 @@ import {
   randomBytes,
   seal,
   toBase64,
+  transfer,
   unwrapVaultKey,
   utf8,
   type KdfParams,
@@ -59,7 +60,7 @@ export function otherVaultMessage(deviceName: string): string {
 /** disconnect() without force while the vault is unlocked and has changes the phone has not seen. */
 export class UnsyncedChanges extends Error {
   constructor(readonly count: number) {
-    super(`Niezsynchronizowane zmiany: ${count}. Odłączenie usunie je z tej przeglądarki. Najpierw zsynchronizuj albo wyeksportuj hasła do CSV.`);
+    super(`Niezsynchronizowane zmiany: ${count}. Odłączenie usunie je z tej przeglądarki. Najpierw zsynchronizuj albo wyeksportuj sejf do pliku.`);
   }
 }
 
@@ -174,7 +175,7 @@ export interface LiveEntry {
   data: EntryFields;
 }
 
-/** What importEntries() did: how many entries were added, were already in the vault, or were too large. */
+/** What importContents() did: how many entries were added, were already in the vault, or were too large. */
 export interface ImportResult {
   added: number;
   duplicates: number;
@@ -195,11 +196,6 @@ const ENTRY_TOO_LARGE_PL = "Wpis jest za duży";
 function loginView(e: p2p.LocalEntryV2): LiveEntry | undefined {
   if (e.deleted || e.data.type !== "login") return undefined;
   return { id: e.id, dirty: e.dirty, data: { name: e.data.name, username: e.data.fields.username, password: e.data.fields.password } };
-}
-
-/** Same name, username and password: importing it again would only make a duplicate. */
-function sameEntry(a: EntryFields, b: EntryFields): boolean {
-  return a.name === b.name && a.username === b.username && a.password === b.password;
 }
 
 /**
@@ -393,32 +389,48 @@ export class VaultStore {
   }
 
   /**
-   * Adds imported entries as new local changes, skipping any that already exist with the same
-   * name, username and password (also duplicates within the import). Saves once at the end.
-   * Returns how many were added and how many were duplicates.
+   * Adds imported entries of any type as new local changes. An entry whose whole content (see
+   * transfer.contentKey) is already in the vault as a live entry, or came earlier in this import,
+   * is skipped as a duplicate; one over the size limit is counted in tooLarge. Saves once at the end.
    */
-  async importEntries(entries: readonly EntryFields[], newId: () => string = () => crypto.randomUUID()): Promise<ImportResult> {
+  async importContents(entries: readonly p2p.EntryContentV3[], newId: () => string = () => crypto.randomUUID()): Promise<ImportResult> {
     const vault = this.requireVault();
     const clock = this.requireClock();
-    const known: EntryFields[] = this.entries().map((e) => e.data);
+    const known = new Set(this.allContents().map(transfer.contentKey));
+    // upsertEntryV2 replaces map entries (never edits them in place), so a copy of the map is a full snapshot.
+    // The clock only moves forward, which is harmless to keep.
+    const snapshot = new Map(vault.entries);
     let added = 0;
     let tooLarge = 0;
-    for (const entry of entries) {
-      if (known.some((k) => sameEntry(k, entry))) continue;
-      try {
-        p2p.upsertEntryV2(vault, clock, newId(), loginContent(undefined, entry));
-      } catch (error) {
-        if (error instanceof Error && error.message === p2p.ENTRY_TOO_LARGE) {
-          tooLarge++;
-          continue;
+    try {
+      for (const entry of entries) {
+        const key = transfer.contentKey(entry);
+        if (known.has(key)) continue;
+        try {
+          p2p.upsertEntryV2(vault, clock, newId(), entry);
+        } catch (error) {
+          if (error instanceof Error && error.message === p2p.ENTRY_TOO_LARGE) {
+            tooLarge++;
+            continue;
+          }
+          throw error;
         }
-        throw error;
+        known.add(key);
+        added++;
       }
-      known.push(entry);
-      added++;
+      if (added > 0) await this.save();
+    } catch (error) {
+      // Nothing half-imported may stay in memory, where it could still reach the disk or the phone later.
+      vault.entries.clear();
+      for (const [id, entry] of snapshot) vault.entries.set(id, entry);
+      throw error;
     }
-    if (added > 0) await this.save();
     return { added, duplicates: entries.length - added - tooLarge, tooLarge };
+  }
+
+  /** Content of all live entries of every type (no `v` or `hlc`), for export. */
+  allContents(): p2p.EntryContentV3[] {
+    return [...this.requireVault().entries.values()].flatMap((e) => storedView(e)?.data ?? []);
   }
 
   async delete(id: string): Promise<void> {

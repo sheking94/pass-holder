@@ -6,7 +6,7 @@
  *  - "tab":       the whole extension, opened by the "Otwórz w karcie" button,
  *  - "setup":     pairing with the phone (the host permission prompt),
  *  - "addresses": the phone address form and pairing with another phone (host permission prompts),
- *  - "transfer":  CSV import and export (the file chooser).
+ *  - "transfer":  import and export of all formats (the file chooser).
  */
 export type PageMode = "popup" | "tab" | "setup" | "addresses" | "transfer";
 export type TabMode = Exclude<PageMode, "popup">;

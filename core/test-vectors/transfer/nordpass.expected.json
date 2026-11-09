@@ -1,0 +1,134 @@
+{
+  "entries": [
+    {
+      "type": "login",
+      "name": "Poczta Example",
+      "note": "Konto testowe",
+      "custom": [],
+      "fields": {
+        "username": "jan.testowy@example.com",
+        "password": "fake-password-1",
+        "totp": "JBSWY3DPEHPK3PXP",
+        "urls": [
+          "https://mail.example.com"
+        ],
+        "androidApps": []
+      }
+    },
+    {
+      "type": "login",
+      "name": "example.com",
+      "note": "",
+      "custom": [],
+      "fields": {
+        "username": "jan",
+        "password": "fake-password-2",
+        "totp": "",
+        "urls": [
+          "https://www.example.com/login"
+        ],
+        "androidApps": []
+      }
+    },
+    {
+      "type": "card",
+      "name": "Karta testowa",
+      "note": "",
+      "fields": {
+        "holder": "Jan Testowy",
+        "number": "4111111111111111",
+        "expiry": "12/30",
+        "cvc": "123",
+        "pin": ""
+      },
+      "custom": [
+        {
+          "label": "Kod pocztowy",
+          "value": "00-001",
+          "hidden": false
+        }
+      ]
+    },
+    {
+      "type": "contact",
+      "name": "Jan Testowy",
+      "note": "Kontakt testowy",
+      "fields": {
+        "firstName": "Jan",
+        "lastName": "Maria Testowy",
+        "birthDate": "",
+        "phones": [
+          {
+            "label": "",
+            "value": "500100200"
+          }
+        ],
+        "emails": [
+          {
+            "label": "",
+            "value": "jan.testowy@example.com"
+          }
+        ],
+        "addresses": [
+          {
+            "label": "",
+            "street": "ul. Przykładowa 1, m. 2",
+            "postalCode": "00-001",
+            "city": "Warszawa",
+            "country": "Polska"
+          }
+        ]
+      },
+      "custom": [
+        {
+          "label": "Województwo/stan",
+          "value": "mazowieckie",
+          "hidden": false
+        }
+      ]
+    },
+    {
+      "type": "note",
+      "name": "Notatka",
+      "note": "Tekst notatki",
+      "fields": {},
+      "custom": []
+    },
+    {
+      "type": "login",
+      "name": "Krótki wiersz",
+      "note": "",
+      "custom": [],
+      "fields": {
+        "username": "",
+        "password": "",
+        "totp": "",
+        "urls": [
+          "https://short.example.com"
+        ],
+        "androidApps": []
+      }
+    },
+    {
+      "type": "login",
+      "name": "Sklep, \"Example\"",
+      "note": "linia 1\nlinia 2, z przecinkiem",
+      "custom": [],
+      "fields": {
+        "username": "jan",
+        "password": "fake-password-4",
+        "totp": "",
+        "urls": [
+          "https://shop.example.com"
+        ],
+        "androidApps": []
+      }
+    }
+  ],
+  "skipped": [
+    {
+      "at": "wiersz 7",
+      "reason": "brak nazwy i adresu"
+    }
+  ]
+}

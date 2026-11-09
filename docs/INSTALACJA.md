@@ -168,7 +168,7 @@ dopiero po **Zapisz** w „Adresy telefonu” (wtedy Chrome pyta o zgodę).
   „Zsynchronizowano z telefonem HH:MM”. Na telefonie potem **Zakończ**. Wpisy zmienione we wtyczce, a
   jeszcze niewysłane, mają kropkę •.
 - **Wtyczka:** **+ Dodaj** (z generatorem haseł), kopiowanie loginu i hasła (schowek czyszczony po minucie),
-  **PIN**, **CSV**, **Adresy telefonu**, **Otwórz w karcie ↗** (opis: [FUNKCJE.md](FUNKCJE.md)).
+  **PIN**, **Plik** (import i eksport), **Adresy telefonu**, **Otwórz w karcie ↗** (opis: [FUNKCJE.md](FUNKCJE.md)).
 - **Telefon:** zakładki na dole (Loginy, Kontakty, Karty, Notatki, Dokumenty) i **+ Dodaj** dla otwartej zakładki;
   menu ⋮ **Więcej**: **Urządzenia** (sparowane wtyczki, daty ostatniej synchronizacji, **Usuń**: wtyczka przestaje
   się synchronizować), **Ustawienia** (odcisk palca, opóźnienie blokady), **Zablokuj**.
@@ -207,10 +207,10 @@ Nowa wersja instaluje się na starej, sejf zostaje (pod warunkiem tego samego `d
   **Adresy telefonu** → „Sparuj z innym telefonem / odtwórz telefon”: adres, kod, hasło główne → **Sparuj**
   („Telefon odtworzony z tej wtyczki…”). Na telefonie wpisz **Hasło główne** → **Zakończ odtwarzanie**.
   Pozostałe przeglądarki sparuj z nowym telefonem tym samym formularzem, z kodem z **Dodaj wtyczkę**.
-- **Eksport CSV** (awaryjnie, gdy chcesz mieć kopię poza PassHolderem): we wtyczce **CSV** → zaznacz
-  „Rozumiem, plik będzie zawierał hasła jawnym tekstem” → **Pobierz plik CSV**. Plik **nie jest
+- **Eksport do pliku** (awaryjnie, gdy chcesz mieć kopię poza PassHolderem): we wtyczce **Plik** → wybierz format
+  (PassHolder JSON zachowuje wszystko) → zaznacz „Rozumiem, plik będzie zawierał hasła jawnym tekstem” → **Pobierz plik**. Plik **nie jest
   zaszyfrowany**: trzymaj go na zaszyfrowanym nośniku (np. BitLocker To Go) albo usuń zaraz po użyciu.
-  Import: **CSV** → **Importuj**, potem **Synchronizuj**.
+  Import: **Plik** → wybierz plik → **Importuj**, potem **Synchronizuj**.
 - **Szyfrowanie dysku:** z opcją „Pamiętaj PIN po zamknięciu przeglądarki” na dysku leżą klucze sejfu
   zaszyfrowane PIN-em. Włącz wtedy BitLocker na dysku systemowym (Windows 11 Pro go ma).
 
@@ -256,7 +256,7 @@ Po krokach D2 i D3 sejfu nie ma już nigdzie. Jeśli hasła mają przetrwać (np
 menedżera), zrób kopię **przed** usunięciem:
 
 1. Na telefonie **Synchronizacja**, we wtyczce **Synchronizuj**, żeby wtyczka miała wszystkie wpisy.
-2. We wtyczce **CSV** → zaznacz „Rozumiem, plik będzie zawierał hasła jawnym tekstem” → **Pobierz plik CSV**.
+2. We wtyczce **Plik** → wybierz format → zaznacz „Rozumiem, plik będzie zawierał hasła jawnym tekstem” → **Pobierz plik**.
 3. Sprawdź, że plik nie jest pusty, zaimportuj go tam, gdzie trzeba, i **usuń go** (także z Kosza). Plik
    zawiera hasła jawnym tekstem.
 

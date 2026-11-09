@@ -104,7 +104,7 @@ export function listView(message = "", isError = false, type?: p2p.EntryType) {
       h("button", { title: "Logowanie PIN-em", onclick: () => void pinSettingsView() }, "PIN"),
       h("button", { onclick: async () => { await store.lock(); await showLocked(); } }, "Zablokuj"),
       h("button", { title: "Adresy telefonu (np. w domu i przez Tailscale), parowanie z innym telefonem", onclick: () => void openAddresses() }, "Adresy telefonu"),
-      h("button", { title: "Import i eksport haseł w pliku CSV (format NordPass)", onclick: () => void openTransfer() }, "CSV"),
+      h("button", { title: "Import i eksport (PassHolder JSON, Bitwarden JSON, NordPass CSV)", onclick: () => void openTransfer() }, "Plik"),
     ),
     status,
   );

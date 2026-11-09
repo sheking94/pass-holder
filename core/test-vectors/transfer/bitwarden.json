@@ -1,0 +1,309 @@
+{
+  "encrypted": false,
+  "folders": [
+    { "id": "f1000000-0000-4000-8000-000000000001", "name": "Testowy folder" }
+  ],
+  "items": [
+    {
+      "id": "i1000000-0000-4000-8000-000000000001",
+      "organizationId": null,
+      "folderId": "f1000000-0000-4000-8000-000000000001",
+      "type": 1,
+      "reprompt": 0,
+      "name": "Przykładowy bank",
+      "notes": "Konto testowe",
+      "favorite": true,
+      "fields": [
+        { "name": "Pytanie", "value": "Imię psa", "type": 0, "linkedId": null },
+        { "name": "Kod", "value": "1234", "type": 1, "linkedId": null },
+        { "name": "Zgoda", "value": "true", "type": 2, "linkedId": null },
+        { "name": "Powiązane", "value": null, "type": 3, "linkedId": 100 }
+      ],
+      "login": {
+        "uris": [
+          { "match": null, "uri": "https://example.com/login" },
+          { "match": null, "uri": "androidapp://com.example.app" }
+        ],
+        "username": "jan.testowy",
+        "password": "hasło-testowe-1",
+        "totp": "JBSWY3DPEHPK3PXP"
+      },
+      "passwordHistory": [
+        { "lastUsedDate": "2026-01-01T00:00:00.000Z", "password": "stare-haslo" }
+      ],
+      "collectionIds": null
+    },
+    {
+      "id": "i1000000-0000-4000-8000-000000000002",
+      "organizationId": null,
+      "folderId": null,
+      "type": 2,
+      "reprompt": 0,
+      "name": "Notatka testowa",
+      "notes": "Treść notatki",
+      "favorite": false,
+      "secureNote": { "type": 0 },
+      "collectionIds": null
+    },
+    {
+      "id": "i1000000-0000-4000-8000-000000000003",
+      "organizationId": null,
+      "folderId": null,
+      "type": 3,
+      "reprompt": 0,
+      "name": "Karta testowa",
+      "notes": null,
+      "favorite": false,
+      "fields": [
+        { "name": "PIN", "value": "9876", "type": 1, "linkedId": null },
+        { "name": "PIN", "value": "1111", "type": 1, "linkedId": null }
+      ],
+      "card": {
+        "cardholderName": "Jan Testowy",
+        "brand": "Visa",
+        "number": "4111111111111111",
+        "expMonth": "3",
+        "expYear": "2027",
+        "code": "123"
+      },
+      "collectionIds": null
+    },
+    {
+      "id": "i1000000-0000-4000-8000-000000000004",
+      "organizationId": null,
+      "folderId": null,
+      "type": 4,
+      "reprompt": 0,
+      "name": "Jan Testowy",
+      "notes": null,
+      "favorite": false,
+      "fields": [
+        { "name": "Pseudonim", "value": "Janek", "type": 0, "linkedId": null }
+      ],
+      "identity": {
+        "title": "Pan",
+        "firstName": "Jan",
+        "middleName": "Maria",
+        "lastName": "Testowy",
+        "address1": "ul. Przykładowa 1",
+        "address2": "m. 2",
+        "address3": null,
+        "city": "Warszawa",
+        "state": "mazowieckie",
+        "postalCode": "00-001",
+        "country": "PL",
+        "company": "Example Sp. z o.o.",
+        "email": "jan@example.com",
+        "phone": "+48 600 000 000",
+        "ssn": "00000000000",
+        "username": "jtestowy",
+        "passportNumber": null,
+        "licenseNumber": null
+      },
+      "collectionIds": null
+    },
+    {
+      "id": "i1000000-0000-4000-8000-000000000005",
+      "organizationId": null,
+      "folderId": null,
+      "type": 4,
+      "reprompt": 0,
+      "name": "Paszport Jana",
+      "notes": "Dokument testowy",
+      "favorite": false,
+      "fields": [
+        { "name": "Rodzaj dokumentu", "value": "passport", "type": 0, "linkedId": null },
+        { "name": "Imię i nazwisko", "value": "Jan Testowy", "type": 0, "linkedId": null },
+        { "name": "Data wydania", "value": "2020-01-15", "type": 0, "linkedId": null },
+        { "name": "Data ważności", "value": "2030-01-15", "type": 0, "linkedId": null },
+        { "name": "Wystawca", "value": "Wojewoda Testowy", "type": 0, "linkedId": null },
+        { "name": "Uwaga", "value": "kopia w szufladzie", "type": 0, "linkedId": null }
+      ],
+      "identity": {
+        "title": null,
+        "firstName": null,
+        "middleName": null,
+        "lastName": null,
+        "address1": null,
+        "address2": null,
+        "address3": null,
+        "city": null,
+        "state": null,
+        "postalCode": null,
+        "country": null,
+        "company": null,
+        "email": null,
+        "phone": null,
+        "ssn": null,
+        "username": null,
+        "passportNumber": "EA0000000",
+        "licenseNumber": null
+      },
+      "collectionIds": null
+    },
+    {
+      "id": "i1000000-0000-4000-8000-000000000006",
+      "organizationId": null,
+      "folderId": null,
+      "type": 4,
+      "reprompt": 0,
+      "name": "Dowód osobisty",
+      "notes": null,
+      "favorite": false,
+      "fields": [
+        { "name": "Rodzaj dokumentu", "value": "id_card", "type": 0, "linkedId": null },
+        { "name": "Numer dokumentu", "value": "ABC000000", "type": 0, "linkedId": null }
+      ],
+      "identity": {
+        "title": null,
+        "firstName": null,
+        "middleName": null,
+        "lastName": null,
+        "address1": null,
+        "address2": null,
+        "address3": null,
+        "city": null,
+        "state": null,
+        "postalCode": null,
+        "country": null,
+        "company": null,
+        "email": null,
+        "phone": null,
+        "ssn": null,
+        "username": null,
+        "passportNumber": null,
+        "licenseNumber": null
+      },
+      "collectionIds": null
+    },
+    {
+      "id": "i1000000-0000-4000-8000-000000000007",
+      "organizationId": null,
+      "folderId": null,
+      "type": 5,
+      "reprompt": 0,
+      "name": "Klucz SSH",
+      "notes": null,
+      "favorite": false,
+      "collectionIds": null
+    },
+    {
+      "id": "i1000000-0000-4000-8000-000000000008",
+      "organizationId": null,
+      "folderId": null,
+      "type": 1,
+      "reprompt": 0,
+      "name": "",
+      "notes": null,
+      "favorite": false,
+      "login": { "uris": [], "username": "x", "password": "y", "totp": null },
+      "collectionIds": null
+    },
+    {
+      "id": "i1000000-0000-4000-8000-000000000009",
+      "organizationId": null,
+      "folderId": null,
+      "type": 4,
+      "reprompt": 0,
+      "name": "Tożsamość z numerami",
+      "notes": null,
+      "favorite": false,
+      "fields": [
+
+      ],
+      "identity": {
+        "title": null,
+        "firstName": "Anna",
+        "middleName": null,
+        "lastName": "Testowa",
+        "address1": "ul. Długa 5",
+        "address2": "lok. 7",
+        "address3": "klatka B",
+        "city": "Kraków",
+        "state": null,
+        "postalCode": "30-001",
+        "country": "PL",
+        "company": null,
+        "email": null,
+        "phone": null,
+        "ssn": null,
+        "username": null,
+        "passportNumber": "EB1111111",
+        "licenseNumber": "PL222222"
+      },
+      "collectionIds": null
+    },
+    {
+      "id": "i1000000-0000-4000-8000-000000000010",
+      "organizationId": null,
+      "folderId": null,
+      "type": 4,
+      "reprompt": 0,
+      "name": "Prawo jazdy Anny",
+      "notes": null,
+      "favorite": false,
+      "fields": [
+        {"name": "Rodzaj dokumentu", "value": "driving_license", "type": 0, "linkedId": null},
+        {"name": "Imię i nazwisko", "value": "Anna Testowa", "type": 0, "linkedId": null},
+        {"name": "Data ważności", "value": "2035-05-05", "type": 0, "linkedId": null}
+      ],
+      "identity": {
+        "title": "Pani",
+        "firstName": "Anna",
+        "middleName": null,
+        "lastName": "Testowa",
+        "address1": "ul. Długa 5",
+        "address2": null,
+        "address3": "klatka B",
+        "city": "Kraków",
+        "state": null,
+        "postalCode": "30-001",
+        "country": "PL",
+        "company": null,
+        "email": "anna@example.com",
+        "phone": "+48 500 000 000",
+        "ssn": null,
+        "username": null,
+        "passportNumber": "EB1111111",
+        "licenseNumber": "PL222222"
+      },
+      "collectionIds": null
+    },
+    {
+      "id": "i1000000-0000-4000-8000-000000000011",
+      "organizationId": null,
+      "folderId": null,
+      "type": 4,
+      "reprompt": 0,
+      "name": "Legitymacja Anny",
+      "notes": null,
+      "favorite": false,
+      "fields": [
+        {"name": "Rodzaj dokumentu", "value": "student_id", "type": 0, "linkedId": null},
+        {"name": "Numer dokumentu", "value": "S-123456", "type": 0, "linkedId": null},
+        {"name": "Wystawca", "value": "Uczelnia Testowa", "type": 0, "linkedId": null}
+      ],
+      "identity": {
+        "title": null,
+        "firstName": null,
+        "middleName": null,
+        "lastName": null,
+        "address1": null,
+        "address2": null,
+        "address3": null,
+        "city": null,
+        "state": null,
+        "postalCode": null,
+        "country": null,
+        "company": null,
+        "email": null,
+        "phone": null,
+        "ssn": null,
+        "username": null,
+        "passportNumber": null,
+        "licenseNumber": null
+      },
+      "collectionIds": null
+    }
+  ]
+}
