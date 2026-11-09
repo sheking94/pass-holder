@@ -140,6 +140,7 @@ export function listView(message = "", isError = false, type?: p2p.EntryType) {
           busy(status, "Synchronizuję…", async () => {
             const { skipped } = await store.sync();
             renderList();
+            void renderMatches();
             setStatus(status, `Zsynchronizowano z telefonem ${new Date().toLocaleTimeString("pl")}.` + skippedNote(skipped));
           }),
       }, "Synchronizuj"),

@@ -99,4 +99,13 @@ describe("autofill in the list view", () => {
     expect(status(app).classList.contains("error")).toBe(true);
     expect(close).not.toHaveBeenCalled();
   }, 30_000);
+
+  it("a sync refreshes the matching-logins section", async () => {
+    const { app, phone } = await open({ activeTab: TAB });
+    const section = await shownMatches(app);
+    expect(section.querySelectorAll(".name")).toHaveLength(1);
+    await phone.addContent("l3", login("Gmail", "mail.google.com"));
+    await click(byText(app, "Synchronizuj"));
+    await settle(() => app.querySelector(".matches")!.querySelectorAll(".name").length === 2);
+  }, 30_000);
 });
