@@ -170,4 +170,20 @@ class EntryV3Test {
         assertThrows(EntryTooLargeException::class.java) { EntryV3.encrypt(key, "id", withNote(note + "ż")) }
         assertEquals("Entry too large", EntryTooLargeException().message)
     }
+
+    @Test
+    fun contentJsonRoundTripsAndHasFixedKeyOrder() {
+        for (d in samples) {
+            val j = EntryV3.contentJson(d.content)
+            assertEquals(listOf("type", "name", "note", "fields", "custom"), j.keys.toList())
+            assertEquals(d.content, EntryV3.parseContent(j))
+        }
+    }
+
+    @Test
+    fun parseContentRejectsExtraOrMissingKeys() {
+        val j = EntryV3.contentJson(samples[0].content)
+        assertInvalid("Invalid entry payload") { EntryV3.parseContent(kotlinx.serialization.json.JsonObject(j + ("hlc" to json("{}")))) }
+        assertInvalid("Invalid entry payload") { EntryV3.parseContent(kotlinx.serialization.json.JsonObject(j - "note")) }
+    }
 }
