@@ -76,6 +76,22 @@ describe("VaultStore.importContents", () => {
     expect(result).toEqual({ added: 1, duplicates: 0, tooLarge: 1 });
   }, 30_000);
 
+  it("rolls back when saving fails: no entries added, none left pending, error rethrown", async () => {
+    const { store, local } = await pairedBrowser();
+    await store.upsert("1", { name: "Bank", username: "jan", password: "x" });
+    const before = store.allContents();
+    const { parsed } = transfer.parseImportFile(read("passholder.json"));
+    const realSet = local.set.bind(local);
+    local.set = async () => { throw new Error("dysk pełny"); };
+    await expect(store.importContents(parsed.entries, ids())).rejects.toThrow("dysk pełny");
+    local.set = realSet;
+    expect(store.allContents()).toEqual(before);
+    expect(store.listEntries("login").length).toBe(1);
+    expect(store.pendingCount()).toBe(1);
+    // the vault still works afterwards
+    expect((await store.importContents(parsed.entries, ids())).added).toBe(parsed.entries.length);
+  }, 30_000);
+
   it("a file that fails to parse leaves the vault unchanged", async () => {
     const { store } = await pairedBrowser();
     await store.upsert("1", { name: "Bank", username: "jan", password: "x" });
@@ -123,7 +139,7 @@ describe("importSummary", () => {
   it("lists duplicates and up to five skipped items", () => {
     const skipped = [2, 3, 4, 5, 6, 7].map((n) => ({ at: `wiersz ${n}`, reason: "brak hasła" }));
     const text = importSummary({ entries: [], skipped }, { added: 1, duplicates: 3, tooLarge: 0 }, "nordpass");
-    expect(text).toContain("Pominięto 3 takich, które już są w sejfie.");
+    expect(text).toContain("Pominięto 3 takich, które już są w sejfie lub powtarzają się w pliku.");
     expect(text).toContain("Pominięto 6 wierszy: wiersz 2: brak hasła; wiersz 3: brak hasła; wiersz 4: brak hasła; wiersz 5: brak hasła; wiersz 6: brak hasła; …");
     expect(text).not.toContain("wiersz 7");
     expect(importSummary({ entries: [], skipped: skipped.slice(0, 1) }, { added: 0, duplicates: 0, tooLarge: 0 }, "nordpass")).toContain("wiersz 2: brak hasła.");

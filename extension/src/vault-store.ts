@@ -397,24 +397,34 @@ export class VaultStore {
     const vault = this.requireVault();
     const clock = this.requireClock();
     const known = new Set(this.allContents().map(transfer.contentKey));
+    // upsertEntryV2 replaces map entries (never edits them in place), so a copy of the map is a full snapshot.
+    // The clock only moves forward, which is harmless to keep.
+    const snapshot = new Map(vault.entries);
     let added = 0;
     let tooLarge = 0;
-    for (const entry of entries) {
-      const key = transfer.contentKey(entry);
-      if (known.has(key)) continue;
-      try {
-        p2p.upsertEntryV2(vault, clock, newId(), entry);
-      } catch (error) {
-        if (error instanceof Error && error.message === p2p.ENTRY_TOO_LARGE) {
-          tooLarge++;
-          continue;
+    try {
+      for (const entry of entries) {
+        const key = transfer.contentKey(entry);
+        if (known.has(key)) continue;
+        try {
+          p2p.upsertEntryV2(vault, clock, newId(), entry);
+        } catch (error) {
+          if (error instanceof Error && error.message === p2p.ENTRY_TOO_LARGE) {
+            tooLarge++;
+            continue;
+          }
+          throw error;
         }
-        throw error;
+        known.add(key);
+        added++;
       }
-      known.add(key);
-      added++;
+      if (added > 0) await this.save();
+    } catch (error) {
+      // Nothing half-imported may stay in memory, where it could still reach the disk or the phone later.
+      vault.entries.clear();
+      for (const [id, entry] of snapshot) vault.entries.set(id, entry);
+      throw error;
     }
-    if (added > 0) await this.save();
     return { added, duplicates: entries.length - added - tooLarge, tooLarge };
   }
 

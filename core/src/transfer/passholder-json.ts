@@ -28,7 +28,9 @@ export function parsePassHolderJson(text: string): ParsedImport {
   const skipped: ImportSkip[] = [];
   raw.forEach((item, i) => {
     try {
-      entries.push(parseEntryContent(item));
+      const entry = parseEntryContent(item);
+      if (entry.name.trim() === "") skipped.push({ at: `wpis ${i + 1}`, reason: "brak nazwy" });
+      else entries.push(entry);
     } catch {
       skipped.push({ at: `wpis ${i + 1}`, reason: "zły format wpisu" });
     }

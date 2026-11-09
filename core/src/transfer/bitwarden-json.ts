@@ -51,7 +51,9 @@ function importFields(raw: unknown): CustomField[] {
   return out;
 }
 
-function importCard(c: Obj): CardFields {
+const L_PIN = "PIN";
+
+function importCard(c: Obj, pin: string): CardFields {
   const month = s(c.expMonth).trim();
   const year = s(c.expYear).trim();
   return {
@@ -59,41 +61,57 @@ function importCard(c: Obj): CardFields {
     number: s(c.number),
     expiry: month && year ? `${month.padStart(2, "0")}/${year.slice(-2)}` : "",
     cvc: s(c.code),
-    pin: "",
+    pin,
   };
 }
 
 function importIdentity(name: string, note: string, id: Obj, fields: CustomField[]): EntryContentV3 {
   const kindIdx = fields.findIndex((f) => f.label === L_KIND && DOCUMENT_KINDS.includes(f.value));
   const isDocument = kindIdx >= 0;
+  const address = {
+    label: "",
+    street: [s(id.address1), s(id.address2), s(id.address3)].filter((x) => x !== "").join(", "),
+    postalCode: s(id.postalCode), city: s(id.city), country: s(id.country),
+  };
+  const hasAddress = Object.values(address).some((x) => x !== "");
+  const passport = s(id.passportNumber);
+  const license = s(id.licenseNumber);
+  const fullNameField = fields.find((f) => f.label === L_FULL_NAME);
+  const hasFullName = fullNameField !== undefined && fullNameField.value !== "";
+  // A document keeps one number (the one matching its kind first); the other one goes to a custom field.
+  const kind = isDocument ? (fields[kindIdx]!.value as DocumentKind) : undefined;
+  const usesLicense = kind === "driving_license" ? license !== "" : passport === "" && license !== "";
+  const usesPassport = !usesLicense && passport !== "";
+  const numberFromIdentity = usesLicense ? license : passport;
   const extras: [string, string][] = [
     ["Tytuł", s(id.title)], ["Drugie imię", s(id.middleName)], ["Firma", s(id.company)],
     ["Numer SSN", s(id.ssn)],
-    ["Numer paszportu", isDocument ? "" : s(id.passportNumber)],
-    ["Numer prawa jazdy", isDocument ? "" : s(id.licenseNumber)],
+    ["Numer paszportu", isDocument && usesPassport ? "" : passport],
+    ["Numer prawa jazdy", isDocument && usesLicense ? "" : license],
     ["Nazwa użytkownika", s(id.username)], ["Województwo/stan", s(id.state)],
+    ...(isDocument
+      ? ([
+        ["E-mail", s(id.email)], ["Telefon", s(id.phone)], ["Adres", hasAddress ? addressLine(address) : ""],
+        ["Imię", hasFullName ? s(id.firstName) : ""], ["Nazwisko", hasFullName ? s(id.lastName) : ""],
+      ] as [string, string][])
+      : []),
   ];
   const all = [...extras.filter(([, v]) => v !== "").map(([l, v]) => custom(l, v)), ...fields];
 
   if (isDocument) {
-    const kind = fields[kindIdx]!.value as DocumentKind;
     all.splice(all.findIndex((f) => f === fields[kindIdx]), 1);
     const take = (label: string): string => {
       const i = all.findIndex((f) => f.label === label);
       return i < 0 ? "" : all.splice(i, 1)[0]!.value;
     };
-    const number = s(id.passportNumber) || s(id.licenseNumber) || take(L_NUMBER);
+    const number = numberFromIdentity || take(L_NUMBER);
     const fullName = take(L_FULL_NAME) || [s(id.firstName), s(id.lastName)].filter(Boolean).join(" ");
     return {
       type: "document", name, note, custom: all,
-      fields: { kind, number, fullName, issueDate: take(L_ISSUE), expiryDate: take(L_EXPIRY), issuer: take(L_ISSUER) },
+      fields: { kind: kind!, number, fullName, issueDate: take(L_ISSUE), expiryDate: take(L_EXPIRY), issuer: take(L_ISSUER) },
     };
   }
 
-  const addr = {
-    street: [s(id.address1), s(id.address2), s(id.address3)].filter((x) => x !== "").join(", "),
-    postalCode: s(id.postalCode), city: s(id.city), country: s(id.country),
-  };
   const email = s(id.email);
   const phone = s(id.phone);
   return {
@@ -102,7 +120,7 @@ function importIdentity(name: string, note: string, id: Obj, fields: CustomField
       firstName: s(id.firstName), lastName: s(id.lastName), birthDate: "",
       phones: phone ? [{ label: "", value: phone }] : [],
       emails: email ? [{ label: "", value: email }] : [],
-      addresses: Object.values(addr).some((x) => x !== "") ? [{ label: "", ...addr }] : [],
+      addresses: hasAddress ? [address] : [],
     },
   };
 }
@@ -134,8 +152,10 @@ function importItem(item: Obj): EntryContentV3 | string {
     case 3: {
       const card = isObj(item.card) ? item.card : {};
       const brand = s(card.brand);
+      const pinIdx = fields.findIndex((f) => f.label === L_PIN);
+      const pin = pinIdx < 0 ? "" : fields.splice(pinIdx, 1)[0]!.value;
       return {
-        type: "card", name, note, fields: importCard(card),
+        type: "card", name, note, fields: importCard(card, pin),
         custom: [...(brand ? [custom("Marka karty", brand)] : []), ...fields],
       };
     }
@@ -204,7 +224,7 @@ function exportItem(e: EntryContentV3): Obj {
       const f = e.fields;
       const m = /^(0[1-9]|1[0-2])\/(\d{2})$/.exec(f.expiry);
       type = 3;
-      if (f.pin !== "") extra.push(field("PIN", f.pin, true));
+      if (f.pin !== "") extra.push(field(L_PIN, f.pin, true));
       if (!m && f.expiry !== "") extra.push(field("Ważność", f.expiry));
       body = {
         card: {

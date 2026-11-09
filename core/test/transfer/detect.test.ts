@@ -32,6 +32,11 @@ describe("parseImportFile", () => {
   it("lets a parser's own error through (encrypted Bitwarden)", () => {
     expect(() => parseImportFile(JSON.stringify({ encrypted: true, items: [] }))).toThrow(/zaszyfrowan/i);
   });
+
+  it("shows the encrypted message for a password-protected Bitwarden export (no items)", () => {
+    const protectedFile = JSON.stringify({ encrypted: true, passwordProtected: true, salt: "c2FsdA==", kdfType: 0, kdfIterations: 600000, encKeyValidation_DO_NOT_EDIT: "2.x", data: "2.y" });
+    expect(() => parseImportFile(protectedFile)).toThrow(/Zaszyfrowany eksport Bitwarden/);
+  });
 });
 
 describe("exportFile", () => {

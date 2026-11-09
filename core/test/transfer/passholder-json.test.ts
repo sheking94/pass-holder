@@ -31,6 +31,15 @@ describe("parsePassHolderJson", () => {
     expect(r.skipped[0]).toEqual({ at: "wpis 6", reason: "zły format wpisu" });
     expect(r.entries).toHaveLength(5);
   });
+
+  it("skips an entry with an empty or blank name as \"brak nazwy\"", () => {
+    const entry = { type: "note", note: "", fields: {}, custom: [] };
+    const text = JSON.stringify({ format: "passholder", version: 3, entries: [{ ...entry, name: "  " }, { ...entry, name: "" }, { ...entry, name: "Ok" }] });
+    expect(parsePassHolderJson(text)).toEqual({
+      entries: [{ ...entry, name: "Ok" }],
+      skipped: [{ at: "wpis 1", reason: "brak nazwy" }, { at: "wpis 2", reason: "brak nazwy" }],
+    });
+  });
 });
 
 describe("exportPassHolderJson", () => {

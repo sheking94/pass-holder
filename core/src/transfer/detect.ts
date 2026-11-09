@@ -18,8 +18,13 @@ export function parseImportFile(text: string): { format: TransferFormat; parsed:
     throw new Error("Plik JSON jest uszkodzony");
   }
   if (isPassHolderJson(value)) return { format: "passholder", parsed: parsePassHolderJson(body) };
-  if (isBitwardenJson(value)) return { format: "bitwarden", parsed: parseBitwardenJson(body) };
+  if (isBitwardenJson(value) || isEncryptedBitwarden(value)) return { format: "bitwarden", parsed: parseBitwardenJson(body) };
   throw new Error("Nie rozpoznano pliku: to nie jest eksport PassHolder, Bitwarden ani NordPass");
+}
+
+/** A Bitwarden encrypted export has no `items` (password-protected: salt + data); parseBitwardenJson explains why it is refused. */
+function isEncryptedBitwarden(value: unknown): boolean {
+  return typeof value === "object" && value !== null && (value as Record<string, unknown>).encrypted === true;
 }
 
 export function exportFile(format: TransferFormat, entries: readonly EntryContentV3[]): string {

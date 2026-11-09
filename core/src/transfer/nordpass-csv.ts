@@ -59,7 +59,8 @@ export function parseNordPassCsv(text: string): ParsedImport {
     let kind: "login" | "note" | "card" | "contact";
     const declared = get("type").trim();
     if (declared !== "") {
-      const known = TYPES[declared];
+      const key = declared.toLowerCase();
+      const known = Object.hasOwn(TYPES, key) ? TYPES[key] : undefined;
       if (!known) {
         skipped.push({ at, reason: `typ „${declared}” nie jest obsługiwany` });
         continue;
@@ -112,14 +113,17 @@ export function parseNordPassCsv(text: string): ParsedImport {
             firstName: space < 0 ? fullName : fullName.slice(0, space),
             lastName: space < 0 ? "" : fullName.slice(space + 1).trim(),
             birthDate: "",
-            phones: get("phone_number") ? [{ label: "", value: get("phone_number") }] : [],
-            emails: get("email") ? [{ label: "", value: get("email") }] : [],
+            phones: filled(get("phone_number")) ? [{ label: "", value: get("phone_number") }] : [],
+            emails: filled(get("email")) ? [{ label: "", value: get("email") }] : [],
             addresses: hasAddress ? [address] : [],
           },
           custom: filled(get("state")) ? [extra("Województwo/stan", get("state"))] : [],
         });
         break;
       }
+      default:
+        // Unreachable while kind is one of the four; a row must never vanish silently.
+        skipped.push({ at, reason: "nieznany typ wpisu" });
     }
   }
   return { entries, skipped };

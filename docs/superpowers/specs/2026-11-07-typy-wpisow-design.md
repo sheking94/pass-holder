@@ -144,11 +144,21 @@ i Kotlinie testowane tymi samymi plikami przykładowymi (z fałszywymi danymi), 
 4. Bitwarden identity z własnym polem „Rodzaj dokumentu” odtwarza dokument.
 5. Duplikat = identyczna cała treść (typ, nazwa, notatka, pola, własne pola) po przycięciu spacji na brzegach
    każdego tekstu. Parser nie sprawdza formatu dat ani `expiry`.
+6. Wpis z pustą (po przycięciu) nazwą jest pomijany jako „brak nazwy”, we wszystkich formatach, także w PassHolder JSON.
+7. Import jest atomowy: gdy zapis sejfu się nie uda, wpisy dodane w pamięci są cofane (nic nie zostaje do
+   synchronizacji), a błąd jest zgłaszany.
 
 Etykiety własnych pól (dokładnie takie, krok 5 ma je powtórzyć):
 
-- **Bitwarden, import i eksport:** „Marka karty” (`card.brand`), „Tytuł”, „Drugie imię”, „Firma”, „Numer SSN”,
-  „Numer paszportu”, „Numer prawa jazdy”, „Nazwa użytkownika”, „Województwo/stan” (tożsamość).
+- **Bitwarden, tylko import:** „Marka karty” (`card.brand`), „Tytuł”, „Drugie imię”, „Firma”, „Numer SSN”,
+  „Numer paszportu”, „Numer prawa jazdy”, „Nazwa użytkownika”, „Województwo/stan” (tożsamość). Eksport ich nie
+  odtwarza (`brand`, `title` itd. wychodzą puste); po drodze zostają zwykłymi własnymi polami.
+- **Bitwarden, import tożsamości z „Rodzaj dokumentu” (dokument):** każda niepusta reszta tożsamości trafia do
+  własnych pól: „E-mail”, „Telefon”, „Adres” (ulica, kod i miasto, kraj), „Numer prawa jazdy” albo „Numer
+  paszportu” (ten, który nie został numerem dokumentu), „Imię” i „Nazwisko” (gdy jest też „Imię i nazwisko”), oraz
+  powyższe dodatki.
+- **Bitwarden, import karty:** pierwsze własne pole „PIN” trafia do `pin` karty i znika z własnych pól (przy
+  eksporcie PIN wychodzi jako ukryte pole „PIN”, więc karta wraca z PINem).
 - **Bitwarden, eksport (dodatkowe pola):** „PIN” (ukryte), „Ważność” (gdy `expiry` karty nie jest `MM/RR`),
   „Telefon”, „E-mail”, „Adres” (z etykietą w nawiasie, np. „Telefon (praca)”), „Data urodzenia”; dokument:
   „Rodzaj dokumentu” (wartość: `id_card`, `passport`, `driving_license`, `student_id`, `other`), „Numer dokumentu”

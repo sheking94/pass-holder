@@ -82,6 +82,26 @@ describe("parseNordPassCsv", () => {
     expect(r.entries.map((e) => e.type)).toEqual(["login", "card", "note"]);
   });
 
+  it("reads the type column case-insensitively", () => {
+    const r = parseNordPassCsv("type,name,username\nPassword,A,jan\nNOTE,B,\n");
+    expect(r.entries.map((e) => e.type)).toEqual(["login", "note"]);
+  });
+
+  it("skips a type that is an Object.prototype name instead of losing the row", () => {
+    const r = parseNordPassCsv("type,name\nconstructor,A\n__proto__,B\ntoString,C\n");
+    expect(r.entries).toEqual([]);
+    expect(r.skipped).toEqual([
+      { at: "wiersz 2", reason: "typ „constructor” nie jest obsługiwany" },
+      { at: "wiersz 3", reason: "typ „__proto__” nie jest obsługiwany" },
+      { at: "wiersz 4", reason: "typ „toString” nie jest obsługiwany" },
+    ]);
+  });
+
+  it("ignores a whitespace-only phone and e-mail of a contact", () => {
+    const r = parseNordPassCsv("name,full_name,phone_number,email\nC,Jan Testowy,  ,\t\n");
+    expect(r.entries[0]).toMatchObject({ type: "contact", fields: { phones: [], emails: [] } });
+  });
+
   it("keeps a login without a password and the card expiry as written", () => {
     const r = parseNordPassCsv("name,username,cardnumber,expirydate\nA,jan,,\nB,,4111,2030-12\n");
     expect(r.entries[0]).toMatchObject({ type: "login", fields: { password: "" } });

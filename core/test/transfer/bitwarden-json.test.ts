@@ -46,6 +46,14 @@ describe("exportBitwardenJson", () => {
     expect(roundTrip(entries)).toEqual({ entries: sortForExport(entries), skipped: [] });
   });
 
+  it("round-trips a card with its PIN (the PIN is not left as a custom field)", () => {
+    const card: EntryContentV3 = {
+      type: "card", name: "K", note: "", custom: [{ label: "Własne", value: "x", hidden: false }],
+      fields: { holder: "Jan Testowy", number: "4111", expiry: "03/27", cvc: "123", pin: "9876" },
+    };
+    expect(roundTrip([card])).toEqual({ entries: [card], skipped: [] });
+  });
+
   it("round-trips a note", () => {
     const note: EntryContentV3 = { type: "note", name: "N", note: "tekst", fields: {}, custom: [{ label: "a", value: "b", hidden: false }] };
     const text = exportBitwardenJson([note]);

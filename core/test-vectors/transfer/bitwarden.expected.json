@@ -49,13 +49,18 @@
         "number": "4111111111111111",
         "expiry": "03/27",
         "cvc": "123",
-        "pin": ""
+        "pin": "9876"
       },
       "custom": [
         {
           "label": "Marka karty",
           "value": "Visa",
           "hidden": false
+        },
+        {
+          "label": "PIN",
+          "value": "1111",
+          "hidden": true
         }
       ]
     },
@@ -158,6 +163,103 @@
         "issueDate": "",
         "expiryDate": "",
         "issuer": ""
+      },
+      "custom": []
+    },
+    {
+      "type": "contact",
+      "name": "Tożsamość z numerami",
+      "note": "",
+      "fields": {
+        "firstName": "Anna",
+        "lastName": "Testowa",
+        "birthDate": "",
+        "phones": [],
+        "emails": [],
+        "addresses": [
+          {
+            "label": "",
+            "street": "ul. Długa 5, lok. 7, klatka B",
+            "postalCode": "30-001",
+            "city": "Kraków",
+            "country": "PL"
+          }
+        ]
+      },
+      "custom": [
+        {
+          "label": "Numer paszportu",
+          "value": "EB1111111",
+          "hidden": false
+        },
+        {
+          "label": "Numer prawa jazdy",
+          "value": "PL222222",
+          "hidden": false
+        }
+      ]
+    },
+    {
+      "type": "document",
+      "name": "Prawo jazdy Anny",
+      "note": "",
+      "fields": {
+        "kind": "driving_license",
+        "number": "PL222222",
+        "fullName": "Anna Testowa",
+        "issueDate": "",
+        "expiryDate": "2035-05-05",
+        "issuer": ""
+      },
+      "custom": [
+        {
+          "label": "Tytuł",
+          "value": "Pani",
+          "hidden": false
+        },
+        {
+          "label": "Numer paszportu",
+          "value": "EB1111111",
+          "hidden": false
+        },
+        {
+          "label": "E-mail",
+          "value": "anna@example.com",
+          "hidden": false
+        },
+        {
+          "label": "Telefon",
+          "value": "+48 500 000 000",
+          "hidden": false
+        },
+        {
+          "label": "Adres",
+          "value": "ul. Długa 5, klatka B, 30-001 Kraków, PL",
+          "hidden": false
+        },
+        {
+          "label": "Imię",
+          "value": "Anna",
+          "hidden": false
+        },
+        {
+          "label": "Nazwisko",
+          "value": "Testowa",
+          "hidden": false
+        }
+      ]
+    },
+    {
+      "type": "document",
+      "name": "Legitymacja Anny",
+      "note": "",
+      "fields": {
+        "kind": "student_id",
+        "number": "S-123456",
+        "fullName": "",
+        "issueDate": "",
+        "expiryDate": "",
+        "issuer": "Uczelnia Testowa"
       },
       "custom": []
     }

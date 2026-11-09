@@ -137,13 +137,13 @@ zamknęłoby okienko).
   zawierał hasła jawnym tekstem” → **Pobierz plik** (`<format>-RRRR-MM-DD.json` albo `.csv`). Wpisy posortowane po
   nazwie (`localeCompare` „pl”), przy równej nazwie w kolejności login, kontakt, karta, notatka, dokument.
 - **Import:** wybierz plik → **Importuj**. Format rozpoznaje się z treści pliku (JSON z `"format":"passholder"` →
-  PassHolder; JSON z `items` → Bitwarden; reszta → NordPass CSV). Podsumowanie mówi, ile dodano, ile pominięto i dlaczego
+  PassHolder; JSON z `items` → Bitwarden; plik niebędący JSON-em → NordPass CSV; inny JSON → błąd). Podsumowanie mówi, ile dodano, ile pominięto i dlaczego
   (z numerem wpisu albo wiersza). Wpisy są zmianami lokalnymi (•); na telefon trafiają po **Synchronizuj**.
 
 | Format | Import | Eksport |
 |---|---|---|
 | PassHolder JSON `{"format":"passholder","version":3,"entries":[…]}` | wszystko, bez strat; wpis ze złym typem albo nieznanym kluczem pominięty z numerem | wpisy `{type,name,note,fields,custom}` (bez `v`, `hlc`) |
-| Bitwarden JSON | typy 1–4; plik zaszyfrowany (`"encrypted": true`) → błąd, nic nie wchodzi | wszystkie typy |
+| Bitwarden JSON | typy 1–4; plik zaszyfrowany (`"encrypted": true`, także chroniony hasłem, bez `items`) → komunikat o zaszyfrowanym eksporcie, nic nie wchodzi | wszystkie typy |
 | NordPass CSV | typ z kolumny `type` (`password`, `note`, `credit_card`, `identity`), a bez niej po kolumnach | ze stratą: nadmiar do `note` |
 
 **Bitwarden:** login (adresy `androidapp://<pakiet>` → aplikacje), notatka, karta (`expMonth`/`expYear` →

@@ -355,7 +355,7 @@ Gdyby celem nie była nauka, zmieniłoby się to:
 | Transport | własny Noise KK w TS i Kotlinie | dojrzała implementacja (np. z libp2p) |
 | Konflikty | LWW, przegrana wersja przepada | historia wpisu albo kopia konfliktu |
 | Odwołanie | usunięcie klucza | nowe hasło główne, nowy vaultKey, przeszyfrowanie |
-| Kopia awaryjna | ręczny eksport CSV | klucz awaryjny + automatyczny zaszyfrowany eksport |
+| Kopia awaryjna | ręczny eksport do pliku | klucz awaryjny + automatyczny zaszyfrowany eksport |
 | Ochrona lokalna | hasło główne | klucze w Android Keystore/StrongBox |
 | Weryfikacja | testy i wektory | model zagrożeń, fuzzing, zewnętrzny audyt |
 

@@ -63,6 +63,16 @@ describe("transfer view", () => {
     expect(status().textContent).toBe("Wyeksportowano 0 wpisów. Usuń plik, gdy nie będzie już potrzebny.");
   });
 
+  it("shows an export failure (locked vault) as an error and downloads nothing", async () => {
+    const { app, store, downloads, status } = await open();
+    await store.lock();
+    (app.querySelector("input[type=checkbox]") as HTMLInputElement).checked = true;
+    await click(byText(app, "Pobierz plik"));
+    expect(downloads).toEqual([]);
+    expect(status().textContent).toBe("Sejf jest zablokowany");
+    expect(status().classList.contains("error")).toBe(true);
+  });
+
   it("imports a PassHolder file", async () => {
     const { app, status } = await open();
     chooseFile(app, sample);

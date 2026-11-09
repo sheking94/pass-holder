@@ -35,11 +35,15 @@ function exportSection(status: HTMLElement) {
   const exportButton = h("button", { type: "button", class: "danger" }, "Pobierz plik");
   exportButton.addEventListener("click", () => {
     if (!understood.checked) return setStatus(status, "Najpierw zaznacz, że rozumiesz ryzyko.", true);
-    const chosen = FORMATS.find((_, i) => radios[i]!.checked)!;
-    const entries = store.allContents();
-    const day = new Date().toISOString().slice(0, 10);
-    downloadText(`${chosen.format}-${day}.${chosen.ext}`, transfer.exportFile(chosen.format, entries), chosen.mime);
-    setStatus(status, `Wyeksportowano ${entriesNoun(entries.length)}. Usuń plik, gdy nie będzie już potrzebny.`);
+    try {
+      const chosen = FORMATS.find((_, i) => radios[i]!.checked)!;
+      const entries = store.allContents();
+      const day = new Date().toISOString().slice(0, 10);
+      downloadText(`${chosen.format}-${day}.${chosen.ext}`, transfer.exportFile(chosen.format, entries), chosen.mime);
+      setStatus(status, `Wyeksportowano ${entriesNoun(entries.length)}. Usuń plik, gdy nie będzie już potrzebny.`);
+    } catch (error) {
+      setStatus(status, error instanceof Error ? error.message : String(error), true);
+    }
   });
 
   return h(
