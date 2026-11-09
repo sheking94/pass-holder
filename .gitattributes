@@ -5,3 +5,4 @@ android/gradlew text eol=lf
 *.bat -text
 *.png binary
 *.jar binary
+core/test-vectors/transfer/export.nordpass.csv -text
