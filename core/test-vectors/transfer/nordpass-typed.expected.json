@@ -1,0 +1,96 @@
+{
+  "entries": [
+    {
+      "type": "login",
+      "name": "Poczta Example",
+      "note": "",
+      "custom": [],
+      "fields": {
+        "username": "jan.testowy@example.com",
+        "password": "fake-password-1",
+        "totp": "",
+        "urls": [
+          "https://mail.example.com"
+        ],
+        "androidApps": []
+      }
+    },
+    {
+      "type": "note",
+      "name": "Notatka",
+      "note": "Tekst notatki",
+      "fields": {},
+      "custom": []
+    },
+    {
+      "type": "card",
+      "name": "Karta testowa",
+      "note": "",
+      "fields": {
+        "holder": "Jan Testowy",
+        "number": "4111111111111111",
+        "expiry": "12/30",
+        "cvc": "123",
+        "pin": ""
+      },
+      "custom": []
+    },
+    {
+      "type": "contact",
+      "name": "Jan Testowy",
+      "note": "",
+      "fields": {
+        "firstName": "Jan",
+        "lastName": "Testowy",
+        "birthDate": "",
+        "phones": [
+          {
+            "label": "",
+            "value": "500100200"
+          }
+        ],
+        "emails": [
+          {
+            "label": "",
+            "value": "jan.testowy@example.com"
+          }
+        ],
+        "addresses": [
+          {
+            "label": "",
+            "street": "ul. Przykładowa 1",
+            "postalCode": "",
+            "city": "Warszawa",
+            "country": "Polska"
+          }
+        ]
+      },
+      "custom": [
+        {
+          "label": "Województwo/stan",
+          "value": "mazowieckie",
+          "hidden": false
+        }
+      ]
+    },
+    {
+      "type": "login",
+      "name": "Login z numerem karty",
+      "note": "",
+      "custom": [],
+      "fields": {
+        "username": "jan",
+        "password": "fake-password-2",
+        "totp": "",
+        "urls": [],
+        "androidApps": []
+      }
+    }
+  ],
+  "skipped": [
+    {
+      "at": "wiersz 6",
+      "reason": "typ „folder” nie jest obsługiwany"
+    }
+  ]
+}

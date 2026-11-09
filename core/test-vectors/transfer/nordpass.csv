@@ -1,0 +1,10 @@
+name,url,username,password,note,cardholdername,cardnumber,cvc,expirydate,zipcode,folder,full_name,phone_number,email,address1,address2,city,country,state,totp,shared_folder
+Poczta Example,https://mail.example.com,jan.testowy@example.com,fake-password-1,Konto testowe,,,,,,Praca,,,,,,,,,JBSWY3DPEHPK3PXP,
+,https://www.example.com/login,jan,fake-password-2,,,,,,,,,,,,,,,,,
+Karta testowa,,,,,Jan Testowy,4111111111111111,123,12/30,00-001,Finanse,,,,,,,,,,
+Jan Testowy,,,,Kontakt testowy,,,,,00-001,,Jan Maria Testowy,500100200,jan.testowy@example.com,ul. Przykładowa 1,m. 2,Warszawa,Polska,mazowieckie,,
+Notatka,,,,Tekst notatki,,,,,,,,,,,,,,,,
+,,ktos,fake-password-3,,,,,,,,,,,,,,,,,
+Krótki wiersz,https://short.example.com
+"Sklep, ""Example""",https://shop.example.com,jan,fake-password-4,"linia 1
+linia 2, z przecinkiem",,,,,,,,,,,,,,,,

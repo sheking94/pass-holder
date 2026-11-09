@@ -1,4 +1,4 @@
-import type { EntryContentV3, EntryType } from "../p2p/entry.ts";
+import type { EntryContentV3, EntryType, PostalAddress } from "../p2p/entry.ts";
 
 /** Order of entry types in exports when names are equal. */
 export const ENTRY_TYPE_ORDER: readonly EntryType[] = ["login", "contact", "card", "note", "document"];
@@ -29,4 +29,12 @@ export function sortForExport(entries: readonly EntryContentV3[]): EntryContentV
   return [...entries].sort(
     (a, b) => a.name.localeCompare(b.name, "pl") || ENTRY_TYPE_ORDER.indexOf(a.type) - ENTRY_TYPE_ORDER.indexOf(b.type),
   );
+}
+
+/** "Telefon (etykieta)", or just "Telefon" when the label is empty. Used for extra phones, e-mails and addresses on export. */
+export const labelled = (name: string, label: string): string => (label === "" ? name : `${name} (${label})`);
+
+/** "ulica, kod miasto, kraj" with empty parts left out. */
+export function addressLine(a: PostalAddress): string {
+  return [a.street, [a.postalCode, a.city].filter((x) => x !== "").join(" "), a.country].filter((x) => x !== "").join(", ");
 }

@@ -1,0 +1,7 @@
+name,url,additional_urls,username,password,note,cardholdername,cardnumber,cvc,expirydate,zipcode,folder,full_name,phone_number,email,address1,address2,city,country,state,type,custom_fields
+Poczta Example,https://mail.example.com,"[""https://example.com/login""]",jan.testowy@example.com,fake-password-1,,,,,,,,,,,,,,,,password,"[{""label"":""Pytanie"",""value"":""Kolor?""}]"
+Notatka,,,,,Tekst notatki,,,,,,,,,,,,,,,note,
+Karta testowa,,,,,,Jan Testowy,4111111111111111,123,12/30,,,,,,,,,,,credit_card,
+Jan Testowy,,,,,,,,,,,,Jan Testowy,500100200,jan.testowy@example.com,ul. Przykładowa 1,,Warszawa,Polska,mazowieckie,identity,
+Praca,,,,,,,,,,,,,,,,,,,,folder,
+Login z numerem karty,,,jan,fake-password-2,,,4111111111111111,,,,,,,,,,,,,password,

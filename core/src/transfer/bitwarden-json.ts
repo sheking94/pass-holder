@@ -1,5 +1,5 @@
-import type { CardFields, CustomField, DocumentKind, EntryContentV3, PostalAddress } from "../p2p/entry.ts";
-import { sortForExport, type ImportSkip, type ParsedImport } from "./common.ts";
+import type { CardFields, CustomField, DocumentKind, EntryContentV3 } from "../p2p/entry.ts";
+import { addressLine, labelled, sortForExport, type ImportSkip, type ParsedImport } from "./common.ts";
 
 const NOT_BITWARDEN = "To nie jest plik Bitwarden JSON";
 const ENCRYPTED =
@@ -170,11 +170,6 @@ interface BwField { name: string; value: string; type: number }
 
 const nn = (v: string): string | null => (v === "" ? null : v);
 const field = (name: string, value: string, hidden = false): BwField => ({ name, value, type: hidden ? 1 : 0 });
-const labelled = (name: string, label: string): string => (label === "" ? name : `${name} (${label})`);
-
-function addressLine(a: PostalAddress): string {
-  return [a.street, [a.postalCode, a.city].filter((x) => x !== "").join(" "), a.country].filter((x) => x !== "").join(", ");
-}
 
 const EMPTY_IDENTITY = {
   title: null, firstName: null, middleName: null, lastName: null, address1: null, address2: null, address3: null,
