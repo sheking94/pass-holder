@@ -11,7 +11,18 @@ await build({
   entryPoints: ["src/popup.ts", "src/background.ts", "src/offscreen.ts"],
   bundle: true,
   format: "esm",
-  target: "chrome120",
+  target: "chrome127",
+  outdir,
+  minify: false,
+  sourcemap: false,
+  legalComments: "none",
+});
+
+await build({
+  entryPoints: ["src/autofill-content.ts"],
+  bundle: true,
+  format: "iife",
+  target: "chrome127",
   outdir,
   minify: false,
   sourcemap: false,
