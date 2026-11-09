@@ -2,6 +2,8 @@ package io.github.sheking94.passholder.core.p2p
 
 import io.github.sheking94.passholder.core.Credentials
 import io.github.sheking94.passholder.core.RemoteRecord
+import io.github.sheking94.passholder.core.transfer.contentKey
+import java.util.UUID
 
 private const val MAX_DEVICE_ID_LENGTH = 64
 
@@ -9,6 +11,9 @@ data class PhoneEntry(val id: String, val revision: Long, val data: EntryDataV3)
     val content: EntryContentV3 get() = data.content
     val hlc: Hlc get() = data.hlc
 }
+
+/** What [PhoneVault.importContents] did. */
+data class ImportResult(val added: Int, val duplicates: Int, val tooLarge: Int)
 
 /** An id holds a live entry of another type than the one being written. */
 class EntryTypeMismatchException : IllegalArgumentException("Entry has another type")
@@ -72,6 +77,38 @@ class PhoneVault(
         val blob = EntryV3.encrypt(vaultKey, id, EntryDataV3(content, clock.tick()))
         store.put(RemoteRecord(id, store.currentRevision() + 1, false, blob))
     }
+
+    /**
+     * Adds [entries] as new entries, all or nothing. One whose [contentKey] matches a live readable entry or an
+     * earlier one of the list is a duplicate; one over the size limit is counted in tooLarge. All new records
+     * go to the store in one [SyncStore.putAll]; if that throws, nothing was stored.
+     */
+    fun importContents(entries: List<EntryContentV3>, newId: () -> String = { UUID.randomUUID().toString() }): ImportResult =
+        synchronized(store) {
+            val records = store.listSince(0)
+            for (r in records) read(r)?.let(clock::observe)
+            val known = HashSet<String>()
+            for (r in records) if (!r.deleted) readData(r)?.let { known.add(contentKey(it.content)) }
+            val fresh = ArrayList<RemoteRecord>()
+            var tooLarge = 0
+            var revision = store.currentRevision()
+            for (entry in entries) {
+                val key = contentKey(entry)
+                if (key in known) continue
+                val id = newId()
+                requireValidId(id)
+                val blob = try {
+                    EntryV3.encrypt(vaultKey, id, EntryDataV3(entry, clock.tick()))
+                } catch (e: EntryTooLargeException) {
+                    tooLarge++
+                    continue
+                }
+                known.add(key)
+                fresh.add(RemoteRecord(id, ++revision, false, blob))
+            }
+            if (fresh.isNotEmpty()) store.putAll(fresh)
+            ImportResult(fresh.size, entries.size - fresh.size - tooLarge, tooLarge)
+        }
 
     /** Writes a tombstone; an unknown id is ignored. */
     fun delete(id: String) {

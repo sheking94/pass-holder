@@ -69,6 +69,11 @@ class PhoneVaultStore(
             check(!closed) { "Sync store was reset" }
             inner.put(record)
         }
+
+        override fun putAll(records: List<RemoteRecord>) {
+            check(!closed) { "Sync store was reset" }
+            inner.putAll(records)
+        }
     }
 
     private val p2pDir = File(dir, "p2p")
@@ -283,6 +288,22 @@ class PhoneVaultStore(
     fun upsertContent(id: String, content: EntryContentV3) {
         requireSession().vault.upsertContent(id, content)
         touch()
+    }
+
+    /** Imports [entries] all or nothing; see [PhoneVault.importContents]. */
+    @Synchronized
+    fun importContents(entries: List<EntryContentV3>): ImportResult {
+        val result = requireSession().vault.importContents(entries)
+        touch()
+        return result
+    }
+
+    /** Content of every live readable entry (for export). */
+    @Synchronized
+    fun allContents(): List<EntryContentV3> {
+        val result = requireSession().vault.entries().map { it.content }
+        touch()
+        return result
     }
 
     @Synchronized

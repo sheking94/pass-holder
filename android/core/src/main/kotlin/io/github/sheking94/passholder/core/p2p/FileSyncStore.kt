@@ -71,18 +71,25 @@ class FileSyncStore(private val file: File) : SyncStore {
 
     override fun get(id: String): RemoteRecord? = records[id]
 
-    override fun put(record: RemoteRecord) {
-        val line = P2pJson.json.encodeToString(RemoteRecord.serializer(), record) + "\n"
+    override fun put(record: RemoteRecord) = putAll(listOf(record))
+
+    /** One append and one fsync for all lines; memory changes only after the write succeeded. */
+    override fun putAll(records: List<RemoteRecord>) {
+        if (records.isEmpty()) return
+        val bytes = records.joinToString("") { P2pJson.json.encodeToString(RemoteRecord.serializer(), it) + "\n" }
+            .toByteArray(Charsets.UTF_8)
         FileOutputStream(file, true).use { out ->
             // A failed earlier append may have left a fragment; cut it off so it never becomes a middle line.
             if (out.channel.size() != knownLength) out.channel.truncate(knownLength)
-            out.write(line.toByteArray(Charsets.UTF_8))
+            out.write(bytes)
             out.flush()
             out.fd.sync()
         }
-        knownLength += line.toByteArray(Charsets.UTF_8).size
-        records[record.id] = record
-        revision = maxOf(revision, record.revision)
+        knownLength += bytes.size
+        for (record in records) {
+            this.records[record.id] = record
+            revision = maxOf(revision, record.revision)
+        }
     }
 
     override fun listSince(revision: Long): List<RemoteRecord> =

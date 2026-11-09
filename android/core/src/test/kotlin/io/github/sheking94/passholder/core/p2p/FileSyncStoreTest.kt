@@ -119,4 +119,33 @@ class FileSyncStoreTest {
         val reopened = FileSyncStore(file())
         assertEquals(memory.listSince(0), reopened.listSince(0))
     }
+
+    @Test
+    fun putAllSurvivesReopenAndTracksRevision() {
+        val a = FileSyncStore(file())
+        a.put(RemoteRecord("a", 1, false, "x"))
+        a.putAll(listOf(RemoteRecord("b", 2, false, "y"), RemoteRecord("c", 3, true, "z")))
+        a.put(RemoteRecord("d", 4, false, "w"))
+        assertEquals(4, a.currentRevision())
+        val b = FileSyncStore(file())
+        assertEquals(listOf("a", "b", "c", "d"), b.listSince(0).map { it.id })
+        assertEquals(RemoteRecord("c", 3, true, "z"), b.get("c"))
+        assertEquals(4, b.currentRevision())
+    }
+
+    @Test
+    fun putAllCutsTornFragmentFirst() {
+        val a = FileSyncStore(file())
+        a.put(RemoteRecord("a", 1, false, "x"))
+        file().appendText("{\"id\":\"torn")
+        a.putAll(listOf(RemoteRecord("b", 2, false, "y"), RemoteRecord("c", 3, false, "z")))
+        assertEquals(listOf("a", "b", "c"), FileSyncStore(file()).listSince(0).map { it.id })
+    }
+
+    @Test
+    fun putAllEmptyChangesNothing() {
+        val a = FileSyncStore(file())
+        a.putAll(emptyList())
+        assertEquals(0, a.currentRevision())
+    }
 }

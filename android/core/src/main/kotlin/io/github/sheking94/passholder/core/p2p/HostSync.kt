@@ -17,6 +17,9 @@ interface SyncStore {
     fun get(id: String): RemoteRecord?
     fun put(record: RemoteRecord)
 
+    /** Stores all [records] or, when it throws, none; a file-backed store writes them in one append. */
+    fun putAll(records: List<RemoteRecord>) = records.forEach(::put)
+
     /** Records with a revision above [revision], ordered by revision. */
     fun listSince(revision: Long): List<RemoteRecord>
     fun currentRevision(): Long
