@@ -48,14 +48,14 @@ Testy ekranów (`:app:testDebugUnitTest`, Robolectric + Roborazzi, ok. 5 min) za
 Pokrycie TypeScript (opcjonalnie): `npm i --no-save @vitest/coverage-v8 && npx vitest run --coverage` w
 katalogu pakietu.
 
-## Liczby (2026-11-09)
+## Liczby (2026-11-11)
 
 | Pakiet | Pliki | Testy | Uwagi |
 |---|---|---|---|
 | `core` | 26 | 461 | w tym `core/test/p2p/` i `core/test/autofill/` |
 | `extension` | 19 | 200 | w tym widoki w happy-dom (`extension/test/ui/`) i `extension/test/autofill/`; `background.ts` bez testów (logika w `fill-tab.ts`) |
-| `android/core` | 35 | 424 | 4 pomijane bez `PASSHOLDER_INTEROP_TEST=1` |
-| `android/app` | 19 | 64 | Robolectric, zrzuty ekranów |
+| `android/core` | 38 | 625 | 4 pomijane bez `PASSHOLDER_INTEROP_TEST=1`; w tym `autofill/` (wektory `core/test-vectors/autofill/`) |
+| `android/app` | 26 | 97 | Robolectric, zrzuty ekranów; w tym `autofill/` i ekrany autouzupełniania |
 
 ## Co testują pliki
 
@@ -146,10 +146,15 @@ Playwright z Chromium nie jest zależnością repozytorium: w kontenerze w chmur
 | `FileSyncStoreTest`, `PhoneVaultTest`, `PhoneVaultStoreTest` (dodatki) | `putAll` (jeden dopis, obcięty fragment), `importContents` (duplikaty, za duży wpis, rewizje, HLC), atomowość |
 | `ImportSummaryTest`, `TransferFilesTest`, `TransferScreenTest`, `FilePickerLockTest` (app) | podsumowanie, limit 10 MiB i UTF-8, ekran importu i eksportu (zgoda, ponowny import), okno wyboru pliku 60 s |
 | `BackupRulesTest`, `ClearClipboardWorkerTest` (app) | brak kopii zapasowych, czyszczenie schowka |
+| `autofill/FieldsVectorsTest`, `ValuesVectorsTest`, `MatchVectorsTest` | port autouzupełniania: te same wektory `{fields,values,match}.json` co TypeScript, `app.json` (`matchApp`: pakiet, zaufana przeglądarka, WebView obcej aplikacji z domeną banku) |
+| `autofill/PlannerTest` | grupa formularza, samo pole e-mail → loginy, rejestracja → nic, pomijanie wpisów bez wartości, karta tylko na `https`, indeks opcji listy, limit 10, opisy |
+| `autofill/NodeDescriptorTest`, `ResponseBuilderTest`, `FillLogicTest`, `ManifestTest` (app) | opis pola z `inputType`/HTML/podpowiedzi, `FillResponse` i pasek klawiatury (≤ `maxSuggestionCount`, styl bez wersji UI → bez paska), odpowiedzi usługi (własny pakiet, brak sejfu, zablokowany, tylko pasujące loginy), rejestracja usługi z `BIND_AUTOFILL_SERVICE` |
+| `AutofillUnlockTest`, `AutofillUnlockScreenTest`, `AutofillSettingTest` (app) | odblokowanie z podpowiedzi (złe i dobre hasło, odcisk, Wstecz, Anuluj, brak pasujących, brak żądania, ponowna blokada, powrót do aplikacji → lista), wiersz „Autouzupełnianie” w Ustawieniach (stan, „Włącz” → systemowy wybór, odświeżenie po powrocie) |
 
 Zrzuty ekranów telefonu (`android/app/screenshots/`, przepisywane przy każdym przebiegu testów): 30 Ustawienia,
 31-35 zakładki (Loginy, Karty, Kontakty, Notatki, Dokumenty), 36 formularz loginu, 37 pole ukryte pokazane,
-38-41 formularze notatki, kontaktu, karty i dokumentu, 42 wybór aplikacji, 50 Import i eksport (`50-import-eksport.png`). Zmieniły się też 03-08, 12-14, 18, 19 i 28.
+38-41 formularze notatki, kontaktu, karty i dokumentu, 42 wybór aplikacji, 50 Import i eksport (`50-import-eksport.png`), 51 odblokowanie z autouzupełniania,
+52 wiersz „Autouzupełnianie” w Ustawieniach. Zmieniły się też 03-08, 12-14, 18, 19 i 28.
 
 ## Znaleziony błąd: walidacja KDF
 
@@ -258,6 +263,26 @@ Kontakty → **Wypełnij**; na stronie bez pól adresu „Nie znaleziono pól ad
 `http://` (nie `localhost`) z polem karty → **Wypełnij**: „Kartę wypełniam tylko na stronach https”, pola puste.
 Na `chrome://extensions` „Na tej stronie nie można wypełniać”. Strony testowe: własny plik HTML z formularzami.
 
+**T19. Autouzupełnianie na telefonie.** Aplikacja zainstalowana (`.\gradlew.bat :app:installDebug`), sejf z
+wpisami. (1) **Włączenie:** ⋮ → **Ustawienia** → „Autouzupełnianie: Wyłączone” → **Włącz** → wybierz PassHolder
+→ po powrocie „Włączone” (przycisk znika). (2) **Aplikacja:** login z aplikacją wybraną w „Wybierz aplikację”
+(np. aplikacja sklepu albo banku z polem loginu) → otwórz ją, stuknij pole loginu: pod polem (i w pasku Gboard na
+Androidzie 11+) podpowiedź z nazwą i loginem → wybór wpisuje login i hasło. Kilka loginów tej aplikacji: po nazwie.
+(3) **Chrome:** Ustawienia Chrome → Autouzupełnianie → „Autouzupełnianie przez inną usługę”, restart Chrome →
+strona z zapisanym adresem (np. `https://github.com/login`): podpowiedź loginu; na stronie innej domeny jej nie ma.
+(4) **Zablokowany sejf:** ⋮ → **Zablokuj**, w aplikacji z (2) stuknij pole: „Odblokuj PassHolder” → okno odcisku
+otwiera się samo (albo hasło główne; złe hasło → komunikat, ekran zostaje) → od razu podpowiedzi loginu. Zrzut
+ekranu odblokowania jest zablokowany. Z „Blokuj dopiero po 60 s” sejf blokuje się po 60 s, bez – od razu;
+otwarcie PassHoldera w tym czasie pokazuje listę. **Anuluj** (albo Wstecz): nic nie wpisane, sejf zablokowany.
+(5) **Karta:** formularz karty w aplikacji albo w Chrome na `https`: podpowiedź `•••• 1234` → numer, ważność
+(także lista miesiąca i roku), CVC, imię i nazwisko; ta sama strona po `http` (nie `localhost`): brak podpowiedzi
+karty. (6) **Adres:** formularz zamówienia: podpowiedź kontaktu (imię i nazwisko) → imię, nazwisko, e-mail, telefon, ulica,
+kod, miasto, kraj. Samo pole e-mail (np. pierwszy krok logowania Google) podpowiada loginy, nie kontakty.
+(7) **Obca aplikacja:** aplikacja z WebView pokazującym stronę zapisanego loginu (np. przeglądarka spoza listy
+zaufanych albo aplikacja z wbudowaną stroną logowania): podpowiedzi loginu tej strony **nie ma**. (8) W samym
+PassHolderze (np. pole „Hasło główne”) usługa nic nie podpowiada; formularz rejestracji (`new-password`) nie
+dostaje haseł. Zapisz wynik, model telefonu, wersję Androida, klawiatury i Chrome.
+
 **PIN i karta.** PIN `4821` → Zablokuj → zły PIN „Pozostało prób: 4”, dobry otwiera; restart Chrome prosi o
 hasło główne. „Otwórz w karcie ↗” dwa razy: drugi raz przełącza na istniejącą kartę.
 
@@ -267,4 +292,6 @@ hasło główne. „Otwórz w karcie ↗” dwa razy: drugi raz przełącza na i
   tylko zrzutami ekranów (bez asercji na wyglądzie poza szerokością i zakryciem pól).
 - Testów automatycznych prośby o zgodę Chrome, Private Network Access i Tailscale (T4, T7 ręcznie).
 - Testów na prawdziwym telefonie (Keystore, `BiometricPrompt`, port 8787) i wydajności Argon2id.
+- Autouzupełniania z prawdziwym systemem: `readRequest` (prawdziwy `AssistStructure`), wpisanie wartości przez
+  system, Chrome z „inną usługą”, pasek klawiatury Gboard (T19 ręcznie).
 - Na telefonie: zajętego portu, obrotu ekranu przy działającym serwerze, wygasania kodu przez zegar.

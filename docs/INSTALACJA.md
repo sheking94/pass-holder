@@ -106,6 +106,20 @@ z wtyczki przez „Odtwórz z wtyczki”, patrz [kopia zapasowa](#kopia-zapasowa
 Opcjonalnie na liście wpisów: przełącznik **Odblokowanie odciskiem palca** i **Blokuj dopiero po 60 s poza
 aplikacją** ([FUNKCJE.md](FUNKCJE.md#odcisk-palca-i-blokada-po-wyjściu-android)).
 
+### 2.4. Autouzupełnianie
+
+Opcjonalnie: telefon podpowiada loginy, karty i adresy w innych aplikacjach i przeglądarkach.
+
+1. W PassHolderze: ⋮ → **Ustawienia** → **Autouzupełnianie** → **Włącz**.
+2. W oknie systemu wybierz **PassHolder** i potwierdź. Po powrocie wiersz pokazuje „Włączone”. (Ręcznie:
+   Ustawienia telefonu → System → Języki i wprowadzanie → Usługa autouzupełniania; nazwy różnią się między
+   producentami.)
+3. Chrome na telefonie: Ustawienia → **Autouzupełnianie** (Usługi autouzupełniania) → zaznacz
+   **Autouzupełnianie przez inną usługę** i uruchom Chrome ponownie. Bez tego Chrome podpowiada tylko z
+   własnego menedżera haseł.
+
+Opis: [FUNKCJE.md](FUNKCJE.md#android-1). Wyłączenie: ten sam systemowy wybór, usługa „Brak”.
+
 ## 3. Wtyczka do Chrome
 
 ### 3.1. Zbudowanie
@@ -174,7 +188,9 @@ dopiero po **Zapisz** w „Adresy telefonu” (wtedy Chrome pyta o zgodę).
   (przy PassHolder, „Wypełnij login na tej stronie”). Opis: [FUNKCJE.md](FUNKCJE.md#autouzupełnianie).
 - **Telefon:** zakładki na dole (Loginy, Kontakty, Karty, Notatki, Dokumenty) i **+ Dodaj** dla otwartej zakładki;
   menu ⋮ **Więcej**: **Urządzenia** (sparowane wtyczki, daty ostatniej synchronizacji, **Usuń**: wtyczka przestaje
-  się synchronizować), **Ustawienia** (odcisk palca, opóźnienie blokady), **Zablokuj**.
+  się synchronizować), **Ustawienia** (odcisk palca, opóźnienie blokady, autouzupełnianie), **Zablokuj**.
+- **Autouzupełnianie na telefonie:** stuknij pole logowania w aplikacji albo w Chrome → wybierz wpis z listy
+  pod polem lub z paska klawiatury. Przy zablokowanym sejfie **Odblokuj PassHolder** → hasło główne albo odcisk.
 - **Blokada:** obie części blokują się po 15 minutach bez aktywności; telefon także 60 s po wyjściu z
   aplikacji (albo od razu, gdy wyłączysz opóźnienie), wtyczka po zamknięciu przeglądarki.
 
@@ -231,6 +247,7 @@ Nowa wersja instaluje się na starej, sejf zostaje (pod warunkiem tego samego `d
 | „Parowanie wygasło…” | Po 10 min bez hasła parowanie przepada. Usuń wskazaną przeglądarkę na telefonie w **Urządzenia** i sparuj od nowa. |
 | „Telefon nie zna tej przeglądarki…” | Telefon usunął ją z „Urządzenia”. **Adresy telefonu** → „Sparuj z innym telefonem / odtwórz telefon” z kodem z **Dodaj wtyczkę**; lokalne zmiany zostają. |
 | „To inny sejf…” | Telefon ma inny sejf niż wtyczka. Nic się nie zmieniło; usuń przeglądarkę z „Urządzenia” na tamtym telefonie. |
+| Telefon: brak podpowiedzi PassHolder w polach | **Ustawienia** → **Autouzupełnianie** musi być „Włączone”; w Chrome zaznacz „Autouzupełnianie przez inną usługę” (2.4). Login w aplikacji musi mieć jej pakiet w „Aplikacje”, w przeglądarce adres strony. |
 | `gradlew.bat` kończy się błędem zaraz po starcie | Nie ustawiono `$env:JAVA_HOME="$HOME\.jdks\jbr-21.0.11"` w tym oknie PowerShell. |
 | Gradle: brak Android SDK (`SDK location not found`) | Otwórz `android\` w Android Studio albo utwórz `android\local.properties` z `sdk.dir`. |
 | `INSTALL_FAILED_UPDATE_INCOMPATIBLE` | Aplikacja na telefonie ma inny podpis. Przywróć swój `debug.keystore`; inaczej odinstaluj aplikację i odtwórz sejf z wtyczki. |

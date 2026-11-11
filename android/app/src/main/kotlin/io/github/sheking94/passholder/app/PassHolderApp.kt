@@ -43,6 +43,8 @@ class PassHolderApp : Application() {
     /** The launcher apps a login can be tied to; tests replace it. */
     var installedApps: InstalledApps = SystemInstalledApps(this)
     var fingerprintPrompt: FingerprintPrompt = SystemFingerprintPrompt
+    /** Whether PassHolder is the autofill service, shown in "Ustawienia"; tests replace it. */
+    var autofillStatus: AutofillStatus = SystemAutofillStatus(this)
     /** The fill request behind the autofill unlock screen; tests give one without a real AssistStructure. */
     var autofillRequest: (Intent) -> ParsedRequest? = { it.assistStructure()?.let(::readRequest) }
 

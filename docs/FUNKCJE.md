@@ -296,7 +296,10 @@ Skopiowane hasło znika ze schowka po minucie.
 
 ## Autouzupełnianie
 
-Chrome: wtyczka wpisuje login, kartę albo adres w pola otwartej strony. Android dojdzie w następnym kroku.
+Chrome: wtyczka wpisuje login, kartę albo adres w pola otwartej strony. Android: telefon podpowiada wpisy z
+sejfu w polach innych aplikacji i przeglądarek ([niżej](#android-1)).
+
+### Chrome
 
 - **Pasujące do tej strony:** na zakładce Loginy okienko pokazuje u góry sekcję „Pasujące do tej strony” z
   loginami dla adresu otwartej karty (dokładny host przed subdomenami, w grupie po nazwie). Przycisk
@@ -328,3 +331,40 @@ Chrome: wtyczka wpisuje login, kartę albo adres w pola otwartej strony. Android
 Kod: `core/src/autofill/` (`match.ts`, `fields.ts`, `keywords.ts`, `values.ts`), `extension/src/autofill/`
 (`fill-page.ts`, `fill-tab.ts`), `autofill-content.ts`, `background.ts` (komunikat `fill`, polecenie `fill-login`),
 `ui/active-tab.ts`, `views/list.ts`. Wymaga Chrome 127 lub nowszego.
+
+### Android
+
+PassHolder jest systemową usługą autouzupełniania (Android 8+). Włączenie: **Ustawienia** → wiersz
+**Autouzupełnianie** („Włączone”/„Wyłączone”) → **Włącz** otwiera systemowy wybór usługi
+([INSTALACJA.md](INSTALACJA.md#24-autouzupełnianie)).
+
+- **Podpowiedzi:** pod polem lista (nazwa wpisu i opis: login, `•••• 1234`, imię i nazwisko), najwyżej 10. Na
+  Androidzie 11+ z klawiaturą, która to obsługuje (np. Gboard), te same podpowiedzi także w pasku klawiatury.
+  Wybór wpisuje wszystkie pola formularza naraz.
+- **Co pasuje:** loginy w aplikacji – te z pakietem aplikacji na liście „Aplikacje” wpisu (po nazwie); w
+  zaufanej przeglądarce (Chrome, Firefox, Edge, Brave, Samsung Internet, Opera, DuckDuckGo, Vivaldi i ich
+  odmiany) – po adresie strony, te same reguły co we wtyczce. Domenę strony podaną przez inną aplikację (np. jej
+  WebView) PassHolder pomija, więc obca aplikacja nie dostanie loginu banku. Karty i kontakty: wszystkie, w
+  kolejności listy; kartę przeglądarka dostaje tylko na `https` (i `localhost`).
+- **Rodzaj formularza:** pola rozpoznawane jak we wtyczce (`autofillHints`, `autocomplete` z HTML, typ pola,
+  identyfikator, podpowiedź, opis; polskie i angielskie słowa). Pole loginu lub hasła → loginy; samo pole
+  e-mail (pierwszy krok logowania, np. Google) → też loginy; pola karty → karty; pozostałe pola adresu → kontakty.
+  Formularz rejestracji (tylko `new-password`) nie dostaje nic; wpis bez żadnej wartości dla pól jest pomijany.
+- **Zablokowany sejf:** jedna podpowiedź **Odblokuj PassHolder** → ekran z hasłem głównym i
+  **Odblokuj odciskiem palca** (okno odcisku otwiera się samo) → od razu podpowiedzi dla tego samego formularza.
+  Potem sejf znów się blokuje: po 60 s albo od razu, zależnie od „Blokuj dopiero po 60 s poza aplikacją”.
+  **Anuluj** albo Wstecz: nic się nie wypełnia, sejf zostaje zablokowany (także gdy odblokowanie już trwało).
+- Bez sejfu na telefonie i w samym PassHolderze usługa nic nie podpowiada. Zapisywania nowych haseł z formularzy
+  jeszcze nie ma.
+
+**Bezpieczeństwo:**
+
+- Usługę wywołuje tylko system (`BIND_AUTOFILL_SERVICE`); ekran odblokowania nie jest dostępny dla innych
+  aplikacji (`exported="false"`) i ma blokadę zrzutów ekranu (`FLAG_SECURE`).
+- Usługa nie trzyma wpisów ani kluczy: wpisy są odszyfrowywane przy każdym żądaniu, tylko do budowy odpowiedzi.
+- Aplikacja widzi tylko wartości wybranego wpisu, i to dopiero po wyborze podpowiedzi.
+
+Kod: `android/core/.../core/autofill/` (`Keywords.kt`, `Fields.kt`, `Values.kt`, `Match.kt`, `Planner.kt`; port
+`core/src/autofill/` plus `matchApp` i `planDatasets`), `android/app/.../app/autofill/` (`ViewNodeReader.kt`,
+`ResponseBuilder.kt`, `PassHolderAutofillService.kt`, `AutofillUnlockActivity.kt`), `ui/AutofillUnlockScreen.kt`,
+`AutofillStatus.kt`, `ui/SettingsScreen.kt`.

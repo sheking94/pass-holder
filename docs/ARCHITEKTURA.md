@@ -96,11 +96,13 @@ Dwa moduły Gradle: `core` (czysta JVM, testy bez emulatora) i `app` (Jetpack Co
 | `p2p/SyncHttpServer.kt`, `PhoneRouter.kt`, `LocalAddresses.kt` | serwer HTTP na porcie 8787 z limitami, trasy `/p2p/v1/pair/*`, `/p2p/v1/ping` i `/p2p/v2/*` (stare `/p2p/v1/handshake` i `/sync` przekazane do hosta, który odpowiada 410), adresy telefonu |
 | `transfer/Common.kt`, `Csv.kt`, `JsonText.kt`, `PassHolderJson.kt`, `BitwardenJson.kt`, `NordPassCsv.kt`, `Transfer.kt` | pakiet `core.transfer`: port `core/src/transfer/` (`contentKey`, `sortForExport` na `RuleBasedCollator` zgodnym z wektorem `sort.json`, CSV RFC 4180, serializacja JSON jak `JSON.stringify`, `Transfer.parseImportFile` i `exportFile`); te same pliki przykładowe z `core/test-vectors/transfer/` |
 | `p2p/PhoneVaultStore.kt`, `PhoneVault.kt`, `FileSyncStore.kt`, `HostState.kt` | sejf telefonu: tworzenie, odtwarzanie, blokada (15 min), wpisy (`entries()` zwraca wszystkie typy, `upsert` zachowuje resztę pól i odmawia nadpisania wpisu innego typu), urządzenia; pliki `records.jsonl` i `host.json`; import: `importContents` (duplikaty po `contentKey`, jeden zapis) i `allContents` |
+| `autofill/Keywords.kt`, `Fields.kt`, `Values.kt`, `Match.kt` | port `core/src/autofill/` 1:1 (`classifyField`, `planFor`, `fillValue`, `matchUrl` z własnym parserem adresu, `matchLogins`) na tych samych wektorach `{match,fields,values}.json`; `matchApp`: zaufana przeglądarka (13 pakietów, `TRUSTED_BROWSERS`) z `webDomain` → `matchLogins`, inaczej loginy z pakietem w `androidApps`, po nazwie; wektory `test-vectors/autofill/app.json` (tylko Kotlin) |
+| `autofill/Planner.kt` | `planRequest`: grupa formularza (login, karta, kontakt) i jej pola; `planDatasets`: pasujące wpisy → wartości pól (`ListIndex` dla list), bez wpisów bez wartości, najwyżej 10; generyczne po typie id pola, więc testowane bez Androida |
 | `SyncStore.putAll` (w `p2p/HostSync.kt`), `p2p/FileSyncStore.kt` | `putAll`: wiele rekordów jednym dopisem i `fsync` (import atomowy); domyślnie pętla `put` |
 
 | Plik (`android/app/.../app/`) | Co robi |
 |---|---|
-| `PassHolderApp.kt` | obiekt procesu: jeden `PhoneVaultStore`, `LeaveLock`, ustawienia, odcisk |
+| `PassHolderApp.kt` | obiekt procesu: jeden `PhoneVaultStore`, `LeaveLock`, ustawienia, odcisk, haki testowe autouzupełniania |
 | `MainActivity.kt` | `onStart` / `onStop` (powrót i wyjście z aplikacji), ekran nie gaśnie w trybie Synchronizacja, blokada zrzutów ekranu |
 | `AppViewModel.kt` | stan ekranów (`UiState`) i operacje na sejfie w tle (`launchVaultOperation`) |
 | `SyncController.kt` | tryb Synchronizacja: start i stop serwera, kod parowania, zdarzenia, zatrzymanie po 5 min bez połączeń |
@@ -112,10 +114,15 @@ Dwa moduły Gradle: `core` (czysta JVM, testy bez emulatora) i `app` (Jetpack Co
 | `InstalledApps.kt` | aplikacje z ikoną w launcherze (`PackageManager`; w manifeście `<queries>` MAIN + LAUNCHER, bez `QUERY_ALL_PACKAGES`) |
 | `entries/EntryTypes.kt` | `EntryType`, opis wiersza, wyszukiwanie, `tidy`, walidacja (port `extension/src/entry-types.ts`) |
 | `SecureClipboard.kt` | kopiowanie i czyszczenie schowka po minucie (WorkManager) |
+| `autofill/ViewNodeReader.kt` | `AssistStructure` → `ParsedRequest`: pakiet, `webDomain`/`webScheme`, widoczne i włączone pola tekstowe i list (`describeNode`: `htmlInfo`, `autofillHints`, `inputType`, `idEntry`, podpowiedź) |
+| `autofill/PassHolderAutofillService.kt` | usługa (`BIND_AUTOFILL_SERVICE`): `respond` (własny pakiet, brak pól, brak sejfu → `null`; zablokowany → „Odblokuj PassHolder”; inaczej `buildFillResponse`), praca w osobnym wątku; `onSaveRequest` nic nie robi |
+| `autofill/ResponseBuilder.kt` | `FillResponse`: `Dataset` z wierszem `res/layout/autofill_item.xml` i, na API 30+, podpowiedzią w pasku klawiatury (`androidx.autofill` `InlineSuggestionUi`, ≤ `min(10, maxSuggestionCount)`); bez `SaveInfo` |
+| `autofill/AutofillUnlockActivity.kt`, `ui/AutofillUnlockScreen.kt` | ekran odblokowania z podpowiedzi (`exported="false"`, `FLAG_SECURE`): hasło albo odcisk, potem `EXTRA_AUTHENTICATION_RESULT` i ponowna blokada (D1) |
+| `AutofillStatus.kt` | czy PassHolder jest usługą autouzupełniania (`hasEnabledAutofillServices`), wiersz w `SettingsScreen` |
 | `ui/*.kt` | ekrany Compose: `StartScreen`, `LockedScreen`, `ListScreen` (dolny pasek zakładek), `EditScreen` (powłoka formularza), `SettingsScreen`, `TransferScreen` (import i eksport; okno wyboru pliku 60 s w `LockController.expectFilePicker`), `VaultTopBar`, `SyncScreen`, `DevicesScreen`, `RestoreScreen`, `FingerprintDialog`, `Common` (m.in. `SecretField`), `PassHolderUi` (wybór ekranu) |
 | `ui/forms/*.kt` | `LoginForm`, `ContactForm`, `CardForm`, `DocumentForm` (notatka używa samej powłoki), `ListEditor`, `CustomFieldsEditor`, `GeneratorCard`, `AppPickerDialog` |
 
-## Przepływ autouzupełniania
+## Przepływ autouzupełniania (Chrome)
 
 ```
  okienko (list.ts)                    service worker (background.ts)              strona (wszystkie ramki)
@@ -133,6 +140,33 @@ Dwa moduły Gradle: `core` (czysta JVM, testy bez emulatora) i `app` (Jetpack Co
 
 Okienko zamyka się po powodzeniu; błąd zostaje w linii statusu. Skrót wypełnia sam tylko przy jednym pasującym
 loginie, w pozostałych przypadkach otwiera okienko.
+
+## Przepływ autouzupełniania (Android)
+
+```
+ aplikacja / przeglądarka      system Android                  PassHolderAutofillService (wątek)
+ stuknięcie pola ────────────► onFillRequest(AssistStructure) ─► readRequest → ParsedRequest
+                                                                 własny pakiet / brak pól / brak sejfu → null
+                                                                 planRequest → grupa (login, karta, kontakt)
+                                                                 zablokowany → locked: „Odblokuj PassHolder”
+                                                                 otwarty → entries() → planDatasets → datasets
+ lista pod polem i pasek     ◄── FillResponse ◄─────────────────┘
+ klawiatury (API 30+)
+ „Odblokuj PassHolder” ──────► AutofillUnlockActivity: hasło / odcisk → unlock → buildFillResponse
+                               ◄── RESULT_OK + EXTRA_AUTHENTICATION_RESULT; blokada po 60 s albo od razu
+ wybór wpisu ◄──────────────── system wpisuje wartości datasetu w pola
+```
+
+Usługa nie trzyma wpisów ani kluczy: każde żądanie czyta sejf od nowa. Decyzje (2026-11-11):
+
+- **D1** Po odblokowaniu z podpowiedzi sejf blokuje się jak przy wyjściu z aplikacji: `LeaveLock` 60 s przy
+  „Blokuj dopiero po 60 s”, inaczej od razu; Anuluj/Wstecz w trakcie odblokowania → blokada od razu. Sejf
+  otwarty wcześniej w aplikacji zostaje przy jej blokadzie. Powrót do aplikacji przy otwartym sejfie pokazuje listę.
+- **D2** Samo pole e-mail → loginy (pierwszy krok logowania); kontakty wymagają innego pola kontaktu.
+- **D3** Karta w zaufanej przeglądarce tylko przy `webScheme` `https` (albo bez `webScheme`, albo `localhost`);
+  w aplikacjach zawsze.
+- **D4** Podpowiedzi także w pasku klawiatury (Android 11+, `androidx.autofill` 1.1.0), obok listy pod polem.
+- **D5** Wektory `matchApp` w `core/test-vectors/autofill/app.json`, czytane tylko przez Kotlin.
 
 ## Przepływ synchronizacji
 
