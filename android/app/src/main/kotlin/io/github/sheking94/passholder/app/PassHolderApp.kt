@@ -2,8 +2,12 @@ package io.github.sheking94.passholder.app
 
 import android.app.Application
 import android.content.Context
+import android.content.Intent
 import android.util.Log
 import androidx.core.content.edit
+import io.github.sheking94.passholder.app.autofill.ParsedRequest
+import io.github.sheking94.passholder.app.autofill.assistStructure
+import io.github.sheking94.passholder.app.autofill.readRequest
 import io.github.sheking94.passholder.core.GeneratorOptions
 import io.github.sheking94.passholder.core.p2p.LocalAddresses
 import io.github.sheking94.passholder.core.p2p.PhoneSync
@@ -39,6 +43,8 @@ class PassHolderApp : Application() {
     /** The launcher apps a login can be tied to; tests replace it. */
     var installedApps: InstalledApps = SystemInstalledApps(this)
     var fingerprintPrompt: FingerprintPrompt = SystemFingerprintPrompt
+    /** The fill request behind the autofill unlock screen; tests give one without a real AssistStructure. */
+    var autofillRequest: (Intent) -> ParsedRequest? = { it.assistStructure()?.let(::readRequest) }
 
     override fun onCreate() {
         super.onCreate()

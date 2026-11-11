@@ -153,6 +153,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun onReturn() {
         locks.onReturn()
         if (_state.value.screen == Screen.Restore) startRestoreSync()
+        // Unlocked outside this screen (the autofill unlock screen) while the app showed the locked screen.
+        if (_state.value.screen == Screen.Locked && !_state.value.busy && store.isUnlocked) showListUnlockedElsewhere()
     }
 
     /** Every 15 s and on return: the 5-minute idle stop of sync mode, then the 15-minute auto-lock. */
@@ -274,7 +276,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun biometricAvailability(): BiometricAvailability = app.fingerprintPrompt.availability(app)
 
     /** Called once by the locked screen when it appears: true means "open the fingerprint dialog now". */
-    fun takeFingerprintOnLockedScreen(): Boolean = locks.takeFingerprintOffer(biometrics.enabled.value)
+    fun takeFingerprintOnLockedScreen(): Boolean = locks.takeFingerprintOffer(biometrics.enabled.value) && !store.isUnlocked
 
     /**
      * Turning fingerprint unlock on, step 1 (the vault is unlocked, list screen): the cipher the dialog must
@@ -518,6 +520,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             status = message?.let { Status(it) },
             tab = tab,
         )
+    }
+
+    /** The list for a vault unlocked elsewhere; the entries are read off the main thread, the locked screen stays until then. */
+    private fun showListUnlockedElsewhere() {
+        viewModelScope.launch {
+            val read = withContext(Dispatchers.IO) { runCatching { store.entries() to store.unreadableIds().size } }
+            read.onSuccess { (entries, unreadable) ->
+                if (store.isUnlocked && _state.value.screen == Screen.Locked && !_state.value.busy) {
+                    _state.value = UiState(Screen.List, entries = entries, unreadable = unreadable)
+                }
+            }
+        }
     }
 
     /** The tab the list comes back to: the edited entry's type, otherwise the current tab. */
