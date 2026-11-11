@@ -48,8 +48,8 @@ fun describeNode(a: NodeAttrs): FieldDescriptor {
     val tokens = a.htmlAttrs["autocomplete"].orEmpty().trim().split(WHITESPACE).filter { it.isNotEmpty() }
     val type = when {
         a.htmlTag.equals("select", ignoreCase = true) -> "select"
-        a.htmlAttrs["type"] != null -> a.htmlAttrs.getValue("type")
-        a.htmlTag != null -> "text"
+        !a.htmlAttrs["type"].isNullOrBlank() -> a.htmlAttrs.getValue("type").trim()
+        // An HTML input without a type: the browser's inputType still tells a password field.
         else -> nativeType(a.inputType)
     }
     return FieldDescriptor(
@@ -64,6 +64,14 @@ fun describeNode(a: NodeAttrs): FieldDescriptor {
     )
 }
 
+/**
+ * A node whose subtree is not read: not VISIBLE (hidden fields are not filled), or a frame of another origin
+ * than the page (spec 6: [requestDomain] is the first web domain of the window, null until one is seen).
+ */
+fun skipSubtree(visibility: Int, nodeDomain: String?, requestDomain: String?): Boolean =
+    visibility != View.VISIBLE ||
+        (!nodeDomain.isNullOrEmpty() && requestDomain != null && !nodeDomain.equals(requestDomain, ignoreCase = true))
+
 class ParsedRequest(val app: AppRequest, val nodes: List<AutofillNode<AutofillId>>)
 
 /** Reads fillable fields of the last window of [structure]; Android-only, verified on a device. */
@@ -77,15 +85,14 @@ fun readRequest(structure: AssistStructure): ParsedRequest {
         packageName = structure.activityComponent?.packageName.orEmpty()
 
         fun visit(node: AssistStructure.ViewNode) {
+            if (skipSubtree(node.visibility, node.webDomain, webDomain)) return
             if (webDomain == null) webDomain = node.webDomain?.takeIf { it.isNotEmpty() }
             if (webScheme == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 webScheme = node.webScheme?.takeIf { it.isNotEmpty() }
             }
             val id = node.autofillId
             val type = node.autofillType
-            if (id != null && (type == View.AUTOFILL_TYPE_TEXT || type == View.AUTOFILL_TYPE_LIST) &&
-                node.visibility == View.VISIBLE && node.isEnabled
-            ) {
+            if (id != null && (type == View.AUTOFILL_TYPE_TEXT || type == View.AUTOFILL_TYPE_LIST) && node.isEnabled) {
                 val html = node.htmlInfo
                 val attrs = HashMap<String, String>()
                 html?.attributes?.forEach { attrs[it.first.lowercase()] = it.second }

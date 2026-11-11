@@ -1,11 +1,14 @@
 package io.github.sheking94.passholder.app.autofill
 
 import android.text.InputType
+import android.view.View
 import io.github.sheking94.passholder.core.autofill.FieldKind
 import io.github.sheking94.passholder.core.autofill.FieldOption
 import io.github.sheking94.passholder.core.autofill.classifyField
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class NodeDescriptorTest {
@@ -82,5 +85,25 @@ class NodeDescriptorTest {
             attrs(hint = "Hasło", inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD),
         )
         assertEquals(FieldKind.PASSWORD, classifyField(d))
+    }
+
+    @Test
+    fun htmlInputWithoutTypeFallsBackToInputType() {
+        val pw = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD
+        assertEquals("password", describeNode(attrs(htmlTag = "input", inputType = pw)).type)
+        assertEquals("password", describeNode(attrs(htmlTag = "input", htmlAttrs = mapOf("type" to " "), inputType = pw)).type)
+        assertEquals("text", describeNode(attrs(htmlTag = "input")).type)
+    }
+
+    @Test
+    fun hiddenSubtreesAndForeignFramesAreSkipped() {
+        assertFalse(skipSubtree(View.VISIBLE, null, "bank.pl"))
+        assertFalse(skipSubtree(View.VISIBLE, "", "bank.pl"))
+        assertFalse(skipSubtree(View.VISIBLE, "bank.pl", "bank.pl"))
+        assertFalse(skipSubtree(View.VISIBLE, "BANK.pl", "bank.pl"))
+        assertFalse("the first web domain sets the request's own", skipSubtree(View.VISIBLE, "bank.pl", null))
+        assertTrue("cross-origin frame (spec 6)", skipSubtree(View.VISIBLE, "evil.pl", "bank.pl"))
+        assertTrue(skipSubtree(View.INVISIBLE, null, null))
+        assertTrue(skipSubtree(View.GONE, "bank.pl", "bank.pl"))
     }
 }

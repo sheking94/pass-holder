@@ -59,10 +59,12 @@ private fun parse(raw: String): ParsedUrl? {
         val hostPart = if (colon < 0) authority else authority.substring(0, colon)
         if (colon >= 0) rawPort = authority.substring(colon + 1)
         if (hostPart.any { it.isWhitespace() || it.isISOControl() || it in FORBIDDEN_HOST_CHARS }) return null
-        // Java's IDNA2003 maps these differently from WHATWG (UTS46); fail closed.
-        if (hostPart.any { it == 'ß' || it == 'ς' || it == '\u200C' || it == '\u200D' }) return null
+        // Java's IDNA2003 maps these differently from WHATWG (UTS46); fail closed. Checked after lowercasing:
+        // U+1E9E lowercases to ß and a word-final capital sigma to ς.
+        val lowerHost = hostPart.lowercase()
+        if (lowerHost.any { it == 'ß' || it == 'ς' || it == '\u200C' || it == '\u200D' }) return null
         val ascii = try {
-            IDN.toASCII(hostPart.lowercase()).lowercase()
+            IDN.toASCII(lowerHost).lowercase()
         } catch (_: IllegalArgumentException) {
             return null
         }

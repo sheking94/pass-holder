@@ -252,7 +252,8 @@ MainActivity.onStart() → LockController.onReturn()
 ```
 
 - `LeaveLock` odlicza `SystemClock.elapsedRealtime` (liczy też w uśpieniu). Gdy system zamrozi minutnik,
-  sprawdzenie przy powrocie i tak zablokuje sejf przed pokazaniem wpisu.
+  sprawdzenie przy powrocie i tak zablokuje sejf przed pokazaniem wpisu. Usługa autouzupełniania sprawdza ten
+  sam termin (`LeaveLock.expired()`) przed podpowiedziami: po 60 s blokuje sejf i pokazuje „Odblokuj PassHolder”.
 - Operacja na sejfie (np. Argon2id) trzyma blokadę `@Synchronized`, więc `lock()` na głównym wątku
   zamroziłby aplikację; zamiast tego `lockWaitsForOperation` blokuje sejf zaraz po końcu operacji.
 - Ustawienie: `SharedPreferences "settings"`, klucz `lockDelay` (domyślnie `true`).
@@ -349,7 +350,8 @@ PassHolder jest systemową usługą autouzupełniania (Android 8+). Włączenie:
 - **Rodzaj formularza:** pola rozpoznawane jak we wtyczce (`autofillHints`, `autocomplete` z HTML, typ pola,
   identyfikator, podpowiedź, opis; polskie i angielskie słowa). Pole loginu lub hasła → loginy; samo pole
   e-mail (pierwszy krok logowania, np. Google) → też loginy; pola karty → karty; pozostałe pola adresu → kontakty.
-  Formularz rejestracji (tylko `new-password`) nie dostaje nic; wpis bez żadnej wartości dla pól jest pomijany.
+  Formularz rejestracji z samym polem `new-password` nie dostaje nic; z polem e-mail i `new-password` pole e-mail
+  dostaje loginy (jak wyżej), pole nowego hasła nic. Wpis bez żadnej wartości dla pól jest pomijany.
 - **Zablokowany sejf:** jedna podpowiedź **Odblokuj PassHolder** → ekran z hasłem głównym i
   **Odblokuj odciskiem palca** (okno odcisku otwiera się samo) → od razu podpowiedzi dla tego samego formularza.
   Potem sejf znów się blokuje: po 60 s albo od razu, zależnie od „Blokuj dopiero po 60 s poza aplikacją”.

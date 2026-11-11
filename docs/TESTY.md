@@ -54,8 +54,8 @@ katalogu pakietu.
 |---|---|---|---|
 | `core` | 26 | 461 | w tym `core/test/p2p/` i `core/test/autofill/` |
 | `extension` | 19 | 200 | w tym widoki w happy-dom (`extension/test/ui/`) i `extension/test/autofill/`; `background.ts` bez testów (logika w `fill-tab.ts`) |
-| `android/core` | 38 | 625 | 4 pomijane bez `PASSHOLDER_INTEROP_TEST=1`; w tym `autofill/` (wektory `core/test-vectors/autofill/`) |
-| `android/app` | 26 | 97 | Robolectric, zrzuty ekranów; w tym `autofill/` i ekrany autouzupełniania |
+| `android/core` | 38 | 626 | 4 pomijane bez `PASSHOLDER_INTEROP_TEST=1`; w tym `autofill/` (wektory `core/test-vectors/autofill/`) |
+| `android/app` | 26 | 102 | Robolectric, zrzuty ekranów; w tym `autofill/` i ekrany autouzupełniania |
 
 ## Co testują pliki
 
@@ -280,8 +280,8 @@ karty. (6) **Adres:** formularz zamówienia: podpowiedź kontaktu (imię i nazwi
 kod, miasto, kraj. Samo pole e-mail (np. pierwszy krok logowania Google) podpowiada loginy, nie kontakty.
 (7) **Obca aplikacja:** aplikacja z WebView pokazującym stronę zapisanego loginu (np. przeglądarka spoza listy
 zaufanych albo aplikacja z wbudowaną stroną logowania): podpowiedzi loginu tej strony **nie ma**. (8) W samym
-PassHolderze (np. pole „Hasło główne”) usługa nic nie podpowiada; formularz rejestracji (`new-password`) nie
-dostaje haseł. Zapisz wynik, model telefonu, wersję Androida, klawiatury i Chrome.
+PassHolderze (np. pole „Hasło główne”) usługa nic nie podpowiada; formularz rejestracji z samym polem
+`new-password` nie dostaje nic, a z e-mailem i `new-password` – loginy tylko w polu e-mail (nowe hasło puste). Zapisz wynik, model telefonu, wersję Androida, klawiatury i Chrome.
 
 **PIN i karta.** PIN `4821` → Zablokuj → zły PIN „Pozostało prób: 4”, dobry otwiera; restart Chrome prosi o
 hasło główne. „Otwórz w karcie ↗” dwa razy: drugi raz przełącza na istniejącą kartę.

@@ -103,7 +103,7 @@ z wtyczki przez „Odtwórz z wtyczki”, patrz [kopia zapasowa](#kopia-zapasowa
 
 **Hasła głównego nie da się odzyskać.** Bez niego nie otworzysz sejfu ani na telefonie, ani we wtyczce.
 
-Opcjonalnie na liście wpisów: przełącznik **Odblokowanie odciskiem palca** i **Blokuj dopiero po 60 s poza
+Opcjonalnie w ⋮ → **Ustawienia**: przełącznik **Odblokowanie odciskiem palca** i **Blokuj dopiero po 60 s poza
 aplikacją** ([FUNKCJE.md](FUNKCJE.md#odcisk-palca-i-blokada-po-wyjściu-android)).
 
 ### 2.4. Autouzupełnianie
@@ -113,7 +113,8 @@ Opcjonalnie: telefon podpowiada loginy, karty i adresy w innych aplikacjach i pr
 1. W PassHolderze: ⋮ → **Ustawienia** → **Autouzupełnianie** → **Włącz**.
 2. W oknie systemu wybierz **PassHolder** i potwierdź. Po powrocie wiersz pokazuje „Włączone”. (Ręcznie:
    Ustawienia telefonu → System → Języki i wprowadzanie → Usługa autouzupełniania; nazwy różnią się między
-   producentami.)
+   producentami.) Przy wyłączonym „Blokuj dopiero po 60 s poza aplikacją” sejf blokuje się, gdy otwiera się
+   okno systemu – po powrocie odblokuj go ponownie.
 3. Chrome na telefonie: Ustawienia → **Autouzupełnianie** (Usługi autouzupełniania) → zaznacz
    **Autouzupełnianie przez inną usługę** i uruchom Chrome ponownie. Bez tego Chrome podpowiada tylko z
    własnego menedżera haseł.

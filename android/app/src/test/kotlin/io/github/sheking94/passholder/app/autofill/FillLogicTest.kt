@@ -4,6 +4,7 @@ import android.app.PendingIntent
 import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.github.sheking94.passholder.app.LeaveLock
 import io.github.sheking94.passholder.app.PassHolderApp
 import io.github.sheking94.passholder.app.TestSecretWrapper
 import io.github.sheking94.passholder.core.autofill.AppRequest
@@ -12,11 +13,14 @@ import io.github.sheking94.passholder.core.autofill.FieldDescriptor
 import io.github.sheking94.passholder.core.p2p.EntryContentV3
 import io.github.sheking94.passholder.core.p2p.LoginFields
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 @RunWith(AndroidJUnit4::class)
@@ -39,6 +43,11 @@ class FillLogicTest {
     fun setUp() {
         app.secretWrapper = TestSecretWrapper
         app.phoneStore.disconnect()
+    }
+
+    @After
+    fun tearDown() {
+        app.leaveLock.cancel()
     }
 
     private fun vaultWithLogin() {
@@ -79,5 +88,27 @@ class FillLogicTest {
         assertNotNull(respond(app, request(), null, auth))
         assertNull(respond(app, request(domain = "example.com"), null, auth))
         assertEquals(0, authCalls)
+    }
+
+    @Test
+    fun `unlocked vault past the 60 s deadline gets the unlock prompt and locks`() {
+        vaultWithLogin()
+        // The timer never ran (deep sleep, frozen app), but the clock went on past the deadline (D1).
+        var t = 0L
+        app.leaveLock = LeaveLock(app.phoneStore, now = { t }).also { it.schedule(LeaveLock.DELAY_MS) }
+        assertNotNull(respond(app, request(), null, auth))
+        assertEquals("before the deadline: suggestions", 0, authCalls)
+        t = LeaveLock.DELAY_MS
+        assertNotNull(respond(app, request(), null, auth))
+        assertEquals("past the deadline: the unlock prompt", 1, authCalls)
+        assertFalse(app.phoneStore.isUnlocked)
+    }
+
+    @Test
+    fun `a new unlock prompt does not cancel the one still shown`() {
+        // Each locked response holds its own sender; the next request must not turn an earlier one dead.
+        val first = unlockPendingIntent(app)
+        unlockPendingIntent(app)
+        assertFalse(shadowOf(first).isCanceled)
     }
 }

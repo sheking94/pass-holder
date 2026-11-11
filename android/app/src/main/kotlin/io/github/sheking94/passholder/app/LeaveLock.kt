@@ -14,7 +14,8 @@ import kotlin.concurrent.thread
  *
  * Two safety nets, because Android may freeze a background app and delay its timers:
  *  - the timer locks the vault [delayMs] after leaving (if the app is not frozen),
- *  - on return, [cancel] compares the clock with the deadline, so a late timer never leaves the vault open.
+ *  - on return, [cancel] compares the clock with the deadline, so a late timer never leaves the vault open;
+ *    the autofill service asks [expired] before it fills from an unlocked vault, for the same reason.
  * SystemClock.elapsedRealtime keeps counting while the phone sleeps and cannot be changed by the user.
  */
 class LeaveLock(
@@ -22,6 +23,8 @@ class LeaveLock(
     private val now: () -> Long = SystemClock::elapsedRealtime,
     private val handler: Handler = Handler(Looper.getMainLooper()),
 ) {
+    // Read by the autofill service on its worker thread.
+    @Volatile
     private var deadline: Long? = null
 
     // An unlock (Argon2id) can hold the vault for seconds (PhoneVaultStore is synchronized): never wait for it on the main thread.
@@ -41,6 +44,9 @@ class LeaveLock(
         deadline = null
         return expired
     }
+
+    /** The time ran out and [cancel] has not been called since; changes nothing (the caller locks). */
+    fun expired(): Boolean = deadline?.let { now() >= it } ?: false
 
     companion object {
         const val DELAY_MS = 60_000L

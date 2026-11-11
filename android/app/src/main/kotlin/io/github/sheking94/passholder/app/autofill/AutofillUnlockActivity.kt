@@ -131,7 +131,8 @@ class AutofillUnlockActivity : FragmentActivity() {
         busy = true
         status = Status("Odblokowuję…")
         // Normally locked (that is why the suggestion led here), unless the app was unlocked meanwhile.
-        val wasUnlocked = app.phoneStore.isUnlocked
+        // A vault past its 60 s deadline (the timer did not run) counts as locked: it is locked again after.
+        val wasUnlocked = app.phoneStore.isUnlocked && !app.leaveLock.expired()
         lifecycleScope.launch {
             val response = try {
                 withContext(Dispatchers.IO) {

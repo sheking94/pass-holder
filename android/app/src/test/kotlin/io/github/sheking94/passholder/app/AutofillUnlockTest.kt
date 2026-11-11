@@ -5,6 +5,7 @@ import android.app.Instrumentation
 import android.content.Intent
 import android.os.Looper
 import android.service.autofill.FillResponse
+import android.view.WindowManager
 import android.view.autofill.AutofillManager
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
@@ -196,6 +197,16 @@ class AutofillUnlockNoMatchTest : AutofillUnlockTestBase() {
         assertEquals(Activity.RESULT_OK, result.resultCode)
         assertNull(result.response())
         assertFalse(app.phoneStore.isUnlocked)
+    }
+}
+
+class AutofillUnlockSecureTest : AutofillUnlockTestBase() {
+    @Test
+    fun `the unlock screen blocks screenshots`() {
+        waitFor("Odblokuj PassHolder")
+        scenario.onActivity {
+            assertTrue((it.window.attributes.flags and WindowManager.LayoutParams.FLAG_SECURE) != 0)
+        }
     }
 }
 

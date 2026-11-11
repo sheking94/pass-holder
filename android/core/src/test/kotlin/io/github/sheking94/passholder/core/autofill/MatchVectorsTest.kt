@@ -53,6 +53,14 @@ class MatchVectorsTest {
     }
 
     @Test
+    fun upperCaseSharpSAndSigmaFailClosed() {
+        // U+1E9E and a word-final capital sigma lowercase to the characters Java's IDNA2003 maps differently
+        // from UTS46 (the sigma is final only at the end of the host: Java skips the dot when it looks ahead).
+        assertNull(matchUrl("https://STRA\u1E9EE.de", "strasse.de"))
+        assertNull(matchUrl("https://\u039A\u0391\u03A3.", "\u03BA\u03B1\u03C3"))
+    }
+
+    @Test
     fun adversarialHostsDoNotMatch() {
         val pages = listOf(
             "https://google.com@evil.pl",

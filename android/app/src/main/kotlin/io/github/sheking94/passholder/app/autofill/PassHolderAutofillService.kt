@@ -1,6 +1,7 @@
 package io.github.sheking94.passholder.app.autofill
 
 import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
 import android.content.IntentSender
 import android.os.Build
@@ -41,9 +42,21 @@ internal fun respond(
     val plan = planRequest(request.nodes) ?: return null
     val store = app.phoneStore
     if (!store.hasVault) return null
+    // D1: the 60 s timer may not have run (deep sleep, a frozen app); the deadline still holds.
+    if (app.leaveLock.expired()) store.lock()
     if (!store.isUnlocked) return ResponseBuilder.locked(app, plan.nodes.map { it.first.id }, auth(), inline)
     return buildFillResponse(app, request, inline)
 }
+
+/**
+ * The intent behind "Odblokuj PassHolder". MUTABLE: the system adds EXTRA_ASSIST_STRUCTURE (and the inline
+ * request) to it. UPDATE_CURRENT, not CANCEL_CURRENT: the identity is the same for every request, and
+ * cancelling would make the suggestion of a response still on screen dead.
+ */
+internal fun unlockPendingIntent(context: Context): PendingIntent = PendingIntent.getActivity(
+    context, 0, Intent(context, AutofillUnlockActivity::class.java),
+    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
+)
 
 /** The system autofill service. Holds no entries or keys: each request reads the store anew. */
 class PassHolderAutofillService : AutofillService() {
@@ -69,11 +82,7 @@ class PassHolderAutofillService : AutofillService() {
         }
     }
 
-    /** MUTABLE: the system adds EXTRA_ASSIST_STRUCTURE (and the inline request) to the intent. */
-    private fun unlockSender(): IntentSender = PendingIntent.getActivity(
-        this, 0, Intent(this, AutofillUnlockActivity::class.java),
-        PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_MUTABLE,
-    ).intentSender
+    private fun unlockSender(): IntentSender = unlockPendingIntent(this).intentSender
 
     override fun onSaveRequest(request: SaveRequest, callback: SaveCallback) {
         // Saving is subproject C; the responses carry no SaveInfo, so this is not expected to be called.

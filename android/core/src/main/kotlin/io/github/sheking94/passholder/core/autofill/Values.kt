@@ -18,7 +18,8 @@ sealed interface FillPlan {
     ) : FillPlan
 }
 
-private val BIRTH_DATE = Regex("^(\\d{4})-(\\d{2})-(\\d{2})$")
+// [0-9], not \\d: on Android (ICU) \\d also matches non-ASCII digits.
+private val BIRTH_DATE = Regex("^([0-9]{4})-([0-9]{2})-([0-9]{2})$")
 
 /** Stored birth dates are RRRR-MM-DD; anything that is not a real calendar date is dropped. */
 private fun validBirthDate(s: String): String {
