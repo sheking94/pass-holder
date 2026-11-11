@@ -5,6 +5,7 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
@@ -49,5 +50,21 @@ class MatchVectorsTest {
         val items = listOf("A" to "google.com", "B" to "mail.google.com", "C" to "x.pl")
         val result = matchLogins("https://mail.google.com", items) { MatchCandidate(it.first, listOf(it.second)) }
         assertEquals(listOf("B", "A"), result.map { it.first })
+    }
+
+    @Test
+    fun adversarialHostsDoNotMatch() {
+        val pages = listOf(
+            "https://google.com@evil.pl",
+            "https://evil.pl\\@google.com",
+            "google.com%2eevil.pl",
+            "https://evil.pl\t.google.com",
+            "https://evil.pl\n.google.com",
+            "https://evil.pl\uFF0F.google.com",
+            "https://evil.pl\uFF20.google.com",
+            "https://evil.pl\uFF05.google.com",
+        )
+        for (page in pages) assertNull(matchUrl(page, "google.com"), page)
+        assertNull(matchUrl("https://stra\u00DFe.de", "strasse.de"))
     }
 }

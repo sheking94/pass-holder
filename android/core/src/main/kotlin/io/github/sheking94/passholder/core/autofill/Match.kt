@@ -59,11 +59,16 @@ private fun parse(raw: String): ParsedUrl? {
         val hostPart = if (colon < 0) authority else authority.substring(0, colon)
         if (colon >= 0) rawPort = authority.substring(colon + 1)
         if (hostPart.any { it.isWhitespace() || it.isISOControl() || it in FORBIDDEN_HOST_CHARS }) return null
-        rawHost = try {
+        // Java's IDNA2003 maps these differently from WHATWG (UTS46); fail closed.
+        if (hostPart.any { it == 'ß' || it == 'ς' || it == '\u200C' || it == '\u200D' }) return null
+        val ascii = try {
             IDN.toASCII(hostPart.lowercase()).lowercase()
         } catch (_: IllegalArgumentException) {
             return null
-        }.removeSuffix(".").removePrefix("www.")
+        }
+        // NFKC mapping can yield forbidden characters (e.g. fullwidth slash); punycode output is plain ASCII.
+        if (!ascii.all { it in 'a'..'z' || it in '0'..'9' || it == '.' || it == '_' || it == '-' }) return null
+        rawHost = ascii.removeSuffix(".").removePrefix("www.")
     }
     if (rawHost.isEmpty()) return null
     if (rawPort.any { it !in '0'..'9' }) return null
