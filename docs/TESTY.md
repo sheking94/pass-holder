@@ -53,7 +53,7 @@ katalogu pakietu.
 | Pakiet | Pliki | Testy | Uwagi |
 |---|---|---|---|
 | `core` | 26 | 461 | w tym `core/test/p2p/` i `core/test/autofill/` |
-| `extension` | 19 | 198 | w tym widoki w happy-dom (`extension/test/ui/`) i `extension/test/autofill/`; `background.ts` bez testów (logika w `fill-tab.ts`) |
+| `extension` | 19 | 200 | w tym widoki w happy-dom (`extension/test/ui/`) i `extension/test/autofill/`; `background.ts` bez testów (logika w `fill-tab.ts`) |
 | `android/core` | 35 | 424 | 4 pomijane bez `PASSHOLDER_INTEROP_TEST=1` |
 | `android/app` | 19 | 64 | Robolectric, zrzuty ekranów |
 
