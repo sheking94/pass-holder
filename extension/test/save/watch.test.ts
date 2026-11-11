@@ -113,6 +113,20 @@ describe("startSaveWatch", () => {
     expect(document.querySelector("[data-passholder-save]")).toBeNull();
   });
 
+  it("save-show with another id points the same frame at the new candidate", () => {
+    const t = setup();
+    startSaveWatch(document, t.runtime);
+    t.emit({ target: "save-watch", type: "save-show", candidateId: "c5" });
+    const frame = frames()[0]!;
+    t.emit({ target: "save-watch", type: "save-show", candidateId: "c6" });
+    expect(frames()).toEqual([frame]);
+    expect(frame.src).toBe("chrome-extension://abc/save-prompt.html?id=c6");
+    t.emit({ target: "save-watch", type: "save-hide" });
+    t.emit({ target: "save-watch", type: "save-show", candidateId: "c6" });
+    expect(frames()).toHaveLength(1);
+    expect(frames()[0]).not.toBe(frame);
+  });
+
   it("does nothing when the top frame is cross-origin", () => {
     document.body.innerHTML = LOGIN;
     vi.spyOn(window, "top", "get").mockReturnValue({

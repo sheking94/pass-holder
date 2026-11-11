@@ -94,12 +94,23 @@ export class SaveCandidates {
     else await this.deps.session.remove(STORAGE_KEYS.saveCandidates);
   }
 
-  private async remove(tabId: number): Promise<void> {
+  /** Removes the tab's candidate; true when there was one. */
+  private async remove(tabId: number): Promise<boolean> {
     const all = await this.all();
-    if (!(String(tabId) in all)) return;
+    if (!(String(tabId) in all)) return false;
     delete all[String(tabId)];
     await this.write(all);
     await this.deps.alarms.clear(alarmName(tabId)).catch(() => false);
+    return true;
+  }
+
+  private hide(tabId: number): Promise<void> {
+    return this.deps.sendToTab(tabId, { target: "save-watch", type: "save-hide" });
+  }
+
+  /** Removes the candidate for any reason but a save or a closed tab: its panel must not stay on the page. */
+  private async drop(tabId: number): Promise<void> {
+    if (await this.remove(tabId)) await this.hide(tabId);
   }
 
   /** The tab's live candidate; an expired one is removed and treated as absent. */
@@ -107,7 +118,7 @@ export class SaveCandidates {
     const c = (await this.all())[String(tabId)];
     if (!c) return undefined;
     if (this.deps.now() - c.at >= SAVE_TTL_MS) {
-      await this.remove(tabId);
+      await this.drop(tabId);
       return undefined;
     }
     return c;
@@ -151,9 +162,14 @@ export class SaveCandidates {
     if ((await neverList(this.deps.local)).includes(save.saveName(url))) return;
 
     const now = this.deps.now();
+    const formSignature = `${from.frame.origin}|${m.formSignature}`;
+    // One submission fires several reports (click, Enter, submit): the same login keeps its id, so the panel
+    // already on the page stays valid.
+    const prev = await this.forTab(from.tabId);
+    const same = prev?.username === m.username && prev.password === m.password && prev.formSignature === formSignature;
     const c: Candidate = {
-      id: this.deps.newId(), tabId: from.tabId, url, username: m.username, password: m.password, at: now,
-      formSignature: `${from.frame.origin}|${m.formSignature}`,
+      id: same ? prev.id : this.deps.newId(), tabId: from.tabId, url, username: m.username, password: m.password, at: now,
+      formSignature,
     };
     if ((await this.decide(this.deps.store(), c, false))?.kind === "none") return;
 
@@ -189,7 +205,7 @@ export class SaveCandidates {
     if (!c) return undefined;
     const decision = await this.decide(this.deps.store(), c, false);
     if (decision?.kind === "none") {
-      await this.remove(c.tabId);
+      await this.drop(c.tabId);
       return undefined;
     }
     const base = { id: c.id, host: save.saveName(c.url), username: c.username };
@@ -204,7 +220,17 @@ export class SaveCandidates {
   private async doAnswer(m: SaveAnswerMessage, s: Sender): Promise<Answer> {
     if (!this.fromExtensionPage(s)) return { ok: false, error: NOT_ALLOWED };
     const c = await this.byId(m.candidateId);
-    if (!c) return { ok: false, error: GONE };
+    if (!c) {
+      if (m.answer === "save") return { ok: false, error: GONE };
+      // Nothing left to decline: just take the stale panel off its tab, or point it at the tab's newer candidate.
+      const tabId = s.tab?.id;
+      if (tabId !== undefined) {
+        const current = await this.forTab(tabId);
+        if (current) await this.deps.sendToTab(tabId, { target: "save-watch", type: "save-show", candidateId: current.id });
+        else await this.hide(tabId);
+      }
+      return { ok: true };
+    }
 
     if (m.answer === "later" || m.answer === "never") {
       if (m.answer === "never") {
@@ -250,10 +276,10 @@ export class SaveCandidates {
   private async doAlarm(name: string): Promise<void> {
     if (!name.startsWith(SAVE_ALARM_PREFIX)) return;
     const tabId = Number(name.slice(SAVE_ALARM_PREFIX.length));
-    if (Number.isInteger(tabId)) await this.remove(tabId);
+    if (Number.isInteger(tabId)) await this.drop(tabId);
   }
 
   onTabRemoved(tabId: number): Promise<void> {
-    return this.serial(() => this.remove(tabId));
+    return this.serial(async () => void (await this.remove(tabId)));
   }
 }

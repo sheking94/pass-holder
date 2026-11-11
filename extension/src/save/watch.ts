@@ -52,14 +52,21 @@ export function startSaveWatch(doc: Document, runtime: WatchRuntime): void {
   if (role !== "top") return;
 
   let host: HTMLElement | undefined;
-  const hide = (): void => { host?.remove(); host = undefined; };
+  let frame: HTMLIFrameElement | undefined;
+  let shown: string | undefined;
+  const hide = (): void => { host?.remove(); host = frame = shown = undefined; };
   const show = (candidateId: string): void => {
-    if (host?.isConnected) return;
+    const src = runtime.panelUrl(candidateId);
+    if (host?.isConnected && frame) {
+      // A newer candidate (another login on the same page): the panel must ask about that one.
+      if (shown !== src) frame.src = shown = src;
+      return;
+    }
     host = doc.createElement("div");
     host.setAttribute("data-passholder-save", "");
     host.style.cssText = "position: fixed; top: 16px; right: 16px; z-index: 2147483647;";
-    const frame = doc.createElement("iframe");
-    frame.src = runtime.panelUrl(candidateId);
+    frame = doc.createElement("iframe");
+    frame.src = shown = src;
     frame.style.cssText = "width: 360px; height: 180px; border: 0; display: block;";
     host.attachShadow({ mode: "closed" }).append(frame);
     (doc.body ?? doc.documentElement).append(host);

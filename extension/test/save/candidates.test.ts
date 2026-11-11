@@ -1,60 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { p2p } from "@passholder/core";
 import { LOCKED } from "../../src/autofill/fill-tab.ts";
-import {
-  neverList, removeFromNever, SAVE_ALARM_PREFIX, SAVE_TTL_MS, SAVED_HIDE_MS, SaveCandidates, type Sender,
-} from "../../src/save/candidates.ts";
-import type { SaveCandidateMessage, ToWatchMessage } from "../../src/save/messages.ts";
-import { STORAGE_KEYS, memoryStore } from "../../src/storage.ts";
-import { VaultStore } from "../../src/vault-store.ts";
-import { pairedBrowser } from "../fake-phone.ts";
-
-function login(name: string, urls: string[], username = "jan", password = "old"): p2p.EntryContentV3 {
-  return { type: "login", name, note: "", custom: [], fields: { username, password, totp: "", urls, androidApps: [] } };
-}
-
-const EXT = "ext-id";
-const PAGE = "https://shop.pl/login";
-const scriptSender = (tabId = 7, url = PAGE, tabUrl = PAGE): Sender => ({ id: EXT, url, tab: { id: tabId, url: tabUrl } });
-const extSender: Sender = { id: EXT, url: `chrome-extension://${EXT}/popup.html` };
-const candidate = (o: Partial<SaveCandidateMessage> = {}): SaveCandidateMessage => ({
-  target: "background", type: "save-candidate", username: "jan", password: "new", formSignature: "u|p", ...o,
-});
-
-async function setup(o: { locked?: boolean } = {}) {
-  let t = 1_000_000;
-  const b = await pairedBrowser({ now: () => t });
-  await b.store.putEntry("l1", login("Bank", ["https://bank.pl"], "jan", "bankpass"));
-  await b.store.putEntry("s1", login("Shop", ["https://shop.pl"], "jan", "old"));
-  if (o.locked) await b.store.lock();
-  const sent: { tabId: number; m: ToWatchMessage }[] = [];
-  const alarms = new Map<string, number>();
-  const cleared: string[] = [];
-  const timers: { ms: number; fn: () => void }[] = [];
-  let n = 0;
-  const sc = new SaveCandidates({
-    // A new VaultStore per call, like background.ts: nothing may rely on state from an earlier call.
-    store: () => new VaultStore(b.local, b.session, b.makeClient, () => t),
-    session: b.session,
-    local: b.local,
-    selfId: EXT,
-    sendToTab: async (tabId, m) => { sent.push({ tabId, m }); },
-    alarms: {
-      create: async (name, info) => { alarms.set(name, info.when); },
-      clear: async (name) => { cleared.push(name); return alarms.delete(name); },
-    },
-    now: () => t,
-    newId: () => `id${++n}`,
-    later: (ms, fn) => { timers.push({ ms, fn }); },
-  });
-  const stored = async () => (await b.session.get<Record<string, { id: string; url: string; password: string; formSignature: string }>>(STORAGE_KEYS.saveCandidates)) ?? {};
-  const fresh = async () => {
-    const store = new VaultStore(b.local, b.session, b.makeClient, () => t);
-    await store.resume({ touch: false });
-    return store;
-  };
-  return { ...b, fresh, sc, sent, alarms, cleared, timers, stored, advance: (ms: number) => { t += ms; }, now: () => t };
-}
+import { neverList, removeFromNever, SAVE_ALARM_PREFIX, SAVE_TTL_MS, SAVED_HIDE_MS, type Sender } from "../../src/save/candidates.ts";
+import type { SaveCandidateMessage } from "../../src/save/messages.ts";
+import { STORAGE_KEYS } from "../../src/storage.ts";
+import { candidate, EXT, extSender, login, PAGE, scriptSender, setup } from "./save-fixture.ts";
 
 describe("SaveCandidates", () => {
   it("stores a candidate and shows the panel", async () => {
@@ -179,8 +128,10 @@ describe("SaveCandidates", () => {
     await s.sc.onCandidate(candidate(), scriptSender());
     const id = (await s.stored())["7"]!.id;
     await s.store.putEntry("s1", login("Shop", ["https://shop.pl"], "jan", "new"));
+    s.sent.length = 0;
     expect(await s.sc.info({ target: "background", type: "save-info", candidateId: id }, extSender)).toBeUndefined();
     expect(await s.stored()).toEqual({});
+    expect(s.sent).toEqual([{ tabId: 7, m: { target: "save-watch", type: "save-hide" } }]);
   }, 30_000);
 
   it("info and answer only from extension pages", async () => {
@@ -264,10 +215,76 @@ describe("SaveCandidates", () => {
     expect(Object.keys(await s.stored())).toEqual(["7"]);
   }, 30_000);
 
-  it("answer for an unknown candidate fails", async () => {
+  it("answer save for an unknown candidate fails", async () => {
     const s = await setup();
-    const r = await s.sc.answer({ target: "background", type: "save-answer", candidateId: "nope", answer: "later" }, extSender);
-    expect(r.ok).toBe(false);
+    const r = await s.sc.answer({ target: "background", type: "save-answer", candidateId: "nope", answer: "save" }, extSender);
+    expect(r).toEqual({ ok: false, error: "Pytanie o zapis wygasło" });
+  }, 30_000);
+
+  it("later or never for a gone candidate succeeds and takes the panel off its tab", async () => {
+    const s = await setup();
+    const panel: Sender = { id: EXT, url: `chrome-extension://${EXT}/save-prompt.html?id=gone`, tab: { id: 7, url: PAGE } };
+    expect(await s.sc.answer({ target: "background", type: "save-answer", candidateId: "gone", answer: "later" }, extSender)).toEqual({ ok: true });
+    expect(s.sent).toEqual([]);
+    expect(await s.sc.answer({ target: "background", type: "save-answer", candidateId: "gone", answer: "later" }, panel)).toEqual({ ok: true });
+    expect(await s.sc.answer({ target: "background", type: "save-answer", candidateId: "gone", answer: "never" }, panel)).toEqual({ ok: true });
+    expect(s.sent).toEqual([
+      { tabId: 7, m: { target: "save-watch", type: "save-hide" } },
+      { tabId: 7, m: { target: "save-watch", type: "save-hide" } },
+    ]);
+    expect(await neverList(s.local)).toEqual([]);
+    const web: Sender = { id: EXT, url: PAGE, tab: { id: 7, url: PAGE } };
+    expect((await s.sc.answer({ target: "background", type: "save-answer", candidateId: "gone", answer: "later" }, web)).ok).toBe(false);
+  }, 30_000);
+
+  it("later for a replaced candidate points the panel at the tab's current one and keeps it", async () => {
+    const s = await setup();
+    await s.sc.onCandidate(candidate(), scriptSender());
+    const current = (await s.stored())["7"]!.id;
+    s.sent.length = 0;
+    const panel: Sender = { id: EXT, url: `chrome-extension://${EXT}/save-prompt.html?id=old`, tab: { id: 7, url: PAGE } };
+    expect(await s.sc.answer({ target: "background", type: "save-answer", candidateId: "old", answer: "later" }, panel)).toEqual({ ok: true });
+    expect(s.sent).toEqual([{ tabId: 7, m: { target: "save-watch", type: "save-show", candidateId: current } }]);
+    expect(Object.keys(await s.stored())).toEqual(["7"]);
+  }, 30_000);
+
+  it("the same login sent again by one submission keeps its id and refreshes the time", async () => {
+    const s = await setup();
+    await s.sc.onCandidate(candidate(), scriptSender());
+    const id = (await s.stored())["7"]!.id;
+    s.advance(60_000);
+    await s.sc.onCandidate(candidate(), scriptSender());
+    expect((await s.stored())["7"]!.id).toBe(id);
+    expect(s.alarms.get(`${SAVE_ALARM_PREFIX}7`)).toBe(s.now() + SAVE_TTL_MS);
+    s.advance(SAVE_TTL_MS - 1);
+    expect(await s.sc.onPending({ target: "background", type: "save-pending", emptyLoginForms: [] }, scriptSender())).toEqual({ candidateId: id });
+    await s.sc.onCandidate(candidate({ password: "other" }), scriptSender());
+    expect((await s.stored())["7"]!.id).not.toBe(id);
+    await s.sc.onCandidate(candidate({ password: "other", formSignature: "x|y" }), scriptSender());
+    const ids = s.sent.flatMap((x) => (x.m.type === "save-show" ? [x.m.candidateId] : []));
+    expect(new Set(ids).size).toBe(3);
+  }, 30_000);
+
+  it("the alarm takes the panel off the tab, a closed tab gets no message", async () => {
+    const s = await setup();
+    await s.sc.onCandidate(candidate(), scriptSender(7));
+    await s.sc.onCandidate(candidate(), scriptSender(8));
+    s.sent.length = 0;
+    await s.sc.onAlarm(`${SAVE_ALARM_PREFIX}7`);
+    await s.sc.onAlarm(`${SAVE_ALARM_PREFIX}7`);
+    await s.sc.onTabRemoved(8);
+    expect(s.sent).toEqual([{ tabId: 7, m: { target: "save-watch", type: "save-hide" } }]);
+  }, 30_000);
+
+  it("an expired candidate found later takes the panel off the tab", async () => {
+    const s = await setup();
+    await s.sc.onCandidate(candidate(), scriptSender());
+    const id = (await s.stored())["7"]!.id;
+    s.sent.length = 0;
+    s.advance(SAVE_TTL_MS);
+    expect(await s.sc.info({ target: "background", type: "save-info", candidateId: id }, extSender)).toBeUndefined();
+    expect(await s.stored()).toEqual({});
+    expect(s.sent).toEqual([{ tabId: 7, m: { target: "save-watch", type: "save-hide" } }]);
   }, 30_000);
 
   it("alarm and closed tab remove the candidate", async () => {
