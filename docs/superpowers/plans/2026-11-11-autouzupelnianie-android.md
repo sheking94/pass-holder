@@ -10,11 +10,11 @@
 
 **Spec:** `docs/superpowers/specs/2026-11-09-autouzupelnianie-design.md` (sekcje 3, 5, 6, 7, 8). Plan B1: `docs/superpowers/plans/2026-11-09-autouzupelnianie-chrome.md`. Wykonawcy czytają spec i ten plan.
 
-**Decyzje planu (do akceptacji właściciela):**
+**Decyzje planu (zaakceptowane przez właściciela 2026-11-11; D4 zmienione na „tak”):**
 - **D1 Blokada po odblokowaniu z autouzupełniania:** jak ustawienie „Blokuj dopiero po 60 s poza aplikacją”: włączone → `LeaveLock.schedule(60 s)`, wyłączone → blokada zaraz po zbudowaniu podpowiedzi. Bez tego sejf zostawałby otwarty bez limitu (15-minutowa blokada działa tylko przy otwartej aplikacji).
 - **D2 Samo pole e-mail** (pierwszy krok logowania, np. Google) → podpowiedzi loginów, nie kontaktów. Kontakt wymaga co najmniej jednego pola kontaktu innego niż e-mail.
 - **D3 Karta w przeglądarce** tylko przy `webScheme` = `https` albo braku `webScheme` (jak spec 6 dla Chrome; `localhost` wyjątek). W zwykłych aplikacjach karty zawsze.
-- **D4 Bez podpowiedzi w klawiaturze** (inline suggestions, Android 11+); system pokazuje zwykłą listę pod polem. Można dodać później.
+- **D4 Podpowiedzi w pasku klawiatury** (inline suggestions, Android 11+ / API 30, np. Gboard) – decyzja właściciela 2026-11-11: robimy od razu, obok zwykłej listy pod polem (starsze Androidy i klawiatury bez obsługi dostają tylko listę).
 - **D5 Wektory `matchApp`** w nowym pliku `core/test-vectors/autofill/app.json`, czytane tylko przez Kotlin (TS nie ma `matchApp`).
 
 ## Global Constraints
@@ -28,6 +28,7 @@
 - `FillResponse` bez `SaveInfo`; brak `onSaveRequest` logiki (podprojekt C).
 - Usługa nie trzyma wpisów ani kluczy w polach klasy; odszyfrowanie w czasie budowy odpowiedzi.
 - Ekran odblokowania: `FLAG_SECURE`, `exported="false"`. Usługa: `android:permission="android.permission.BIND_AUTOFILL_SERVICE"`, `exported="true"`.
+- Pasek klawiatury: biblioteka `androidx.autofill:autofill` `1.1.0` (`InlineSuggestionUi`); na API < 30 i bez `InlineSuggestionsRequest` nic się nie zmienia. Liczba podpowiedzi w pasku ≤ `min(10, request.maxSuggestionCount)`; spec stylu z `inlinePresentationSpecs` (indeks `i`, a dla dalszych ostatni spec), podpowiedź tylko gdy `UiVersions.getVersions(spec.style)` zawiera `UiVersions.INLINE_UI_VERSION_1`.
 - Teksty UI po polsku: „Odblokuj PassHolder”, „Autouzupełnianie”, „Włączone”, „Wyłączone”, „Włącz”, „Hasło główne”, „Odblokuj”, „Odblokuj odciskiem palca”, „Anuluj”.
 
 ## Review Focus
@@ -140,18 +141,22 @@
 **Files:**
 - Create: `android/app/src/main/kotlin/io/github/sheking94/passholder/app/autofill/PassHolderAutofillService.kt`, `ResponseBuilder.kt`
 - Create: `android/app/src/main/res/xml/autofill_service.xml` (`settingsActivity="io.github.sheking94.passholder.app.MainActivity"`), `android/app/src/main/res/layout/autofill_item.xml` (dwa `TextView`: `@+id/title`, `@+id/subtitle`)
+- Modify: `android/gradle/libs.versions.toml`, `android/app/build.gradle.kts` (`androidx-autofill = { module = "androidx.autofill:autofill", version = "1.1.0" }`)
+- Modify: `android/app/src/main/res/xml/autofill_service.xml` ma `android:supportsInlineSuggestions="true"`
 - Modify: `android/app/src/main/AndroidManifest.xml` (usługa z `BIND_AUTOFILL_SERVICE`, `intent-filter` `android.service.autofill.AutofillService`, `meta-data` `android.autofill`)
 - Test: `android/app/src/test/kotlin/io/github/sheking94/passholder/app/autofill/ResponseBuilderTest.kt` (Robolectric; `AutofillId` przez `ReflectionHelpers.callConstructor(AutofillId::class.java, ClassParameter.from(Int::class.javaPrimitiveType, n))`)
 
 **Interfaces:**
 - Consumes: Task 3, Task 4, `PassHolderApp.phoneStore`.
 - Produces:
-  - `object ResponseBuilder { fun datasets(context: Context, specs: List<DatasetSpec<AutofillId>>): FillResponse?; fun locked(context: Context, ids: List<AutofillId>, auth: IntentSender): FillResponse }` – `datasets` zwraca `null` dla pustej listy; `Dataset.Builder(presentation).setValue(id, AutofillValue.forText/forList)` (przestarzałe API, `@Suppress("DEPRECATION")`, działa od API 26); `locked` = `FillResponse.Builder().setAuthentication(ids, auth, presentation "Odblokuj PassHolder")`.
+  - `object ResponseBuilder { fun datasets(context: Context, specs: List<DatasetSpec<AutofillId>>, inline: InlineSuggestionsRequest?): FillResponse?; fun locked(context: Context, ids: List<AutofillId>, auth: IntentSender, inline: InlineSuggestionsRequest?): FillResponse }` – `datasets` zwraca `null` dla pustej listy; `Dataset.Builder(presentation).setValue(id, AutofillValue.forText/forList)` (przestarzałe API, `@Suppress("DEPRECATION")`, działa od API 26); `locked` = `FillResponse.Builder().setAuthentication(ids, auth, presentation "Odblokuj PassHolder")`.
+  - Pasek klawiatury (D4, API 30+, `inline != null`): `fun inlinePresentation(context: Context, inline: InlineSuggestionsRequest, index: Int, title: String, subtitle: String?): InlinePresentation?` – `InlineSuggestionUi.newContentBuilder(attribution).setTitle(title).setSubtitle(subtitle).setContentDescription(title).build().slice`, `InlinePresentation(slice, spec, false)`; `attribution` = `PendingIntent.getActivity(context, 0, Intent(context, MainActivity::class.java), FLAG_IMMUTABLE)` (długie przytrzymanie podpowiedzi otwiera aplikację). Dataset dostaje ją przez `setInlinePresentation`, odpowiedź zablokowana przez `setAuthentication(ids, auth, presentation, inlinePresentation)`. Wartość `null` (stary Android, brak specu, styl bez `INLINE_UI_VERSION_1`) → tylko zwykła lista.
   - `fun buildFillResponse(app: PassHolderApp, request: ParsedRequest): FillResponse?` (w `PassHolderAutofillService.kt`, używana też przez Task 6) – `planRequest`, `store.entries()`, `planDatasets`, `ResponseBuilder.datasets`.
+  - `ParsedRequest` dostaje pole `inline: InlineSuggestionsRequest?` (z `FillRequest.inlineSuggestionsRequest` na API 30+, poza tym `null`); w ekranie odblokowania (Task 6) – `AutofillManager.EXTRA_INLINE_SUGGESTIONS_REQUEST` z intentu.
   - `PassHolderAutofillService.onFillRequest`: pakiet = własny → `onSuccess(null)`; `planRequest == null` → `onSuccess(null)`; sejf bez sejfu (`!hasVault`) → `null`; zablokowany → `locked(...)` z `PendingIntent.getActivity(this, 0, Intent(this, AutofillUnlockActivity::class.java), FLAG_CANCEL_CURRENT or FLAG_MUTABLE).intentSender` (MUTABLE: system dokłada `EXTRA_ASSIST_STRUCTURE`); odblokowany → `buildFillResponse`. Wyjątek → log + `onSuccess(null)`. Praca poza wątkiem głównym (`thread`), odpowiedź jednym `callback`; `CancellationSignal` ustawia flagę.
   - `onSaveRequest` → `callback.onSuccess()` bez działania.
 
-- [ ] **Step 1: Testy** `ResponseBuilderTest`: `datasets(emptyList())` → `null`; dwie specyfikacje → `FillResponse` nie `null` (Robolectric nie daje odczytu datasetów – sprawdzamy brak wyjątku i `null`/nie-`null`); `locked` z dwoma id → nie `null`. Plus `ManifestTest`: usługa w `PackageManager.queryIntentServices(Intent(AutofillService.SERVICE_INTERFACE))` z uprawnieniem `BIND_AUTOFILL_SERVICE`.
+- [ ] **Step 1: Testy** `ResponseBuilderTest`: `datasets(emptyList())` → `null`; dwie specyfikacje → `FillResponse` nie `null` (Robolectric nie daje odczytu datasetów – sprawdzamy brak wyjątku i `null`/nie-`null`); `locked` z dwoma id → nie `null`; przy `@Config(sdk = [30])` z `InlineSuggestionsRequest.Builder(listOf(InlinePresentationSpec.Builder(Size(100,40), Size(400,80)).setStyle(UiVersions.newStylesBuilder().addStyle(InlineSuggestionUi.newStyleBuilder().build()).build()).build())).setMaxSuggestionCount(3).build()` – `inlinePresentation(...)` nie `null` dla indeksów 0–2, a `datasets` z 5 specyfikacjami nie rzuca (pasek dostaje 3); spec bez stylu → `inlinePresentation == null`. Plus `ManifestTest`: usługa w `PackageManager.queryIntentServices(Intent(AutofillService.SERVICE_INTERFACE))` z uprawnieniem `BIND_AUTOFILL_SERVICE`.
 - [ ] **Step 2:** FAIL. **Step 3:** zaimplementuj. **Step 4:** PASS + `./gradlew :app:assembleDebug`.
 - [ ] **Step 5: Commit** `feat(android): autofill service with suggestions and locked prompt`.
 
