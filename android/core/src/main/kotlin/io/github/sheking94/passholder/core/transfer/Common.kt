@@ -37,7 +37,7 @@ fun contentKey(c: EntryContentV3): String = JsonText.stringify(trimmed(EntryV3.c
  * characters, stays ignorable; '$' sorts just before the space instead of after the other symbols; emoji, fullwidth letters
  * and letters such as æ œ ß Ø may order differently.
  */
-private val POLISH_COLLATOR: Collator = run {
+internal val POLISH_COLLATOR: Collator = run {
     val base = Collator.getInstance(Locale.forLanguageTag("pl")) as RuleBasedCollator
     val order = " _-,;:!?.\"()[]{}@*/\\&#%`^+<=>|~"
     val rules = order.toList().joinToString(" < ", prefix = "& '$' < ") { "'$it'" }
