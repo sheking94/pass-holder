@@ -47,6 +47,8 @@ async function setup() {
     storage: { local, session },
     runtime: { sendMessage: async () => undefined, getURL: (path: string) => `chrome-extension://passholder/${path}` },
     permissions: { contains: async () => true },
+    // The popup is open over the sample mail site, so „Pasujące do tej strony” has a row.
+    tabs: { query: async () => [{ id: 1, url: "https://poczta.example.org/login" }] },
   };
   Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async () => undefined } });
 

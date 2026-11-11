@@ -3,7 +3,7 @@
   "name": "PassHolder",
   "version": "0.1.0",
   "description": "Prywatny menedżer haseł synchronizowany z telefonem.",
-  "minimum_chrome_version": "120",
+  "minimum_chrome_version": "127",
   "action": {
     "default_title": "PassHolder",
     "default_popup": "popup.html"
@@ -13,11 +13,22 @@
     "clipboardWrite",
     "clipboardRead",
     "alarms",
-    "offscreen"
+    "offscreen",
+    "activeTab",
+    "scripting"
   ],
   "optional_host_permissions": [
     "http://*/*"
   ],
+  "commands": {
+    "fill-login": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+L",
+        "mac": "Command+Shift+L"
+      },
+      "description": "Wypełnij login na tej stronie"
+    }
+  },
   "background": {
     "service_worker": "background.js",
     "type": "module"

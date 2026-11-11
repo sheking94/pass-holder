@@ -52,8 +52,8 @@ katalogu pakietu.
 
 | Pakiet | Pliki | Testy | Uwagi |
 |---|---|---|---|
-| `core` | 23 | 274 | w tym `core/test/p2p/` |
-| `extension` | 16 | 159 | w tym widoki w happy-dom (`extension/test/ui/`); service worker bez testów |
+| `core` | 26 | 461 | w tym `core/test/p2p/` i `core/test/autofill/` |
+| `extension` | 19 | 200 | w tym widoki w happy-dom (`extension/test/ui/`) i `extension/test/autofill/`; `background.ts` bez testów (logika w `fill-tab.ts`) |
 | `android/core` | 35 | 424 | 4 pomijane bez `PASSHOLDER_INTEROP_TEST=1` |
 | `android/app` | 19 | 64 | Robolectric, zrzuty ekranów |
 
@@ -80,6 +80,10 @@ znakami, spacją, cyframi, „résumé”/„resume”); generuje je `core/scrip
 wymusza `eol=lf` dla `core/test-vectors/transfer/*.json` i `-text` dla wszystkich `core/test-vectors/transfer/*.csv` (CRLF w plikach),
 żeby Windows (`autocrlf`) nie zmieniał bajtów.
 
+`core/test/autofill/*.test.ts` (3 pliki) odtwarzają wektory `core/test-vectors/autofill/`: `match.json` (host, subdomena,
+`www.`, schemat, port, IP, `evilgoogle.com`), `fields.json` (opis pola → rodzaj) i `values.json` (karta: formaty
+ważności, `<select>`; kontakt, data urodzenia); w Kotlinie te same pliki dojdą w kroku Android.
+
 `v3.json` (sekcje `limits`, `entries`, `rejected`, `oldPaths`) trzyma po jednym wpisie każdego typu, stary wpis v2,
 nagrobek, 22 przykłady odrzucane i odpowiedzi na stare ścieżki; odtwarza go `npm run gen-vectors-v3 -w core`,
 a w Kotlinie sprawdza `P2pVectorsV3Test`.
@@ -104,6 +108,9 @@ wartości losowe mają stałe klucze i nonce.
 | `ui/list-view.test.ts` | zakładki, opis wiersza, wyszukiwanie w obrębie zakładki, powrót na zakładkę typu |
 | `ui/edit-login.test.ts`, `ui/edit-types.test.ts` | formularze: zapis każdego pola, puste elementy list pomijane, data w innym zapisie oraz e-mail i adres strony ze spacjami zapisują się bez zmian, etykiety pól list, błędy formatów, zachowanie pól spoza formularza, ukryte własne pole, generator, „Usuń” |
 | `ui/transfer-view.test.ts` | ekran „Import i eksport”: formaty, zgoda przed eksportem, import pliku, błąd uszkodzonego pliku |
+| `autofill/fill-page.test.ts` | `fillPage` w happy-dom: logowanie, dwuetapowe, rejestracja (`new-password` pomijane), karta z jednym i dwoma polami ważności, `<select>`, adres; pola ukryte, wyłączone i tylko do odczytu, pusta wartość, obcy origin i inny origin niż sprawdzony |
+| `autofill/fill-tab.test.ts` | `fillTab` i `onFillCommand` z atrapą `TabApi`: zablokowany sejf, strona niepasująca, karta na http, brak pól, błąd wstrzyknięcia; skrót przy jednym, kilku i zerze loginów |
+| `ui/autofill-view.test.ts` | sekcja „Pasujące do tej strony”, „Wypełnij” przy karcie i kontakcie (nie w karcie PassHolder), komunikaty błędów, zamknięcie okienka po powodzeniu |
 | `ui/widgets.test.ts` | `secretField` (zakrycie, „Pokaż”, kopia czyści schowek, puste pole się nie kopiuje), `listEditor`, przyciski kopiowania w wierszu |
 
 Testy wtyczki używają `extension/test/fake-phone.ts`: parowanie z prawdziwym CPace przed referencyjnym
@@ -236,6 +243,20 @@ Eksport Bitwarden JSON i NordPass CSV wczytaj w Bitwardenie albo NordPass i spra
 wtyczki zaimportuj na telefonie: „Dodano N wpisów…”, wpisy na zakładkach; ten sam plik drugi raz: „Dodano 0 wpisów”,
 duplikaty. Plik Bitwarden z zaszyfrowanym eksportem i plik w Windows-1250: czytelny błąd, nic nie dodano. Po
 zapisie pliku i powrocie z wyboru przed 60 s sejf jest otwarty; po ponad 60 s zablokowany.
+
+**T18. Autouzupełnianie w Chrome.** Wtyczka z `extension\dist` przeładowana (`chrome://extensions` → odśwież), sejf
+odblokowany. (1) **Login:** wpis z adresem strony logowania (np. `https://github.com/login`) → otwórz tę stronę →
+okienko: u góry „Pasujące do tej strony” → **Wypełnij**: login i hasło wpisane, okienko się zamyka; strona
+przyjmuje je jak wpisane ręcznie (przycisk „Zaloguj” aktywny). Na stronie z innej domeny sekcji nie ma.
+(2) **Skrót przy jednym loginie:** `Ctrl+Shift+L` na tej stronie wypełnia bez okienka. (3) **Dwa loginy** na ten sam
+adres: skrót otwiera okienko z oboma w sekcji; **Wypełnij** wpisuje wybrany. Po zablokowaniu sejfu skrót też
+otwiera okienko. Skrót zmieniony w `chrome://extensions/shortcuts` działa. (4) **Karta:** wpis karty → sklep ze
+sklepowym formularzem na `https` → okienko, zakładka Karty → **Wypełnij**: numer, ważność, CVC, imię i nazwisko.
+Ramka płatności z innego origin (np. Stripe) zostaje pusta: „Nie znaleziono pól karty (mogą być w ramce operatora
+płatności), skopiuj dane ręcznie”. (5) **Adres:** wpis kontaktu z adresem → formularz zamówienia → zakładka
+Kontakty → **Wypełnij**; na stronie bez pól adresu „Nie znaleziono pól adresu”. (6) **Strona `http` z kartą:**
+`http://` (nie `localhost`) z polem karty → **Wypełnij**: „Kartę wypełniam tylko na stronach https”, pola puste.
+Na `chrome://extensions` „Na tej stronie nie można wypełniać”. Strony testowe: własny plik HTML z formularzami.
 
 **PIN i karta.** PIN `4821` → Zablokuj → zły PIN „Pozostało prób: 4”, dobry otwiera; restart Chrome prosi o
 hasło główne. „Otwórz w karcie ↗” dwa razy: drugi raz przełącza na istniejącą kartę.

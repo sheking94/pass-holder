@@ -1,0 +1,1328 @@
+{
+ "cases": [
+  {
+   "plan": {
+    "kind": "login",
+    "username": "jan",
+    "password": "s3cret"
+   },
+   "kind": "username",
+   "field": {
+    "autocomplete": [],
+    "type": "text",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": ""
+   },
+   "hasUsernameField": true,
+   "expected": "jan"
+  },
+  {
+   "plan": {
+    "kind": "login",
+    "username": "jan",
+    "password": "s3cret"
+   },
+   "kind": "password",
+   "field": {
+    "autocomplete": [],
+    "type": "password",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": ""
+   },
+   "hasUsernameField": true,
+   "expected": "s3cret"
+  },
+  {
+   "plan": {
+    "kind": "login",
+    "username": "jan",
+    "password": "s3cret"
+   },
+   "kind": "email",
+   "field": {
+    "autocomplete": [],
+    "type": "email",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": ""
+   },
+   "hasUsernameField": true,
+   "expected": null
+  },
+  {
+   "plan": {
+    "kind": "login",
+    "username": "jan",
+    "password": "s3cret"
+   },
+   "kind": "email",
+   "field": {
+    "autocomplete": [],
+    "type": "email",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": ""
+   },
+   "hasUsernameField": false,
+   "expected": "jan"
+  },
+  {
+   "plan": {
+    "kind": "login",
+    "username": "jan",
+    "password": "s3cret"
+   },
+   "kind": "newPassword",
+   "field": {
+    "autocomplete": [],
+    "type": "password",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": ""
+   },
+   "hasUsernameField": true,
+   "expected": null
+  },
+  {
+   "plan": {
+    "kind": "login",
+    "username": "jan",
+    "password": "s3cret"
+   },
+   "kind": "ccCsc",
+   "field": {
+    "autocomplete": [],
+    "type": "text",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": ""
+   },
+   "hasUsernameField": true,
+   "expected": null
+  },
+  {
+   "plan": {
+    "kind": "login",
+    "username": "",
+    "password": "s3cret"
+   },
+   "kind": "username",
+   "field": {
+    "autocomplete": [],
+    "type": "text",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": ""
+   },
+   "hasUsernameField": true,
+   "expected": null
+  },
+  {
+   "plan": {
+    "kind": "card",
+    "holder": "JAN KOWALSKI",
+    "number": "4111 1111 1111 1111",
+    "expiry": "07/29",
+    "cvc": "123"
+   },
+   "kind": "ccName",
+   "field": {
+    "autocomplete": [],
+    "type": "text",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": ""
+   },
+   "hasUsernameField": true,
+   "expected": "JAN KOWALSKI"
+  },
+  {
+   "plan": {
+    "kind": "card",
+    "holder": "JAN KOWALSKI",
+    "number": "4111 1111 1111 1111",
+    "expiry": "07/29",
+    "cvc": "123"
+   },
+   "kind": "ccNumber",
+   "field": {
+    "autocomplete": [],
+    "type": "text",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": ""
+   },
+   "hasUsernameField": true,
+   "expected": "4111111111111111"
+  },
+  {
+   "plan": {
+    "kind": "card",
+    "holder": "JAN KOWALSKI",
+    "number": "4111 1111 1111 1111",
+    "expiry": "07/29",
+    "cvc": "123"
+   },
+   "kind": "ccCsc",
+   "field": {
+    "autocomplete": [],
+    "type": "text",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": ""
+   },
+   "hasUsernameField": true,
+   "expected": "123"
+  },
+  {
+   "plan": {
+    "kind": "card",
+    "holder": "JAN KOWALSKI",
+    "number": "4111 1111 1111 1111",
+    "expiry": "07/29",
+    "cvc": "123"
+   },
+   "kind": "username",
+   "field": {
+    "autocomplete": [],
+    "type": "text",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": ""
+   },
+   "hasUsernameField": true,
+   "expected": null
+  },
+  {
+   "plan": {
+    "kind": "card",
+    "holder": "JAN KOWALSKI",
+    "number": "4111 1111 1111 1111",
+    "expiry": "07/29",
+    "cvc": "123"
+   },
+   "kind": "ccExp",
+   "field": {
+    "autocomplete": [],
+    "type": "text",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": ""
+   },
+   "hasUsernameField": true,
+   "expected": "07/29"
+  },
+  {
+   "plan": {
+    "kind": "card",
+    "holder": "JAN KOWALSKI",
+    "number": "4111 1111 1111 1111",
+    "expiry": "07/29",
+    "cvc": "123"
+   },
+   "kind": "ccExp",
+   "field": {
+    "autocomplete": [],
+    "type": "text",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": "",
+    "maxLength": 7
+   },
+   "hasUsernameField": true,
+   "expected": "07/2029"
+  },
+  {
+   "plan": {
+    "kind": "card",
+    "holder": "JAN KOWALSKI",
+    "number": "4111 1111 1111 1111",
+    "expiry": "07/29",
+    "cvc": "123"
+   },
+   "kind": "ccExp",
+   "field": {
+    "autocomplete": [],
+    "type": "text",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": "MM/YYYY"
+   },
+   "hasUsernameField": true,
+   "expected": "07/2029"
+  },
+  {
+   "plan": {
+    "kind": "card",
+    "holder": "JAN KOWALSKI",
+    "number": "4111 1111 1111 1111",
+    "expiry": "07/29",
+    "cvc": "123"
+   },
+   "kind": "ccExp",
+   "field": {
+    "autocomplete": [],
+    "type": "text",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": "MM/RRRR"
+   },
+   "hasUsernameField": true,
+   "expected": "07/2029"
+  },
+  {
+   "plan": {
+    "kind": "card",
+    "holder": "JAN KOWALSKI",
+    "number": "4111 1111 1111 1111",
+    "expiry": "07/29",
+    "cvc": "123"
+   },
+   "kind": "ccExp",
+   "field": {
+    "autocomplete": [],
+    "type": "text",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": "",
+    "maxLength": 5
+   },
+   "hasUsernameField": true,
+   "expected": "07/29"
+  },
+  {
+   "plan": {
+    "kind": "card",
+    "holder": "JAN KOWALSKI",
+    "number": "4111 1111 1111 1111",
+    "expiry": "7/2029",
+    "cvc": "123"
+   },
+   "kind": "ccExp",
+   "field": {
+    "autocomplete": [],
+    "type": "text",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": ""
+   },
+   "hasUsernameField": true,
+   "expected": null
+  },
+  {
+   "plan": {
+    "kind": "card",
+    "holder": "JAN KOWALSKI",
+    "number": "4111 1111 1111 1111",
+    "expiry": "",
+    "cvc": "123"
+   },
+   "kind": "ccExp",
+   "field": {
+    "autocomplete": [],
+    "type": "text",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": ""
+   },
+   "hasUsernameField": true,
+   "expected": null
+  },
+  {
+   "plan": {
+    "kind": "card",
+    "holder": "JAN KOWALSKI",
+    "number": "4111 1111 1111 1111",
+    "expiry": "13/29",
+    "cvc": "123"
+   },
+   "kind": "ccExp",
+   "field": {
+    "autocomplete": [],
+    "type": "text",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": ""
+   },
+   "hasUsernameField": true,
+   "expected": null
+  },
+  {
+   "plan": {
+    "kind": "card",
+    "holder": "JAN KOWALSKI",
+    "number": "4111 1111 1111 1111",
+    "expiry": "07/29",
+    "cvc": "123"
+   },
+   "kind": "ccExpMonth",
+   "field": {
+    "autocomplete": [],
+    "type": "text",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": ""
+   },
+   "hasUsernameField": true,
+   "expected": "07"
+  },
+  {
+   "plan": {
+    "kind": "card",
+    "holder": "JAN KOWALSKI",
+    "number": "4111 1111 1111 1111",
+    "expiry": "07/29",
+    "cvc": "123"
+   },
+   "kind": "ccExpMonth",
+   "field": {
+    "autocomplete": [],
+    "type": "select",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": "",
+    "options": [
+     {
+      "value": "1",
+      "text": "1"
+     },
+     {
+      "value": "2",
+      "text": "2"
+     },
+     {
+      "value": "3",
+      "text": "3"
+     },
+     {
+      "value": "4",
+      "text": "4"
+     },
+     {
+      "value": "5",
+      "text": "5"
+     },
+     {
+      "value": "6",
+      "text": "6"
+     },
+     {
+      "value": "7",
+      "text": "7"
+     },
+     {
+      "value": "8",
+      "text": "8"
+     },
+     {
+      "value": "9",
+      "text": "9"
+     },
+     {
+      "value": "10",
+      "text": "10"
+     },
+     {
+      "value": "11",
+      "text": "11"
+     },
+     {
+      "value": "12",
+      "text": "12"
+     }
+    ]
+   },
+   "hasUsernameField": true,
+   "expected": "7"
+  },
+  {
+   "plan": {
+    "kind": "card",
+    "holder": "JAN KOWALSKI",
+    "number": "4111 1111 1111 1111",
+    "expiry": "07/29",
+    "cvc": "123"
+   },
+   "kind": "ccExpMonth",
+   "field": {
+    "autocomplete": [],
+    "type": "select",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": "",
+    "options": [
+     {
+      "value": "01",
+      "text": "01"
+     },
+     {
+      "value": "02",
+      "text": "02"
+     },
+     {
+      "value": "03",
+      "text": "03"
+     },
+     {
+      "value": "04",
+      "text": "04"
+     },
+     {
+      "value": "05",
+      "text": "05"
+     },
+     {
+      "value": "06",
+      "text": "06"
+     },
+     {
+      "value": "07",
+      "text": "07"
+     },
+     {
+      "value": "08",
+      "text": "08"
+     },
+     {
+      "value": "09",
+      "text": "09"
+     },
+     {
+      "value": "10",
+      "text": "10"
+     },
+     {
+      "value": "11",
+      "text": "11"
+     },
+     {
+      "value": "12",
+      "text": "12"
+     }
+    ]
+   },
+   "hasUsernameField": true,
+   "expected": "07"
+  },
+  {
+   "plan": {
+    "kind": "card",
+    "holder": "JAN KOWALSKI",
+    "number": "4111 1111 1111 1111",
+    "expiry": "7/2029",
+    "cvc": "123"
+   },
+   "kind": "ccExpMonth",
+   "field": {
+    "autocomplete": [],
+    "type": "text",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": ""
+   },
+   "hasUsernameField": true,
+   "expected": null
+  },
+  {
+   "plan": {
+    "kind": "card",
+    "holder": "JAN KOWALSKI",
+    "number": "4111 1111 1111 1111",
+    "expiry": "",
+    "cvc": "123"
+   },
+   "kind": "ccExpMonth",
+   "field": {
+    "autocomplete": [],
+    "type": "text",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": ""
+   },
+   "hasUsernameField": true,
+   "expected": null
+  },
+  {
+   "plan": {
+    "kind": "card",
+    "holder": "JAN KOWALSKI",
+    "number": "4111 1111 1111 1111",
+    "expiry": "07/29",
+    "cvc": "123"
+   },
+   "kind": "ccExpYear",
+   "field": {
+    "autocomplete": [],
+    "type": "text",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": "",
+    "maxLength": 2
+   },
+   "hasUsernameField": true,
+   "expected": "29"
+  },
+  {
+   "plan": {
+    "kind": "card",
+    "holder": "JAN KOWALSKI",
+    "number": "4111 1111 1111 1111",
+    "expiry": "07/29",
+    "cvc": "123"
+   },
+   "kind": "ccExpYear",
+   "field": {
+    "autocomplete": [],
+    "type": "text",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": "",
+    "maxLength": 4
+   },
+   "hasUsernameField": true,
+   "expected": "2029"
+  },
+  {
+   "plan": {
+    "kind": "card",
+    "holder": "JAN KOWALSKI",
+    "number": "4111 1111 1111 1111",
+    "expiry": "07/29",
+    "cvc": "123"
+   },
+   "kind": "ccExpYear",
+   "field": {
+    "autocomplete": [],
+    "type": "text",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": ""
+   },
+   "hasUsernameField": true,
+   "expected": "2029"
+  },
+  {
+   "plan": {
+    "kind": "card",
+    "holder": "JAN KOWALSKI",
+    "number": "4111 1111 1111 1111",
+    "expiry": "07/29",
+    "cvc": "123"
+   },
+   "kind": "ccExpYear",
+   "field": {
+    "autocomplete": [],
+    "type": "select",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": "",
+    "options": [
+     {
+      "value": "2026",
+      "text": "2026"
+     },
+     {
+      "value": "2027",
+      "text": "2027"
+     },
+     {
+      "value": "2028",
+      "text": "2028"
+     },
+     {
+      "value": "2029",
+      "text": "2029"
+     },
+     {
+      "value": "2030",
+      "text": "2030"
+     },
+     {
+      "value": "2031",
+      "text": "2031"
+     },
+     {
+      "value": "2032",
+      "text": "2032"
+     },
+     {
+      "value": "2033",
+      "text": "2033"
+     },
+     {
+      "value": "2034",
+      "text": "2034"
+     },
+     {
+      "value": "2035",
+      "text": "2035"
+     }
+    ]
+   },
+   "hasUsernameField": true,
+   "expected": "2029"
+  },
+  {
+   "plan": {
+    "kind": "card",
+    "holder": "JAN KOWALSKI",
+    "number": "4111 1111 1111 1111",
+    "expiry": "07/29",
+    "cvc": "123"
+   },
+   "kind": "ccExpYear",
+   "field": {
+    "autocomplete": [],
+    "type": "select",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": "",
+    "options": [
+     {
+      "value": "26",
+      "text": "26"
+     },
+     {
+      "value": "27",
+      "text": "27"
+     },
+     {
+      "value": "28",
+      "text": "28"
+     },
+     {
+      "value": "29",
+      "text": "29"
+     },
+     {
+      "value": "30",
+      "text": "30"
+     },
+     {
+      "value": "31",
+      "text": "31"
+     },
+     {
+      "value": "32",
+      "text": "32"
+     },
+     {
+      "value": "33",
+      "text": "33"
+     },
+     {
+      "value": "34",
+      "text": "34"
+     },
+     {
+      "value": "35",
+      "text": "35"
+     }
+    ]
+   },
+   "hasUsernameField": true,
+   "expected": "29"
+  },
+  {
+   "plan": {
+    "kind": "card",
+    "holder": "JAN KOWALSKI",
+    "number": "4111 1111 1111 1111",
+    "expiry": "07/29",
+    "cvc": "123"
+   },
+   "kind": "ccExpYear",
+   "field": {
+    "autocomplete": [],
+    "type": "select",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": "",
+    "options": [
+     {
+      "value": "2030",
+      "text": "2030"
+     },
+     {
+      "value": "2031",
+      "text": "2031"
+     },
+     {
+      "value": "2032",
+      "text": "2032"
+     },
+     {
+      "value": "2033",
+      "text": "2033"
+     },
+     {
+      "value": "2034",
+      "text": "2034"
+     },
+     {
+      "value": "2035",
+      "text": "2035"
+     }
+    ]
+   },
+   "hasUsernameField": true,
+   "expected": null
+  },
+  {
+   "plan": {
+    "kind": "card",
+    "holder": "JAN KOWALSKI",
+    "number": "4111 1111 1111 1111",
+    "expiry": "7/2029",
+    "cvc": "123"
+   },
+   "kind": "ccExpYear",
+   "field": {
+    "autocomplete": [],
+    "type": "text",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": ""
+   },
+   "hasUsernameField": true,
+   "expected": null
+  },
+  {
+   "plan": {
+    "kind": "card",
+    "holder": "JAN KOWALSKI",
+    "number": "4111 1111 1111 1111",
+    "expiry": "",
+    "cvc": "123"
+   },
+   "kind": "ccExpYear",
+   "field": {
+    "autocomplete": [],
+    "type": "text",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": ""
+   },
+   "hasUsernameField": true,
+   "expected": null
+  },
+  {
+   "plan": {
+    "kind": "contact",
+    "firstName": "Jan",
+    "lastName": "Kowalski",
+    "email": "jan@example.com",
+    "tel": "+48 600 100 200",
+    "street": "Długa 1",
+    "postalCode": "00-001",
+    "city": "Warszawa",
+    "country": "polska",
+    "bday": "1990-05-01"
+   },
+   "kind": "givenName",
+   "field": {
+    "autocomplete": [],
+    "type": "text",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": ""
+   },
+   "hasUsernameField": true,
+   "expected": "Jan"
+  },
+  {
+   "plan": {
+    "kind": "contact",
+    "firstName": "Jan",
+    "lastName": "Kowalski",
+    "email": "jan@example.com",
+    "tel": "+48 600 100 200",
+    "street": "Długa 1",
+    "postalCode": "00-001",
+    "city": "Warszawa",
+    "country": "polska",
+    "bday": "1990-05-01"
+   },
+   "kind": "familyName",
+   "field": {
+    "autocomplete": [],
+    "type": "text",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": ""
+   },
+   "hasUsernameField": true,
+   "expected": "Kowalski"
+  },
+  {
+   "plan": {
+    "kind": "contact",
+    "firstName": "Jan",
+    "lastName": "Kowalski",
+    "email": "jan@example.com",
+    "tel": "+48 600 100 200",
+    "street": "Długa 1",
+    "postalCode": "00-001",
+    "city": "Warszawa",
+    "country": "polska",
+    "bday": "1990-05-01"
+   },
+   "kind": "fullName",
+   "field": {
+    "autocomplete": [],
+    "type": "text",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": ""
+   },
+   "hasUsernameField": true,
+   "expected": "Jan Kowalski"
+  },
+  {
+   "plan": {
+    "kind": "contact",
+    "firstName": "Jan",
+    "lastName": "",
+    "email": "jan@example.com",
+    "tel": "+48 600 100 200",
+    "street": "Długa 1",
+    "postalCode": "00-001",
+    "city": "Warszawa",
+    "country": "polska",
+    "bday": "1990-05-01"
+   },
+   "kind": "fullName",
+   "field": {
+    "autocomplete": [],
+    "type": "text",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": ""
+   },
+   "hasUsernameField": true,
+   "expected": "Jan"
+  },
+  {
+   "plan": {
+    "kind": "contact",
+    "firstName": "Jan",
+    "lastName": "Kowalski",
+    "email": "jan@example.com",
+    "tel": "+48 600 100 200",
+    "street": "Długa 1",
+    "postalCode": "00-001",
+    "city": "Warszawa",
+    "country": "polska",
+    "bday": "1990-05-01"
+   },
+   "kind": "email",
+   "field": {
+    "autocomplete": [],
+    "type": "email",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": ""
+   },
+   "hasUsernameField": true,
+   "expected": "jan@example.com"
+  },
+  {
+   "plan": {
+    "kind": "contact",
+    "firstName": "Jan",
+    "lastName": "Kowalski",
+    "email": "jan@example.com",
+    "tel": "+48 600 100 200",
+    "street": "Długa 1",
+    "postalCode": "00-001",
+    "city": "Warszawa",
+    "country": "polska",
+    "bday": "1990-05-01"
+   },
+   "kind": "tel",
+   "field": {
+    "autocomplete": [],
+    "type": "tel",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": ""
+   },
+   "hasUsernameField": true,
+   "expected": "+48 600 100 200"
+  },
+  {
+   "plan": {
+    "kind": "contact",
+    "firstName": "Jan",
+    "lastName": "Kowalski",
+    "email": "jan@example.com",
+    "tel": "+48 600 100 200",
+    "street": "Długa 1",
+    "postalCode": "00-001",
+    "city": "Warszawa",
+    "country": "polska",
+    "bday": "1990-05-01"
+   },
+   "kind": "street",
+   "field": {
+    "autocomplete": [],
+    "type": "text",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": ""
+   },
+   "hasUsernameField": true,
+   "expected": "Długa 1"
+  },
+  {
+   "plan": {
+    "kind": "contact",
+    "firstName": "Jan",
+    "lastName": "Kowalski",
+    "email": "jan@example.com",
+    "tel": "+48 600 100 200",
+    "street": "Długa 1",
+    "postalCode": "00-001",
+    "city": "Warszawa",
+    "country": "polska",
+    "bday": "1990-05-01"
+   },
+   "kind": "postalCode",
+   "field": {
+    "autocomplete": [],
+    "type": "text",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": ""
+   },
+   "hasUsernameField": true,
+   "expected": "00-001"
+  },
+  {
+   "plan": {
+    "kind": "contact",
+    "firstName": "Jan",
+    "lastName": "Kowalski",
+    "email": "jan@example.com",
+    "tel": "+48 600 100 200",
+    "street": "Długa 1",
+    "postalCode": "00-001",
+    "city": "Warszawa",
+    "country": "polska",
+    "bday": "1990-05-01"
+   },
+   "kind": "city",
+   "field": {
+    "autocomplete": [],
+    "type": "text",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": ""
+   },
+   "hasUsernameField": true,
+   "expected": "Warszawa"
+  },
+  {
+   "plan": {
+    "kind": "contact",
+    "firstName": "Jan",
+    "lastName": "Kowalski",
+    "email": "jan@example.com",
+    "tel": "+48 600 100 200",
+    "street": "Długa 1",
+    "postalCode": "00-001",
+    "city": "Warszawa",
+    "country": "polska",
+    "bday": "1990-05-01"
+   },
+   "kind": "country",
+   "field": {
+    "autocomplete": [],
+    "type": "text",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": ""
+   },
+   "hasUsernameField": true,
+   "expected": "polska"
+  },
+  {
+   "plan": {
+    "kind": "contact",
+    "firstName": "Jan",
+    "lastName": "Kowalski",
+    "email": "jan@example.com",
+    "tel": "+48 600 100 200",
+    "street": "Długa 1",
+    "postalCode": "00-001",
+    "city": "Warszawa",
+    "country": "polska",
+    "bday": "1990-05-01"
+   },
+   "kind": "country",
+   "field": {
+    "autocomplete": [],
+    "type": "select",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": "",
+    "options": [
+     {
+      "value": "DE",
+      "text": "Niemcy"
+     },
+     {
+      "value": "PL",
+      "text": "Polska"
+     },
+     {
+      "value": "CZ",
+      "text": "Czechy"
+     }
+    ]
+   },
+   "hasUsernameField": true,
+   "expected": "PL"
+  },
+  {
+   "plan": {
+    "kind": "contact",
+    "firstName": "Jan",
+    "lastName": "Kowalski",
+    "email": "jan@example.com",
+    "tel": "+48 600 100 200",
+    "street": "Długa 1",
+    "postalCode": "00-001",
+    "city": "Warszawa",
+    "country": "polska",
+    "bday": "1990-05-01"
+   },
+   "kind": "country",
+   "field": {
+    "autocomplete": [],
+    "type": "select",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": "",
+    "options": [
+     {
+      "value": "DE",
+      "text": "Niemcy"
+     },
+     {
+      "value": "CZ",
+      "text": "Czechy"
+     }
+    ]
+   },
+   "hasUsernameField": true,
+   "expected": null
+  },
+  {
+   "plan": {
+    "kind": "contact",
+    "firstName": "Jan",
+    "lastName": "Kowalski",
+    "email": "jan@example.com",
+    "tel": "+48 600 100 200",
+    "street": "Długa 1",
+    "postalCode": "00-001",
+    "city": "Warszawa",
+    "country": "pl",
+    "bday": "1990-05-01"
+   },
+   "kind": "country",
+   "field": {
+    "autocomplete": [],
+    "type": "select",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": "",
+    "options": [
+     {
+      "value": "DE",
+      "text": "Niemcy"
+     },
+     {
+      "value": "PL",
+      "text": "Polska"
+     }
+    ]
+   },
+   "hasUsernameField": true,
+   "expected": "PL"
+  },
+  {
+   "plan": {
+    "kind": "contact",
+    "firstName": "Jan",
+    "lastName": "Kowalski",
+    "email": "jan@example.com",
+    "tel": "+48 600 100 200",
+    "street": "Długa 1",
+    "postalCode": "00-001",
+    "city": "Warszawa",
+    "country": "polska",
+    "bday": "1990-05-01"
+   },
+   "kind": "bday",
+   "field": {
+    "autocomplete": [],
+    "type": "text",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": ""
+   },
+   "hasUsernameField": true,
+   "expected": "1990-05-01"
+  },
+  {
+   "plan": {
+    "kind": "contact",
+    "firstName": "Jan",
+    "lastName": "Kowalski",
+    "email": "jan@example.com",
+    "tel": "+48 600 100 200",
+    "street": "Długa 1",
+    "postalCode": "00-001",
+    "city": "Warszawa",
+    "country": "polska",
+    "bday": ""
+   },
+   "kind": "bday",
+   "field": {
+    "autocomplete": [],
+    "type": "text",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": ""
+   },
+   "hasUsernameField": true,
+   "expected": null
+  },
+  {
+   "plan": {
+    "kind": "contact",
+    "firstName": "Jan",
+    "lastName": "Kowalski",
+    "email": "jan@example.com",
+    "tel": "",
+    "street": "Długa 1",
+    "postalCode": "00-001",
+    "city": "Warszawa",
+    "country": "polska",
+    "bday": "1990-05-01"
+   },
+   "kind": "tel",
+   "field": {
+    "autocomplete": [],
+    "type": "tel",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": ""
+   },
+   "hasUsernameField": true,
+   "expected": null
+  },
+  {
+   "plan": {
+    "kind": "contact",
+    "firstName": "Jan",
+    "lastName": "Kowalski",
+    "email": "jan@example.com",
+    "tel": "+48 600 100 200",
+    "street": "Długa 1",
+    "postalCode": "00-001",
+    "city": "Warszawa",
+    "country": "polska",
+    "bday": "1990-05-01"
+   },
+   "kind": "password",
+   "field": {
+    "autocomplete": [],
+    "type": "password",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": ""
+   },
+   "hasUsernameField": true,
+   "expected": null
+  },
+  {
+   "plan": {
+    "kind": "contact",
+    "firstName": "Jan",
+    "lastName": "Kowalski",
+    "email": "jan@example.com",
+    "tel": "+48 600 100 200",
+    "street": "Długa 1",
+    "postalCode": "00-001",
+    "city": "Warszawa",
+    "country": "polska",
+    "bday": "1990-05-01"
+   },
+   "kind": "ccNumber",
+   "field": {
+    "autocomplete": [],
+    "type": "text",
+    "name": "",
+    "id": "",
+    "label": "",
+    "placeholder": ""
+   },
+   "hasUsernameField": true,
+   "expected": null
+  }
+ ]
+}

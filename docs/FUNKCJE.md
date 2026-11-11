@@ -6,7 +6,7 @@ każdej: jak działa, gdzie jest kod, ograniczenia. Na początku: [typy wpisów]
 Spis: [Automatyczna blokada](#automatyczna-blokada) · [PIN we wtyczce](#pin-we-wtyczce) ·
 [Import i eksport](#import-i-eksport) · [Otwórz w karcie](#otwórz-w-karcie) ·
 [Odcisk palca i blokada po wyjściu (Android)](#odcisk-palca-i-blokada-po-wyjściu-android) ·
-[Czyszczenie schowka](#czyszczenie-schowka)
+[Czyszczenie schowka](#czyszczenie-schowka) · [Autouzupełnianie](#autouzupełnianie)
 
 ## Typy wpisów (wtyczka i telefon)
 
@@ -293,3 +293,38 @@ Skopiowane hasło znika ze schowka po minucie.
 
 - Wtyczka: alarm w service workerze i dokument offscreen (`clipboard.ts`, `background.ts`, `offscreen.ts`).
 - Android: WorkManager (`SecureClipboard.kt`).
+
+## Autouzupełnianie
+
+Chrome: wtyczka wpisuje login, kartę albo adres w pola otwartej strony. Android dojdzie w następnym kroku.
+
+- **Pasujące do tej strony:** na zakładce Loginy okienko pokazuje u góry sekcję „Pasujące do tej strony” z
+  loginami dla adresu otwartej karty (dokładny host przed subdomenami, w grupie po nazwie). Przycisk
+  **Wypełnij** wpisuje login i hasło. Adres wpisu `http` pasuje do strony `http` i `https`, adres `https` tylko
+  do `https`; `www.`, port i schemat są brane pod uwagę, `localhost` i adresy IP tylko dokładnie.
+- **Karta i kontakt:** wiersz na zakładce Karty i Kontakty ma **Wypełnij** (tylko w okienku, nie w karcie
+  PassHolder). Karta: tylko na stronach `https` (i `localhost`); kontakt: imię, nazwisko, e-mail, telefon,
+  pierwszy adres i data urodzenia. Ważność karty dzielona na miesiąc i rok zależnie od pól i opcji `<select>`.
+- **Skrót** `Ctrl+Shift+L` (Mac: `Command+Shift+L`): przy dokładnie jednym pasującym loginie wypełnia od razu,
+  przy zerze lub kilku (albo zablokowanym sejfie) otwiera okienko. Zmiana skrótu: `chrome://extensions/shortcuts`.
+- **Jak wpisuje:** pola rozpoznaje po `autocomplete`, typie, nazwie, etykiecie i placeholderze (polskie i
+  angielskie słowa); wpisuje przez setter prototypu i wysyła `input` oraz `change`, więc działa z React/Vue. Pomija
+  pola ukryte, wyłączone, tylko do odczytu i `type=hidden`; pusta wartość nie nadpisuje pola; `new-password`
+  (rejestracja) zostaje puste. Pomija też pola niewidoczne (`opacity: 0`, zerowy rozmiar, poza ekranem). Formularz z dokładnie jednym widocznym polem hasła dostaje login i hasło; w przeciwnym razie (logowanie dwuetapowe, ale też rejestracja z dwoma polami hasła) wypełniane jest tylko pierwsze widoczne pole loginu, a gdy go nie ma, pierwsze pole e-mail.
+- **Komunikaty:** „Nie znaleziono pól logowania”, „Nie znaleziono pól karty (mogą być w ramce operatora
+  płatności), skopiuj dane ręcznie”, „Nie znaleziono pól adresu”; ponadto zablokowany sejf, strona niepasująca do
+  loginu, karta na stronie bez https i strona, na której Chrome nie pozwala wstrzykiwać skryptów (np. `chrome://`).
+
+**Bezpieczeństwo:**
+
+- Nowe uprawnienia to tylko `activeTab` i `scripting`: bez `host_permissions` i bez skryptów w manifeście (istniejące opcjonalne `optional_host_permissions` `http://*/*` służy połączeniu z telefonem, nie autouzupełnianiu). Skrypt
+  `autofill-content.js` jest wstrzykiwany dopiero przy wypełnianiu, w czynnej karcie.
+- Do strony trafia tylko plan wypełnienia (`FillPlan`: pola jednego wpisu), nigdy klucze ani inne wpisy.
+- Service worker sam sprawdza stronę (adres pobrany z karty przez `tabs.get`, `matchLogins` dla loginu, https dla
+  karty) i przyjmuje komunikat tylko z kontekstów tego rozszerzenia (`sender.id`: jego strony i wstrzyknięty skrypt; to nie dowodzi, że nadawcą jest okienko). Okienku nie ufa.
+- Wypełniane są tylko ramki z tym samym origin co górna ramka, a origin sprawdzonej strony jest przypięty przy
+  wstrzyknięciu (po nawigacji karty nic się nie wpisze). Ramki płatnicze z innego origin zostają puste.
+
+Kod: `core/src/autofill/` (`match.ts`, `fields.ts`, `keywords.ts`, `values.ts`), `extension/src/autofill/`
+(`fill-page.ts`, `fill-tab.ts`), `autofill-content.ts`, `background.ts` (komunikat `fill`, polecenie `fill-login`),
+`ui/active-tab.ts`, `views/list.ts`. Wymaga Chrome 127 lub nowszego.

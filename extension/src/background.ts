@@ -1,6 +1,8 @@
 import { AUTO_LOCK_ALARM, onAutoLockAlarm, scheduleAutoLock } from "./auto-lock.ts";
 import { CLEAR_AFTER_MINUTES, CLEAR_CLIPBOARD_ALARM, type ClipboardMessage } from "./clipboard.ts";
+import { chromeTabApi, fillTab, onFillCommand, type FillMessage, UNSUPPORTED_PAGE } from "./autofill/fill-tab.ts";
 import { chromeStore, STORAGE_KEYS } from "./storage.ts";
+import { VaultStore } from "./vault-store.ts";
 
 // The popup closes as soon as it loses focus, so the one-minute timer lives here, in an alarm that
 // survives the service worker being stopped.
@@ -11,6 +13,26 @@ chrome.runtime.onMessage.addListener((message: ClipboardMessage) => {
     await chrome.storage.session.set({ copiedPasswordHash: message.hash });
     await chrome.alarms.create(CLEAR_CLIPBOARD_ALARM, { delayInMinutes: CLEAR_AFTER_MINUTES });
   })();
+});
+
+// Autofill: a fresh store per event, because the service worker may have been stopped in between.
+const newStore = () => new VaultStore(chromeStore(chrome.storage.local), chromeStore(chrome.storage.session));
+
+chrome.runtime.onMessage.addListener((message: FillMessage, sender, sendResponse) => {
+  if (message.target !== "background" || message.type !== "fill") return;
+  // sender.id only limits this to this extension's own contexts (its pages and its injected content script);
+  // messages from other extensions arrive at onMessageExternal and never reach this listener.
+  if (sender.id !== chrome.runtime.id) return;
+  void fillTab(newStore(), chromeTabApi(), message.tabId, message.entryId)
+    .catch(() => ({ ok: false, error: UNSUPPORTED_PAGE }))
+    .then(sendResponse);
+  return true;
+});
+
+chrome.commands.onCommand.addListener((command, tab) => {
+  if (command !== "fill-login") return;
+  onFillCommand(newStore(), chromeTabApi(), tab, () => chrome.action.openPopup())
+    .catch((error: unknown) => console.warn("PassHolder: fill command failed", error));
 });
 
 // Auto-lock also when no PassHolder page is open: follow the deadline the pages write (see auto-lock.ts).
