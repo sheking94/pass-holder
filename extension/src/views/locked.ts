@@ -1,10 +1,13 @@
 import { MAX_PIN_ATTEMPTS } from "../pin-lock.ts";
 import type { PinStatus } from "../pin-store.ts";
 import { busy, confirmButton, form, h, passwordField, pinInput, setStatus, show, statusLine } from "../ui/dom.ts";
+import type { SaveInfoMessage, SavePromptInfo } from "../save/messages.ts";
+import { activeTab } from "../ui/active-tab.ts";
 import { MODE, openInTabButton } from "../ui/page.ts";
 import { store } from "../ui/state.ts";
 import { showConnect } from "./connect.ts";
 import { listView } from "./list.ts";
+import { saveQuestionView } from "./save-question.ts";
 import { transferView } from "./transfer.ts";
 
 const SHORT_PIN_MOVED =
@@ -18,9 +21,23 @@ export async function showLocked(message = "") {
 }
 
 /** What this page shows once unlocked: the transfer tab stays on import and export, everything else shows the list. */
-export function showUnlocked(message = "") {
-  if (MODE === "transfer") transferView();
+export async function showUnlocked(message = "") {
+  if (MODE === "transfer") return transferView();
+  const info = await pendingSaveInfo();
+  if (info) saveQuestionView(info);
   else listView(message);
+}
+
+/** The save question for the tab the popup is open over, if the service worker holds a candidate for it. */
+async function pendingSaveInfo(): Promise<SavePromptInfo | undefined> {
+  try {
+    const tab = await activeTab();
+    if (!tab) return undefined;
+    const message: SaveInfoMessage = { target: "background", type: "save-info", tabId: tab.id };
+    return ((await chrome.runtime.sendMessage(message)) as SavePromptInfo | undefined) ?? undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function pinLockedView(pinStatus: PinStatus, message = "") {
@@ -40,7 +57,7 @@ function pinLockedView(pinStatus: PinStatus, message = "") {
         pin.value = "";
         throw error;
       }
-      showUnlocked(movedToMemory ? SHORT_PIN_MOVED : "");
+      await showUnlocked(movedToMemory ? SHORT_PIN_MOVED : "");
     });
 
   show(
@@ -69,7 +86,7 @@ function lockedView(message = "") {
   const unlock = () =>
     busy(status, "Odblokowuję…", async () => {
       await store.unlock(password.value);
-      showUnlocked();
+      await showUnlocked();
     });
 
   // Forgets only this browser's copy; the phone keeps what it has synced (remove the browser there in

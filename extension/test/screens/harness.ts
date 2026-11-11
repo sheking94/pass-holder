@@ -69,6 +69,9 @@ async function setup() {
   const { listView } = await import("../../src/views/list.ts");
   const { editView } = await import("../../src/views/edit.ts");
   const { transferView } = await import("../../src/views/transfer.ts");
+  const { promptView } = await import("../../src/save/prompt-view.ts");
+  const { saveSettingsView } = await import("../../src/views/save-settings.ts");
+  const { STORAGE_KEYS } = await import("../../src/storage.ts");
   const firstOf = (type: p2p.EntryType) => SAMPLES.find((s) => s.content.type === type)!.id;
   return {
     /** The import and export screen. */
@@ -77,6 +80,20 @@ async function setup() {
     show: (type: p2p.EntryType) => listView("", false, type),
     /** The form of the first sample entry of this type. */
     openForm: (type: p2p.EntryType) => editView(type, firstOf(type)),
+    /** The save panel of save-prompt.html (360 × 180 on a page) for a made-up candidate. */
+    openPrompt: (decision: "create" | "update" | null, locked = false) => {
+      document.body.classList.add("panel");
+      const info = { id: "c1", host: "sklep.example.com", username: "jan.testowy@example.com", decision, locked };
+      document.getElementById("app")!.replaceChildren(
+        promptView(info, { answer: async () => ({ ok: true }), unlock: () => undefined, done: () => undefined }),
+      );
+    },
+    /** „Zapis haseł” with two hosts on the never list. */
+    openSaveSettings: async () => {
+      document.body.classList.remove("panel");
+      await chrome.storage.local.set({ [STORAGE_KEYS.saveNever]: ["bank.example.com", "forum.example.org"] });
+      await saveSettingsView();
+    },
     /** Clicks „Pokaż” of every hidden custom field. */
     revealCustom: () => {
       for (const row of document.querySelectorAll(".custom-field")) {

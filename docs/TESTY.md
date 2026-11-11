@@ -52,8 +52,8 @@ katalogu pakietu.
 
 | Pakiet | Pliki | Testy | Uwagi |
 |---|---|---|---|
-| `core` | 26 | 461 | w tym `core/test/p2p/` i `core/test/autofill/` |
-| `extension` | 19 | 200 | w tym widoki w happy-dom (`extension/test/ui/`) i `extension/test/autofill/`; `background.ts` bez testów (logika w `fill-tab.ts`) |
+| `core` | 28 | 489 | w tym `core/test/p2p/`, `core/test/autofill/` i `core/test/save/` |
+| `extension` | 29 | 291 | w tym widoki w happy-dom (`extension/test/ui/`), `extension/test/autofill/` i `extension/test/save/`; `background.ts` bez testów (logika w `fill-tab.ts` i `save/candidates.ts`) |
 | `android/core` | 38 | 626 | 4 pomijane bez `PASSHOLDER_INTEROP_TEST=1`; w tym `autofill/` (wektory `core/test-vectors/autofill/`) |
 | `android/app` | 26 | 102 | Robolectric, zrzuty ekranów; w tym `autofill/` i ekrany autouzupełniania |
 
@@ -111,6 +111,7 @@ wartości losowe mają stałe klucze i nonce.
 | `autofill/fill-page.test.ts` | `fillPage` w happy-dom: logowanie, dwuetapowe, rejestracja (`new-password` pomijane), karta z jednym i dwoma polami ważności, `<select>`, adres; pola ukryte, wyłączone i tylko do odczytu, pusta wartość, obcy origin i inny origin niż sprawdzony |
 | `autofill/fill-tab.test.ts` | `fillTab` i `onFillCommand` z atrapą `TabApi`: zablokowany sejf, strona niepasująca, karta na http, brak pól, błąd wstrzyknięcia; skrót przy jednym, kilku i zerze loginów |
 | `ui/autofill-view.test.ts` | sekcja „Pasujące do tej strony”, „Wypełnij” przy karcie i kontakcie (nie w karcie PassHolder), komunikaty błędów, zamknięcie okienka po powodzeniu |
+| `save/*.test.ts`, `ui/save-*.test.ts` | pytanie o zapis: odczyt formularza (hasło, login, podpis), `startSaveWatch` (submit, Enter, klik, bez `<form>`, obcy origin), `SaveCandidates` (adres z `sender.url`, „Nigdy”, 2 min, zamknięcie karty, zły formularz, ten sam login zgłoszony kilka razy, `save-hide` po wygaśnięciu), logowanie SPA od skryptu do tła (`flow.test.ts`), `syncSaveWatch` (też wywołania naraz), `promptView`, strona panelu (`startPromptPage`: brak kandydata, blokada po załadowaniu), `save-watch.ts` po przeładowaniu wtyczki, widoki „Zapis haseł” i pytanie w okienku |
 | `ui/widgets.test.ts` | `secretField` (zakrycie, „Pokaż”, kopia czyści schowek, puste pole się nie kopiuje), `listEditor`, przyciski kopiowania w wierszu |
 
 Testy wtyczki używają `extension/test/fake-phone.ts`: parowanie z prawdziwym CPace przed referencyjnym
@@ -283,6 +284,21 @@ zaufanych albo aplikacja z wbudowaną stroną logowania): podpowiedzi loginu tej
 PassHolderze (np. pole „Hasło główne”) usługa nic nie podpowiada; formularz rejestracji z samym polem
 `new-password` nie dostaje nic, a z e-mailem i `new-password` – loginy tylko w polu e-mail (nowe hasło puste). Zapisz wynik, model telefonu, wersję Androida, klawiatury i Chrome.
 
+**T20. Pytanie o zapis w Chrome.** Wtyczka z `extension\dist` przeładowana, sejf z kilkoma wpisami. (1) **Włączenie:**
+lista → **Zapis** → „Pytaj o zapis haseł”: Chrome pyta o dostęp do wszystkich stron (odmowa: przełącznik zostaje
+wyłączony); zezwól, przeładuj kartę testową. Po zablokowaniu uprawnienia w `chrome://extensions` przełącznik jest
+wyłączony. (2) **Nowy login:** strona z formularzem logowania (własny HTML albo prawdziwa strona) → zaloguj się
+nowym loginem: panel „Zapisać login w PassHolder?” z hostem i loginem → **Zapisz**: „Zapisano”, panel znika po 2 s,
+wpis ma adres samej domeny. Ponowne logowanie tym samym hasłem: bez panelu. (3) **Zmiana hasła:** ten sam login z
+innym hasłem → „Zaktualizować hasło…?” → **Aktualizuj**: zmieniło się tylko hasło. Rejestracja z polem „nowe
+hasło” pyta o to hasło. (4) **Bez przeładowania i przekierowania:** logowanie przez fetch/SPA (panel od razu) i
+przez przekierowanie na inną stronę tej samej domeny (panel po załadowaniu, do 2 min). Złe hasło z przeładowaniem
+tego samego formularza: bez panelu. Panel zostawiony bez odpowiedzi znika sam po 2 min. (5) **Odmowy:** **Nie teraz** i × zamykają panel; po przeładowaniu go nie ma.
+**Nigdy dla tej strony**: host na liście w **Zapis**, kolejne logowanie bez pytania, **Usuń** przywraca pytanie.
+(6) **Zablokowany sejf:** wyślij formularz, zablokuj sejf (albo poczekaj 15 min): panel „Odblokuj i zapisz” →
+okienko → hasło albo PIN → najpierw pytanie o zapis, potem lista. (7) **Wyłączenie:** przełącznik wyłączony →
+Chrome cofa uprawnienie, formularze nie pytają (połączenie z telefonem po `http` nadal działa). Zapisz wersję Chrome.
+
 **PIN i karta.** PIN `4821` → Zablokuj → zły PIN „Pozostało prób: 4”, dobry otwiera; restart Chrome prosi o
 hasło główne. „Otwórz w karcie ↗” dwa razy: drugi raz przełącza na istniejącą kartę.
 
@@ -292,6 +308,7 @@ hasło główne. „Otwórz w karcie ↗” dwa razy: drugi raz przełącza na i
   tylko zrzutami ekranów (bez asercji na wyglądzie poza szerokością i zakryciem pól).
 - Testów automatycznych prośby o zgodę Chrome, Private Network Access i Tailscale (T4, T7 ręcznie).
 - Testów na prawdziwym telefonie (Keystore, `BiometricPrompt`, port 8787) i wydajności Argon2id.
+- Pytania o zapis w prawdziwym Chrome: zgoda na dostęp do stron, `openPopup`, rejestracja skryptu, panel w prawdziwych stronach (T20 ręcznie).
 - Autouzupełniania z prawdziwym systemem: `readRequest` (prawdziwy `AssistStructure`), wpisanie wartości przez
   system, Chrome z „inną usługą”, pasek klawiatury Gboard (T19 ręcznie).
 - Na telefonie: zajętego portu, obrotu ekranu przy działającym serwerze, wygasania kodu przez zegar.

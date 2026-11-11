@@ -51,7 +51,7 @@ function hasLayout(doc: Document): boolean {
   return rect.width > 0 || rect.height > 0;
 }
 
-function isVisible(el: Element): boolean {
+export function isVisible(el: Element): boolean {
   const view = el.ownerDocument.defaultView;
   if (!view) return false;
   // Chrome 121+: covers display, visibility, opacity of the element and its ancestors, content-visibility.

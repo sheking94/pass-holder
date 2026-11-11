@@ -1,6 +1,9 @@
 import { AUTO_LOCK_ALARM, onAutoLockAlarm, scheduleAutoLock } from "./auto-lock.ts";
 import { CLEAR_AFTER_MINUTES, CLEAR_CLIPBOARD_ALARM, type ClipboardMessage } from "./clipboard.ts";
 import { chromeTabApi, fillTab, onFillCommand, type FillMessage, UNSUPPORTED_PAGE } from "./autofill/fill-tab.ts";
+import { chromeSaveWatchApi, syncSaveWatch } from "./save/registration.ts";
+import { SaveCandidates } from "./save/candidates.ts";
+import type { SaveAnswerMessage, SaveCandidateMessage, SaveInfoMessage, SavePendingMessage } from "./save/messages.ts";
 import { chromeStore, STORAGE_KEYS } from "./storage.ts";
 import { VaultStore } from "./vault-store.ts";
 
@@ -29,6 +32,59 @@ chrome.runtime.onMessage.addListener((message: FillMessage, sender, sendResponse
   return true;
 });
 
+// Save prompt: candidates live in session storage, so a stopped service worker loses nothing.
+const saveCandidates = new SaveCandidates({
+  store: newStore,
+  session: chromeStore(chrome.storage.session),
+  local: chromeStore(chrome.storage.local),
+  selfId: chrome.runtime.id,
+  sendToTab: async (tabId, m) => {
+    try {
+      await chrome.tabs.sendMessage(tabId, m, { frameId: 0 });
+    } catch {
+      // No receiver: the tab was closed or the script is not there (permission taken away); nothing to show.
+    }
+  },
+  alarms: chrome.alarms,
+  now: Date.now,
+  newId: () => crypto.randomUUID(),
+  later: (ms, fn) => void setTimeout(fn, ms),
+});
+
+type SaveMessage = SaveCandidateMessage | SavePendingMessage | SaveInfoMessage | SaveAnswerMessage;
+chrome.runtime.onMessage.addListener((message: { target?: string } & Partial<SaveMessage>, sender, sendResponse) => {
+  if (message.target !== "background") return;
+  const run = <T>(work: Promise<T>, onError: T) => {
+    work.catch((error: unknown) => {
+      console.warn("PassHolder: save message failed", error);
+      return onError;
+    }).then(sendResponse);
+    return true;
+  };
+  const m = message as SaveMessage;
+  switch (m.type) {
+    case "save-candidate":
+      return run(saveCandidates.onCandidate(m, sender).then(() => ({})), {});
+    case "save-pending":
+      return run(saveCandidates.onPending(m, sender), {});
+    case "save-info":
+      return run(saveCandidates.info(m, sender), undefined);
+    case "save-answer":
+      return run(saveCandidates.answer(m, sender), { ok: false, error: UNSUPPORTED_PAGE });
+  }
+});
+
+// The https permission is the save-prompt switch: keep the script registration in step with it, also when the
+// user took it away in chrome://extensions, or granted it while the popup (and its callback) was already gone.
+const syncSave = () => syncSaveWatch(chromeSaveWatchApi())
+  .catch((error: unknown) => console.warn("PassHolder: save-watch sync failed", error));
+chrome.runtime.onStartup.addListener(() => void syncSave());
+chrome.runtime.onInstalled.addListener(() => void syncSave());
+chrome.permissions.onAdded.addListener(() => void syncSave());
+chrome.permissions.onRemoved.addListener(() => void syncSave());
+
+chrome.tabs.onRemoved.addListener((tabId) => void saveCandidates.onTabRemoved(tabId));
+
 chrome.commands.onCommand.addListener((command, tab) => {
   if (command !== "fill-login") return;
   onFillCommand(newStore(), chromeTabApi(), tab, () => chrome.action.openPopup())
@@ -43,6 +99,7 @@ chrome.storage.session.onChanged.addListener((changes) => {
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === CLEAR_CLIPBOARD_ALARM) void clearClipboard();
+  void saveCandidates.onAlarm(alarm.name);
   if (alarm.name === AUTO_LOCK_ALARM) void onAutoLockAlarm(chromeStore(chrome.storage.session), chrome.alarms);
 });
 

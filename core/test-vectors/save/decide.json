@@ -1,0 +1,162 @@
+{
+  "cases": [
+    {
+      "username": "jan",
+      "password": "pw",
+      "logins": [
+        {
+          "id": "a",
+          "username": "jan",
+          "password": "pw"
+        }
+      ],
+      "expected": {
+        "kind": "none"
+      },
+      "why": "same login and password"
+    },
+    {
+      "username": "jan",
+      "password": "new",
+      "logins": [
+        {
+          "id": "a",
+          "username": "jan",
+          "password": "old"
+        }
+      ],
+      "expected": {
+        "kind": "update",
+        "id": "a"
+      },
+      "why": "same login, different password"
+    },
+    {
+      "username": "jan",
+      "password": "new",
+      "logins": [
+        {
+          "id": "a",
+          "username": "jan",
+          "password": "old1"
+        },
+        {
+          "id": "b",
+          "username": "jan",
+          "password": "old2"
+        }
+      ],
+      "expected": {
+        "kind": "update",
+        "id": "a"
+      },
+      "why": "two entries differ, first updated"
+    },
+    {
+      "username": "jan",
+      "password": "pw",
+      "logins": [
+        {
+          "id": "a",
+          "username": "jan",
+          "password": "old"
+        },
+        {
+          "id": "b",
+          "username": "jan",
+          "password": "pw"
+        }
+      ],
+      "expected": {
+        "kind": "none"
+      },
+      "why": "another entry already has this password"
+    },
+    {
+      "username": "jan",
+      "password": "pw",
+      "logins": [
+        {
+          "id": "a",
+          "username": "ewa",
+          "password": "pw"
+        }
+      ],
+      "expected": {
+        "kind": "create"
+      },
+      "why": "no entry with this login"
+    },
+    {
+      "username": "jan",
+      "password": "pw",
+      "logins": [],
+      "expected": {
+        "kind": "create"
+      },
+      "why": "empty list"
+    },
+    {
+      "username": " Jan@X.pl ",
+      "password": "pw",
+      "logins": [
+        {
+          "id": "a",
+          "username": "jan@x.pl",
+          "password": "old"
+        }
+      ],
+      "expected": {
+        "kind": "update",
+        "id": "a"
+      },
+      "why": "case and edge spaces ignored"
+    },
+    {
+      "username": "",
+      "password": "pw",
+      "logins": [
+        {
+          "id": "a",
+          "username": "",
+          "password": "old"
+        }
+      ],
+      "expected": {
+        "kind": "update",
+        "id": "a"
+      },
+      "why": "empty login matches empty login"
+    },
+    {
+      "username": "",
+      "password": "pw",
+      "logins": [
+        {
+          "id": "a",
+          "username": "jan",
+          "password": "old"
+        }
+      ],
+      "expected": {
+        "kind": "create"
+      },
+      "why": "empty login does not match non-empty"
+    },
+    {
+      "username": "jan",
+      "password": "",
+      "logins": [
+        {
+          "id": "a",
+          "username": "jan",
+          "password": "old"
+        }
+      ],
+      "expected": {
+        "kind": "none"
+      },
+      "why": "empty password: nothing to save"
+    }
+  ]
+}

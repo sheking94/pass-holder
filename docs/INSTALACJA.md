@@ -187,6 +187,9 @@ dopiero po **Zapisz** w „Adresy telefonu” (wtedy Chrome pyta o zgodę).
 - **Autouzupełnianie:** na stronie logowania okienko pokazuje „Pasujące do tej strony” → **Wypełnij**; skrót
   `Ctrl+Shift+L` wypełnia od razu, gdy pasuje jeden login. Skrót zmienisz w `chrome://extensions/shortcuts`
   (przy PassHolder, „Wypełnij login na tej stronie”). Opis: [FUNKCJE.md](FUNKCJE.md#autouzupełnianie).
+- **Pytanie o zapis:** **Zapis** → **Pytaj o zapis haseł** (domyślnie wyłączone); Chrome pyta o dostęp do
+  wszystkich stron: zezwól. Karty otwarte wcześniej przeładuj. Po zalogowaniu na stronie panel pyta, czy zapisać
+  login. Opis i ograniczenia: [FUNKCJE.md](FUNKCJE.md#pytanie-o-zapis).
 - **Telefon:** zakładki na dole (Loginy, Kontakty, Karty, Notatki, Dokumenty) i **+ Dodaj** dla otwartej zakładki;
   menu ⋮ **Więcej**: **Urządzenia** (sparowane wtyczki, daty ostatniej synchronizacji, **Usuń**: wtyczka przestaje
   się synchronizować), **Ustawienia** (odcisk palca, opóźnienie blokady, autouzupełnianie), **Zablokuj**.
@@ -262,6 +265,7 @@ Nowa wersja instaluje się na starej, sejf zostaje (pod warunkiem tego samego `d
 - **Tylko adresy IPv4.** Telefon odrzuca nazwy (MagicDNS z Tailscale) i IPv6 jako ochronę przed DNS rebinding.
 - **Tailscale w prawdziwym Chrome nie był jeszcze sprawdzony** (test T4 w [TESTY.md](TESTY.md#testy-ręczne)).
 - **Zmiany na tym samym wpisie bez synchronizacji** w obu miejscach: wygrywa późniejsza, druga przepada.
+- **Pytanie o zapis** wymaga dostępu do wszystkich stron; karty otwarte przed włączeniem trzeba przeładować, logowanie w obcej ramce nie jest zgłaszane (więcej w [FUNKCJE.md](FUNKCJE.md#pytanie-o-zapis)).
 - **Wtyczka w trybie dewelopera:** Chrome może przy starcie przypominać o takich wtyczkach.
 - **Klucz debug:** aktualizacje wymagają tego samego `debug.keystore` (2.2).
 

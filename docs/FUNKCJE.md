@@ -6,7 +6,8 @@ każdej: jak działa, gdzie jest kod, ograniczenia. Na początku: [typy wpisów]
 Spis: [Automatyczna blokada](#automatyczna-blokada) · [PIN we wtyczce](#pin-we-wtyczce) ·
 [Import i eksport](#import-i-eksport) · [Otwórz w karcie](#otwórz-w-karcie) ·
 [Odcisk palca i blokada po wyjściu (Android)](#odcisk-palca-i-blokada-po-wyjściu-android) ·
-[Czyszczenie schowka](#czyszczenie-schowka) · [Autouzupełnianie](#autouzupełnianie)
+[Czyszczenie schowka](#czyszczenie-schowka) · [Autouzupełnianie](#autouzupełnianie) ·
+[Pytanie o zapis](#pytanie-o-zapis)
 
 ## Typy wpisów (wtyczka i telefon)
 
@@ -370,3 +371,54 @@ Kod: `android/core/.../core/autofill/` (`Keywords.kt`, `Fields.kt`, `Values.kt`,
 `core/src/autofill/` plus `matchApp` i `planDatasets`), `android/app/.../app/autofill/` (`ViewNodeReader.kt`,
 `ResponseBuilder.kt`, `PassHolderAutofillService.kt`, `AutofillUnlockActivity.kt`), `ui/AutofillUnlockScreen.kt`,
 `AutofillStatus.kt`, `ui/SettingsScreen.kt`.
+
+## Pytanie o zapis
+
+Po zalogowaniu na stronie wtyczka pyta, czy zapisać nowy login albo zaktualizować hasło istniejącego. Tylko
+loginy; tylko Chrome (na Androidzie jeszcze nie ma).
+
+- **Włączenie:** przycisk **Zapis** na liście (obok „PIN”) → **Pytaj o zapis haseł**. Chrome prosi o dostęp do
+  wszystkich stron (`https://*/*` i `http://*/*`); odmowa zostawia przełącznik wyłączony. Domyślnie wyłączone.
+  Przełącznik to samo uprawnienie `https://*/*` (bez osobnej flagi): odebranie go w `chrome://extensions` też
+  wyłącza pytanie. Wyłączenie zabiera uprawnienie; `http://*/*` zostaje, gdy któryś adres telefonu jest `http`.
+- **Kiedy pyta:** po wysłaniu formularza z widocznym, niepustym polem hasła (submit, Enter w polu hasła, klik
+  przycisku w tym samym formularzu albo kontenerze). Hasło: pole „nowe hasło” (rejestracja, zmiana hasła), inaczej
+  hasło; login: pole loginu, inaczej e-mail przed hasłem. Pyta, gdy nie ma wpisu z tym loginem (**Zapisz**) albo
+  jest z innym hasłem (**Aktualizuj**, zmienia tylko hasło); to samo hasło: cisza. Login porównywany bez
+  wielkości liter i spacji na brzegach. Decyzja liczona jest od nowa przy każdym pytaniu i odpowiedzi.
+- **Co się zapisuje:** nazwa i adres to sama domena (`github.com`, bez `www.` i ścieżki); strona `http` →
+  `http://domena`, port niestandardowy zostaje.
+- **Panel:** w prawym górnym rogu strony, z hostem i loginem: **Zapisz** / **Aktualizuj**, **Nie teraz**
+  (×: to samo), **Nigdy dla tej strony**. Po zapisie „Zapisano” i panel znika po 2 s. Kandydat (login i hasło)
+  żyje w pamięci sesji Chrome do 2 minut albo do decyzji, jeden na kartę, i panel wraca po przeładowaniu
+  strony (przekierowania po logowaniu).
+- **„Nigdy”:** host trafia na listę w **Zapis** → „Nigdy dla tych stron” (**Usuń** przywraca pytanie).
+- **Zablokowany sejf:** panel ma **Odblokuj i zapisz** → otwiera okienko; po odblokowaniu (hasło albo PIN)
+  okienko najpierw pyta o zapis z bieżącej karty, potem pokazuje listę. Czytanie sejfu na potrzeby pytania nie
+  przedłuża automatycznej blokady.
+- **Złe hasło:** gdy po wysłaniu strona (ten sam origin) znów pokazuje ten sam pusty formularz logowania,
+  panel się nie pokazuje; kandydat czeka na następne wysłanie.
+
+**Ograniczenia:**
+
+- Karty otwarte przed włączeniem wymagają przeładowania.
+- Logowanie w ramce z innym origin niż strona nie jest zgłaszane.
+- Złe hasło bez przeładowania strony (SPA) i tak pokazuje panel.
+- Lista „Nigdy” jest jawna w `chrome.storage.local` (działa przy zablokowanym sejfie): kto ma dostęp do profilu
+  Chrome, zobaczy te hosty.
+
+**Bezpieczeństwo:**
+
+- Skrypt `save-watch.js` widzi pola formularzy na wszystkich stronach, dlatego uprawnienie jest opcjonalne i
+  domyślnie wyłączone. Wysyła do tła tylko login, hasło i podpis formularza, bez adresu.
+- Service worker bierze adres z `sender.url` (ramka, która wysłała), sprawdza, że ma ten sam origin co karta, i
+  przyjmuje wiadomości tylko od własnych skryptów (`sender.id`); pytania i odpowiedzi tylko ze stron wtyczki.
+  Strona nie podszyje się pod inną domenę.
+- Panel to strona wtyczki w `<iframe>` w zamkniętym Shadow DOM (inny origin: strona nie czyta jego treści) i
+  dostaje tylko `{id, host, username, decision, locked}`, bez hasła. Hasło nie trafia do `chrome.storage.local`.
+- Panel ukrywa service worker: od razu po „Nie teraz” i „Nigdy”, 2 s po zapisie.
+
+Kod: `core/src/save/` (`url.ts`: `saveUrl`, `saveName`; `decide.ts`: `decideSave`, `newLogin`, `withPassword`;
+wektory `core/test-vectors/save/`), `extension/src/save/` (`read-form.ts`, `watch.ts`, `candidates.ts`,
+`registration.ts`, `messages.ts`, `prompt-view.ts`), `save-watch.ts`, `save-prompt.ts`, `views/save-settings.ts`,
+`views/save-question.ts`, `background.ts`.

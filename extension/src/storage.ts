@@ -11,6 +11,9 @@ export const STORAGE_KEYS = {
   sessionKeys: "keys",
   generator: "generator",
   pinLock: "pinLock",
+  /** session: save candidates by tab id; local: hosts the user never wants to be asked about. */
+  saveCandidates: "saveCandidates",
+  saveNever: "saveNever",
 } as const;
 
 /** Key-value storage; chrome.storage.local and chrome.storage.session in the extension, a Map in tests. */

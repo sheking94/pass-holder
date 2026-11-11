@@ -1,0 +1,100 @@
+{
+  "cases": [
+    {
+      "page": "https://github.com/login?x=1#a",
+      "expected": "github.com",
+      "name": "github.com",
+      "why": "path, query and fragment dropped"
+    },
+    {
+      "page": "https://WWW.GitHub.com./",
+      "expected": "github.com",
+      "name": "github.com",
+      "why": "lowercase, www and trailing dot removed"
+    },
+    {
+      "page": "https://www.github.com:443",
+      "expected": "github.com",
+      "name": "github.com",
+      "why": "default https port dropped"
+    },
+    {
+      "page": "https://a.example:8443/x",
+      "expected": "a.example:8443",
+      "name": "a.example",
+      "why": "non-default port kept"
+    },
+    {
+      "page": "http://intranet.local/login",
+      "expected": "http://intranet.local",
+      "name": "intranet.local",
+      "why": "http keeps scheme"
+    },
+    {
+      "page": "http://intranet.local:80",
+      "expected": "http://intranet.local",
+      "name": "intranet.local",
+      "why": "default http port dropped"
+    },
+    {
+      "page": "http://localhost:3000/",
+      "expected": "http://localhost:3000",
+      "name": "localhost",
+      "why": "localhost with port"
+    },
+    {
+      "page": "https://localhost",
+      "expected": "localhost",
+      "name": "localhost",
+      "why": "https localhost"
+    },
+    {
+      "page": "http://192.168.1.10:8080/a",
+      "expected": "http://192.168.1.10:8080",
+      "name": "192.168.1.10",
+      "why": "ipv4 with port"
+    },
+    {
+      "page": "http://[::1]:8080",
+      "expected": "http://[::1]:8080",
+      "name": "[::1]",
+      "why": "ipv6 with port"
+    },
+    {
+      "page": "https://accounts.google.com",
+      "expected": "accounts.google.com",
+      "name": "accounts.google.com",
+      "why": "subdomain kept"
+    },
+    {
+      "page": "https://www.",
+      "expected": null,
+      "name": null,
+      "why": "empty host after www removal"
+    },
+    {
+      "page": "ftp://x.pl",
+      "expected": null,
+      "name": null,
+      "why": "unsupported scheme"
+    },
+    {
+      "page": "chrome://settings",
+      "expected": null,
+      "name": null,
+      "why": "unsupported scheme"
+    },
+    {
+      "page": "file:///c:/a.html",
+      "expected": null,
+      "name": null,
+      "why": "unsupported scheme"
+    },
+    {
+      "page": "nie adres",
+      "expected": null,
+      "name": null,
+      "why": "unparsable"
+    }
+  ]
+}

@@ -8,7 +8,7 @@ mkdirSync(outdir, { recursive: true });
 cpSync(fileURLToPath(new URL("./static/", import.meta.url)), outdir, { recursive: true });
 
 await build({
-  entryPoints: ["src/popup.ts", "src/background.ts", "src/offscreen.ts"],
+  entryPoints: ["src/popup.ts", "src/background.ts", "src/offscreen.ts", "src/save-prompt.ts"],
   bundle: true,
   format: "esm",
   target: "chrome127",
@@ -19,7 +19,7 @@ await build({
 });
 
 await build({
-  entryPoints: ["src/autofill-content.ts"],
+  entryPoints: ["src/autofill-content.ts", "src/save-watch.ts"],
   bundle: true,
   format: "iife",
   target: "chrome127",

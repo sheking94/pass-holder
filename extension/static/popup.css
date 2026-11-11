@@ -80,3 +80,12 @@ textarea { resize: vertical; }
 /* „Pasujące do tej strony”: matching logins above the full list. */
 .matches h2 { font-size: 1em; margin: 8px 0 0; color: var(--muted); }
 .matches { margin-bottom: 8px; }
+/* save-prompt.html: the panel iframe (360 × 180) on a page. */
+body.panel main { padding: 10px 12px; }
+.save-head { display: flex; gap: 6px; align-items: flex-start; justify-content: space-between; }
+.save-head h1 { margin: 0 0 6px; font-size: 14px; }
+.save-head .close { padding: 0 7px; font-size: 1.2em; line-height: 1.3; border: 0; }
+.save-prompt .actions { margin-top: 10px; }
+.save-prompt .status { margin-top: 6px; min-height: 0; }
+h2 { font-size: 13px; margin: 14px 0 6px; }
+ul.never { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }

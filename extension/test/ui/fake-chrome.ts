@@ -7,6 +7,7 @@
 import type { p2p } from "@passholder/core";
 import { vi } from "vitest";
 import type { FillResult } from "../../src/autofill/fill-tab.ts";
+import type { SaveAnswerResponse, SavePromptInfo } from "../../src/save/messages.ts";
 import { PhoneClient } from "../../src/phone-client.ts";
 import { chromeStore, VaultStore } from "../../src/vault-store.ts";
 import { CODE, FakePhone, networkFetch, PASSWORD, PHONE_URL, type Network } from "../fake-phone.ts";
@@ -54,13 +55,21 @@ export function teardownPopup(): void {
 
 /**
  * Creates <main id="app">, installs the fake chrome (storage, runtime.sendMessage into messages,
- * runtime.getURL, permissions.contains → true, tabs.query → options.activeTab, window.close → close; a "fill" message gets options.fillResult), navigator.clipboard (writes into clipboard) and a fetch
+ * runtime.getURL, permissions.contains → true, tabs.query → options.activeTab, window.close → close; a "fill" message gets options.fillResult, "save-info" options.saveInfo, "save-answer" options.saveAnswer), navigator.clipboard (writes into clipboard) and a fetch
  * that reaches the fake phone; pairs with a FakePhone, adds entries, then loads the view modules afresh
  * and resumes their store, which it returns.
  */
 export async function setupPopup(
   entries: { id: string; content: p2p.EntryContentV3 }[] = [],
-  options: { activeTab?: { id: number; url: string }; fillResult?: FillResult } = {},
+  options: {
+    activeTab?: { id: number; url: string };
+    fillResult?: FillResult;
+    /** The answer to "save-info" (an Error makes sendMessage reject) and to "save-answer" (default ok). */
+    saveInfo?: SavePromptInfo | Error;
+    saveAnswer?: SaveAnswerResponse;
+    /** Host permissions: held (default: everything is allowed) and what permissions.request answers. */
+    permissions?: { held?: string[]; requestResult?: boolean };
+  } = {},
 ) {
   document.body.replaceChildren();
   const app = document.createElement("main");
@@ -71,19 +80,43 @@ export async function setupPopup(
   const messages: unknown[] = [];
   const local = fakeArea();
   const session = fakeArea();
+  const held = options.permissions?.held;
+  const permissions = { requests: [] as string[][], removed: [] as string[][] };
+  const permissionsApi = {
+    contains: async ({ origins = [] }: { origins?: string[] }) => !held || origins.every((o) => held.includes(o)),
+    request: (request: { origins?: string[] }, callback?: (granted: boolean) => void) => {
+      permissions.requests.push(request.origins ?? []);
+      const granted = options.permissions?.requestResult ?? true;
+      if (granted && held) held.push(...(request.origins ?? []));
+      setTimeout(() => callback?.(granted), 0);
+    },
+    remove: async ({ origins = [] }: { origins?: string[] }) => {
+      permissions.removed.push(origins);
+      if (held) for (const o of origins) held.splice(0, held.length, ...held.filter((x) => x !== o));
+      return true;
+    },
+  };
   vi.stubGlobal("chrome", strict("chrome", {
     storage: strict("chrome.storage", { local, session }),
     runtime: strict("chrome.runtime", {
       sendMessage: async (message: unknown) => {
         messages.push(message);
-        return (message as { type?: string }).type === "fill" ? (options.fillResult ?? { ok: true }) : undefined;
+        const type = (message as { type?: string }).type;
+        if (type === "fill") return options.fillResult ?? { ok: true };
+        if (type === "save-info") {
+          if (options.saveInfo instanceof Error) throw options.saveInfo;
+          return options.saveInfo;
+        }
+        if (type === "save-answer") return options.saveAnswer ?? { ok: true };
+        return undefined;
       },
       getURL: (path: string) => `chrome-extension://passholder/${path}`,
+      lastError: undefined,
     }),
     tabs: strict("chrome.tabs", {
       query: async () => (options.activeTab ? [options.activeTab] : []),
     }),
-    permissions: strict("chrome.permissions", { contains: async () => true }),
+    permissions: strict("chrome.permissions", permissionsApi),
   }));
   const close = vi.fn();
   vi.stubGlobal("close", close);
@@ -107,7 +140,7 @@ export async function setupPopup(
   vi.resetModules();
   const { store } = await import("../../src/ui/state.ts");
   if (!(await store.resume())) throw new Error("setupPopup: the views' store did not resume");
-  return { app, store, clipboard, messages, phone, close };
+  return { app, store, clipboard, messages, phone, close, permissions };
 }
 
 /**
