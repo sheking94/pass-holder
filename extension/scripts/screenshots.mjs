@@ -44,6 +44,10 @@ const SHOTS = [
   ["11-import-eksport.png", (s) => s.openTransfer()],
   ["12-pasujace.png", (s) => s.show("login")],
   ["13-karta-wypelnij.png", (s) => s.show("card")],
+  ["14-panel-zapisz.png", (s) => s.openPrompt("create")],
+  ["15-panel-aktualizuj.png", (s) => s.openPrompt("update")],
+  ["16-panel-zablokowany.png", (s) => s.openPrompt(null, true)],
+  ["17-ustawienia-zapisu.png", (s) => s.openSaveSettings()],
 ];
 
 mkdirSync(resolve(outDir), { recursive: true });
