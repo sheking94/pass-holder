@@ -53,7 +53,7 @@ katalogu pakietu.
 | Pakiet | Pliki | Testy | Uwagi |
 |---|---|---|---|
 | `core` | 28 | 489 | w tym `core/test/p2p/`, `core/test/autofill/` i `core/test/save/` |
-| `extension` | 26 | 275 | w tym widoki w happy-dom (`extension/test/ui/`), `extension/test/autofill/` i `extension/test/save/`; `background.ts` bez testów (logika w `fill-tab.ts` i `save/candidates.ts`) |
+| `extension` | 29 | 291 | w tym widoki w happy-dom (`extension/test/ui/`), `extension/test/autofill/` i `extension/test/save/`; `background.ts` bez testów (logika w `fill-tab.ts` i `save/candidates.ts`) |
 | `android/core` | 38 | 626 | 4 pomijane bez `PASSHOLDER_INTEROP_TEST=1`; w tym `autofill/` (wektory `core/test-vectors/autofill/`) |
 | `android/app` | 26 | 102 | Robolectric, zrzuty ekranów; w tym `autofill/` i ekrany autouzupełniania |
 
@@ -111,7 +111,7 @@ wartości losowe mają stałe klucze i nonce.
 | `autofill/fill-page.test.ts` | `fillPage` w happy-dom: logowanie, dwuetapowe, rejestracja (`new-password` pomijane), karta z jednym i dwoma polami ważności, `<select>`, adres; pola ukryte, wyłączone i tylko do odczytu, pusta wartość, obcy origin i inny origin niż sprawdzony |
 | `autofill/fill-tab.test.ts` | `fillTab` i `onFillCommand` z atrapą `TabApi`: zablokowany sejf, strona niepasująca, karta na http, brak pól, błąd wstrzyknięcia; skrót przy jednym, kilku i zerze loginów |
 | `ui/autofill-view.test.ts` | sekcja „Pasujące do tej strony”, „Wypełnij” przy karcie i kontakcie (nie w karcie PassHolder), komunikaty błędów, zamknięcie okienka po powodzeniu |
-| `save/*.test.ts`, `ui/save-*.test.ts` | pytanie o zapis: odczyt formularza (hasło, login, podpis), `startSaveWatch` (submit, Enter, klik, bez `<form>`, obcy origin), `SaveCandidates` (adres z `sender.url`, „Nigdy”, 2 min, zamknięcie karty, zły formularz), `syncSaveWatch`, `promptView`, widoki „Zapis haseł” i pytanie w okienku |
+| `save/*.test.ts`, `ui/save-*.test.ts` | pytanie o zapis: odczyt formularza (hasło, login, podpis), `startSaveWatch` (submit, Enter, klik, bez `<form>`, obcy origin), `SaveCandidates` (adres z `sender.url`, „Nigdy”, 2 min, zamknięcie karty, zły formularz, ten sam login zgłoszony kilka razy, `save-hide` po wygaśnięciu), logowanie SPA od skryptu do tła (`flow.test.ts`), `syncSaveWatch` (też wywołania naraz), `promptView`, strona panelu (`startPromptPage`: brak kandydata, blokada po załadowaniu), `save-watch.ts` po przeładowaniu wtyczki, widoki „Zapis haseł” i pytanie w okienku |
 | `ui/widgets.test.ts` | `secretField` (zakrycie, „Pokaż”, kopia czyści schowek, puste pole się nie kopiuje), `listEditor`, przyciski kopiowania w wierszu |
 
 Testy wtyczki używają `extension/test/fake-phone.ts`: parowanie z prawdziwym CPace przed referencyjnym
@@ -293,7 +293,7 @@ wpis ma adres samej domeny. Ponowne logowanie tym samym hasłem: bez panelu. (3)
 innym hasłem → „Zaktualizować hasło…?” → **Aktualizuj**: zmieniło się tylko hasło. Rejestracja z polem „nowe
 hasło” pyta o to hasło. (4) **Bez przeładowania i przekierowania:** logowanie przez fetch/SPA (panel od razu) i
 przez przekierowanie na inną stronę tej samej domeny (panel po załadowaniu, do 2 min). Złe hasło z przeładowaniem
-tego samego formularza: bez panelu. (5) **Odmowy:** **Nie teraz** i × zamykają panel; po przeładowaniu go nie ma.
+tego samego formularza: bez panelu. Panel zostawiony bez odpowiedzi znika sam po 2 min. (5) **Odmowy:** **Nie teraz** i × zamykają panel; po przeładowaniu go nie ma.
 **Nigdy dla tej strony**: host na liście w **Zapis**, kolejne logowanie bez pytania, **Usuń** przywraca pytanie.
 (6) **Zablokowany sejf:** wyślij formularz, zablokuj sejf (albo poczekaj 15 min): panel „Odblokuj i zapisz” →
 okienko → hasło albo PIN → najpierw pytanie o zapis, potem lista. (7) **Wyłączenie:** przełącznik wyłączony →

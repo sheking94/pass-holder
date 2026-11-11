@@ -49,9 +49,9 @@ danych opisuje [SPEC.md](SPEC.md), protokół [SYNCHRONIZACJA.md](SYNCHRONIZACJA
 
 ## `extension/` (Chrome, Manifest V3)
 
-Budowanie: `extension/build.mjs` (esbuild) kopiuje `static/` i skleja cztery punkty wejścia do `extension/dist/`:
+Budowanie: `extension/build.mjs` (esbuild) kopiuje `static/` i skleja sześć punktów wejścia do `extension/dist/`:
 `popup.ts` (strona `popup.html`), `background.ts` (service worker), `offscreen.ts` (czyszczenie schowka),
-`autofill-content.ts` (`autofill-content.js`, iife wstrzykiwany do strony przy wypełnianiu; cel `chrome127`), oraz `save-prompt.ts` (strona `save-prompt.html`) i `save-watch.ts` (`save-watch.js`, iife rejestrowany dynamicznie dla pytania o zapis).
+`autofill-content.ts` (`autofill-content.js`, iife wstrzykiwany do strony przy wypełnianiu; cel `chrome127`), `save-prompt.ts` (strona `save-prompt.html`) i `save-watch.ts` (`save-watch.js`, iife rejestrowany dynamicznie dla pytania o zapis).
 
 `popup.html` działa w okienku przy ikonie i w zwykłej karcie. Okienko zamyka się, gdy traci fokus (okno zgody
 Chrome, wybór pliku), dlatego parowanie, adresy i import/eksport pokazują się w karcie. Tryb strony odczytuje
@@ -73,9 +73,9 @@ Chrome, wybór pliku), dlatego parowanie, adresy i import/eksport pokazują się
 | `src/autofill/fill-page.ts`, `src/autofill-content.ts` | `fillPage` w stronie: pola, widoczność, ramki tego samego origin, wpisanie wartości; `autofill-content.ts` wystawia `globalThis.passholderFill` |
 | `src/ui/active-tab.ts` | `activeTab` (karta pod okienkiem) i `requestFill` (komunikat `fill` do service workera) |
 | `src/save/read-form.ts`, `watch.ts`, `src/save-watch.ts` | skrypt w stronie: `readLogin` (hasło i login, `formSignature`), `loginScope`, `emptyLoginForms`; `startSaveWatch` (submit, Enter, klik; ramka główna i ramki tego samego origin; panel jako `<iframe>` w zamkniętym Shadow DOM) |
-| `src/save/candidates.ts` | `SaveCandidates` w service workerze: kandydat w `chrome.storage.session` (`saveCandidates`), lista „Nigdy” w `chrome.storage.local`; `onCandidate`, `onPending`, `info`, `answer`, alarm 2 min (`save-expire:<karta>`), `onTabRemoved`; operacje po kolei (`serial`) |
-| `src/save/registration.ts` | `syncSaveWatch`: rejestracja skryptu `save-watch` zgodna z uprawnieniem `https://*/*`; `disableSavePrompt` |
-| `src/save/messages.ts`, `prompt-view.ts`, `src/save-prompt.ts` | typy wiadomości (`save-candidate`, `save-pending`, `save-info`, `save-answer`, `save-show`, `save-hide`); `promptView`: pytanie wspólne dla panelu (`save-prompt.html`) i okienka |
+| `src/save/candidates.ts` | `SaveCandidates` w service workerze: kandydat w `chrome.storage.session` (`saveCandidates`), lista „Nigdy” w `chrome.storage.local`; `onCandidate` (ten sam login z tej samej karty zachowuje id), `onPending`, `info`, `answer`, alarm 2 min (`save-expire:<karta>`), `onTabRemoved`; operacje po kolei (`serial`); każde usunięcie poza zapisem i zamknięciem karty wysyła `save-hide` |
+| `src/save/registration.ts` | `syncSaveWatch`: rejestracja skryptu `save-watch` zgodna z uprawnieniem `https://*/*` (wywołania po kolei); `disableSavePrompt` |
+| `src/save/messages.ts`, `prompt-view.ts`, `prompt-page.ts`, `src/save-prompt.ts` | typy wiadomości (`save-candidate`, `save-pending`, `save-info`, `save-answer`, `save-show`, `save-hide`); `promptView`: pytanie wspólne dla panelu (`save-prompt.html`) i okienka; `startPromptPage`: strona panelu (brak kandydata → prosi o zamknięcie, sejf zablokowany po załadowaniu → „Odblokuj i zapisz”) |
 | `src/views/save-settings.ts`, `save-question.ts` | „Zapis haseł” (przełącznik, lista „Nigdy”) i pytanie w okienku po odblokowaniu (`showUnlocked` w `locked.ts` pyta tło o kandydata karty) |
 | `src/page-mode.ts`, `src/open-in-tab.ts` | tryby strony, przycisk „Otwórz w karcie ↗” |
 | `src/ui/dom.ts` | pomocniki DOM: `h`, `show`, `form`, `passwordField`, `secretField` (pole wrażliwe: „Pokaż/Ukryj”, „Kopiuj”), `pinInput`, `confirmButton`, `busy` |
@@ -159,7 +159,7 @@ loginie, w pozostałych przypadkach otwiera okienko.
  iframe (zamknięty Shadow DOM) ─────────────────────────────────────────────────────► save-info → {id, host, username,
                                                                                          decision, locked}
                                            save-answer: save → decyzja od nowa → putEntry ◄── „Zapisz” / „Nie teraz” / „Nigdy”
- save-hide ◄──────────────────────────────  (od razu po „Nie teraz”/„Nigdy”, 2 s po zapisie)
+ save-hide ◄──────────────────────────────  (od razu po „Nie teraz”/„Nigdy”, po 2 min i gdy login już jest; 2 s po zapisie)
  nowa strona ── save-pending ─────────────► kandydat żyje? ten sam pusty formularz? → {candidateId}
 ```
 
