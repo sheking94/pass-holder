@@ -6,7 +6,8 @@
   "main": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./autofill": "./src/autofill/index.ts"
+    "./autofill": "./src/autofill/index.ts",
+    "./save": "./src/save/index.ts"
   },
   "scripts": {
     "test": "vitest run",

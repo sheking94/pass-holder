@@ -7,3 +7,4 @@ export * from "./protocol.ts";
 export * as p2p from "./p2p/index.ts";
 export * as transfer from "./transfer/index.ts";
 export * as autofill from "./autofill/index.ts";
+export * as save from "./save/index.ts";
