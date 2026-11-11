@@ -81,6 +81,37 @@ describe("fillPage", () => {
     for (const el of document.querySelectorAll<HTMLInputElement>("input[name=username]:not(#ok)")) expect(el.value).toBe("");
   });
 
+  it("skips fields with opacity 0 on the element or an ancestor", () => {
+    html(`<form>
+      <input name="username" style="opacity:0">
+      <div style="opacity:0"><input name="username"></div>
+      <input name="username" id="ok" style="opacity:0.5"><input type="password">
+    </form>`);
+    expect(fillPage(login, ORIGIN)).toEqual({ filled: 2 });
+    expect(val("#ok")).toBe("jan");
+    expect(document.querySelectorAll("input[name=username]:not(#ok)")).toHaveLength(2);
+    for (const el of document.querySelectorAll<HTMLInputElement>("input[name=username]:not(#ok)")) expect(el.value).toBe("");
+  });
+
+  describe("when the page has layout", () => {
+    // happy-dom has no layout: every rect is all-zero, which fillPage treats as "no layout" (see hasLayout).
+    function layout(rects: Record<string, [number, number, number, number]>): void {
+      vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+        const [x, y, w, h] = rects[this.id || this.tagName] ?? [0, 0, 0, 0];
+        return { x, y, left: x, top: y, width: w, height: h, right: x + w, bottom: y + h, toJSON() { return {}; } } as DOMRect;
+      });
+    }
+
+    it("skips zero-size and off-screen fields, fills the visible one", () => {
+      html(`<form><input name="username" id="tiny"><input name="username" id="off"><input name="username" id="ok"><input type="password" id="pw"></form>`);
+      layout({ HTML: [0, 0, 800, 600], tiny: [10, 10, 1, 1], off: [-9999, 10, 200, 20], ok: [10, 50, 200, 20], pw: [10, 80, 200, 20] });
+      expect(fillPage(login, ORIGIN)).toEqual({ filled: 2 });
+      expect(val("#ok")).toBe("jan");
+      expect(val("#tiny")).toBe("");
+      expect(val("#off")).toBe("");
+    });
+  });
+
   it("sets value through the prototype setter and fires input and change", () => {
     html(`<form><input name="username"><input type="password"></form>`);
     const el = document.querySelector("[name=username]") as HTMLInputElement;

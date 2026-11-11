@@ -39,15 +39,34 @@ export function describeField(el: FieldElement): autofill.FieldDescriptor {
   return descriptor;
 }
 
+/** Smaller than this (px, either side) is not something a person can see or type into. */
+const MIN_VISIBLE_PX = 2;
+
+/**
+ * True when the page has layout at all: the root element has a non-empty box. Real browsers always give
+ * <html> one; happy-dom (unit tests) returns all-zero rects for every element, so geometry checks are skipped there.
+ */
+function hasLayout(doc: Document): boolean {
+  const rect = doc.documentElement.getBoundingClientRect();
+  return rect.width > 0 || rect.height > 0;
+}
+
 function isVisible(el: Element): boolean {
   const view = el.ownerDocument.defaultView;
   if (!view) return false;
+  // Chrome 121+: covers display, visibility, opacity of the element and its ancestors, content-visibility.
+  if (el.checkVisibility?.({ opacityProperty: true, visibilityProperty: true }) === false) return false;
   for (let node: Element | null = el; node; node = node.parentElement) {
     if (node.hasAttribute("hidden")) return false;
     const style = view.getComputedStyle(node);
     if (style.display === "none" || style.visibility === "hidden") return false;
+    if (style.opacity !== "" && parseFloat(style.opacity) === 0) return false;
   }
-  return true;
+  if (!hasLayout(el.ownerDocument)) return true;
+  // Zero-size or fully off-screen (above or left of the page origin, unreachable by scrolling) boxes.
+  const rect = el.getBoundingClientRect();
+  if (rect.width < MIN_VISIBLE_PX || rect.height < MIN_VISIBLE_PX) return false;
+  return rect.right + view.scrollX > 0 && rect.bottom + view.scrollY > 0;
 }
 
 function isFillable(el: FieldElement): boolean {

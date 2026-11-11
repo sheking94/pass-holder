@@ -1,6 +1,6 @@
 import { AUTO_LOCK_ALARM, onAutoLockAlarm, scheduleAutoLock } from "./auto-lock.ts";
 import { CLEAR_AFTER_MINUTES, CLEAR_CLIPBOARD_ALARM, type ClipboardMessage } from "./clipboard.ts";
-import { chromeTabApi, fillTab, onFillCommand, type FillMessage } from "./autofill/fill-tab.ts";
+import { chromeTabApi, fillTab, onFillCommand, type FillMessage, UNSUPPORTED_PAGE } from "./autofill/fill-tab.ts";
 import { chromeStore, STORAGE_KEYS } from "./storage.ts";
 import { VaultStore } from "./vault-store.ts";
 
@@ -20,9 +20,12 @@ const newStore = () => new VaultStore(chromeStore(chrome.storage.local), chromeS
 
 chrome.runtime.onMessage.addListener((message: FillMessage, sender, sendResponse) => {
   if (message.target !== "background" || message.type !== "fill") return;
-  // Only PassHolder's own pages may ask for a fill (not other extensions, not content scripts).
+  // sender.id only limits this to this extension's own contexts (its pages and its injected content script);
+  // messages from other extensions arrive at onMessageExternal and never reach this listener.
   if (sender.id !== chrome.runtime.id) return;
-  void fillTab(newStore(), chromeTabApi(), message.tabId, message.entryId).then(sendResponse);
+  void fillTab(newStore(), chromeTabApi(), message.tabId, message.entryId)
+    .catch(() => ({ ok: false, error: UNSUPPORTED_PAGE }))
+    .then(sendResponse);
   return true;
 });
 

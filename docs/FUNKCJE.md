@@ -310,18 +310,18 @@ Chrome: wtyczka wpisuje login, kartę albo adres w pola otwartej strony. Android
 - **Jak wpisuje:** pola rozpoznaje po `autocomplete`, typie, nazwie, etykiecie i placeholderze (polskie i
   angielskie słowa); wpisuje przez setter prototypu i wysyła `input` oraz `change`, więc działa z React/Vue. Pomija
   pola ukryte, wyłączone, tylko do odczytu i `type=hidden`; pusta wartość nie nadpisuje pola; `new-password`
-  (rejestracja) zostaje puste. Logowanie dwuetapowe: bez hasła na stronie wypełnia pierwsze pole loginu/e-mail.
+  (rejestracja) zostaje puste. Pomija też pola niewidoczne (`opacity: 0`, zerowy rozmiar, poza ekranem). Formularz z dokładnie jednym widocznym polem hasła dostaje login i hasło; w przeciwnym razie (logowanie dwuetapowe, ale też rejestracja z dwoma polami hasła) wypełniane jest tylko pierwsze widoczne pole loginu, a gdy go nie ma, pierwsze pole e-mail.
 - **Komunikaty:** „Nie znaleziono pól logowania”, „Nie znaleziono pól karty (mogą być w ramce operatora
   płatności), skopiuj dane ręcznie”, „Nie znaleziono pól adresu”; ponadto zablokowany sejf, strona niepasująca do
   loginu, karta na stronie bez https i strona, na której Chrome nie pozwala wstrzykiwać skryptów (np. `chrome://`).
 
 **Bezpieczeństwo:**
 
-- Uprawnienia tylko `activeTab` i `scripting`: bez `host_permissions` i bez skryptów w manifeście. Skrypt
+- Nowe uprawnienia to tylko `activeTab` i `scripting`: bez `host_permissions` i bez skryptów w manifeście (istniejące opcjonalne `optional_host_permissions` `http://*/*` służy połączeniu z telefonem, nie autouzupełnianiu). Skrypt
   `autofill-content.js` jest wstrzykiwany dopiero przy wypełnianiu, w czynnej karcie.
 - Do strony trafia tylko plan wypełnienia (`FillPlan`: pola jednego wpisu), nigdy klucze ani inne wpisy.
 - Service worker sam sprawdza stronę (adres pobrany z karty przez `tabs.get`, `matchLogins` dla loginu, https dla
-  karty) i przyjmuje komunikat tylko od stron PassHolder (`sender.id`). Okienku nie ufa.
+  karty) i przyjmuje komunikat tylko z kontekstów tego rozszerzenia (`sender.id`: jego strony i wstrzyknięty skrypt; to nie dowodzi, że nadawcą jest okienko). Okienku nie ufa.
 - Wypełniane są tylko ramki z tym samym origin co górna ramka, a origin sprawdzonej strony jest przypięty przy
   wstrzyknięciu (po nawigacji karty nic się nie wpisze). Ramki płatnicze z innego origin zostają puste.
 
