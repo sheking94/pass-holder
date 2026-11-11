@@ -2,6 +2,7 @@ import { AUTO_LOCK_ALARM, onAutoLockAlarm, scheduleAutoLock } from "./auto-lock.
 import { CLEAR_AFTER_MINUTES, CLEAR_CLIPBOARD_ALARM, type ClipboardMessage } from "./clipboard.ts";
 import { chromeTabApi, fillTab, onFillCommand, type FillMessage, UNSUPPORTED_PAGE } from "./autofill/fill-tab.ts";
 import { SaveCandidates } from "./save/candidates.ts";
+import type { SaveAnswerMessage, SaveCandidateMessage, SaveInfoMessage, SavePendingMessage } from "./save/messages.ts";
 import { chromeStore, STORAGE_KEYS } from "./storage.ts";
 import { VaultStore } from "./vault-store.ts";
 
@@ -49,8 +50,8 @@ const saveCandidates = new SaveCandidates({
   later: (ms, fn) => void setTimeout(fn, ms),
 });
 
-type SaveMessage = { target?: string; type?: string };
-chrome.runtime.onMessage.addListener((message: SaveMessage, sender, sendResponse) => {
+type SaveMessage = SaveCandidateMessage | SavePendingMessage | SaveInfoMessage | SaveAnswerMessage;
+chrome.runtime.onMessage.addListener((message: { target?: string } & Partial<SaveMessage>, sender, sendResponse) => {
   if (message.target !== "background") return;
   const run = <T>(work: Promise<T>, onError: T) => {
     work.catch((error: unknown) => {
@@ -59,15 +60,16 @@ chrome.runtime.onMessage.addListener((message: SaveMessage, sender, sendResponse
     }).then(sendResponse);
     return true;
   };
-  switch (message.type) {
+  const m = message as SaveMessage;
+  switch (m.type) {
     case "save-candidate":
-      return run(saveCandidates.onCandidate(message as never, sender).then(() => ({})), {});
+      return run(saveCandidates.onCandidate(m, sender).then(() => ({})), {});
     case "save-pending":
-      return run(saveCandidates.onPending(message as never, sender), {});
+      return run(saveCandidates.onPending(m, sender), {});
     case "save-info":
-      return run(saveCandidates.info(message as never, sender), undefined);
+      return run(saveCandidates.info(m, sender), undefined);
     case "save-answer":
-      return run(saveCandidates.answer(message as never, sender), { ok: false, error: UNSUPPORTED_PAGE });
+      return run(saveCandidates.answer(m, sender), { ok: false, error: UNSUPPORTED_PAGE });
   }
 });
 

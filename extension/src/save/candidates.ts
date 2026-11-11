@@ -74,7 +74,16 @@ const candidateOrigin = (c: Candidate) => c.formSignature.split("|")[0]!;
 const alarmName = (tabId: number) => `${SAVE_ALARM_PREFIX}${tabId}`;
 
 export class SaveCandidates {
+  private tail: Promise<unknown> = Promise.resolve();
+
   constructor(private readonly deps: SaveDeps) {}
+
+  /** Runs operations one after another: they read and write the same storage key. */
+  private serial<T>(work: () => Promise<T>): Promise<T> {
+    const run = this.tail.then(work, work);
+    this.tail = run.catch(() => undefined);
+    return run;
+  }
 
   private async all(): Promise<Candidates> {
     return (await this.deps.session.get<Candidates>(STORAGE_KEYS.saveCandidates)) ?? {};
@@ -110,9 +119,8 @@ export class SaveCandidates {
   }
 
   /** What to do with the candidate; null when the vault is locked. */
-  private async decide(c: Candidate): Promise<save.SaveDecision | null> {
-    const store = this.deps.store();
-    if (!(await store.resume())) return null;
+  private async decide(store: VaultStore, c: Candidate, touch: boolean): Promise<save.SaveDecision | null> {
+    if (!(await store.resume({ touch }))) return null;
     const logins = autofill
       .matchLogins(c.url, store.listEntries("login"), (e) => ({ name: e.data.name, urls: e.data.type === "login" ? e.data.fields.urls : [] }))
       .flatMap((e) => (e.data.type === "login" ? [{ id: e.id, username: e.data.fields.username, password: e.data.fields.password }] : []));
@@ -129,7 +137,11 @@ export class SaveCandidates {
     return s.id === this.deps.selfId && parseUrl(s.url)?.protocol === "chrome-extension:";
   }
 
-  async onCandidate(m: SaveCandidateMessage, s: Sender): Promise<void> {
+  onCandidate(m: SaveCandidateMessage, s: Sender): Promise<void> {
+    return this.serial(() => this.doCandidate(m, s));
+  }
+
+  private async doCandidate(m: SaveCandidateMessage, s: Sender): Promise<void> {
     const from = this.fromScript(s);
     if (!from) return;
     const tab = webUrl(s.tab?.url);
@@ -143,7 +155,7 @@ export class SaveCandidates {
       id: this.deps.newId(), tabId: from.tabId, url, username: m.username, password: m.password, at: now,
       formSignature: `${from.frame.origin}|${m.formSignature}`,
     };
-    if ((await this.decide(c))?.kind === "none") return;
+    if ((await this.decide(this.deps.store(), c, false))?.kind === "none") return;
 
     const all = await this.all();
     all[String(from.tabId)] = c;
@@ -152,9 +164,13 @@ export class SaveCandidates {
     await this.deps.sendToTab(from.tabId, { target: "save-watch", type: "save-show", candidateId: c.id });
   }
 
-  async onPending(m: SavePendingMessage, s: Sender): Promise<{ candidateId?: string }> {
+  onPending(m: SavePendingMessage, s: Sender): Promise<{ candidateId?: string }> {
+    return this.serial(() => this.doPending(m, s));
+  }
+
+  private async doPending(m: SavePendingMessage, s: Sender): Promise<{ candidateId?: string }> {
     const from = this.fromScript(s);
-    if (!from) return {};
+    if (!from || webUrl(s.tab?.url)?.origin !== from.frame.origin) return {};
     const c = await this.forTab(from.tabId);
     if (!c) return {};
     if (from.frame.origin === candidateOrigin(c) && m.emptyLoginForms.some((sig) => `${from.frame.origin}|${sig}` === c.formSignature)) {
@@ -163,11 +179,15 @@ export class SaveCandidates {
     return { candidateId: c.id };
   }
 
-  async info(m: SaveInfoMessage, s: Sender): Promise<SavePromptInfo | undefined> {
+  info(m: SaveInfoMessage, s: Sender): Promise<SavePromptInfo | undefined> {
+    return this.serial(() => this.doInfo(m, s));
+  }
+
+  private async doInfo(m: SaveInfoMessage, s: Sender): Promise<SavePromptInfo | undefined> {
     if (!this.fromExtensionPage(s)) return undefined;
     const c = m.candidateId !== undefined ? await this.byId(m.candidateId) : m.tabId !== undefined ? await this.forTab(m.tabId) : undefined;
     if (!c) return undefined;
-    const decision = await this.decide(c);
+    const decision = await this.decide(this.deps.store(), c, false);
     if (decision?.kind === "none") {
       await this.remove(c.tabId);
       return undefined;
@@ -177,7 +197,11 @@ export class SaveCandidates {
     return { ...base, decision: decision.kind, locked: false };
   }
 
-  async answer(m: SaveAnswerMessage, s: Sender): Promise<Answer> {
+  answer(m: SaveAnswerMessage, s: Sender): Promise<Answer> {
+    return this.serial(() => this.doAnswer(m, s));
+  }
+
+  private async doAnswer(m: SaveAnswerMessage, s: Sender): Promise<Answer> {
     if (!this.fromExtensionPage(s)) return { ok: false, error: NOT_ALLOWED };
     const c = await this.byId(m.candidateId);
     if (!c) return { ok: false, error: GONE };
@@ -193,17 +217,21 @@ export class SaveCandidates {
       return { ok: true };
     }
 
-    const decision = await this.decide(c);
-    if (decision === null) return { ok: false, error: LOCKED };
     const store = this.deps.store();
-    if (decision.kind === "create") {
-      await store.putEntry(this.deps.newId(), save.newLogin(c.url, c.username, c.password));
-    } else if (decision.kind === "update") {
-      const entry = store.getEntry(decision.id);
-      if (entry?.data.type !== "login") return { ok: false, error: GONE };
-      await store.putEntry(decision.id, save.withPassword(entry.data, c.password));
-    }
+    const decision = await this.decide(store, c, true);
+    if (decision === null) return { ok: false, error: LOCKED };
+    // Remove first: whatever happens next, the candidate cannot be saved twice.
     await this.remove(c.tabId);
+    if (decision.kind === "update") {
+      const entry = store.getEntry(decision.id);
+      if (entry?.data.type !== "login") {
+        await this.deps.sendToTab(c.tabId, { target: "save-watch", type: "save-hide" });
+        return { ok: false, error: GONE };
+      }
+      await store.putEntry(decision.id, save.withPassword(entry.data, c.password));
+    } else if (decision.kind === "create") {
+      await store.putEntry(this.deps.newId(), save.newLogin(c.url, c.username, c.password));
+    }
     if (decision.kind !== "none") {
       // The panel shows "Zapisano" by itself; the tab hides it a moment later.
       this.deps.later(SAVED_HIDE_MS, () => {
@@ -215,13 +243,17 @@ export class SaveCandidates {
     return { ok: true };
   }
 
-  async onAlarm(name: string): Promise<void> {
+  onAlarm(name: string): Promise<void> {
+    return this.serial(() => this.doAlarm(name));
+  }
+
+  private async doAlarm(name: string): Promise<void> {
     if (!name.startsWith(SAVE_ALARM_PREFIX)) return;
     const tabId = Number(name.slice(SAVE_ALARM_PREFIX.length));
     if (Number.isInteger(tabId)) await this.remove(tabId);
   }
 
-  async onTabRemoved(tabId: number): Promise<void> {
-    await this.remove(tabId);
+  onTabRemoved(tabId: number): Promise<void> {
+    return this.serial(() => this.remove(tabId));
   }
 }

@@ -6,6 +6,7 @@ import {
 } from "../../src/save/candidates.ts";
 import type { SaveCandidateMessage, ToWatchMessage } from "../../src/save/messages.ts";
 import { STORAGE_KEYS, memoryStore } from "../../src/storage.ts";
+import { VaultStore } from "../../src/vault-store.ts";
 import { pairedBrowser } from "../fake-phone.ts";
 
 function login(name: string, urls: string[], username = "jan", password = "old"): p2p.EntryContentV3 {
@@ -32,7 +33,8 @@ async function setup(o: { locked?: boolean } = {}) {
   const timers: { ms: number; fn: () => void }[] = [];
   let n = 0;
   const sc = new SaveCandidates({
-    store: () => b.store,
+    // A new VaultStore per call, like background.ts: nothing may rely on state from an earlier call.
+    store: () => new VaultStore(b.local, b.session, b.makeClient, () => t),
     session: b.session,
     local: b.local,
     selfId: EXT,
@@ -46,7 +48,12 @@ async function setup(o: { locked?: boolean } = {}) {
     later: (ms, fn) => { timers.push({ ms, fn }); },
   });
   const stored = async () => (await b.session.get<Record<string, { id: string; url: string; password: string; formSignature: string }>>(STORAGE_KEYS.saveCandidates)) ?? {};
-  return { ...b, sc, sent, alarms, cleared, timers, stored, advance: (ms: number) => { t += ms; }, now: () => t };
+  const fresh = async () => {
+    const store = new VaultStore(b.local, b.session, b.makeClient, () => t);
+    await store.resume({ touch: false });
+    return store;
+  };
+  return { ...b, fresh, sc, sent, alarms, cleared, timers, stored, advance: (ms: number) => { t += ms; }, now: () => t };
 }
 
 describe("SaveCandidates", () => {
@@ -184,18 +191,18 @@ describe("SaveCandidates", () => {
     expect(await s.sc.info({ target: "background", type: "save-info", candidateId: id }, web)).toBeUndefined();
     expect(await s.sc.info({ target: "background", type: "save-info", candidateId: id }, { ...extSender, id: "other" })).toBeUndefined();
     expect((await s.sc.answer({ target: "background", type: "save-answer", candidateId: id, answer: "save" }, web)).ok).toBe(false);
-    expect(s.store.pendingCount()).toBe(2);
+    expect((await s.fresh()).pendingCount()).toBe(2);
   }, 30_000);
 
   it("answer save creates a login and hides the panel after SAVED_HIDE_MS", async () => {
     const s = await setup();
     await s.sc.onCandidate(candidate({ username: "anna" }), scriptSender());
     const id = (await s.stored())["7"]!.id;
-    const before = s.store.pendingCount();
+    const before = (await s.fresh()).pendingCount();
     s.sent.length = 0;
     expect(await s.sc.answer({ target: "background", type: "save-answer", candidateId: id, answer: "save" }, extSender)).toEqual({ ok: true });
-    expect(s.store.pendingCount()).toBe(before + 1);
-    const created = s.store.listEntries("login").find((e) => e.data.type === "login" && e.data.fields.username === "anna")!;
+    expect((await s.fresh()).pendingCount()).toBe(before + 1);
+    const created = (await s.fresh()).listEntries("login").find((e) => e.data.type === "login" && e.data.fields.username === "anna")!;
     expect(created.data).toMatchObject({ name: "shop.pl", fields: { password: "new", urls: ["shop.pl"] } });
     expect(await s.stored()).toEqual({});
     expect(s.sent).toEqual([]);
@@ -209,9 +216,9 @@ describe("SaveCandidates", () => {
     await s.sc.onCandidate(candidate(), scriptSender());
     const id = (await s.stored())["7"]!.id;
     expect(await s.sc.answer({ target: "background", type: "save-answer", candidateId: id, answer: "save" }, extSender)).toEqual({ ok: true });
-    const shop = s.store.getEntry("s1")!;
+    const shop = (await s.fresh()).getEntry("s1")!;
     expect(shop.data).toMatchObject({ name: "Shop", fields: { username: "jan", password: "new", urls: ["https://shop.pl"] } });
-    expect(s.store.listEntries("login")).toHaveLength(2);
+    expect((await s.fresh()).listEntries("login")).toHaveLength(2);
   }, 30_000);
 
   it("answer save does nothing when the login appeared meanwhile", async () => {
@@ -219,9 +226,9 @@ describe("SaveCandidates", () => {
     await s.sc.onCandidate(candidate(), scriptSender());
     const id = (await s.stored())["7"]!.id;
     await s.store.putEntry("s1", login("Shop", ["https://shop.pl"], "jan", "new"));
-    const before = s.store.pendingCount();
+    const before = (await s.fresh()).pendingCount();
     expect(await s.sc.answer({ target: "background", type: "save-answer", candidateId: id, answer: "save" }, extSender)).toEqual({ ok: true });
-    expect(s.store.pendingCount()).toBe(before);
+    expect((await s.fresh()).pendingCount()).toBe(before);
     expect(await s.stored()).toEqual({});
   }, 30_000);
 
@@ -273,5 +280,40 @@ describe("SaveCandidates", () => {
     expect(Object.keys(await s.stored())).toEqual(["8"]);
     await s.sc.onTabRemoved(8);
     expect(await s.stored()).toEqual({});
+  }, 30_000);
+
+  it("check-only calls do not extend the unlocked time", async () => {
+    const s = await setup();
+    const before = (await s.session.get<{ unlockedUntil: number }>(STORAGE_KEYS.sessionKeys))!.unlockedUntil;
+    s.advance(60_000);
+    await s.sc.onCandidate(candidate(), scriptSender());
+    const id = (await s.stored())["7"]!.id;
+    await s.sc.info({ target: "background", type: "save-info", candidateId: id }, extSender);
+    await s.sc.onPending({ target: "background", type: "save-pending", emptyLoginForms: [] }, scriptSender());
+    expect((await s.session.get<{ unlockedUntil: number }>(STORAGE_KEYS.sessionKeys))!.unlockedUntil).toBe(before);
+  }, 30_000);
+
+  it("two concurrent answers save exactly once", async () => {
+    const s = await setup();
+    await s.sc.onCandidate(candidate({ username: "anna" }), scriptSender());
+    const id = (await s.stored())["7"]!.id;
+    const before = (await s.fresh()).listEntries("login").length;
+    const msg = { target: "background", type: "save-answer", candidateId: id, answer: "save" } as const;
+    const results = await Promise.all([s.sc.answer(msg, extSender), s.sc.answer(msg, extSender)]);
+    expect(results.filter((r) => r.ok)).toHaveLength(1);
+    expect((await s.fresh()).listEntries("login")).toHaveLength(before + 1);
+  }, 30_000);
+
+  it("concurrent candidates from two tabs are both kept", async () => {
+    const s = await setup();
+    await Promise.all([s.sc.onCandidate(candidate(), scriptSender(7)), s.sc.onCandidate(candidate(), scriptSender(8))]);
+    expect(Object.keys(await s.stored()).sort()).toEqual(["7", "8"]);
+  }, 30_000);
+
+  it("pending from a frame of another origin than the tab shows nothing", async () => {
+    const s = await setup();
+    await s.sc.onCandidate(candidate(), scriptSender());
+    const r = await s.sc.onPending({ target: "background", type: "save-pending", emptyLoginForms: [] }, scriptSender(7, "https://ads.example/f", PAGE));
+    expect(r).toEqual({});
   }, 30_000);
 });

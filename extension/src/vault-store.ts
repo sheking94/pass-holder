@@ -638,7 +638,7 @@ export class VaultStore {
   }
 
   /** Restores an unlocked state kept in session storage, so reopening the popup needs no password. */
-  async resume(): Promise<boolean> {
+  async resume(options: { touch?: boolean } = {}): Promise<boolean> {
     const keys = await this.session.get<SessionKeys>(STORAGE_KEYS.sessionKeys);
     const account = await this.getAccount();
     if (!keys || !account || keys.unlockedUntil <= this.now()) {
@@ -648,7 +648,8 @@ export class VaultStore {
     this.keys = keys;
     this.vault = await this.loadVault(fromBase64(keys.vaultKey));
     this.clock = p2p.clockForVault(this.vault, account.deviceId, this.now);
-    await this.touch();
+    // Background checks triggered by web pages pass touch: false so they cannot keep the vault unlocked.
+    if (options.touch !== false) await this.touch();
     return true;
   }
 
