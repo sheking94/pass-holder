@@ -19,7 +19,7 @@ await build({
 });
 
 await build({
-  entryPoints: ["src/autofill-content.ts"],
+  entryPoints: ["src/autofill-content.ts", "src/save-watch.ts"],
   bundle: true,
   format: "iife",
   target: "chrome127",
