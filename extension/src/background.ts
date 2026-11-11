@@ -1,6 +1,7 @@
 import { AUTO_LOCK_ALARM, onAutoLockAlarm, scheduleAutoLock } from "./auto-lock.ts";
 import { CLEAR_AFTER_MINUTES, CLEAR_CLIPBOARD_ALARM, type ClipboardMessage } from "./clipboard.ts";
 import { chromeTabApi, fillTab, onFillCommand, type FillMessage, UNSUPPORTED_PAGE } from "./autofill/fill-tab.ts";
+import { SaveCandidates } from "./save/candidates.ts";
 import { chromeStore, STORAGE_KEYS } from "./storage.ts";
 import { VaultStore } from "./vault-store.ts";
 
@@ -29,6 +30,49 @@ chrome.runtime.onMessage.addListener((message: FillMessage, sender, sendResponse
   return true;
 });
 
+// Save prompt: candidates live in session storage, so a stopped service worker loses nothing.
+const saveCandidates = new SaveCandidates({
+  store: newStore,
+  session: chromeStore(chrome.storage.session),
+  local: chromeStore(chrome.storage.local),
+  selfId: chrome.runtime.id,
+  sendToTab: async (tabId, m) => {
+    try {
+      await chrome.tabs.sendMessage(tabId, m, { frameId: 0 });
+    } catch {
+      // No receiver: the tab was closed or the script is not there (permission taken away); nothing to show.
+    }
+  },
+  alarms: chrome.alarms,
+  now: Date.now,
+  newId: () => crypto.randomUUID(),
+  later: (ms, fn) => void setTimeout(fn, ms),
+});
+
+type SaveMessage = { target?: string; type?: string };
+chrome.runtime.onMessage.addListener((message: SaveMessage, sender, sendResponse) => {
+  if (message.target !== "background") return;
+  const run = <T>(work: Promise<T>, onError: T) => {
+    work.catch((error: unknown) => {
+      console.warn("PassHolder: save message failed", error);
+      return onError;
+    }).then(sendResponse);
+    return true;
+  };
+  switch (message.type) {
+    case "save-candidate":
+      return run(saveCandidates.onCandidate(message as never, sender).then(() => ({})), {});
+    case "save-pending":
+      return run(saveCandidates.onPending(message as never, sender), {});
+    case "save-info":
+      return run(saveCandidates.info(message as never, sender), undefined);
+    case "save-answer":
+      return run(saveCandidates.answer(message as never, sender), { ok: false, error: UNSUPPORTED_PAGE });
+  }
+});
+
+chrome.tabs.onRemoved.addListener((tabId) => void saveCandidates.onTabRemoved(tabId));
+
 chrome.commands.onCommand.addListener((command, tab) => {
   if (command !== "fill-login") return;
   onFillCommand(newStore(), chromeTabApi(), tab, () => chrome.action.openPopup())
@@ -43,6 +87,7 @@ chrome.storage.session.onChanged.addListener((changes) => {
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === CLEAR_CLIPBOARD_ALARM) void clearClipboard();
+  void saveCandidates.onAlarm(alarm.name);
   if (alarm.name === AUTO_LOCK_ALARM) void onAutoLockAlarm(chromeStore(chrome.storage.session), chrome.alarms);
 });
 
