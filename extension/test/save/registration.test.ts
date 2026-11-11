@@ -42,6 +42,30 @@ describe("syncSaveWatch", () => {
   });
 });
 
+describe("syncSaveWatch, overlapping calls", () => {
+  it("runs one after another, so the script is registered once", async () => {
+    const { api, calls } = fakeApi(["https://*/*"], false);
+    const slow: SaveWatchApi = {
+      ...api,
+      registered: async () => {
+        const now = await api.registered();
+        await new Promise((r) => setTimeout(r, 5));
+        return now;
+      },
+    };
+    await Promise.all([syncSaveWatch(slow), syncSaveWatch(slow), syncSaveWatch(slow)]);
+    expect(calls).toEqual(["register"]);
+  });
+
+  it("a failed call does not stop the next one", async () => {
+    const { api, calls } = fakeApi(["https://*/*"], false);
+    const failing: SaveWatchApi = { ...api, register: async () => { throw new Error("Duplicate script ID"); } };
+    await expect(syncSaveWatch(failing)).rejects.toThrow("Duplicate script ID");
+    await syncSaveWatch(api);
+    expect(calls).toEqual(["register"]);
+  });
+});
+
 describe("disableSavePrompt", () => {
   it("keeps http access while a phone address is http", async () => {
     const { api, calls } = fakeApi(["https://*/*", "http://*/*"], true);

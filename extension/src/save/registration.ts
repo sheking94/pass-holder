@@ -41,8 +41,19 @@ export function chromeSaveWatchApi(): SaveWatchApi {
   };
 }
 
-/** Makes the registration match the permission: granted and not registered → register; the reverse → unregister. */
-export async function syncSaveWatch(api: SaveWatchApi): Promise<void> {
+let syncing: Promise<unknown> = Promise.resolve();
+
+/**
+ * Makes the registration match the permission: granted and not registered → register; the reverse → unregister.
+ * Calls run one after another (start and permission events can overlap), so none acts on a state another is changing.
+ */
+export function syncSaveWatch(api: SaveWatchApi): Promise<void> {
+  const run = syncing.then(() => syncOnce(api));
+  syncing = run.catch(() => undefined);
+  return run;
+}
+
+async function syncOnce(api: SaveWatchApi): Promise<void> {
   const [allowed, registered] = await Promise.all([api.contains(["https://*/*"]), api.registered()]);
   if (allowed && !registered) await api.register();
   else if (!allowed && registered) await api.unregister();
