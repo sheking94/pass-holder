@@ -629,6 +629,206 @@
     "name": "user_password"
    },
    "expected": "password"
+  },
+  {
+   "field": {
+    "type": "text",
+    "name": "expiryMonth"
+   },
+   "expected": "ccExpMonth"
+  },
+  {
+   "field": {
+    "type": "text",
+    "name": "expirationMonth"
+   },
+   "expected": "ccExpMonth"
+  },
+  {
+   "field": {
+    "type": "text",
+    "name": "expiry_month"
+   },
+   "expected": "ccExpMonth"
+  },
+  {
+   "field": {
+    "type": "text",
+    "name": "exp-month"
+   },
+   "expected": "ccExpMonth"
+  },
+  {
+   "field": {
+    "type": "text",
+    "name": "expiration-month"
+   },
+   "expected": "ccExpMonth"
+  },
+  {
+   "field": {
+    "type": "text",
+    "name": "expiryYear"
+   },
+   "expected": "ccExpYear"
+  },
+  {
+   "field": {
+    "type": "text",
+    "name": "expirationYear"
+   },
+   "expected": "ccExpYear"
+  },
+  {
+   "field": {
+    "type": "text",
+    "name": "expiry_year"
+   },
+   "expected": "ccExpYear"
+  },
+  {
+   "field": {
+    "type": "text",
+    "name": "exp-year"
+   },
+   "expected": "ccExpYear"
+  },
+  {
+   "field": {
+    "type": "text",
+    "name": "expiry"
+   },
+   "expected": "ccExp"
+  },
+  {
+   "field": {
+    "type": "text",
+    "label": "Expiration month"
+   },
+   "expected": "ccExpMonth"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "address-line2"
+    ],
+    "name": "address2"
+   },
+   "expected": null
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "address-line2"
+    ],
+    "name": "billing_address_2"
+   },
+   "expected": null
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "address-line3"
+    ]
+   },
+   "expected": null
+  },
+  {
+   "field": {
+    "type": "text",
+    "name": "billing_address_1"
+   },
+   "expected": "street"
+  },
+  {
+   "field": {
+    "type": "text",
+    "autocomplete": [
+     "address-line1"
+    ],
+    "name": "billing_address_1"
+   },
+   "expected": "street"
+  },
+  {
+   "field": {
+    "type": "text",
+    "name": "address_2"
+   },
+   "expected": null
+  },
+  {
+   "field": {
+    "type": "text",
+    "name": "address2"
+   },
+   "expected": null
+  },
+  {
+   "field": {
+    "type": "text",
+    "name": "address_line_2"
+   },
+   "expected": null
+  },
+  {
+   "field": {
+    "type": "text",
+    "name": "line2"
+   },
+   "expected": null
+  },
+  {
+   "field": {
+    "type": "text",
+    "name": "adres2"
+   },
+   "expected": null
+  },
+  {
+   "field": {
+    "type": "text",
+    "name": "adres_3"
+   },
+   "expected": null
+  },
+  {
+   "field": {
+    "type": "text",
+    "label": "Adres (linia 2)"
+   },
+   "expected": null
+  },
+  {
+   "field": {
+    "type": "text",
+    "name": "street_address"
+   },
+   "expected": "street"
+  },
+  {
+   "field": {
+    "type": "text",
+    "name": "password_hint"
+   },
+   "expected": null
+  },
+  {
+   "field": {
+    "type": "text",
+    "name": "haslo_podpowiedz"
+   },
+   "expected": null
+  },
+  {
+   "field": {
+    "type": "password",
+    "name": "password_hint"
+   },
+   "expected": "password"
   }
  ]
 }

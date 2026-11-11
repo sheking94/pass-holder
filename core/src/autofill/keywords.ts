@@ -13,7 +13,7 @@ export function normalizeText(s: string): string {
  * Rule 1: autocomplete tokens (HTML) and Android autofill hints. Keys are lowercase;
  * lookups lowercase the token, so camelCase Android constants match too.
  */
-export const AUTOCOMPLETE_TOKENS: Readonly<Record<string, FieldKind>> = {
+export const AUTOCOMPLETE_TOKENS: Readonly<Record<string, FieldKind | "skip">> = {
   username: "username",
   email: "email",
   emailaddress: "email",
@@ -43,6 +43,9 @@ export const AUTOCOMPLETE_TOKENS: Readonly<Record<string, FieldKind>> = {
   phonenumber: "tel",
   "street-address": "street",
   "address-line1": "street",
+  // Extra address lines must not receive the street again.
+  "address-line2": "skip",
+  "address-line3": "skip",
   postaladdress: "street",
   "postal-code": "postalCode",
   postalcode: "postalCode",
@@ -60,10 +63,21 @@ export const AUTOCOMPLETE_TOKENS: Readonly<Record<string, FieldKind>> = {
  */
 export const NEW_PASSWORD_PATTERN = /powtorz|potwierdz|confirm|repeat|new.?pass|nowe.?haslo/;
 
+/**
+ * Names that look like a known field but are not (checked before KEYWORDS, never for type=password):
+ * address lines 2 and 3, and password hints.
+ */
+export const SKIP_PATTERN = new RegExp([
+  "(address|adres)[\\s_()-]*(line|linia)?[\\s_()-]*[23]\\b",
+  "(^|[^a-z])(line|linia)[\\s_-]*[23]\\b",
+  "(pass\\w*|haslo)[\\s_-]*(hint|podpowiedz)",
+  "(hint|podpowiedz)[\\s_-]*(pass\\w*|haslo)",
+].join("|"));
+
 export const KEYWORDS: readonly { kind: FieldKind; pattern: RegExp }[] = [
   { kind: "newPassword", pattern: NEW_PASSWORD_PATTERN },
-  { kind: "ccExpMonth", pattern: /exp.?month|exp.?mm|cc.?month|miesiac.?waznosci/ },
-  { kind: "ccExpYear", pattern: /exp.?year|exp.?yy|cc.?year|rok.?waznosci/ },
+  { kind: "ccExpMonth", pattern: /exp\w*.?month|exp.?mm|cc.?month|miesiac.?waznosci/ },
+  { kind: "ccExpYear", pattern: /exp\w*.?year|exp.?yy|cc.?year|rok.?waznosci/ },
   { kind: "ccExp", pattern: /cc.?exp|expir|valid.?thru|data.?waznosci|waznosc|mm.?[/-]?.?yy/ },
   { kind: "ccCsc", pattern: /cvc|cvv|csc|security.?code|kod.?zabezp/ },
   { kind: "ccNumber", pattern: /card.?n(um|o)|numer.?karty|cc.?num/ },
