@@ -3,6 +3,7 @@ package io.github.sheking94.passholder.app
 import android.app.Activity
 import android.app.Instrumentation
 import android.content.Intent
+import android.os.Looper
 import android.service.autofill.FillResponse
 import android.view.autofill.AutofillManager
 import androidx.compose.ui.test.hasSetTextAction
@@ -24,6 +25,7 @@ import io.github.sheking94.passholder.core.autofill.FieldDescriptor
 import io.github.sheking94.passholder.core.p2p.EntryContentV3
 import io.github.sheking94.passholder.core.p2p.LoginFields
 import org.junit.After
+import java.time.Duration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -33,6 +35,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
@@ -169,7 +172,11 @@ class AutofillUnlockFingerprintTest : AutofillUnlockTestBase() {
         assertEquals(Activity.RESULT_OK, result.resultCode)
         assertNotNull(result.response())
         assertTrue("the 60 s delay keeps the vault open", app.phoneStore.isUnlocked)
-        assertFalse(app.leaveLock.cancel())
+        // D1 with the delay on: the vault locks once the 60 s run out (the lock task runs on its own thread).
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(LeaveLock.DELAY_MS + 1_000))
+        val deadline = System.currentTimeMillis() + 10_000
+        while (app.phoneStore.isUnlocked && System.currentTimeMillis() < deadline) Thread.sleep(20)
+        assertFalse("the vault locks 60 s after the autofill unlock", app.phoneStore.isUnlocked)
     }
 }
 

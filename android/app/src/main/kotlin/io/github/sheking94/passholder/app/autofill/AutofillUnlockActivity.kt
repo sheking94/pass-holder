@@ -161,6 +161,11 @@ class AutofillUnlockActivity : FragmentActivity() {
 
     /** RESULT_OK, with the suggestions when any entry matches; then D1: the vault does not stay open because of autofill. */
     private fun deliver(response: FillResponse?, relock: Boolean) {
+        // "Anuluj" or Back came while the unlock ran: keep RESULT_CANCELED and lock at once, no 60 s.
+        if (isFinishing) {
+            if (relock) app.phoneStore.lock()
+            return
+        }
         setResult(RESULT_OK, response?.let { Intent().putExtra(AutofillManager.EXTRA_AUTHENTICATION_RESULT, it) })
         // A vault the app itself had open already keeps the app's own lock timing.
         if (relock) {
