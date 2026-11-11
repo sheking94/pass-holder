@@ -1,0 +1,217 @@
+{
+  "cases": [
+    {
+      "request": {
+        "packageName": "com.bank.app"
+      },
+      "logins": [
+        {
+          "name": "Bank",
+          "urls": [
+            "bank.pl"
+          ],
+          "androidApps": [
+            "com.bank.app"
+          ]
+        },
+        {
+          "name": "Other",
+          "urls": [
+            "x.pl"
+          ],
+          "androidApps": [
+            "com.other"
+          ]
+        }
+      ],
+      "expected": [
+        "Bank"
+      ],
+      "why": "app package on the list matches"
+    },
+    {
+      "request": {
+        "packageName": "com.unknown.app"
+      },
+      "logins": [
+        {
+          "name": "Bank",
+          "urls": [
+            "bank.pl"
+          ],
+          "androidApps": [
+            "com.bank.app"
+          ]
+        }
+      ],
+      "expected": [],
+      "why": "package not on any list"
+    },
+    {
+      "request": {
+        "packageName": "com.android.chrome",
+        "webDomain": "accounts.google.com"
+      },
+      "logins": [
+        {
+          "name": "Google",
+          "urls": [
+            "google.com"
+          ],
+          "androidApps": []
+        },
+        {
+          "name": "Other",
+          "urls": [
+            "x.pl"
+          ],
+          "androidApps": []
+        }
+      ],
+      "expected": [
+        "Google"
+      ],
+      "why": "trusted browser matches by web domain"
+    },
+    {
+      "request": {
+        "packageName": "com.android.chrome"
+      },
+      "logins": [
+        {
+          "name": "Google",
+          "urls": [
+            "google.com"
+          ],
+          "androidApps": []
+        },
+        {
+          "name": "Bank",
+          "urls": [
+            "bank.pl"
+          ],
+          "androidApps": [
+            "com.bank.app"
+          ]
+        }
+      ],
+      "expected": [],
+      "why": "browser without web domain matches only by package"
+    },
+    {
+      "request": {
+        "packageName": "com.evil.app",
+        "webDomain": "mbank.pl"
+      },
+      "logins": [
+        {
+          "name": "mBank",
+          "urls": [
+            "mbank.pl"
+          ],
+          "androidApps": []
+        }
+      ],
+      "expected": [],
+      "why": "untrusted app web domain is ignored"
+    },
+    {
+      "request": {
+        "packageName": "com.evil.app",
+        "webDomain": "mbank.pl"
+      },
+      "logins": [
+        {
+          "name": "mBank",
+          "urls": [
+            "mbank.pl"
+          ],
+          "androidApps": []
+        },
+        {
+          "name": "Evil",
+          "urls": [],
+          "androidApps": [
+            "com.evil.app"
+          ]
+        }
+      ],
+      "expected": [
+        "Evil"
+      ],
+      "why": "untrusted app still gets logins assigned to its package"
+    },
+    {
+      "request": {
+        "packageName": "org.mozilla.firefox",
+        "webDomain": "x.pl",
+        "webScheme": "http"
+      },
+      "logins": [
+        {
+          "name": "X",
+          "urls": [
+            "https://x.pl"
+          ],
+          "androidApps": []
+        }
+      ],
+      "expected": [],
+      "why": "http page does not match saved https"
+    },
+    {
+      "request": {
+        "packageName": "org.mozilla.firefox",
+        "webDomain": "x.pl",
+        "webScheme": "http"
+      },
+      "logins": [
+        {
+          "name": "X",
+          "urls": [
+            "http://x.pl"
+          ],
+          "androidApps": []
+        }
+      ],
+      "expected": [
+        "X"
+      ],
+      "why": "http page matches saved http"
+    },
+    {
+      "request": {
+        "packageName": "com.bank.app"
+      },
+      "logins": [
+        {
+          "name": "B",
+          "urls": [],
+          "androidApps": [
+            "com.bank.app"
+          ]
+        },
+        {
+          "name": "Ąb",
+          "urls": [],
+          "androidApps": [
+            "com.bank.app"
+          ]
+        },
+        {
+          "name": "A",
+          "urls": [],
+          "androidApps": [
+            "com.bank.app"
+          ]
+        }
+      ],
+      "expected": [
+        "A",
+        "Ąb",
+        "B"
+      ],
+      "why": "package matches sorted by Polish collation"
+    }
+  ]
+}
