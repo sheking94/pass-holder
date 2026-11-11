@@ -1,6 +1,7 @@
 import { AUTO_LOCK_ALARM, onAutoLockAlarm, scheduleAutoLock } from "./auto-lock.ts";
 import { CLEAR_AFTER_MINUTES, CLEAR_CLIPBOARD_ALARM, type ClipboardMessage } from "./clipboard.ts";
 import { chromeTabApi, fillTab, onFillCommand, type FillMessage, UNSUPPORTED_PAGE } from "./autofill/fill-tab.ts";
+import { chromeSaveWatchApi, syncSaveWatch } from "./save/registration.ts";
 import { SaveCandidates } from "./save/candidates.ts";
 import type { SaveAnswerMessage, SaveCandidateMessage, SaveInfoMessage, SavePendingMessage } from "./save/messages.ts";
 import { chromeStore, STORAGE_KEYS } from "./storage.ts";
@@ -72,6 +73,15 @@ chrome.runtime.onMessage.addListener((message: { target?: string } & Partial<Sav
       return run(saveCandidates.answer(m, sender), { ok: false, error: UNSUPPORTED_PAGE });
   }
 });
+
+// The https permission is the save-prompt switch: keep the script registration in step with it, also when the
+// user took it away in chrome://extensions, or granted it while the popup (and its callback) was already gone.
+const syncSave = () => syncSaveWatch(chromeSaveWatchApi())
+  .catch((error: unknown) => console.warn("PassHolder: save-watch sync failed", error));
+chrome.runtime.onStartup.addListener(() => void syncSave());
+chrome.runtime.onInstalled.addListener(() => void syncSave());
+chrome.permissions.onAdded.addListener(() => void syncSave());
+chrome.permissions.onRemoved.addListener(() => void syncSave());
 
 chrome.tabs.onRemoved.addListener((tabId) => void saveCandidates.onTabRemoved(tabId));
 

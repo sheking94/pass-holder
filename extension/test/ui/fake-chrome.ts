@@ -60,7 +60,12 @@ export function teardownPopup(): void {
  */
 export async function setupPopup(
   entries: { id: string; content: p2p.EntryContentV3 }[] = [],
-  options: { activeTab?: { id: number; url: string }; fillResult?: FillResult } = {},
+  options: {
+    activeTab?: { id: number; url: string };
+    fillResult?: FillResult;
+    /** Host permissions: held (default: everything is allowed) and what permissions.request answers. */
+    permissions?: { held?: string[]; requestResult?: boolean };
+  } = {},
 ) {
   document.body.replaceChildren();
   const app = document.createElement("main");
@@ -71,6 +76,22 @@ export async function setupPopup(
   const messages: unknown[] = [];
   const local = fakeArea();
   const session = fakeArea();
+  const held = options.permissions?.held;
+  const permissions = { requests: [] as string[][], removed: [] as string[][] };
+  const permissionsApi = {
+    contains: async ({ origins = [] }: { origins?: string[] }) => !held || origins.every((o) => held.includes(o)),
+    request: (request: { origins?: string[] }, callback?: (granted: boolean) => void) => {
+      permissions.requests.push(request.origins ?? []);
+      const granted = options.permissions?.requestResult ?? true;
+      if (granted && held) held.push(...(request.origins ?? []));
+      setTimeout(() => callback?.(granted), 0);
+    },
+    remove: async ({ origins = [] }: { origins?: string[] }) => {
+      permissions.removed.push(origins);
+      if (held) for (const o of origins) held.splice(0, held.length, ...held.filter((x) => x !== o));
+      return true;
+    },
+  };
   vi.stubGlobal("chrome", strict("chrome", {
     storage: strict("chrome.storage", { local, session }),
     runtime: strict("chrome.runtime", {
@@ -79,11 +100,12 @@ export async function setupPopup(
         return (message as { type?: string }).type === "fill" ? (options.fillResult ?? { ok: true }) : undefined;
       },
       getURL: (path: string) => `chrome-extension://passholder/${path}`,
+      lastError: undefined,
     }),
     tabs: strict("chrome.tabs", {
       query: async () => (options.activeTab ? [options.activeTab] : []),
     }),
-    permissions: strict("chrome.permissions", { contains: async () => true }),
+    permissions: strict("chrome.permissions", permissionsApi),
   }));
   const close = vi.fn();
   vi.stubGlobal("close", close);
@@ -107,7 +129,7 @@ export async function setupPopup(
   vi.resetModules();
   const { store } = await import("../../src/ui/state.ts");
   if (!(await store.resume())) throw new Error("setupPopup: the views' store did not resume");
-  return { app, store, clipboard, messages, phone, close };
+  return { app, store, clipboard, messages, phone, close, permissions };
 }
 
 /**

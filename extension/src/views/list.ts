@@ -11,6 +11,7 @@ import { openAddresses } from "./addresses.ts";
 import { editView } from "./edit.ts";
 import { showLocked } from "./locked.ts";
 import { pinSettingsView } from "./pin-settings.ts";
+import { saveSettingsView } from "./save-settings.ts";
 import { openTransfer } from "./transfer.ts";
 
 /** One sentence about addresses a sync skipped because Chrome does not allow them yet; "" when none. */
@@ -145,6 +146,7 @@ export function listView(message = "", isError = false, type?: p2p.EntryType) {
           }),
       }, "Synchronizuj"),
       h("button", { title: "Logowanie PIN-em", onclick: () => void pinSettingsView() }, "PIN"),
+      h("button", { title: "Pytanie o zapis haseł", onclick: () => void saveSettingsView() }, "Zapis"),
       h("button", { onclick: async () => { await store.lock(); await showLocked(); } }, "Zablokuj"),
       h("button", { title: "Adresy telefonu (np. w domu i przez Tailscale), parowanie z innym telefonem", onclick: () => void openAddresses() }, "Adresy telefonu"),
       h("button", { title: "Import i eksport (PassHolder JSON, Bitwarden JSON, NordPass CSV)", onclick: () => void openTransfer() }, "Plik"),
