@@ -6,6 +6,7 @@ import type { P2pTransport } from "./sync.ts";
 
 export const P2P_HANDSHAKE_PATH = "/p2p/v2/handshake";
 export const P2P_SYNC_PATH = "/p2p/v2/sync";
+export const P2P_FILE_PATH = "/p2p/v2/file";
 /** Thrown when the phone does not know the v2 handshake path, i.e. runs an older app. */
 export const PHONE_UPDATE_REQUIRED = "Phone app needs an update";
 

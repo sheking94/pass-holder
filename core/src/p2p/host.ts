@@ -2,7 +2,8 @@ import { fromBase64, randomBytes, toBase64, utf8 } from "../encoding.ts";
 import { decryptFrames, encryptFrames, MAX_FRAMES } from "./frames.ts";
 import type { SyncStore } from "../protocol.ts";
 import { processP2pSync, validateP2pSyncRequest, type P2pSyncRequest } from "./host-sync.ts";
-import { P2P_HANDSHAKE_PATH, P2P_SYNC_PATH } from "./transport.ts";
+import { processP2pFile, type FileStore } from "../files/host-files.ts";
+import { P2P_FILE_PATH, P2P_HANDSHAKE_PATH, P2P_SYNC_PATH } from "./transport.ts";
 import { CipherState, NoiseKK, P2P_PROLOGUE, type KeyPair } from "./noise.ts";
 
 export interface PairedDevice {
@@ -18,6 +19,8 @@ export interface P2pHostOptions {
   epoch: string;
   addresses: () => string[];
   now?: () => number;
+  /** Encrypted file chunk storage; without it the file path answers 404 like an unknown path. */
+  files?: FileStore;
 }
 
 interface Session {
@@ -65,7 +68,11 @@ export class P2pHost {
     if (utf8(JSON.stringify(body) ?? "").length > MAX_BODY_BYTES) return fail(413, "body too large");
     this.#prune();
     if (path === P2P_HANDSHAKE_PATH) return this.#handshake(body);
-    if (path === P2P_SYNC_PATH) return this.#sync(body);
+    if (path === P2P_SYNC_PATH) return this.#session(body, (request) => this.#processSync(request));
+    if (path === P2P_FILE_PATH && this.#o.files) {
+      const files = this.#o.files;
+      return this.#session(body, (request) => processP2pFile(files, this.#o.epoch, request, this.#now()));
+    }
     // The v1 sync protocol is gone; tell old clients to update instead of pretending the path is unknown.
     if (path === "/p2p/v1/handshake" || path === "/p2p/v1/sync") return fail(410, "update required");
     return fail(404, "not found");
@@ -113,7 +120,8 @@ export class P2pHost {
     return { status: 200, body: { session, message: toBase64(reply) } };
   }
 
-  async #sync(body: unknown): Promise<Reply> {
+  /** Common part of the one-request-per-session paths; `process` returns a reply whose 200 body gets encrypted. */
+  async #session(body: unknown, process: (request: unknown) => Reply): Promise<Reply> {
     if (
       !isRecord(body) ||
       typeof body.session !== "string" ||
@@ -132,19 +140,25 @@ export class P2pHost {
       (d) => d.deviceId === session.deviceId && sameBytes(d.staticPublicKey, session.staticPublicKey),
     );
     if (!stillPaired) return fail(403, "device not paired");
-    let request: P2pSyncRequest;
+    let request: unknown;
     try {
-      request = (await decryptFrames(session.recv, body.frames as string[])) as P2pSyncRequest;
+      request = await decryptFrames(session.recv, body.frames as string[]);
     } catch {
       return fail(400, "cannot decrypt request");
     }
-    const invalid = validateP2pSyncRequest(this.#o.store, this.#o.epoch, request);
-    if (invalid !== undefined) return fail(400, invalid);
     try {
-      const response = processP2pSync(this.#o.store, this.#o.epoch, this.#o.addresses(), request);
-      return { status: 200, body: { frames: await encryptFrames(session.send, response) } };
+      const reply = process(request);
+      if (reply.status !== 200) return reply;
+      return { status: 200, body: { frames: await encryptFrames(session.send, reply.body) } };
     } catch {
       return fail(500, "internal error");
     }
+  }
+
+  #processSync(request: unknown): Reply {
+    const sync = request as P2pSyncRequest;
+    const invalid = validateP2pSyncRequest(this.#o.store, this.#o.epoch, sync);
+    if (invalid !== undefined) return fail(400, invalid);
+    return { status: 200, body: processP2pSync(this.#o.store, this.#o.epoch, this.#o.addresses(), sync) };
   }
 }
