@@ -63,6 +63,13 @@ object ResponseBuilder {
         return response.build()
     }
 
+    /** Only the save request: for a screen with a password field but nothing to fill. */
+    fun saveOnlyResponse(save: SaveSpec): FillResponse {
+        val response = FillResponse.Builder()
+        withSave(response, save)
+        return response.build()
+    }
+
     /** One "Odblokuj PassHolder" suggestion over [ids]; choosing it starts [auth]. */
     fun locked(context: Context, ids: List<AutofillId>, auth: IntentSender, inline: InlineSuggestionsRequest?, save: SaveSpec?): FillResponse {
         val presentation = presentation(context, UNLOCK_TITLE, null)

@@ -5,8 +5,6 @@ import android.os.Bundle
 import android.view.autofill.AutofillId
 import io.github.sheking94.passholder.app.PassHolderApp
 import io.github.sheking94.passholder.core.autofill.AppRequest
-import io.github.sheking94.passholder.core.autofill.FillGroup
-import io.github.sheking94.passholder.core.autofill.planRequest
 import io.github.sheking94.passholder.core.save.SaveFields
 import io.github.sheking94.passholder.core.save.saveFields
 
@@ -22,11 +20,10 @@ private const val KEY_PACKAGE = "save.package"
 private const val KEY_WEB_DOMAIN = "save.webDomain"
 private const val KEY_WEB_SCHEME = "save.webScheme"
 
-/** Null when the user turned the prompt off, the screen is not a login or has no password field. */
+/** Null when the user turned the prompt off, the screen has no password field. */
 fun saveSpecFor(app: PassHolderApp, request: ParsedRequest): SaveSpec? {
     if (!app.settings.askToSave) return null
-    if (planRequest(request.nodes)?.group != FillGroup.LOGIN) return null
-    // All nodes, not the plan's: planRequest drops NEW_PASSWORD from the LOGIN group.
+    // Any screen with a password field, whatever group the request plans as; all nodes, not the plan's.
     val fields = saveFields(request.nodes) ?: return null
     return SaveSpec(fields, request.app)
 }

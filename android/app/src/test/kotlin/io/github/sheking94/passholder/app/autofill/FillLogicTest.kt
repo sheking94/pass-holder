@@ -128,6 +128,58 @@ class FillLogicTest {
         assertNull(respond(app, request(pkg = app.packageName, domain = null), null, auth))
     }
 
+    private val site = AppRequest("com.android.chrome", "github.com", "https")
+
+    @Test
+    fun `contact form with password carries save info`() {
+        vaultWithLogin()
+        val nodes = listOf(
+            AutofillNode(autofillId(1), FieldDescriptor(autocomplete = listOf("given-name"), type = "text", name = "first"), false),
+            AutofillNode(autofillId(2), FieldDescriptor(autocomplete = listOf("tel"), type = "tel", name = "phone"), false),
+            AutofillNode(autofillId(3), FieldDescriptor(autocomplete = listOf("email"), type = "email", name = "email"), false),
+            AutofillNode(autofillId(4), FieldDescriptor(type = "password", name = "password"), false),
+        )
+        val response = respond(app, ParsedRequest(site, nodes), null, auth)
+        assertNotNull(response)
+        assertEquals(listOf(autofillId(4)), requiredIds(saveInfo(response!!)!!))
+    }
+
+    @Test
+    fun `new password only screen gets save info only`() {
+        vaultWithLogin()
+        val nodes = listOf(AutofillNode(autofillId(5), FieldDescriptor(autocomplete = listOf("new-password"), type = "password"), false))
+        val response = respond(app, ParsedRequest(site, nodes), null, auth)!!
+        assertEquals(0, datasetCount(response))
+        assertEquals(listOf(autofillId(5)), requiredIds(saveInfo(response)!!))
+
+        app.phoneStore.lock()
+        val locked = respond(app, ParsedRequest(site, nodes), null, auth)!!
+        assertEquals(0, authCalls)
+        assertNotNull(saveInfo(locked))
+    }
+
+    @Test
+    fun `registration without username has no optional ids`() {
+        vaultWithLogin()
+        val nodes = listOf(
+            AutofillNode(autofillId(5), FieldDescriptor(autocomplete = listOf("new-password"), type = "password"), false),
+            AutofillNode(autofillId(6), FieldDescriptor(autocomplete = listOf("new-password"), type = "password"), false),
+        )
+        val info = saveInfo(respond(app, ParsedRequest(site, nodes), null, auth)!!)!!
+        assertEquals(listOf(autofillId(5)), requiredIds(info))
+        assertTrue(optionalIds(info).isEmpty())
+    }
+
+    @Test
+    fun `new password only screen without save prompt or vault gets nothing`() {
+        val nodes = listOf(AutofillNode(autofillId(5), FieldDescriptor(autocomplete = listOf("new-password"), type = "password"), false))
+        assertNull(respond(app, ParsedRequest(site, nodes), null, auth))
+        vaultWithLogin()
+        assertNull(respond(app, ParsedRequest(AppRequest(app.packageName, null, null), nodes), null, auth))
+        app.settings.askToSave = false
+        assertNull(respond(app, ParsedRequest(site, nodes), null, auth))
+    }
+
     @Test
     fun `non login screens carry no save info`() {
         vaultWithLogin()

@@ -25,15 +25,15 @@ import kotlin.concurrent.thread
 
 /** Suggestions and the save request for the unlocked vault (null when neither applies); also used by the unlock screen. */
 fun buildFillResponse(app: PassHolderApp, request: ParsedRequest, inline: InlineSuggestionsRequest?): FillResponse? {
-    val plan = planRequest(request.nodes) ?: return null
+    val plan = planRequest(request.nodes) ?: return saveSpecFor(app, request)?.let(ResponseBuilder::saveOnlyResponse)
     // Entries are decrypted here, per request, and dropped with the response.
     val specs = planDatasets(plan, request.app, app.phoneStore.entries())
     return ResponseBuilder.datasets(app, specs, inline, saveSpecFor(app, request))
 }
 
 /**
- * The answer to one fill request: nothing for PassHolder itself, a screen without fillable fields or a phone
- * without a vault; the unlock prompt for a locked vault ([auth] is only called then); otherwise the suggestions.
+ * The answer to one fill request: nothing for PassHolder itself, a phone without a vault or a screen with neither fillable
+ * nor password fields (a password-only screen gets just the save request); the unlock prompt for a locked vault ([auth] is only called then); otherwise the suggestions.
  */
 internal fun respond(
     app: PassHolderApp,
@@ -42,9 +42,10 @@ internal fun respond(
     auth: () -> IntentSender,
 ): FillResponse? {
     if (request.app.packageName == app.packageName) return null
-    val plan = planRequest(request.nodes) ?: return null
     val store = app.phoneStore
     if (!store.hasVault) return null
+    // Nothing to fill (e.g. only a "new password" field): at most the save request, never the unlock prompt.
+    val plan = planRequest(request.nodes) ?: return saveSpecFor(app, request)?.let(ResponseBuilder::saveOnlyResponse)
     // D1: the 60 s timer may not have run (deep sleep, a frozen app); the deadline still holds.
     if (app.leaveLock.expired()) store.lock()
     if (!store.isUnlocked) return ResponseBuilder.locked(app, plan.nodes.map { it.first.id }, auth(), inline, saveSpecFor(app, request))
