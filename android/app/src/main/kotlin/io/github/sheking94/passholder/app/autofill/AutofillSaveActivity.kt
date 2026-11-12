@@ -8,7 +8,7 @@ import android.widget.Toast
 import io.github.sheking94.passholder.app.PassHolderApp
 
 /**
- * Opened by the system after "Zapisać w PassHolder?" was accepted while the vault was locked. The candidate
+ * Opened by the system after the system's save question was accepted while the vault was locked. The candidate
  * waits in [PassHolderApp.pendingSave]; it is taken at unlock time, so the 2 minutes are checked when saving.
  * Finishes with RESULT_OK and no data; see [AutofillAuthActivity] for the unlock, the D1 lock and cancelling.
  */
@@ -17,7 +17,12 @@ class AutofillSaveActivity : AutofillAuthActivity() {
     override fun prepare(): Boolean = app.pendingSave.peek()
 
     override fun afterUnlock(): Intent? {
-        val data = app.pendingSave.take() ?: return null
+        val data = app.pendingSave.take()
+        if (data == null) {
+            // The candidate expired while this screen was open.
+            toast("Minęły 2 minuty – zaloguj się ponownie, aby zapisać")
+            return null
+        }
         try {
             val outcome = saveLogin(app, data) { pkg -> appLabelOf(packageManager, pkg) }
             saveToast(outcome)?.let(::toast)

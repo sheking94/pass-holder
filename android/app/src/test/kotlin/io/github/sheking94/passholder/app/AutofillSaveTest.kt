@@ -165,6 +165,8 @@ class AutofillSaveExpiredTest : AutofillSaveTestBase() {
         assertEquals(Activity.RESULT_OK, waitForResult().resultCode)
         assertFalse(app.phoneStore.isUnlocked)
         assertTrue(logins().isEmpty())
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals("Minęły 2 minuty – zaloguj się ponownie, aby zapisać", org.robolectric.shadows.ShadowToast.getTextOfLatestToast())
     }
 }
 

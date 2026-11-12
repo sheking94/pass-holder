@@ -55,7 +55,7 @@ katalogu pakietu.
 | `core` | 28 | 489 | w tym `core/test/p2p/`, `core/test/autofill/` i `core/test/save/` |
 | `extension` | 29 | 291 | w tym widoki w happy-dom (`extension/test/ui/`), `extension/test/autofill/` i `extension/test/save/`; `background.ts` bez testów (logika w `fill-tab.ts` i `save/candidates.ts`) |
 | `android/core` | 41 | 637 | 4 pomijane bez `PASSHOLDER_INTEROP_TEST=1`; w tym `autofill/` (wektory `core/test-vectors/autofill/`) i `save/` (wektory `core/test-vectors/save/`) |
-| `android/app` | 30 | 130 | Robolectric, zrzuty ekranów; w tym `autofill/`, ekrany autouzupełniania i zapis po odblokowaniu |
+| `android/app` | 31 | 131 | Robolectric, zrzuty ekranów; w tym `autofill/`, ekrany autouzupełniania i zapis po odblokowaniu |
 
 ## Co testują pliki
 
@@ -152,13 +152,13 @@ Playwright z Chromium nie jest zależnością repozytorium: w kontenerze w chmur
 | `autofill/NodeDescriptorTest`, `ResponseBuilderTest`, `FillLogicTest`, `ManifestTest` (app) | opis pola z `inputType`/HTML/podpowiedzi, `FillResponse` i pasek klawiatury (≤ `maxSuggestionCount`, styl bez wersji UI → bez paska), odpowiedzi usługi (własny pakiet, brak sejfu, zablokowany, tylko pasujące loginy), rejestracja usługi z `BIND_AUTOFILL_SERVICE` |
 | `AutofillUnlockTest`, `AutofillUnlockScreenTest`, `AutofillSettingTest` (app) | odblokowanie z podpowiedzi (złe i dobre hasło, odcisk, Wstecz, Anuluj, brak pasujących, brak żądania, ponowna blokada, powrót do aplikacji → lista), wiersz „Autouzupełnianie” w Ustawieniach (stan, „Włącz” → systemowy wybór, odświeżenie po powrocie) |
 | `save/SaveVectorsTest`, `SaveFieldsTest`, `SaveTargetTest` | port pytania o zapis: te same wektory `{url,decide}.json` co TypeScript (adres, nazwa, decyzja; `www.` → brak adresu), wybór pól hasła i loginu (nowe hasło przed hasłem, e-mail przed hasłem), cel zapisu (domena tylko od zaufanej przeglądarki, inaczej pakiet), `newLogin`, `withPassword` |
-| `autofill/SaveStateTest`, `SaveLoginTest`, `PendingSaveTest` (app) | `SaveInfo`/`clientState` (id pól i aplikacja), zapis nowego loginu pod domeną i pod pakietem, obca aplikacja z domeną banku, zmiana hasła, to samo hasło → nic, zablokowany → `LOCKED`, komunikaty; kandydat tylko w pamięci, 2 minuty, jeden naraz |
-| `AutofillSaveTest` (app) | ekran zapisu po odblokowaniu (hasło, opóźnienie 60 s, Anuluj, Wstecz, kandydat starszy niż 2 minuty, brak kandydata, stary termin 60 s); `FillLogicTest` (odpowiedź z samym `SaveInfo` bez pasujących wpisów, brak `SaveInfo` przy wyłączonym przełączniku), `SettingsScreenTests` (przełącznik „Pytaj o zapis haseł”) |
+| `autofill/SaveStateTest`, `SaveLoginTest`, `PendingSaveTest` (app) | `clientState` (id pól i aplikacja; tylko poniżej API 33, `SaveInfo` testuje `FillLogicTest`), zapis nowego loginu pod domeną i pod pakietem, obca aplikacja z domeną banku, zmiana hasła, to samo hasło → nic, zablokowany → `LOCKED`, komunikaty; kandydat tylko w pamięci, 2 minuty, jeden naraz |
+| `AutofillSaveTest` (app) | ekran zapisu po odblokowaniu (hasło, opóźnienie 60 s, Anuluj, Wstecz, kandydat starszy niż 2 minuty z komunikatem, brak kandydata, stary termin 60 s); `FillLogicTest` (odpowiedź z samym `SaveInfo` bez pasujących wpisów, brak `SaveInfo` przy wyłączonym przełączniku), `SettingsScreenTests` (przełącznik „Pytaj o zapis haseł”), `BackgroundSaveRefreshTest` (powrót do aplikacji odświeża listę po zapisie w tle) |
 
 Zrzuty ekranów telefonu (`android/app/screenshots/`, przepisywane przy każdym przebiegu testów): 30 Ustawienia,
 31-35 zakładki (Loginy, Karty, Kontakty, Notatki, Dokumenty), 36 formularz loginu, 37 pole ukryte pokazane,
 38-41 formularze notatki, kontaktu, karty i dokumentu, 42 wybór aplikacji, 50 Import i eksport (`50-import-eksport.png`), 51 odblokowanie z autouzupełniania,
-52 wiersz „Autouzupełnianie” w Ustawieniach. Zmieniły się też 03-08, 12-14, 18, 19 i 28.
+52 wiersz „Autouzupełnianie” w Ustawieniach, 62 przełącznik „Pytaj o zapis haseł” (`62-ustawienia-zapis.png`). Zmieniły się też 03-08, 12-14, 18, 19 i 28.
 
 ## Znaleziony błąd: walidacja KDF
 
@@ -308,7 +308,7 @@ hasło główne. „Otwórz w karcie ↗” dwa razy: drugi raz przełącza na i
 **T21. Pytanie o zapis na telefonie.** Aplikacja zainstalowana, usługa autouzupełniania włączona, w Chrome „inna usługa
 autouzupełniania”, sejf z kilkoma wpisami, w Ustawieniach „Pytaj o zapis haseł” włączone. (1) **Aplikacja, nowy
 login:** aplikacja z ekranem logowania (własna testowa albo prawdziwa) → zaloguj się nowym loginem: okno systemu
-„Zapisać w PassHolder?” → **Zapisz**: „Zapisano w PassHolder”, na liście loginów nowy wpis z nazwą aplikacji i jej
+okno systemu z pytaniem o zapis w PassHolder → **Zapisz**: „Zapisano w PassHolder”, na liście loginów nowy wpis z nazwą aplikacji i jej
 pakietem. (2) **Chrome, nowy login:** strona logowania (własny HTML albo prawdziwa) → nowy login: okno systemu →
 zapis; wpis ma nazwę i adres samej domeny. Ponowne logowanie tym samym hasłem: bez okna. (3) **Chrome, zmiana
 hasła:** ten sam login z innym hasłem → okno → „Zaktualizowano hasło w PassHolder”, zmieniło się tylko hasło
@@ -319,7 +319,9 @@ dopiero po 60 s”). Wstecz i **Anuluj** na tym ekranie: nic nie zapisane, kolej
 minutach bez odblokowania nic się nie zapisuje. (5) **Przełącznik wyłączony:** „Pytaj o zapis haseł” wyłączony,
 ponowne wypełnienie ekranu logowania (stuknięcie w pole) → logowanie nie pokazuje okna. (6) **Brak pasujących
 wpisów:** logowanie na stronie bez wpisu w sejfie też pyta o zapis. (7) **Rejestracja:** formularz z samym polem „nowe
-hasło” albo z danymi kontaktowymi okna nie pokazuje (znane ograniczenie). Zapisz wynik, model telefonu, wersję
+hasło” albo z danymi kontaktowymi okna nie pokazuje (znane ograniczenie). (8) **Logowanie dwuetapowe:** e-mail na jednym ekranie, hasło
+na następnym: wpis zapisuje się z pustym loginem (znane ograniczenie). (9) **Zapis w tle:** po zapisie przy otwartej
+aplikacji (np. po powrocie do niej) lista pokazuje nowy wpis albo nowe hasło. Zapisz wynik, model telefonu, wersję
 Androida i Chrome.
 
 ## Czego brakuje
@@ -331,6 +333,6 @@ Androida i Chrome.
 - Pytania o zapis w prawdziwym Chrome: zgoda na dostęp do stron, `openPopup`, rejestracja skryptu, panel w prawdziwych stronach (T20 ręcznie).
 - Autouzupełniania z prawdziwym systemem: `readRequest` (prawdziwy `AssistStructure`), wpisanie wartości przez
   system, Chrome z „inną usługą”, pasek klawiatury Gboard (T19 ręcznie).
-- Pytania o zapis z prawdziwym systemem: okno „Zapisać w PassHolder?”, `onSaveRequest` z prawdziwym `SaveRequest`,
+- Pytania o zapis z prawdziwym systemem: okno systemu z pytaniem o zapis w PassHolder, `onSaveRequest` z prawdziwym `SaveRequest`,
   Chrome z „inną usługą” (T21 ręcznie).
 - Na telefonie: zajętego portu, obrotu ekranu przy działającym serwerze, wygasania kodu przez zegar.

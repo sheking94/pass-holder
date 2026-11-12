@@ -120,7 +120,7 @@ Opcjonalnie: telefon podpowiada loginy, karty i adresy w innych aplikacjach i pr
    własnego menedżera haseł.
 
 4. Zapisywanie nowych haseł: w ⋮ → **Ustawienia** przełącznik **Pytaj o zapis haseł** (domyślnie włączony). Po
-   zalogowaniu w aplikacji lub w Chrome system pyta „Zapisać w PassHolder?”
+   zalogowaniu w aplikacji lub w Chrome system wyświetla okno z pytaniem o zapis w PassHolder
    ([FUNKCJE.md](FUNKCJE.md#android-2)).
 
 Opis: [FUNKCJE.md](FUNKCJE.md#android-1). Wyłączenie: ten sam systemowy wybór, usługa „Brak”.

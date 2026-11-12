@@ -63,6 +63,7 @@ class FillLogicTest {
 
     // SaveInfo getters are @hide, so they are read by reflection.
     private fun saveInfo(r: FillResponse): SaveInfo? = r.javaClass.getMethod("getSaveInfo").invoke(r) as SaveInfo?
+    private fun clientState(r: FillResponse): android.os.Bundle? = r.javaClass.getMethod("getClientState").invoke(r) as android.os.Bundle?
     private fun datasetCount(r: FillResponse): Int = (r.javaClass.getMethod("getDatasets").invoke(r) as List<*>?)?.size ?: 0
     private fun ids(a: Array<*>?) = a?.toList() ?: emptyList<Any?>()
     private fun requiredIds(i: SaveInfo) = ids(i.javaClass.getMethod("getRequiredIds").invoke(i) as Array<*>?)
@@ -78,6 +79,10 @@ class FillLogicTest {
         assertEquals(listOf(autofillId(1)), optionalIds(info))
         assertEquals(SaveInfo.SAVE_DATA_TYPE_PASSWORD or SaveInfo.SAVE_DATA_TYPE_USERNAME, info.javaClass.getMethod("getType").invoke(info))
         assertEquals(SaveInfo.FLAG_SAVE_ON_ALL_VIEWS_INVISIBLE, info.javaClass.getMethod("getFlags").invoke(info))
+        val state = clientState(response)!!.saveSpecIds()!!
+        assertEquals(autofillId(2), state.password)
+        assertEquals(autofillId(1), state.username)
+        assertEquals(AppRequest("com.android.chrome", "github.com", "https"), state.app)
     }
 
     @Test

@@ -19,7 +19,10 @@ import io.github.sheking94.passholder.core.save.withPassword
 import java.util.UUID
 
 /** A login the user submitted, read from the save request. */
-data class SaveData(val app: AppRequest, val username: String, val password: String)
+data class SaveData(val app: AppRequest, val username: String, val password: String) {
+    // Never print the password (logs, crash reports).
+    override fun toString() = "SaveData(app=$app)"
+}
 
 enum class SaveOutcome { SAVED, UPDATED, NOTHING, LOCKED }
 

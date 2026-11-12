@@ -354,6 +354,19 @@ class UnreadableEntriesTest : ScreenTestBase() {
     }
 }
 
+class BackgroundSaveRefreshTest : ScreenTestBase() {
+    @Test
+    fun `returning to the app shows a login saved in the background`() {
+        createVault()
+        val store = ApplicationProvider.getApplicationContext<PassHolderApp>().phoneStore
+        // As the autofill service does: straight into the store, without the view model.
+        store.upsertContent("bg", EntryContentV3("tlo.example", "", io.github.sheking94.passholder.core.p2p.LoginFields("jan", "nowe", urls = listOf("tlo.example")), emptyList()))
+        assertTrue(gone("tlo.example"))
+        scenario.onActivity { viewModel().onReturn() }
+        waitFor("tlo.example")
+    }
+}
+
 class CorruptHostStateTest : ScreenTestBase() {
     /** host.json damaged on disk; the store the app builds at start must not throw (it did, on every launch). */
     override fun beforeLaunch(app: PassHolderApp) {

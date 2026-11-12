@@ -427,8 +427,8 @@ wektory `core/test-vectors/save/`), `extension/src/save/` (`read-form.ts`, `watc
 
 ### Android
 
-Po wysłaniu formularza logowania w aplikacji lub w Chrome system pyta „Zapisać w PassHolder?” (okno
-systemowe) i PassHolder zapisuje nowy login albo nowe hasło istniejącego. Tylko loginy.
+Po wysłaniu formularza logowania w aplikacji lub w Chrome system wyświetla okno z pytaniem o zapis w
+PassHolder (treść zależy od wersji Androida i języka) i PassHolder zapisuje nowy login albo nowe hasło istniejącego. Tylko loginy.
 
 - **Włączenie:** ⋮ → **Ustawienia** → **Pytaj o zapis haseł** (domyślnie włączone). Wymaga włączonej usługi
   autouzupełniania ([Autouzupełnianie](#android-1)). Chrome musi używać „innej usługi autouzupełniania”. Przy
@@ -441,8 +441,8 @@ systemowe) i PassHolder zapisuje nowy login albo nowe hasło istniejącego. Tylk
 - **Co się zapisuje:** w zaufanej przeglądarce (Chrome i pozostałe z listy) nazwa i adres to sama domena, jak w
   Chrome (`github.com`; `http` → `http://domena`). W innej aplikacji wpis dostaje nazwę aplikacji i jej pakiet na
   liście „Aplikacje”; domenę zgłoszoną przez obcą aplikację (WebView) PassHolder pomija. Po zapisie komunikat
-  „Zapisano w PassHolder” albo „Zaktualizowano hasło w PassHolder”; błąd: „Nie udało się zapisać w PassHolder”.
-  Zmiana czeka na synchronizację jak każda inna.
+  „Zapisano w PassHolder” albo „Zaktualizowano hasło w PassHolder”; po odblokowaniu błąd to komunikat „Nie udało się zapisać w PassHolder”; przy zapisie bez
+  odblokowania błąd trafia do systemu, a czy i jak go pokaże, zależy od niego. Zmiana czeka na synchronizację jak każda inna.
 - **Zablokowany sejf:** po zaakceptowaniu okna systemowego otwiera się ekran odblokowania (hasło główne albo
   odcisk palca, ten sam co przy podpowiedzi), po nim zapis i komunikat. Login i hasło czekają w pamięci procesu
   do 2 minut (nie w intencji, nie na dysku); starszych nie zapisuje nic. Wstecz i **Anuluj**: nic nie zapisane,
@@ -458,6 +458,9 @@ systemowe) i PassHolder zapisuje nowy login albo nowe hasło istniejącego. Tylk
   nie dostają prośby o zapis (usługa ich nie wypełnia); zmiana hasła z samymi polami „nowe hasło” też nie.
 - Tylko login i hasło; adres w aplikacji bez przeglądarki z listy zaufanych zapisuje się pod pakietem.
 - Okno systemowe pojawia się wedle uznania Androida i aplikacji (np. gdy ekran logowania nie znika).
+- Logowanie dwuetapowe (e-mail na wcześniejszym ekranie, hasło na następnym): wpis zapisuje się z pustym loginem.
+- Zapis w tle odświeża listę po powrocie do aplikacji, ale otwarty już formularz edycji nie jest przeładowywany:
+  edycja tego samego wpisu tuż po zapisie w tle może nadpisać nowe hasło.
 
 **Bezpieczeństwo:**
 

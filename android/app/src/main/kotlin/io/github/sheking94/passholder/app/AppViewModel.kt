@@ -159,6 +159,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         if (_state.value.screen == Screen.Restore) startRestoreSync()
         // Unlocked outside this screen (the autofill unlock screen) while the app showed the locked screen.
         if (_state.value.screen == Screen.Locked && !_state.value.busy && store.isUnlocked) showListUnlockedElsewhere()
+        // The autofill service may have saved a login in the background; an edit form already open is not reloaded.
+        else if (store.isUnlocked) viewModelScope.launch { refresh() }
     }
 
     /** Every 15 s and on return: the 5-minute idle stop of sync mode, then the 15-minute auto-lock. */

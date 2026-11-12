@@ -212,7 +212,7 @@ Usługa nie trzyma wpisów ani kluczy: każde żądanie czyta sejf od nowa. Decy
  stuknięcie pola ────────────► onFillRequest ─────────────────► respond: grupa login + pole hasła + „Pytaj o zapis”
                                                                  → SaveInfo; id pól, pakiet, domena → clientState
                                                                  brak wpisów → odpowiedź tylko z SaveInfo
- wysłanie, ekran znika ──────► „Zapisać w PassHolder?” ─ tak ─► onSaveRequest → readSaveData (id z clientState,
+ wysłanie, ekran znika ──────► okno systemu ─ tak ─► onSaveRequest → readSaveData (id z clientState,
                                                                  wszystkie fillContexts) → saveLogin
                                                                  otwarty: decideSave → upsertContent → toast
                                                                  zablokowany (API ≥ 28): pendingSave.put
