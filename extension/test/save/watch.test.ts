@@ -109,6 +109,7 @@ describe("startSaveWatch", () => {
     expect(host.style.zIndex).toBe("2147483647");
     expect(frames()).toHaveLength(1);
     expect(frames()[0]?.src).toBe("chrome-extension://abc/save-prompt.html?id=c2");
+    expect(frames()[0]?.style.height).toBe("340px");
     t.emit({ target: "save-watch", type: "save-hide" });
     expect(document.querySelector("[data-passholder-save]")).toBeNull();
   });

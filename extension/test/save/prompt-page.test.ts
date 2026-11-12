@@ -2,20 +2,20 @@
 import { describe, expect, it, vi } from "vitest";
 import { LOCKED } from "../../src/autofill/fill-tab.ts";
 import { startPromptPage } from "../../src/save/prompt-page.ts";
-import type { SaveAnswerMessage, SaveInfoMessage, SavePromptInfo } from "../../src/save/messages.ts";
+import type { SaveAnswerMessage, SaveInfoMessage, SavePreviewMessage, SavePromptInfo } from "../../src/save/messages.ts";
 
 const info = (over: Partial<SavePromptInfo> = {}): SavePromptInfo => ({
-  id: "c1", host: "shop.pl", username: "jan", password: "", decision: "create", locked: false, ...over,
+  id: "c1", host: "shop.pl", username: "jan", password: "s3cret", decision: "create", locked: false, ...over,
 });
 const flush = () => new Promise((r) => setTimeout(r, 0));
 const button = (el: Element, text: string) => [...el.querySelectorAll("button")].find((b) => b.textContent === text);
 
 function runtime(infos: Array<SavePromptInfo | undefined>, answers: unknown[] = []) {
-  const sent: Array<SaveInfoMessage | SaveAnswerMessage> = [];
+  const sent: Array<SaveInfoMessage | SaveAnswerMessage | SavePreviewMessage> = [];
   const openPopup = vi.fn(async () => undefined);
   return {
     sent, openPopup,
-    send: async (m: SaveInfoMessage | SaveAnswerMessage) => {
+    send: async (m: SaveInfoMessage | SaveAnswerMessage | SavePreviewMessage) => {
       sent.push(m);
       return m.type === "save-info" ? infos.shift() : answers.shift();
     },
@@ -28,7 +28,7 @@ describe("startPromptPage", () => {
     const rt = runtime([info()]);
     await startPromptPage(app, "c1", rt);
     expect(rt.sent).toEqual([{ target: "background", type: "save-info", candidateId: "c1" }]);
-    expect(app.textContent).toContain("Zapisać login w PassHolder?");
+    expect(app.textContent).toContain("Nowy login");
   });
 
   it("asks to be taken away when there is nothing to ask about", async () => {
@@ -66,5 +66,22 @@ describe("startPromptPage", () => {
     button(app, "Zapisz")!.click();
     await flush(); await flush(); await flush();
     expect(rt.sent.map((m) => (m.type === "save-answer" ? m.answer : m.type))).toEqual(["save-info", "save", "save-info", "later"]);
+  });
+
+  it("forwards previews and drafts to the background", async () => {
+    const app = document.createElement("div");
+    const rt = runtime([info()], [{ decision: "create" }, { ok: true }]);
+    await startPromptPage(app, "c1", rt);
+    const login = app.querySelector<HTMLInputElement>('input[aria-label="Login"]')!;
+    login.value = "ala";
+    login.dispatchEvent(new Event("input"));
+    await flush();
+    button(app, "Zapisz")!.click();
+    await flush();
+    expect(rt.sent.slice(1)).toEqual([
+      { target: "background", type: "save-preview", candidateId: "c1", username: "ala", password: "s3cret" },
+      { target: "background", type: "save-answer", candidateId: "c1", answer: "save",
+        draft: { name: "shop.pl", username: "ala", password: "s3cret" } },
+    ]);
   });
 });

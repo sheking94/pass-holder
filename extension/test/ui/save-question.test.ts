@@ -5,7 +5,7 @@ import { byText, click, settle, setupPopup, teardownPopup } from "./fake-chrome.
 
 afterEach(teardownPopup);
 
-const INFO: SavePromptInfo = { id: "c1", host: "sklep.example.com", username: "jan", password: "", decision: "create", locked: false };
+const INFO: SavePromptInfo = { id: "c1", host: "sklep.example.com", username: "jan", password: "s3cret", decision: "create", locked: false };
 const TAB = { id: 7, url: "https://sklep.example.com/login" };
 
 describe("pytanie o zapis po odblokowaniu", () => {
@@ -13,7 +13,7 @@ describe("pytanie o zapis po odblokowaniu", () => {
     const { app, messages } = await setupPopup([], { activeTab: TAB, saveInfo: INFO });
     const { showUnlocked } = await import("../../src/views/locked.ts");
     await showUnlocked();
-    await settle(() => app.textContent?.includes("Zapisać login w PassHolder?"));
+    await settle(() => app.textContent?.includes("Nowy login"));
     expect(messages).toContainEqual({ target: "background", type: "save-info", tabId: 7 });
     expect(app.textContent).toContain("sklep.example.com");
   });
@@ -22,10 +22,11 @@ describe("pytanie o zapis po odblokowaniu", () => {
     const { app, messages } = await setupPopup([], { activeTab: TAB, saveInfo: INFO });
     const { showUnlocked } = await import("../../src/views/locked.ts");
     await showUnlocked();
-    await settle(() => app.textContent?.includes("Zapisać login"));
+    await settle(() => app.textContent?.includes("Nowy login"));
     await click(byText(app, "Zapisz"));
     await settle(() => app.textContent?.includes("Zapisano login."));
-    expect(messages).toContainEqual({ target: "background", type: "save-answer", candidateId: "c1", answer: "save" });
+    expect(messages).toContainEqual({ target: "background", type: "save-answer", candidateId: "c1", answer: "save",
+      draft: { name: "sklep.example.com", username: "jan", password: "s3cret" } });
     expect(app.querySelector(".tabs")).toBeTruthy();
   });
 
@@ -33,7 +34,7 @@ describe("pytanie o zapis po odblokowaniu", () => {
     const { app } = await setupPopup([], { activeTab: TAB, saveInfo: INFO });
     const { showUnlocked } = await import("../../src/views/locked.ts");
     await showUnlocked();
-    await settle(() => app.textContent?.includes("Zapisać login"));
+    await settle(() => app.textContent?.includes("Nowy login"));
     await click(byText(app, "Nie teraz"));
     await settle(() => app.querySelector(".tabs"));
     expect(app.textContent).not.toContain("Zapisano");
@@ -44,7 +45,7 @@ describe("pytanie o zapis po odblokowaniu", () => {
     const { showUnlocked } = await import("../../src/views/locked.ts");
     await showUnlocked();
     await settle(() => app.querySelector(".tabs"));
-    expect(app.textContent).not.toContain("Zapisać login");
+    expect(app.textContent).not.toContain("Nowy login");
   });
 
   it("without an active tab it does not ask the service worker", async () => {
