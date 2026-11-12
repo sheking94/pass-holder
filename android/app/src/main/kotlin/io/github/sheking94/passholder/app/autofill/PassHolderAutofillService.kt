@@ -6,6 +6,8 @@ import android.content.Intent
 import android.content.IntentSender
 import android.os.Build
 import android.os.CancellationSignal
+import android.os.Handler
+import android.os.Looper
 import android.service.autofill.AutofillService
 import android.service.autofill.FillCallback
 import android.service.autofill.FillRequest
@@ -13,6 +15,7 @@ import android.service.autofill.FillResponse
 import android.service.autofill.SaveCallback
 import android.service.autofill.SaveRequest
 import android.util.Log
+import android.widget.Toast
 import android.view.inputmethod.InlineSuggestionsRequest
 import io.github.sheking94.passholder.app.PassHolderApp
 import io.github.sheking94.passholder.core.autofill.planDatasets
@@ -85,7 +88,24 @@ class PassHolderAutofillService : AutofillService() {
     private fun unlockSender(): IntentSender = unlockPendingIntent(this).intentSender
 
     override fun onSaveRequest(request: SaveRequest, callback: SaveCallback) {
-        // Saving the login is not implemented yet.
-        callback.onSuccess()
+        val app = application as PassHolderApp
+        thread(name = "PassHolder-autofill-save") {
+            try {
+                val data = readSaveData(request)
+                val outcome = data?.let { saveLogin(app, it) { pkg -> appLabelOf(packageManager, pkg) } } ?: SaveOutcome.NOTHING
+                // SaveOutcome.LOCKED: nothing is shown or saved for now (the locked-vault path is a later step).
+                saveToast(outcome)?.let { text ->
+                    Handler(Looper.getMainLooper()).post { Toast.makeText(applicationContext, text, Toast.LENGTH_SHORT).show() }
+                }
+                callback.onSuccess()
+            } catch (e: Exception) {
+                Log.w(PassHolderApp.TAG, "Saving the login failed", e)
+                try {
+                    callback.onFailure("Nie udało się zapisać w PassHolder")
+                } catch (e2: Exception) {
+                    Log.w(PassHolderApp.TAG, "Save failure rejected", e2)
+                }
+            }
+        }
     }
 }
