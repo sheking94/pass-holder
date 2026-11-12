@@ -53,7 +53,7 @@ katalogu pakietu.
 | Pakiet | Pliki | Testy | Uwagi |
 |---|---|---|---|
 | `core` | 28 | 489 | w tym `core/test/p2p/`, `core/test/autofill/` i `core/test/save/` |
-| `extension` | 29 | 291 | w tym widoki w happy-dom (`extension/test/ui/`), `extension/test/autofill/` i `extension/test/save/`; `background.ts` bez testów (logika w `fill-tab.ts` i `save/candidates.ts`) |
+| `extension` | 29 | 306 | w tym widoki w happy-dom (`extension/test/ui/`), `extension/test/autofill/` i `extension/test/save/`; `background.ts` bez testów (logika w `fill-tab.ts` i `save/candidates.ts`) |
 | `android/core` | 41 | 637 | 4 pomijane bez `PASSHOLDER_INTEROP_TEST=1`; w tym `autofill/` (wektory `core/test-vectors/autofill/`) i `save/` (wektory `core/test-vectors/save/`) |
 | `android/app` | 32 | 162 | Robolectric, zrzuty ekranów; w tym `autofill/`, ekrany autouzupełniania i zapis po odblokowaniu |
 
@@ -111,7 +111,7 @@ wartości losowe mają stałe klucze i nonce.
 | `autofill/fill-page.test.ts` | `fillPage` w happy-dom: logowanie, dwuetapowe, rejestracja (`new-password` pomijane), karta z jednym i dwoma polami ważności, `<select>`, adres; pola ukryte, wyłączone i tylko do odczytu, pusta wartość, obcy origin i inny origin niż sprawdzony |
 | `autofill/fill-tab.test.ts` | `fillTab` i `onFillCommand` z atrapą `TabApi`: zablokowany sejf, strona niepasująca, karta na http, brak pól, błąd wstrzyknięcia; skrót przy jednym, kilku i zerze loginów |
 | `ui/autofill-view.test.ts` | sekcja „Pasujące do tej strony”, „Wypełnij” przy karcie i kontakcie (nie w karcie PassHolder), komunikaty błędów, zamknięcie okienka po powodzeniu |
-| `save/*.test.ts`, `ui/save-*.test.ts` | pytanie o zapis: odczyt formularza (hasło, login, podpis), `startSaveWatch` (submit, Enter, klik, bez `<form>`, obcy origin), `SaveCandidates` (adres z `sender.url`, „Nigdy”, 2 min, zamknięcie karty, zły formularz, ten sam login zgłoszony kilka razy, `save-hide` po wygaśnięciu), logowanie SPA od skryptu do tła (`flow.test.ts`), `syncSaveWatch` (też wywołania naraz), `promptView`, strona panelu (`startPromptPage`: brak kandydata, blokada po załadowaniu), `save-watch.ts` po przeładowaniu wtyczki, widoki „Zapis haseł” i pytanie w okienku |
+| `save/*.test.ts`, `ui/save-*.test.ts` | pytanie o zapis: odczyt formularza (hasło, login, podpis; formularz kontaktowy z hasłem, samo „nowe hasło”), `startSaveWatch` (submit, Enter, klik, bez `<form>`, obcy origin), `SaveCandidates` (`save-preview`, `draft`, adres z `sender.url`, „Nigdy”, 2 min, zamknięcie karty, zły formularz, ten sam login zgłoszony kilka razy, `save-hide` po wygaśnięciu), logowanie SPA od skryptu do tła (`flow.test.ts`), `syncSaveWatch` (też wywołania naraz), `promptView` (edycja, podgląd decyzji, Zapisz nieaktywny), strona panelu (`startPromptPage`: brak kandydata, blokada po załadowaniu), `save-watch.ts` po przeładowaniu wtyczki, widoki „Zapis haseł” i pytanie w okienku |
 | `ui/widgets.test.ts` | `secretField` (zakrycie, „Pokaż”, kopia czyści schowek, puste pole się nie kopiuje), `listEditor`, przyciski kopiowania w wierszu |
 
 Testy wtyczki używają `extension/test/fake-phone.ts`: parowanie z prawdziwym CPace przed referencyjnym
@@ -123,9 +123,10 @@ atrapę `chrome.*` i sparowany sejf (`setupPopup`, `teardownPopup`, `click`, `se
 `node extension/scripts/screenshots.mjs <katalog>` (poza `npm test`; potrzebny Playwright z Chromium) pakuje
 `extension/test/screens/harness.ts` (te same atrapy co testy widoków, fałszywe wpisy każdego typu), otwiera
 stronę z `popup.css` w Chromium (360 px, skala 2) i zapisuje `01-loginy.png` … `05-dokumenty.png` (zakładki),
-`06`–`09` (formularze loginu, kontaktu, karty, dokumentu) i `10-pole-ukryte-pokazane.png`. Kończy się błędem,
+`06`–`09` (formularze loginu, kontaktu, karty, dokumentu), `10-pole-ukryte-pokazane.png` i panel zapisu
+(`14`–`16`, `18-podglad-zapisu.png`, w rozmiarze ramki 360 × 340). Kończy się błędem,
 gdy strona ma poziomy pasek przewijania, zakładki nie mieszczą się w jednym rzędzie albo ich podpis jest
-ucięty, albo pole wrażliwe jest odkryte (poza zrzutem 10). Zrzutów nie ma w repozytorium.
+ucięty, pole wrażliwe jest odkryte (poza zrzutem 10) albo treść panelu wyższa niż 340 px. Zrzutów nie ma w repozytorium.
 Playwright z Chromium nie jest zależnością repozytorium: w kontenerze w chmurze jest zainstalowany, gdzie indziej `npx playwright install chromium`.
 
 ### `android/core` i `android/app`
@@ -291,10 +292,13 @@ PassHolderze (np. pole „Hasło główne”) usługa nic nie podpowiada; formul
 lista → **Zapis** → „Pytaj o zapis haseł”: Chrome pyta o dostęp do wszystkich stron (odmowa: przełącznik zostaje
 wyłączony); zezwól, przeładuj kartę testową. Po zablokowaniu uprawnienia w `chrome://extensions` przełącznik jest
 wyłączony. (2) **Nowy login:** strona z formularzem logowania (własny HTML albo prawdziwa strona) → zaloguj się
-nowym loginem: panel „Zapisać login w PassHolder?” z hostem i loginem → **Zapisz**: „Zapisano”, panel znika po 2 s,
-wpis ma adres samej domeny. Ponowne logowanie tym samym hasłem: bez panelu. (3) **Zmiana hasła:** ten sam login z
+nowym loginem: panel „Nowy login” z polami Nazwa, Login, Hasło (Pokaż, Kopiuj) → zmień nazwę i hasło → **Zapisz**:
+„Zapisano”, panel znika po 2 s, wpis ma Twoją nazwę, poprawione hasło i adres samej domeny (puste Nazwa: domena).
+Zmiana loginu na już zapisany z tym hasłem: „Ten login jest już zapisany”, **Zapisz** nieaktywny; puste hasło:
+**Zapisz** nieaktywny. Ponowne logowanie tym samym hasłem: bez panelu. (3) **Zmiana hasła:** ten sam login z
 innym hasłem → „Zaktualizować hasło…?” → **Aktualizuj**: zmieniło się tylko hasło. Rejestracja z polem „nowe
-hasło” pyta o to hasło. (4) **Bez przeładowania i przekierowania:** logowanie przez fetch/SPA (panel od razu) i
+hasło” pyta o to hasło; samo pole „nowe hasło” (zmiana hasła bez loginu) i formularz
+kontaktowy z hasłem też pytają. (4) **Bez przeładowania i przekierowania:** logowanie przez fetch/SPA (panel od razu) i
 przez przekierowanie na inną stronę tej samej domeny (panel po załadowaniu, do 2 min). Złe hasło z przeładowaniem
 tego samego formularza: bez panelu. Panel zostawiony bez odpowiedzi znika sam po 2 min. (5) **Odmowy:** **Nie teraz** i × zamykają panel; po przeładowaniu go nie ma.
 **Nigdy dla tej strony**: host na liście w **Zapis**, kolejne logowanie bez pytania, **Usuń** przywraca pytanie.
