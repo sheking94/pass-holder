@@ -149,3 +149,36 @@
 - [ ] **Step 1:** T21 w `TESTY.md`: logowanie w aplikacji (nowy login), Chrome z „inną usługą autouzupełniania” (nowy + zmiana hasła), zablokowany sejf (odcisk palca / hasło), przełącznik wyłączony → brak okna.
 - [ ] **Step 2:** Pełne `./gradlew :core:test :app:testDebugUnitTest -ProbolectricRepoUrl=...`; liczby do `TESTY.md`.
 - [ ] **Step 3: Commit** `docs: save prompt on Android (FUNKCJE, ARCHITEKTURA, TESTY T21, INSTALACJA)`
+
+---
+
+## Zmiana 2026-11-12: każdy formularz z hasłem i podgląd przed zapisem (spec 5.4)
+
+Prośba właściciela po otwarciu PR #39. Zastępuje rozstrzygnięcie „rejestracja bez `SaveInfo`” i decyzję P5 (od API 28).
+
+### Task 6: `SaveInfo` dla każdego ekranu z polem hasła
+
+**Files:** Modify `app/autofill/SaveState.kt` (`saveSpecFor` bez warunku grupy LOGIN), `PassHolderAutofillService.kt` (`respond`, `buildFillResponse`), `ResponseBuilder.kt` (odpowiedź z samym `SaveInfo`). Test: `FillLogicTest`.
+
+**Interfaces:** `fun saveOnlyResponse(save: SaveSpec): FillResponse` w `ResponseBuilder`; `respond` przy `planRequest == null` i `saveSpecFor != null` zwraca ją (sejf zablokowany też – nie ma czego wypełniać, więc bez „Odblokuj”).
+
+- [ ] Testy: `contact form with password carries save info` (pola imię/telefon/e-mail/hasło – zbiory kontaktów + `SaveInfo`), `new password only screen gets save info only` (odblokowany i zablokowany), `registration without username has no optional ids`, wyjątki (przełącznik, brak sejfu, PassHolder) nadal bez `SaveInfo`.
+- [ ] Implementacja, testy PASS, commit `feat(android): save prompt for every screen with a password field`.
+
+### Task 7: Podgląd z edycją przed zapisem
+
+**Files:** Create `app/ui/SaveReviewScreen.kt`, `app/autofill/SaveReview.kt` (stan i logika podglądu); Modify `AutofillSaveActivity.kt`, `AutofillAuthActivity.kt` (pominięcie odblokowania przy otwartym sejfie; relock przy wyjściu z podglądu zamiast zaraz po odblokowaniu), `PassHolderAutofillService.kt` (`onSaveRequest`: API ≥ 28 zawsze `pendingSave.put` + `onSuccess(IntentSender)`; API < 28 jak dotąd), `SaveLogin.kt`. Test: `SaveReviewTest` (czysta logika), `AutofillSaveReview*Test` (Robolectric, jedna klasa na test), zrzut `63-podglad-zapisu.png`.
+
+**Interfaces:**
+- `data class SaveDraft(val name: String, val username: String, val password: String)`.
+- `class SaveReview(data: SaveData, logins: List<PhoneEntry>, appLabel: String)` z `val target: SaveTarget?`, `fun decision(draft: SaveDraft): SaveDecision`, `fun initialDraft(): SaveDraft` (nazwa jak w `newLogin`), `fun title(draft): String` („Nowy login” / „Zmiana hasła: <nazwa>”).
+- `fun saveReviewed(app: PassHolderApp, review: SaveReview, draft: SaveDraft): SaveOutcome` – decyzja liczona ponownie z `draft`; `Create` → `newLogin` z nazwą z `draft`; `Update` → `withPassword`.
+- Ekran: pola Nazwa (tylko przy `Create`), Login, Hasło (`PasswordField` z „Pokaż”), wiersz tylko do odczytu z adresem albo aplikacją; „Zapisz” (nieaktywny przy pustym haśle), „Anuluj”. Tekst Toastów jak w Global Constraints, plus „Ten login jest już zapisany w PassHolder”.
+
+- [ ] Testy `SaveReviewTest`: nowy login (tytuł, nazwa „github.com”), zmiana hasła (tytuł z nazwą wpisu), edycja loginu na inny → decyzja `Create`, edycja na istniejący login z tym samym hasłem → `None`, pusty login dozwolony, `saveReviewed` zapisuje nazwę z podglądu.
+- [ ] Testy aktywności: sejf odblokowany → podgląd bez odblokowania, „Zapisz” zapisuje edytowane dane, sejf zostaje otwarty; sejf zablokowany → odblokowanie → podgląd → zapis → blokada D1; „Anuluj” na podglądzie → nic nie zapisane, kandydat usunięty, blokada jeśli to ten ekran odblokował; `none` przy wejściu → Toast i zamknięcie.
+- [ ] Implementacja, testy PASS, commit `feat(android): review and edit the login before saving`.
+
+### Task 8: Dokumentacja
+
+- [ ] FUNKCJE (Android: zasięg, podgląd, usunięcie ograniczenia o rejestracji), ARCHITEKTURA (nowe pliki, przepływ), TESTY (T21: rejestracja, kontakt, edycja w podglądzie; liczby), INSTALACJA. Pełny `:app:testDebugUnitTest`. Commit `docs: save review screen on Android`.

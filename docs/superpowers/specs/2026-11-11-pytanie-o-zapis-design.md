@@ -152,6 +152,23 @@ synchronizację jak każda inna.
 Ekran „Ustawienia”: przełącznik „Pytaj o zapis haseł” (domyślnie włączony, w `SharedPreferences`), pod
 wierszem „Autouzupełnianie”. Działa tylko przy włączonej usłudze.
 
+### 5.4 Zmiana 2026-11-12 (prośba właściciela): każdy formularz z hasłem i podgląd przed zapisem
+
+- **Zasięg `SaveInfo`:** każda odpowiedź dla ekranu z polem `password` albo `newPassword`, niezależnie od grupy
+  (także formularze rozpoznane jako kontakt i ekrany z samym „nowym hasłem”). Ekran bez pól do wypełnienia, ale
+  z polem hasła, dostaje odpowiedź z samym `SaveInfo`. Login może być pusty – użytkownik uzupełni go w podglądzie.
+  Wyjątki bez zmian (przełącznik wyłączony, brak sejfu, sama aplikacja PassHolder).
+- **Podgląd:** od Androida 9 (API 28) każde „Zapisz” w oknie systemu otwiera `AutofillSaveActivity`: najpierw
+  odblokowanie (tylko gdy sejf jest zablokowany), potem ekran „Zapisz w PassHolder” z polami do edycji: Nazwa
+  (tylko nowy wpis), Login, Hasło (ukryte, z „Pokaż”), adres strony albo aplikacja (tylko do odczytu). Nagłówek
+  pokazuje decyzję liczoną na bieżąco z wpisanych danych: „Nowy login” albo „Zmiana hasła: <nazwa wpisu>”.
+  Przyciski „Zapisz” (nieaktywny przy pustym haśle) i „Anuluj”. Decyzja `none` przy wejściu → Toast „Ten login
+  jest już zapisany w PassHolder” i zamknięcie.
+- Kandydat z `PendingSave` jest pobierany przy wejściu na podgląd i dalej żyje tylko w pamięci ekranu
+  (ViewModel, bez zapisu stanu instancji). Blokada po wyjściu z podglądu jak D1/R2.
+- Android 8.0–8.1: bez podglądu (system nie pozwala otworzyć ekranu); odblokowany sejf zapisuje od razu jak
+  w 5.2, zablokowany – komunikat jak P1.
+
 ## 6. Błędy i bezpieczeństwo
 
 - Chrome: strona nie podszyje się pod inną domenę (adres z `sender.url`, nie z wiadomości); ramki z innym
