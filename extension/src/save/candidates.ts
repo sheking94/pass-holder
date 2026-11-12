@@ -3,7 +3,8 @@ import { LOCKED } from "../autofill/fill-tab.ts";
 import { STORAGE_KEYS, type KeyValueStore } from "../storage.ts";
 import type { VaultStore } from "../vault-store.ts";
 import type {
-  SaveAnswerMessage, SaveCandidateMessage, SaveInfoMessage, SavePendingMessage, SavePromptInfo, ToWatchMessage,
+  SaveAnswerMessage, SaveCandidateMessage, SaveInfoMessage, SavePendingMessage, SavePreviewMessage, SavePreviewResponse, SavePromptInfo,
+  ToWatchMessage,
 } from "./messages.ts";
 
 export const SAVE_TTL_MS = 120_000;
@@ -42,6 +43,8 @@ type Candidates = Record<string, Candidate>;
 type Answer = { ok: true } | { ok: false; error: string };
 
 const GONE = "Pytanie o zapis wygasło";
+const EMPTY_PASSWORD = "Podaj hasło";
+const ALREADY_SAVED = "Ten login jest już zapisany w PassHolder";
 const NOT_ALLOWED = "Niedozwolony nadawca";
 
 export async function neverList(local: KeyValueStore): Promise<string[]> {
@@ -129,13 +132,25 @@ export class SaveCandidates {
     return found && (await this.forTab(found.tabId));
   }
 
-  /** What to do with the candidate; null when the vault is locked. */
-  private async decide(store: VaultStore, c: Candidate, touch: boolean): Promise<save.SaveDecision | null> {
+  /** Saved logins matching the candidate's address; null when the vault is locked. */
+  private async matching(store: VaultStore, c: Candidate, touch: boolean): Promise<Array<{ id: string; entryName: string; username: string; password: string }> | null> {
     if (!(await store.resume({ touch }))) return null;
-    const logins = autofill
+    return autofill
       .matchLogins(c.url, store.listEntries("login"), (e) => ({ name: e.data.name, urls: e.data.type === "login" ? e.data.fields.urls : [] }))
-      .flatMap((e) => (e.data.type === "login" ? [{ id: e.id, username: e.data.fields.username, password: e.data.fields.password }] : []));
-    return save.decideSave(c.username, c.password, logins);
+      .flatMap((e) => (e.data.type === "login"
+        ? [{ id: e.id, entryName: e.data.name, username: e.data.fields.username, password: e.data.fields.password }]
+        : []));
+  }
+
+  /** What to do with the given login and password; null when the vault is locked. */
+  private async decideFor(store: VaultStore, c: Candidate, username: string, password: string, touch: boolean): Promise<save.SaveDecision | null> {
+    const logins = await this.matching(store, c, touch);
+    return logins && save.decideSave(username, password, logins);
+  }
+
+  /** What to do with the candidate; null when the vault is locked. */
+  private decide(store: VaultStore, c: Candidate, touch: boolean): Promise<save.SaveDecision | null> {
+    return this.decideFor(store, c, c.username, c.password, touch);
   }
 
   private fromScript(s: Sender): { tabId: number; frame: URL } | undefined {
@@ -209,8 +224,31 @@ export class SaveCandidates {
       return undefined;
     }
     const base = { id: c.id, host: save.saveName(c.url), username: c.username };
-    if (decision === null) return { ...base, decision: null, locked: true };
-    return { ...base, decision: decision.kind, locked: false };
+    if (decision === null) return { ...base, password: "", decision: null, locked: true };
+    const info = { ...base, password: c.password, decision: decision.kind, locked: false };
+    if (decision.kind !== "update") return info;
+    return { ...info, entryName: (await this.matching(this.deps.store(), c, false))?.find((l) => l.id === decision.id)?.entryName };
+  }
+
+  preview(m: SavePreviewMessage, s: Sender): Promise<SavePreviewResponse> {
+    return this.serial(() => this.doPreview(m, s));
+  }
+
+  private async doPreview(m: SavePreviewMessage, s: Sender): Promise<SavePreviewResponse> {
+    if (!this.fromExtensionPage(s)) return undefined;
+    const c = await this.byId(m.candidateId);
+    if (!c) return undefined;
+    const logins = await this.matching(this.deps.store(), c, false);
+    if (!logins) return undefined;
+    // Without a password only the login counts (like the phone's review): update the first entry with it, else create.
+    const wanted = m.username.trim().toLowerCase();
+    const sameLogin = logins.find((l) => l.username.trim().toLowerCase() === wanted);
+    const decision =
+      m.password !== "" ? save.decideSave(m.username, m.password, logins)
+      : sameLogin ? { kind: "update" as const, id: sameLogin.id }
+      : { kind: "create" as const };
+    if (decision.kind !== "update") return { decision: decision.kind };
+    return { decision: "update", entryName: logins.find((l) => l.id === decision.id)?.entryName };
   }
 
   answer(m: SaveAnswerMessage, s: Sender): Promise<Answer> {
@@ -243,8 +281,10 @@ export class SaveCandidates {
       return { ok: true };
     }
 
+    const draft = m.draft ?? { name: "", username: c.username, password: c.password };
+    if (draft.password === "") return { ok: false, error: EMPTY_PASSWORD };
     const store = this.deps.store();
-    const decision = await this.decide(store, c, true);
+    const decision = await this.decideFor(store, c, draft.username, draft.password, true);
     if (decision === null) return { ok: false, error: LOCKED };
     // Remove first: whatever happens next, the candidate cannot be saved twice.
     await this.remove(c.tabId);
@@ -254,9 +294,10 @@ export class SaveCandidates {
         await this.deps.sendToTab(c.tabId, { target: "save-watch", type: "save-hide" });
         return { ok: false, error: GONE };
       }
-      await store.putEntry(decision.id, save.withPassword(entry.data, c.password));
+      await store.putEntry(decision.id, save.withPassword(entry.data, draft.password));
     } else if (decision.kind === "create") {
-      await store.putEntry(this.deps.newId(), save.newLogin(c.url, c.username, c.password));
+      const name = draft.name.trim() || save.saveName(c.url);
+      await store.putEntry(this.deps.newId(), { ...save.newLogin(c.url, draft.username, draft.password), name });
     }
     if (decision.kind !== "none") {
       // The panel shows "Zapisano" by itself; the tab hides it a moment later.
@@ -265,6 +306,8 @@ export class SaveCandidates {
       });
     } else {
       await this.deps.sendToTab(c.tabId, { target: "save-watch", type: "save-hide" });
+      // A draft can name a login saved meanwhile: tell the panel instead of pretending it saved.
+      if (m.draft) return { ok: false, error: ALREADY_SAVED };
     }
     return { ok: true };
   }

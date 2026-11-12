@@ -3,7 +3,7 @@ import { CLEAR_AFTER_MINUTES, CLEAR_CLIPBOARD_ALARM, type ClipboardMessage } fro
 import { chromeTabApi, fillTab, onFillCommand, type FillMessage, UNSUPPORTED_PAGE } from "./autofill/fill-tab.ts";
 import { chromeSaveWatchApi, syncSaveWatch } from "./save/registration.ts";
 import { SaveCandidates } from "./save/candidates.ts";
-import type { SaveAnswerMessage, SaveCandidateMessage, SaveInfoMessage, SavePendingMessage } from "./save/messages.ts";
+import type { SaveAnswerMessage, SaveCandidateMessage, SaveInfoMessage, SavePendingMessage, SavePreviewMessage } from "./save/messages.ts";
 import { chromeStore, STORAGE_KEYS } from "./storage.ts";
 import { VaultStore } from "./vault-store.ts";
 
@@ -51,7 +51,7 @@ const saveCandidates = new SaveCandidates({
   later: (ms, fn) => void setTimeout(fn, ms),
 });
 
-type SaveMessage = SaveCandidateMessage | SavePendingMessage | SaveInfoMessage | SaveAnswerMessage;
+type SaveMessage = SaveCandidateMessage | SavePendingMessage | SaveInfoMessage | SaveAnswerMessage | SavePreviewMessage;
 chrome.runtime.onMessage.addListener((message: { target?: string } & Partial<SaveMessage>, sender, sendResponse) => {
   if (message.target !== "background") return;
   const run = <T>(work: Promise<T>, onError: T) => {
@@ -69,6 +69,8 @@ chrome.runtime.onMessage.addListener((message: { target?: string } & Partial<Sav
       return run(saveCandidates.onPending(m, sender), {});
     case "save-info":
       return run(saveCandidates.info(m, sender), undefined);
+    case "save-preview":
+      return run(saveCandidates.preview(m, sender), undefined);
     case "save-answer":
       return run(saveCandidates.answer(m, sender), { ok: false, error: UNSUPPORTED_PAGE });
   }

@@ -102,24 +102,49 @@ describe("SaveCandidates", () => {
     expect(await s.sc.onPending({ target: "background", type: "save-pending", emptyLoginForms: [] }, scriptSender())).toEqual({});
   }, 30_000);
 
-  it("info has no password and reports create or update", async () => {
+  it("info gives the password and the entry name to extension pages", async () => {
     const s = await setup();
     await s.sc.onCandidate(candidate({ username: "anna" }), scriptSender(7));
     await s.sc.onCandidate(candidate(), scriptSender(8));
     const c7 = (await s.stored())["7"]!;
     const create = await s.sc.info({ target: "background", type: "save-info", candidateId: c7.id }, extSender);
-    expect(create).toEqual({ id: c7.id, host: "shop.pl", username: "anna", decision: "create", locked: false });
+    expect(create).toEqual({ id: c7.id, host: "shop.pl", username: "anna", password: "new", decision: "create", locked: false });
     const update = await s.sc.info({ target: "background", type: "save-info", tabId: 8 }, extSender);
-    expect(update).toMatchObject({ host: "shop.pl", username: "jan", decision: "update", locked: false });
-    expect(JSON.stringify([create, update])).not.toContain("new");
+    expect(update).toMatchObject({ host: "shop.pl", username: "jan", password: "new", decision: "update", entryName: "Shop", locked: false });
   }, 30_000);
+
+  it("preview decides from the typed login and password", async () => {
+    const s = await setup();
+    await s.sc.onCandidate(candidate(), scriptSender());
+    const id = (await s.stored())["7"]!.id;
+    const preview = (username: string, password: string) =>
+      s.sc.preview({ target: "background", type: "save-preview", candidateId: id, username, password }, extSender);
+    expect(await preview("jan", "new")).toEqual({ decision: "update", entryName: "Shop" });
+    expect(await preview("anna", "x")).toEqual({ decision: "create" });
+    expect(await preview("jan", "old")).toEqual({ decision: "none" });
+    expect(await preview("jan", "")).toEqual({ decision: "update", entryName: "Shop" });
+    expect(await preview("anna", "")).toEqual({ decision: "create" });
+  }, 30_000);
+
+  it("preview only from extension pages and with a live candidate", async () => {
+    const s = await setup();
+    await s.sc.onCandidate(candidate(), scriptSender());
+    const id = (await s.stored())["7"]!.id;
+    const msg = (candidateId: string) => ({ target: "background", type: "save-preview", candidateId, username: "jan", password: "x" }) as const;
+    expect(await s.sc.preview(msg(id), scriptSender())).toBeUndefined();
+    expect(await s.sc.preview(msg("nope"), extSender)).toBeUndefined();
+    const locked = await setup({ locked: true });
+    await locked.sc.onCandidate(candidate(), scriptSender());
+    const lid = (await locked.stored())["7"]!.id;
+    expect(await locked.sc.preview(msg(lid), extSender)).toBeUndefined();
+  }, 60_000);
 
   it("info of a locked vault has no decision", async () => {
     const s = await setup({ locked: true });
     await s.sc.onCandidate(candidate(), scriptSender());
     const id = (await s.stored())["7"]!.id;
     expect(await s.sc.info({ target: "background", type: "save-info", candidateId: id }, extSender)).toEqual({
-      id, host: "shop.pl", username: "jan", decision: null, locked: true,
+      id, host: "shop.pl", username: "jan", password: "", decision: null, locked: true,
     });
   }, 30_000);
 
@@ -181,6 +206,67 @@ describe("SaveCandidates", () => {
     expect(await s.sc.answer({ target: "background", type: "save-answer", candidateId: id, answer: "save" }, extSender)).toEqual({ ok: true });
     expect((await s.fresh()).pendingCount()).toBe(before);
     expect(await s.stored()).toEqual({});
+  }, 30_000);
+
+  it("answer save uses the edited draft for a new login", async () => {
+    const s = await setup();
+    await s.sc.onCandidate(candidate(), scriptSender());
+    const id = (await s.stored())["7"]!.id;
+    const save = (name: string) =>
+      s.sc.answer({ target: "background", type: "save-answer", candidateId: id, answer: "save", draft: { name, username: "anna", password: "p2" } }, extSender);
+    expect(await save("  ")).toEqual({ ok: true });
+    const created = (await s.fresh()).listEntries("login").find((e) => e.data.type === "login" && e.data.fields.username === "anna")!;
+    expect(created.data).toMatchObject({ name: "shop.pl", fields: { username: "anna", password: "p2", urls: ["shop.pl"] } });
+
+    const s2 = await setup();
+    await s2.sc.onCandidate(candidate(), scriptSender());
+    const id2 = (await s2.stored())["7"]!.id;
+    await s2.sc.answer({ target: "background", type: "save-answer", candidateId: id2, answer: "save", draft: { name: "Mój sklep", username: "anna", password: "p2" } }, extSender);
+    const named = (await s2.fresh()).listEntries("login").find((e) => e.data.type === "login" && e.data.fields.username === "anna")!;
+    expect(named.data).toMatchObject({ name: "Mój sklep" });
+  }, 60_000);
+
+  it("answer save with a draft for an existing login updates only its password", async () => {
+    const s = await setup();
+    await s.sc.onCandidate(candidate({ username: "anna" }), scriptSender());
+    const id = (await s.stored())["7"]!.id;
+    const draft = { name: "Inna nazwa", username: "jan", password: "p2" };
+    expect(await s.sc.answer({ target: "background", type: "save-answer", candidateId: id, answer: "save", draft }, extSender)).toEqual({ ok: true });
+    expect((await s.fresh()).getEntry("s1")!.data).toMatchObject({ name: "Shop", fields: { username: "jan", password: "p2" } });
+    expect((await s.fresh()).listEntries("login")).toHaveLength(2);
+  }, 30_000);
+
+  it("answer save of a draft already saved fails and hides the panel", async () => {
+    const s = await setup();
+    await s.sc.onCandidate(candidate(), scriptSender());
+    const id = (await s.stored())["7"]!.id;
+    s.sent.length = 0;
+    const draft = { name: "Shop", username: "jan", password: "old" };
+    expect(await s.sc.answer({ target: "background", type: "save-answer", candidateId: id, answer: "save", draft }, extSender))
+      .toEqual({ ok: false, error: "Ten login jest już zapisany w PassHolder" });
+    expect(await s.stored()).toEqual({});
+    expect(s.sent).toEqual([{ tabId: 7, m: { target: "save-watch", type: "save-hide" } }]);
+  }, 30_000);
+
+  it("answer save with an empty draft password keeps the candidate", async () => {
+    const s = await setup();
+    await s.sc.onCandidate(candidate(), scriptSender());
+    const id = (await s.stored())["7"]!.id;
+    const draft = { name: "Shop", username: "jan", password: "" };
+    expect(await s.sc.answer({ target: "background", type: "save-answer", candidateId: id, answer: "save", draft }, extSender))
+      .toEqual({ ok: false, error: "Podaj hasło" });
+    expect(Object.keys(await s.stored())).toEqual(["7"]);
+  }, 30_000);
+
+  it("hide and show messages carry no password", async () => {
+    const s = await setup();
+    await s.sc.onCandidate(candidate({ username: "anna" }), scriptSender());
+    const id = (await s.stored())["7"]!.id;
+    await s.sc.info({ target: "background", type: "save-info", candidateId: id }, extSender);
+    await s.sc.answer({ target: "background", type: "save-answer", candidateId: id, answer: "save" }, extSender);
+    s.timers[0]!.fn();
+    expect(s.sent.length).toBeGreaterThan(0);
+    expect(JSON.stringify(s.sent)).not.toContain("new");
   }, 30_000);
 
   it("answer later removes the candidate and hides at once", async () => {

@@ -80,12 +80,12 @@ async function setup() {
     show: (type: p2p.EntryType) => listView("", false, type),
     /** The form of the first sample entry of this type. */
     openForm: (type: p2p.EntryType) => editView(type, firstOf(type)),
-    /** The save panel of save-prompt.html (360 × 180 on a page) for a made-up candidate. */
+    /** The save panel of save-prompt.html (360 × 340 on a page) for a made-up candidate. */
     openPrompt: (decision: "create" | "update" | null, locked = false) => {
       document.body.classList.add("panel");
-      const info = { id: "c1", host: "sklep.example.com", username: "jan.testowy@example.com", decision, locked };
+      const info = { id: "c1", host: "sklep.example.com", username: "jan.testowy@example.com", password: locked ? "" : "S3cretHaslo!", decision, entryName: decision === "update" ? "Sklep" : undefined, locked };
       document.getElementById("app")!.replaceChildren(
-        promptView(info, { answer: async () => ({ ok: true }), unlock: () => undefined, done: () => undefined }),
+        promptView(info, { answer: async () => ({ ok: true }), preview: async () => undefined, unlock: () => undefined, done: () => undefined }),
       );
     },
     /** „Zapis haseł” with two hosts on the never list. */

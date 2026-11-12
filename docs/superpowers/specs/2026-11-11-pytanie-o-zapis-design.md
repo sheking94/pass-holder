@@ -122,6 +122,36 @@ synchronizację jak każda inna.
   PIN) pokazuje najpierw pytanie o zapis kandydata z bieżącej karty, potem listę.
 - Po zapisie panel pokazuje „Zapisano” przez 2 s i znika (skrypt usuwa ramkę).
 
+### 4.5 Zmiana 2026-11-12 (prośba właściciela): podgląd z edycją w panelu
+
+Odpowiednik 5.4 dla Chrome. Wariant wybrany przez właściciela: pola do edycji od razu w panelu (odrzucone: przycisk
+„Edytuj” rozwijający pola; edycja tylko w okienku wtyczki – dodatkowy krok, okienko znika po kliknięciu obok).
+
+- **Zasięg bez zmian:** wtyczka już pyta przy każdym wysłanym formularzu z wypełnionym polem hasła, także
+  w formularzu z danymi kontaktowymi i z samym „nowym hasłem” (`readLogin` nie patrzy na typ formularza).
+  Testy to utrwalają.
+- **Panel (sejf odblokowany):** nagłówek liczony na bieżąco z wpisanych danych: „Nowy login”, „Zmiana hasła:
+  <nazwa wpisu>” albo „Ten login jest już zapisany”. Pola: **Nazwa** (tylko przy nowym wpisie; domyślnie
+  `saveName`), **Login**, **Hasło** (ukryte, „Pokaż”), wiersz tylko do odczytu „Strona: <host>”. Przyciski:
+  **Zapisz** (nieaktywny przy pustym haśle i przy „już zapisany”), **Nie teraz** (×: to samo), **Nigdy dla tej
+  strony**. Ramka ma stałą wysokość ok. 340 px (moja decyzja: bez przesyłania wysokości przez stronę).
+- **Panel (sejf zablokowany):** jak dziś (host, login, „Odblokuj i zapisz”, bez hasła). Po odblokowaniu okienko
+  pokazuje ten sam podgląd z edycją (`save-question`).
+- **Wiadomości:** `save-info` (tylko strony wtyczki) zwraca też `password` i `entryName`. Nowa `save-preview`
+  `{candidateId, username, password}` → `{decision, entryName?}` – tło liczy `decideSave` z wpisanych danych
+  (panel nie dostaje innych haseł z sejfu); wywoływana po zmianie Loginu lub Hasła. `save-answer` z `"save"`
+  niesie `draft {name, username, password}`; tło liczy decyzję ponownie z `draft` (zmiana w sejfie w międzyczasie
+  nie jest nadpisana): `create` → `newLogin` z nazwą z `draft` (pusta → domyślna), `update` → tylko hasło,
+  `none` → „Ten login jest już zapisany w PassHolder”, panel znika.
+- Edycje żyją tylko w pamięci panelu; przeładowanie strony (panel wraca w ciągu 2 min) zaczyna od danych
+  z formularza. Kandydat w `storage.session` się nie zmienia.
+- **Bezpieczeństwo (zmienia pkt 6):** hasło trafia do panelu – strony wtyczki w `<iframe>` w zamkniętym Shadow
+  DOM, inny origin, więc strona go nie odczyta. Nadal nie trafia do skryptu na stronie ani do `storage.local`.
+- **Testy:** formularz kontaktowy z hasłem i samo „nowe hasło” (`read-form`), podgląd w panelu (nagłówek na
+  bieżąco, Nazwa tylko przy nowym, Zapisz nieaktywny, zapis edytowanych danych), tło (`save-preview`, zapis z
+  `draft`, decyzja liczona ponownie, wiadomości tylko ze stron wtyczki), okienko po odblokowaniu. Zrzut
+  `/mnt/project-files/wtyczka-v3/14-panel-zapisz.png` (podgląd zapisu).
+
 ## 5. Android (krok C2)
 
 ### 5.1 `SaveInfo`
@@ -172,7 +202,7 @@ wierszem „Autouzupełnianie”. Działa tylko przy włączonej usłudze.
 ## 6. Błędy i bezpieczeństwo
 
 - Chrome: strona nie podszyje się pod inną domenę (adres z `sender.url`, nie z wiadomości); ramki z innym
-  origin są pomijane; hasło nie trafia do panelu ani do `chrome.storage.local`; kandydat żyje tylko w pamięci
+  origin są pomijane; hasło nie trafia do panelu (od 4.5: trafia, panel jest stroną wtyczki) ani do `chrome.storage.local`; kandydat żyje tylko w pamięci
   sesji (do 2 minut).
 - Skrypt na stronach widzi pola formularzy (jak każdy menedżer haseł z zapisem) – dlatego uprawnienie jest
   opcjonalne i domyślnie wyłączone.

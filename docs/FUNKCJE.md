@@ -384,19 +384,23 @@ istniejącego. Tylko loginy.
   Przełącznik to samo uprawnienie `https://*/*` (bez osobnej flagi): odebranie go w `chrome://extensions` też
   wyłącza pytanie. Wyłączenie zabiera uprawnienie; `http://*/*` zostaje, gdy któryś adres telefonu jest `http`.
 - **Kiedy pyta:** po wysłaniu formularza z widocznym, niepustym polem hasła (submit, Enter w polu hasła, klik
-  przycisku w tym samym formularzu albo kontenerze). Hasło: pole „nowe hasło” (rejestracja, zmiana hasła), inaczej
+  przycisku w tym samym formularzu albo kontenerze), także formularza z danymi kontaktowymi i hasłem oraz z
+  samym polem „nowe hasło”. Hasło: pole „nowe hasło” (rejestracja, zmiana hasła), inaczej
   hasło; login: pole loginu, inaczej e-mail przed hasłem. Pyta, gdy nie ma wpisu z tym loginem (**Zapisz**) albo
-  jest z innym hasłem (**Aktualizuj**, zmienia tylko hasło); to samo hasło: cisza. Login porównywany bez
+  jest z innym hasłem (nagłówek „Zmiana hasła: <wpis>”, **Zapisz** zmienia tylko hasło); to samo hasło: cisza. Login porównywany bez
   wielkości liter i spacji na brzegach. Decyzja liczona jest od nowa przy każdym pytaniu i odpowiedzi.
 - **Co się zapisuje:** nazwa i adres to sama domena (`github.com`, bez `www.` i ścieżki); strona `http` →
   `http://domena`, port niestandardowy zostaje.
-- **Panel:** w prawym górnym rogu strony, z hostem i loginem: **Zapisz** / **Aktualizuj**, **Nie teraz**
-  (×: to samo), **Nigdy dla tej strony**. Po zapisie „Zapisano” i panel znika po 2 s. Kandydat (login i hasło)
+- **Panel (podgląd z edycją):** w prawym górnym rogu strony; nagłówek na żywo: „Nowy login”, „Zmiana hasła:
+  <wpis>” albo „Ten login jest już zapisany”. Pola **Nazwa** (tylko nowy login; puste = domena), **Login**,
+  **Hasło** (Pokaż/Ukryj, bez Kopiuj), „Strona: <host>”. Przyciski **Zapisz** (nieaktywny bez hasła i gdy login już jest),
+  **Nie teraz** (×: to samo), **Nigdy dla tej strony**. Zmiana loginu albo hasła przelicza decyzję (nowy /
+  zmiana hasła / już jest); zmiana hasła zmienia tylko hasło. Po zapisie „Zapisano” i panel znika po 2 s. Kandydat (login i hasło)
   żyje w pamięci sesji Chrome do 2 minut albo do decyzji, jeden na kartę, i panel wraca po przeładowaniu
   strony (przekierowania po logowaniu).
 - **„Nigdy”:** host trafia na listę w **Zapis** → „Nigdy dla tych stron” (**Usuń** przywraca pytanie).
-- **Zablokowany sejf:** panel ma **Odblokuj i zapisz** → otwiera okienko; po odblokowaniu (hasło albo PIN)
-  okienko najpierw pyta o zapis z bieżącej karty, potem pokazuje listę. Czytanie sejfu na potrzeby pytania nie
+- **Zablokowany sejf:** panel nie ma pól ani hasła, tylko host, login i **Odblokuj i zapisz** → otwiera
+  okienko; po odblokowaniu (hasło albo PIN) okienko najpierw pokazuje ten sam podgląd z bieżącej karty, potem pokazuje listę. Czytanie sejfu na potrzeby pytania nie
   przedłuża automatycznej blokady.
 - **Złe hasło:** gdy po wysłaniu strona (ten sam origin) znów pokazuje ten sam pusty formularz logowania,
   panel się nie pokazuje; kandydat czeka na następne wysłanie.
@@ -417,12 +421,14 @@ istniejącego. Tylko loginy.
   przyjmuje wiadomości tylko od własnych skryptów (`sender.id`); pytania i odpowiedzi tylko ze stron wtyczki.
   Strona nie podszyje się pod inną domenę.
 - Panel to strona wtyczki w `<iframe>` w zamkniętym Shadow DOM (inny origin: strona nie czyta jego treści) i
-  dostaje tylko `{id, host, username, decision, locked}`, bez hasła. Hasło nie trafia do `chrome.storage.local`.
+  dostaje `{id, host, username, password, decision, entryName, locked}`: hasło kandydata, żeby dało się je
+  poprawić (przy zablokowanym sejfie bez hasła). Strona go nie czyta; hasło nie trafia do skryptu strony ani do
+  `chrome.storage.local`. Haseł innych wpisów sejfu panel nie dostaje.
 - Panel ukrywa service worker: od razu po „Nie teraz” i „Nigdy”, 2 s po zapisie.
 
 Kod: `core/src/save/` (`url.ts`: `saveUrl`, `saveName`; `decide.ts`: `decideSave`, `newLogin`, `withPassword`;
 wektory `core/test-vectors/save/`), `extension/src/save/` (`read-form.ts`, `watch.ts`, `candidates.ts`,
-`registration.ts`, `messages.ts`, `prompt-view.ts`), `save-watch.ts`, `save-prompt.ts`, `views/save-settings.ts`,
+`registration.ts`, `messages.ts`, `prompt-view.ts`: podgląd z edycją), `save-watch.ts`, `save-prompt.ts`, `views/save-settings.ts`,
 `views/save-question.ts`, `background.ts`.
 
 ### Android

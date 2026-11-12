@@ -1,6 +1,6 @@
 // Screenshots of the popup with sample entries of every type: node extension/scripts/screenshots.mjs <dir>
 // Bundles test/screens/harness.ts, opens it with popup.css in Chromium (Playwright, 360 px wide) and
-// checks every shot: no horizontal scroll, the tabs in one row, secrets masked (except the revealed one).
+// checks every shot (save panel shots at 360 × 340, content must fit): no horizontal scroll, the tabs in one row, secrets masked (except the revealed one).
 import { build } from "esbuild";
 import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -49,6 +49,9 @@ const SHOTS = [
   ["16-panel-zablokowany.png", (s) => s.openPrompt(null, true)],
   ["17-ustawienia-zapisu.png", (s) => s.openSaveSettings()],
 ];
+// The save panel is an iframe of exactly 360 × 340: shot at that size, its content must fit without scrolling.
+const PANEL_SHOTS = new Set(["14-panel-zapisz.png", "15-panel-aktualizuj.png", "16-panel-zablokowany.png"]);
+const PANEL_HEIGHT = 340;
 
 mkdirSync(resolve(outDir), { recursive: true });
 const browser = await chromium.launch();
@@ -61,6 +64,8 @@ try {
   await page.waitForFunction(() => window.__screens, null, { timeout: 60_000 });
   await page.evaluate(() => window.__screens);
   for (const [file, action] of SHOTS) {
+    const panel = PANEL_SHOTS.has(file);
+    await page.setViewportSize({ width: 360, height: panel ? PANEL_HEIGHT : 640 });
     await page.evaluate(`window.__screens.then((s) => (${action.toString()})(s))`);
     // The focused search or name field would show a caret blinking in and out of the shots.
     await page.evaluate(() => document.activeElement?.blur());
@@ -74,6 +79,10 @@ try {
         return toggle && row.querySelector("input")?.type !== "password";
       }).length,
     }));
+    if (panel) {
+      const height = await page.evaluate(() => document.documentElement.scrollHeight);
+      if (height > PANEL_HEIGHT) problems.push(`${file}: panel content ${height} px high, the iframe is ${PANEL_HEIGHT} px`);
+    }
     if (check.overflow > 0) problems.push(`${file}: horizontal scroll of ${check.overflow} px`);
     if (check.clippedTabs.length) problems.push(`${file}: tab labels cut off: ${check.clippedTabs.join(", ")}`);
     if (check.tabRows > 1) problems.push(`${file}: tabs in ${check.tabRows} rows`);

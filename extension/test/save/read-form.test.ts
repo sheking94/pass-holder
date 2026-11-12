@@ -31,6 +31,17 @@ describe("readLogin", () => {
     expect(readLogin(form())?.password).toBe("new1");
   });
 
+  it("a contact form with a password is read", () => {
+    html(`<form><input name="first_name" value="Jan"><input name="last_name" value="Kowalski"><input type="tel" name="phone" value="123456789">
+      <input type="email" name="email" value="jan@example.com"><input type="password" value="s3"></form>`);
+    expect(readLogin(form())).toMatchObject({ username: "jan@example.com", password: "s3" });
+  });
+
+  it("a form with only a new-password field is read", () => {
+    html(`<form><input type="password" autocomplete="new-password" value="s3"></form>`);
+    expect(readLogin(form())).toMatchObject({ username: "", password: "s3" });
+  });
+
   it("returns undefined for an empty password", () => {
     html(`<form><input name="username" value="jan"><input type="password"></form>`);
     expect(readLogin(form())).toBeUndefined();

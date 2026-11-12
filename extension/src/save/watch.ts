@@ -67,7 +67,7 @@ export function startSaveWatch(doc: Document, runtime: WatchRuntime): void {
     host.style.cssText = "position: fixed; top: 16px; right: 16px; z-index: 2147483647;";
     frame = doc.createElement("iframe");
     frame.src = shown = src;
-    frame.style.cssText = "width: 360px; height: 180px; border: 0; display: block;";
+    frame.style.cssText = "width: 360px; height: 340px; border: 0; display: block;";
     host.attachShadow({ mode: "closed" }).append(frame);
     (doc.body ?? doc.documentElement).append(host);
   };
