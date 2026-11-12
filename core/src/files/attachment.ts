@@ -48,6 +48,11 @@ export function isAttachmentName(name: string): boolean {
   return name.length >= 1 && name.length <= MAX_NAME_LENGTH && !NAME_FORBIDDEN.test(name);
 }
 
+/** MIME rule shared by the parser and encryptFile: at most 127 UTF-16 units, no control characters. */
+export function isAttachmentMime(mime: string): boolean {
+  return mime.length <= MAX_MIME_LENGTH && !CONTROL.test(mime);
+}
+
 function fail(): never {
   throw new Error(INVALID_ENTRY);
 }
@@ -70,7 +75,7 @@ function parseAttachment(value: unknown): Attachment {
   const { id, name, mime, size, chunks, sha256, key } = o;
   if (typeof id !== "string" || !UUID_V4.test(id)) fail();
   if (typeof name !== "string" || !isAttachmentName(name)) fail();
-  if (typeof mime !== "string" || mime.length > MAX_MIME_LENGTH || CONTROL.test(mime)) fail();
+  if (typeof mime !== "string" || !isAttachmentMime(mime)) fail();
   if (typeof size !== "number" || !Number.isInteger(size) || size < 1 || size > MAX_FILE_SIZE) fail();
   if (chunks !== chunkCount(size)) fail();
   if (typeof sha256 !== "string" || !SHA256_HEX.test(sha256)) fail();

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toBase64 } from "../../src/encoding.ts";
+import { fromBase64, toBase64 } from "../../src/encoding.ts";
 import {
   FILE_CHUNK_SIZE,
   MAX_FILE_SIZE,
@@ -60,15 +60,33 @@ describe("encryptFile / decryptFile", () => {
     expect(a.attachment.key).toBe(toBase64(fixed.key));
   });
 
+  it("normalizes an invalid MIME type to an empty string", async () => {
+    expect((await encryptFile(sample(3), { name: "a", mime: "a".repeat(128) })).attachment.mime).toBe("");
+    expect((await encryptFile(sample(3), { name: "a", mime: "text/\u0007x" })).attachment.mime).toBe("");
+    expect((await encryptFile(sample(3), { name: "a", mime: "a".repeat(127) })).attachment.mime).toBe("a".repeat(127));
+  });
+
+  it("rejects a fixed nonce list of the wrong length", async () => {
+    const fixed = { id: "123e4567-e89b-42d3-a456-426614174000", key: new Uint8Array(32), nonces: [new Uint8Array(12)] };
+    await expect(encryptFile(sample(FILE_CHUNK_SIZE + 1), meta, fixed)).rejects.toThrow("Nonce count");
+  });
+
   it("detects tampering", async () => {
     const { attachment, blobs } = await encryptFile(sample(FILE_CHUNK_SIZE * 2 + 5), meta);
-    const other = await encryptFile(sample(FILE_CHUNK_SIZE * 2 + 5), meta);
+    // Same key, different id: only the AAD differs.
+    const other = await encryptFile(sample(FILE_CHUNK_SIZE * 2 + 5), meta, {
+      id: "123e4567-e89b-42d3-a456-426614174000",
+      key: fromBase64(attachment.key),
+      nonces: [1, 2, 3].map((n) => new Uint8Array(12).fill(n)),
+    });
     const bad = "File is corrupted";
     await expect(decryptFile(attachment, [blobs[1]!, blobs[0]!, blobs[2]!])).rejects.toThrow(bad);
     await expect(decryptFile(attachment, blobs.slice(0, 2))).rejects.toThrow(bad);
     await expect(decryptFile(attachment, [blobs[0]!, blobs[1]!, other.blobs[2]!])).rejects.toThrow(bad);
     await expect(decryptFile({ ...attachment, sha256: "0".repeat(64) }, blobs)).rejects.toThrow(bad);
     await expect(decryptFile({ ...attachment, size: attachment.size - 1 }, blobs)).rejects.toThrow(bad);
+    // Same key, id and index, but a different chunk count n in the AAD.
+    await expect(decryptChunk({ ...attachment, chunks: 4 }, 0, blobs[0]!)).rejects.toThrow(bad);
     await expect(decryptChunk(attachment, 3, blobs[0]!)).rejects.toThrow(bad);
   });
 });
