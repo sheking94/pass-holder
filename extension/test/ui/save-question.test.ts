@@ -5,7 +5,7 @@ import { byText, click, settle, setupPopup, teardownPopup } from "./fake-chrome.
 
 afterEach(teardownPopup);
 
-const INFO: SavePromptInfo = { id: "c1", host: "sklep.example.com", username: "jan", decision: "create", locked: false };
+const INFO: SavePromptInfo = { id: "c1", host: "sklep.example.com", username: "jan", password: "", decision: "create", locked: false };
 const TAB = { id: 7, url: "https://sklep.example.com/login" };
 
 describe("pytanie o zapis po odblokowaniu", () => {

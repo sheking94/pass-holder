@@ -5,7 +5,7 @@ import { startPromptPage } from "../../src/save/prompt-page.ts";
 import type { SaveAnswerMessage, SaveInfoMessage, SavePromptInfo } from "../../src/save/messages.ts";
 
 const info = (over: Partial<SavePromptInfo> = {}): SavePromptInfo => ({
-  id: "c1", host: "shop.pl", username: "jan", decision: "create", locked: false, ...over,
+  id: "c1", host: "shop.pl", username: "jan", password: "", decision: "create", locked: false, ...over,
 });
 const flush = () => new Promise((r) => setTimeout(r, 0));
 const button = (el: Element, text: string) => [...el.querySelectorAll("button")].find((b) => b.textContent === text);

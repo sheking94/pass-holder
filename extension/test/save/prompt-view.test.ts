@@ -4,7 +4,7 @@ import { promptView } from "../../src/save/prompt-view.ts";
 import type { SavePromptInfo } from "../../src/save/messages.ts";
 
 const info = (over: Partial<SavePromptInfo> = {}): SavePromptInfo => ({
-  id: "c1", host: "sklep.example.com", username: "jan", decision: "create", locked: false, ...over,
+  id: "c1", host: "sklep.example.com", username: "jan", password: "", decision: "create", locked: false, ...over,
 });
 
 function setup(over: Partial<SavePromptInfo> = {}, answer = vi.fn(async () => ({ ok: true }) as { ok: boolean; error?: string })) {

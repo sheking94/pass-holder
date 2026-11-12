@@ -83,7 +83,7 @@ async function setup() {
     /** The save panel of save-prompt.html (360 × 180 on a page) for a made-up candidate. */
     openPrompt: (decision: "create" | "update" | null, locked = false) => {
       document.body.classList.add("panel");
-      const info = { id: "c1", host: "sklep.example.com", username: "jan.testowy@example.com", decision, locked };
+      const info = { id: "c1", host: "sklep.example.com", username: "jan.testowy@example.com", password: "", decision, locked };
       document.getElementById("app")!.replaceChildren(
         promptView(info, { answer: async () => ({ ok: true }), unlock: () => undefined, done: () => undefined }),
       );
