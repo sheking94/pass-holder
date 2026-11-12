@@ -12,9 +12,22 @@ export const PHONE_UPDATE_REQUIRED = "Phone app needs an update";
 
 export type FetchJson = (url: string, body: unknown) => Promise<{ status: number; body: unknown }>;
 
+/** A non-200 answer of the P2P host; `message` is the same text callP2pHost always threw. */
+export class P2pHostError extends Error {
+  readonly status: number;
+  /** The host's error text, or "no error message". */
+  readonly detail: string;
+
+  constructor(status: number, detail: string) {
+    super(`P2P host returned ${status}: ${detail}`);
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
 /**
  * POSTs to the P2P host and returns the JSON object of a 200 answer. A non-200 status throws `messages[status]`
- * when given, otherwise an error with the host's error text.
+ * when given, otherwise a P2pHostError with the host's error text.
  */
 export async function callP2pHost(
   post: FetchJson,
@@ -27,8 +40,7 @@ export async function callP2pHost(
   if (res.status !== 200) {
     const message = messages[res.status];
     if (message !== undefined) throw new Error(message);
-    const detail = b && typeof b.error === "string" ? b.error : "no error message";
-    throw new Error(`P2P host returned ${res.status}: ${detail}`);
+    throw new P2pHostError(res.status, b && typeof b.error === "string" ? b.error : "no error message");
   }
   if (typeof b !== "object" || b === null) throw new Error("P2P host returned a malformed response");
   return b;
@@ -39,31 +51,39 @@ const str = (v: unknown): string => {
   return v;
 };
 
-/** Noise-over-HTTP client: every call of the returned transport is one handshake plus one sync request. */
-export function noiseTransport(o: {
+export interface NoiseClientOptions {
   baseUrl: string;
   deviceId: string;
   staticKey: KeyPair;
   peerPublicKey: Uint8Array;
   post: FetchJson;
-}): P2pTransport {
+}
+
+/**
+ * One Noise handshake plus one encrypted request to `path`; returns the decrypted 200 payload. A non-200 answer
+ * on `path` throws a P2pHostError; a 404 on the handshake throws PHONE_UPDATE_REQUIRED.
+ */
+export async function noiseRequest(o: NoiseClientOptions, path: string, request: unknown): Promise<unknown> {
   const base = o.baseUrl.replace(/\/+$/, "");
-  return async (request) => {
-    const noise = NoiseKK.initiator({ s: o.staticKey, rs: o.peerPublicKey, prologue: P2P_PROLOGUE });
-    const first = await noise.writeMessage(new Uint8Array());
-    const hs = await callP2pHost(
-      o.post,
-      `${base}${P2P_HANDSHAKE_PATH}`,
-      { deviceId: o.deviceId, message: toBase64(first) },
-      { 404: PHONE_UPDATE_REQUIRED },
-    );
-    await noise.readMessage(fromBase64(str(hs.message)));
-    const { send, recv } = noise.split();
-    const frames = await encryptFrames(send, request);
-    const res = await callP2pHost(o.post, `${base}${P2P_SYNC_PATH}`, { session: str(hs.session), frames });
-    const incoming = res.frames;
-    if (!Array.isArray(incoming) || incoming.length < 1 || incoming.length > MAX_FRAMES || !incoming.every((f) => typeof f === "string"))
-      throw new Error("P2P host returned a malformed response");
-    return (await decryptFrames(recv, incoming)) as P2pSyncResponse;
-  };
+  const noise = NoiseKK.initiator({ s: o.staticKey, rs: o.peerPublicKey, prologue: P2P_PROLOGUE });
+  const first = await noise.writeMessage(new Uint8Array());
+  const hs = await callP2pHost(
+    o.post,
+    `${base}${P2P_HANDSHAKE_PATH}`,
+    { deviceId: o.deviceId, message: toBase64(first) },
+    { 404: PHONE_UPDATE_REQUIRED },
+  );
+  await noise.readMessage(fromBase64(str(hs.message)));
+  const { send, recv } = noise.split();
+  const frames = await encryptFrames(send, request);
+  const res = await callP2pHost(o.post, `${base}${path}`, { session: str(hs.session), frames });
+  const incoming = res.frames;
+  if (!Array.isArray(incoming) || incoming.length < 1 || incoming.length > MAX_FRAMES || !incoming.every((f) => typeof f === "string"))
+    throw new Error("P2P host returned a malformed response");
+  return decryptFrames(recv, incoming);
+}
+
+/** Noise-over-HTTP client: every call of the returned transport is one handshake plus one sync request. */
+export function noiseTransport(o: NoiseClientOptions): P2pTransport {
+  return async (request) => (await noiseRequest(o, P2P_SYNC_PATH, request)) as P2pSyncResponse;
 }
