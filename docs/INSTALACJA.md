@@ -119,6 +119,10 @@ Opcjonalnie: telefon podpowiada loginy, karty i adresy w innych aplikacjach i pr
    **Autouzupełnianie przez inną usługę** i uruchom Chrome ponownie. Bez tego Chrome podpowiada tylko z
    własnego menedżera haseł.
 
+4. Zapisywanie nowych haseł: w ⋮ → **Ustawienia** przełącznik **Pytaj o zapis haseł** (domyślnie włączony). Po
+   zalogowaniu w aplikacji lub w Chrome system pyta „Zapisać w PassHolder?”
+   ([FUNKCJE.md](FUNKCJE.md#android-2)).
+
 Opis: [FUNKCJE.md](FUNKCJE.md#android-1). Wyłączenie: ten sam systemowy wybór, usługa „Brak”.
 
 ## 3. Wtyczka do Chrome
@@ -265,7 +269,7 @@ Nowa wersja instaluje się na starej, sejf zostaje (pod warunkiem tego samego `d
 - **Tylko adresy IPv4.** Telefon odrzuca nazwy (MagicDNS z Tailscale) i IPv6 jako ochronę przed DNS rebinding.
 - **Tailscale w prawdziwym Chrome nie był jeszcze sprawdzony** (test T4 w [TESTY.md](TESTY.md#testy-ręczne)).
 - **Zmiany na tym samym wpisie bez synchronizacji** w obu miejscach: wygrywa późniejsza, druga przepada.
-- **Pytanie o zapis** wymaga dostępu do wszystkich stron; karty otwarte przed włączeniem trzeba przeładować, logowanie w obcej ramce nie jest zgłaszane (więcej w [FUNKCJE.md](FUNKCJE.md#pytanie-o-zapis)).
+- **Pytanie o zapis** wymaga dostępu do wszystkich stron; karty otwarte przed włączeniem trzeba przeładować, logowanie w obcej ramce nie jest zgłaszane (więcej w [FUNKCJE.md](FUNKCJE.md#pytanie-o-zapis)). Na telefonie formularze rejestracji (kontakt albo samo „nowe hasło”) nie pytają o zapis.
 - **Wtyczka w trybie dewelopera:** Chrome może przy starcie przypominać o takich wtyczkach.
 - **Klucz debug:** aktualizacje wymagają tego samego `debug.keystore` (2.2).
 
