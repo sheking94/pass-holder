@@ -39,6 +39,12 @@
             android:exported="false"
             android:excludeFromRecents="true"
             android:theme="@style/Theme.PassHolder" />
+        <!-- Review screen for every save (Android 9+), unlocking first when locked; started only by the system. -->
+        <activity
+            android:name=".autofill.AutofillSaveActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.PassHolder" />
         <service
             android:name=".autofill.PassHolderAutofillService"
             android:exported="true"

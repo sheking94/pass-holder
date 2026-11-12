@@ -11,8 +11,10 @@ import androidx.autofill.inline.v1.InlineSuggestionUi
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.github.sheking94.passholder.app.PassHolderApp
+import io.github.sheking94.passholder.core.autofill.AppRequest
 import io.github.sheking94.passholder.core.autofill.DatasetSpec
 import io.github.sheking94.passholder.core.autofill.NodeValue
+import io.github.sheking94.passholder.core.save.SaveFields
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -39,17 +41,23 @@ class ResponseBuilderTest {
 
     @Test
     fun `no specs give no response`() {
-        assertNull(ResponseBuilder.datasets(app, emptyList(), null))
+        assertNull(ResponseBuilder.datasets(app, emptyList(), null, null))
+    }
+
+    @Test
+    fun `no specs with save spec still give a response`() {
+        val save = SaveSpec(SaveFields(autofillId(2), null), AppRequest("com.x", null, null))
+        assertNotNull(ResponseBuilder.datasets(app, emptyList(), null, save))
     }
 
     @Test
     fun `two specs give a response`() {
-        assertNotNull(ResponseBuilder.datasets(app, listOf(spec(0), spec(1)), null))
+        assertNotNull(ResponseBuilder.datasets(app, listOf(spec(0), spec(1)), null, null))
     }
 
     @Test
     fun `locked vault gives an unlock prompt`() {
-        assertNotNull(ResponseBuilder.locked(app, listOf(autofillId(1), autofillId(2)), auth(), null))
+        assertNotNull(ResponseBuilder.locked(app, listOf(autofillId(1), autofillId(2)), auth(), null, null))
     }
 }
 
@@ -70,9 +78,9 @@ class ResponseBuilderInlineTest {
         val inline = request(styled = true)
         for (i in 0..2) assertNotNull("index $i", ResponseBuilder.inlinePresentation(app, inline, i, "Wpis", "jan"))
         assertNull(ResponseBuilder.inlinePresentation(app, inline, 3, "Wpis", "jan"))
-        assertNotNull(ResponseBuilder.datasets(app, (0 until 5).map(::spec), inline))
+        assertNotNull(ResponseBuilder.datasets(app, (0 until 5).map(::spec), inline, null))
         val auth = PendingIntent.getActivity(app, 0, Intent(app, AutofillUnlockActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
-        assertNotNull(ResponseBuilder.locked(app, listOf(autofillId(1)), auth.intentSender, inline))
+        assertNotNull(ResponseBuilder.locked(app, listOf(autofillId(1)), auth.intentSender, inline, null))
     }
 
     @Test
@@ -86,6 +94,6 @@ class ResponseBuilderInlineTest {
     fun `spec without a style gives no inline suggestion`() {
         val inline = request(styled = false)
         assertNull(ResponseBuilder.inlinePresentation(app, inline, 0, "Wpis", "jan"))
-        assertNotNull(ResponseBuilder.datasets(app, listOf(spec(0)), inline))
+        assertNotNull(ResponseBuilder.datasets(app, listOf(spec(0)), inline, null))
     }
 }

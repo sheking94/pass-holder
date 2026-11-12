@@ -48,14 +48,14 @@ Testy ekranów (`:app:testDebugUnitTest`, Robolectric + Roborazzi, ok. 5 min) za
 Pokrycie TypeScript (opcjonalnie): `npm i --no-save @vitest/coverage-v8 && npx vitest run --coverage` w
 katalogu pakietu.
 
-## Liczby (2026-11-11)
+## Liczby (2026-11-12)
 
 | Pakiet | Pliki | Testy | Uwagi |
 |---|---|---|---|
 | `core` | 28 | 489 | w tym `core/test/p2p/`, `core/test/autofill/` i `core/test/save/` |
 | `extension` | 29 | 291 | w tym widoki w happy-dom (`extension/test/ui/`), `extension/test/autofill/` i `extension/test/save/`; `background.ts` bez testów (logika w `fill-tab.ts` i `save/candidates.ts`) |
-| `android/core` | 38 | 626 | 4 pomijane bez `PASSHOLDER_INTEROP_TEST=1`; w tym `autofill/` (wektory `core/test-vectors/autofill/`) |
-| `android/app` | 26 | 102 | Robolectric, zrzuty ekranów; w tym `autofill/` i ekrany autouzupełniania |
+| `android/core` | 41 | 637 | 4 pomijane bez `PASSHOLDER_INTEROP_TEST=1`; w tym `autofill/` (wektory `core/test-vectors/autofill/`) i `save/` (wektory `core/test-vectors/save/`) |
+| `android/app` | 32 | 162 | Robolectric, zrzuty ekranów; w tym `autofill/`, ekrany autouzupełniania i zapis po odblokowaniu |
 
 ## Co testują pliki
 
@@ -151,11 +151,14 @@ Playwright z Chromium nie jest zależnością repozytorium: w kontenerze w chmur
 | `autofill/PlannerTest` | grupa formularza, samo pole e-mail → loginy, rejestracja → nic, pomijanie wpisów bez wartości, karta tylko na `https`, indeks opcji listy, limit 10, opisy |
 | `autofill/NodeDescriptorTest`, `ResponseBuilderTest`, `FillLogicTest`, `ManifestTest` (app) | opis pola z `inputType`/HTML/podpowiedzi, `FillResponse` i pasek klawiatury (≤ `maxSuggestionCount`, styl bez wersji UI → bez paska), odpowiedzi usługi (własny pakiet, brak sejfu, zablokowany, tylko pasujące loginy), rejestracja usługi z `BIND_AUTOFILL_SERVICE` |
 | `AutofillUnlockTest`, `AutofillUnlockScreenTest`, `AutofillSettingTest` (app) | odblokowanie z podpowiedzi (złe i dobre hasło, odcisk, Wstecz, Anuluj, brak pasujących, brak żądania, ponowna blokada, powrót do aplikacji → lista), wiersz „Autouzupełnianie” w Ustawieniach (stan, „Włącz” → systemowy wybór, odświeżenie po powrocie) |
+| `save/SaveVectorsTest`, `SaveFieldsTest`, `SaveTargetTest` | port pytania o zapis: te same wektory `{url,decide}.json` co TypeScript (adres, nazwa, decyzja; `www.` → brak adresu), wybór pól hasła i loginu (nowe hasło przed hasłem, e-mail przed hasłem), cel zapisu (domena tylko od zaufanej przeglądarki, inaczej pakiet), `newLogin`, `withPassword` |
+| `autofill/SaveStateTest`, `SaveLoginTest`, `PendingSaveTest` (app) | `clientState` (id pól i aplikacja; tylko poniżej API 33, `SaveInfo` testuje `FillLogicTest`), zapis nowego loginu pod domeną i pod pakietem, obca aplikacja z domeną banku, zmiana hasła, to samo hasło → nic, zablokowany → `LOCKED`, komunikaty; kandydat tylko w pamięci, 2 minuty, jeden naraz |
+| `AutofillSaveTest` (app) | ekran zapisu: odblokowanie tylko przy zablokowanym sejfie, podgląd i edycja (nazwa, login, hasło), zmiana hasła, „Ten login jest już zapisany”, sejf zablokowany w trakcie podglądu (ten sam szkic), wyjście w tło (D1; z opóźnieniem: powrót kasuje termin, zamknięcie go nie przesuwa), Anuluj, Wstecz, kandydat starszy niż 2 minuty z komunikatem, brak kandydata, stary termin 60 s; `SaveReviewTest` (logika: `SaveReview`, `saveReviewed`, ponowny odczyt sejfu), `SaveReviewScreenTest` (zrzut podglądu); `FillLogicTest` (`SaveInfo` dla każdego ekranu z polem hasła: kontakt, samo „nowe hasło”, odpowiedź z samym `SaveInfo` bez pasujących wpisów, brak `SaveInfo` przy wyłączonym przełączniku), `SettingsScreenTests` (przełącznik „Pytaj o zapis haseł”), `BackgroundSaveRefreshTest` (powrót do aplikacji odświeża listę po zapisie w tle) |
 
 Zrzuty ekranów telefonu (`android/app/screenshots/`, przepisywane przy każdym przebiegu testów): 30 Ustawienia,
 31-35 zakładki (Loginy, Karty, Kontakty, Notatki, Dokumenty), 36 formularz loginu, 37 pole ukryte pokazane,
 38-41 formularze notatki, kontaktu, karty i dokumentu, 42 wybór aplikacji, 50 Import i eksport (`50-import-eksport.png`), 51 odblokowanie z autouzupełniania,
-52 wiersz „Autouzupełnianie” w Ustawieniach. Zmieniły się też 03-08, 12-14, 18, 19 i 28.
+52 wiersz „Autouzupełnianie” w Ustawieniach, 62 przełącznik „Pytaj o zapis haseł” (`62-ustawienia-zapis.png`), 63 podgląd zapisu (`63-podglad-zapisu.png`). Zmieniły się też 03-08, 12-14, 18, 19 i 28.
 
 ## Znaleziony błąd: walidacja KDF
 
@@ -302,6 +305,30 @@ Chrome cofa uprawnienie, formularze nie pytają (połączenie z telefonem po `ht
 **PIN i karta.** PIN `4821` → Zablokuj → zły PIN „Pozostało prób: 4”, dobry otwiera; restart Chrome prosi o
 hasło główne. „Otwórz w karcie ↗” dwa razy: drugi raz przełącza na istniejącą kartę.
 
+**T21. Pytanie o zapis na telefonie.** Aplikacja zainstalowana, usługa autouzupełniania włączona, w Chrome „inna usługa
+autouzupełniania”, sejf z kilkoma wpisami, w Ustawieniach „Pytaj o zapis haseł” włączone. (1) **Aplikacja, nowy
+login:** aplikacja z ekranem logowania (własna testowa albo prawdziwa) → zaloguj się nowym loginem:
+okno systemu z pytaniem o zapis w PassHolder → **Zapisz**: „Zapisano w PassHolder”, na liście loginów nowy wpis z nazwą aplikacji i jej
+pakietem. (2) **Chrome, nowy login:** strona logowania (własny HTML albo prawdziwa) → nowy login: okno systemu →
+zapis; wpis ma nazwę i adres samej domeny. Ponowne logowanie tym samym hasłem: bez okna. (3) **Chrome, zmiana
+hasła:** ten sam login z innym hasłem → okno → „Zaktualizowano hasło w PassHolder”, zmieniło się tylko hasło
+(login w innej wielkości liter: aktualizacja, nie duplikat). (4) **Zablokowany sejf:** zablokuj sejf, zaloguj się
+nowym loginem: okno systemu → ekran odblokowania; hasło główne (potem to samo z odciskiem palca: okno odcisku
+otwiera się samo) → „Zapisano w PassHolder”, sejf znów zablokowany (po 60 s albo od razu, zależnie od „Blokuj
+dopiero po 60 s”). Wstecz i **Anuluj** przed odblokowaniem: nic nie zapisane, sejf zablokowany, kolejne logowanie pyta od nowa; na
+podglądzie: nic nie zapisane, sejf blokuje się jak po zapisie (po 60 s albo od razu); po 2
+minutach bez odblokowania nic się nie zapisuje. (5) **Przełącznik wyłączony:** „Pytaj o zapis haseł” wyłączony,
+ponowne wypełnienie ekranu logowania (stuknięcie w pole) → logowanie nie pokazuje okna. (6) **Brak pasujących
+wpisów:** logowanie na stronie bez wpisu w sejfie też pyta o zapis. (7) **Rejestracja i kontakt:** formularz rejestracji (e-mail i „nowe hasło”)
+oraz formularz kontaktowy z polem hasła też pokazują okno systemu; po „Zapisz” otwiera się podgląd. (8) **Podgląd i edycja:**
+w podglądzie zmień Nazwę, Login i Hasło (Pokaż): nagłówek zmienia się na bieżąco („Nowy login” / „Zmiana hasła: …”),
+„Zapisz” jest nieaktywny przy pustym haśle, we wpisie ląduje to, co wpisano; istniejący login z tym samym hasłem →
+„Ten login jest już zapisany w PassHolder”. **Blokada w trakcie podglądu:** zablokuj sejf (albo poczekaj), „Zapisz” →
+odblokowanie → ten sam podgląd z wpisanymi danymi; wyjście z aplikacji z podglądu blokuje sejf. (9) **Logowanie dwuetapowe:** e-mail na jednym ekranie, hasło
+na następnym: wpis ma pusty login, który można uzupełnić w podglądzie (od API 28). (10) **Zapis w tle:** po zapisie przy otwartej
+aplikacji (np. po powrocie do niej) lista pokazuje nowy wpis albo nowe hasło. Zapisz wynik, model telefonu, wersję
+Androida i Chrome.
+
 ## Czego brakuje
 
 - Testów `offscreen.ts` i `clipboard.ts` (API Chrome). Widoki są testowane w happy-dom, w prawdziwym Chromium
@@ -311,4 +338,6 @@ hasło główne. „Otwórz w karcie ↗” dwa razy: drugi raz przełącza na i
 - Pytania o zapis w prawdziwym Chrome: zgoda na dostęp do stron, `openPopup`, rejestracja skryptu, panel w prawdziwych stronach (T20 ręcznie).
 - Autouzupełniania z prawdziwym systemem: `readRequest` (prawdziwy `AssistStructure`), wpisanie wartości przez
   system, Chrome z „inną usługą”, pasek klawiatury Gboard (T19 ręcznie).
+- Pytania o zapis z prawdziwym systemem: okno systemu z pytaniem o zapis w PassHolder, `onSaveRequest` z prawdziwym `SaveRequest`,
+  Chrome z „inną usługą” (T21 ręcznie).
 - Na telefonie: zajętego portu, obrotu ekranu przy działającym serwerze, wygasania kodu przez zegar.

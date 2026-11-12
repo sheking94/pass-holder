@@ -6,6 +6,8 @@ import android.content.Intent
 import android.content.IntentSender
 import android.os.Build
 import android.os.CancellationSignal
+import android.os.Handler
+import android.os.Looper
 import android.service.autofill.AutofillService
 import android.service.autofill.FillCallback
 import android.service.autofill.FillRequest
@@ -13,6 +15,7 @@ import android.service.autofill.FillResponse
 import android.service.autofill.SaveCallback
 import android.service.autofill.SaveRequest
 import android.util.Log
+import android.widget.Toast
 import android.view.inputmethod.InlineSuggestionsRequest
 import io.github.sheking94.passholder.app.PassHolderApp
 import io.github.sheking94.passholder.core.autofill.planDatasets
@@ -20,17 +23,17 @@ import io.github.sheking94.passholder.core.autofill.planRequest
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
-/** Suggestions for the unlocked vault (null when no entry matches); also used by the unlock screen. */
+/** Suggestions and the save request for the unlocked vault (null when neither applies); also used by the unlock screen. */
 fun buildFillResponse(app: PassHolderApp, request: ParsedRequest, inline: InlineSuggestionsRequest?): FillResponse? {
-    val plan = planRequest(request.nodes) ?: return null
+    val plan = planRequest(request.nodes) ?: return saveSpecFor(app, request)?.let(ResponseBuilder::saveOnlyResponse)
     // Entries are decrypted here, per request, and dropped with the response.
     val specs = planDatasets(plan, request.app, app.phoneStore.entries())
-    return ResponseBuilder.datasets(app, specs, inline)
+    return ResponseBuilder.datasets(app, specs, inline, saveSpecFor(app, request))
 }
 
 /**
- * The answer to one fill request: nothing for PassHolder itself, a screen without fillable fields or a phone
- * without a vault; the unlock prompt for a locked vault ([auth] is only called then); otherwise the suggestions.
+ * The answer to one fill request: nothing for PassHolder itself, a phone without a vault or a screen with neither fillable
+ * nor password fields (a password-only screen gets just the save request); the unlock prompt for a locked vault ([auth] is only called then); otherwise the suggestions.
  */
 internal fun respond(
     app: PassHolderApp,
@@ -39,12 +42,13 @@ internal fun respond(
     auth: () -> IntentSender,
 ): FillResponse? {
     if (request.app.packageName == app.packageName) return null
-    val plan = planRequest(request.nodes) ?: return null
     val store = app.phoneStore
     if (!store.hasVault) return null
+    // Nothing to fill (e.g. only a "new password" field): at most the save request, never the unlock prompt.
+    val plan = planRequest(request.nodes) ?: return saveSpecFor(app, request)?.let(ResponseBuilder::saveOnlyResponse)
     // D1: the 60 s timer may not have run (deep sleep, a frozen app); the deadline still holds.
     if (app.leaveLock.expired()) store.lock()
-    if (!store.isUnlocked) return ResponseBuilder.locked(app, plan.nodes.map { it.first.id }, auth(), inline)
+    if (!store.isUnlocked) return ResponseBuilder.locked(app, plan.nodes.map { it.first.id }, auth(), inline, saveSpecFor(app, request))
     return buildFillResponse(app, request, inline)
 }
 
@@ -56,6 +60,14 @@ internal fun respond(
 internal fun unlockPendingIntent(context: Context): PendingIntent = PendingIntent.getActivity(
     context, 0, Intent(context, AutofillUnlockActivity::class.java),
     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
+)
+
+/**
+ * The intent behind the system's save question (Android 9+): opens the review screen. IMMUTABLE and without
+ * data: the candidate is in [PassHolderApp.pendingSave], never in the intent. requestCode 1 keeps it apart from [unlockPendingIntent].
+ */
+internal fun savePendingIntent(context: Context): PendingIntent = PendingIntent.getActivity(
+    context, 1, Intent(context, AutofillSaveActivity::class.java), PendingIntent.FLAG_IMMUTABLE,
 )
 
 /** The system autofill service. Holds no entries or keys: each request reads the store anew. */
@@ -85,7 +97,36 @@ class PassHolderAutofillService : AutofillService() {
     private fun unlockSender(): IntentSender = unlockPendingIntent(this).intentSender
 
     override fun onSaveRequest(request: SaveRequest, callback: SaveCallback) {
-        // Saving is subproject C; the responses carry no SaveInfo, so this is not expected to be called.
-        callback.onSuccess()
+        val app = application as PassHolderApp
+        thread(name = "PassHolder-autofill-save") {
+            try {
+                val data = readSaveData(request)
+                if (data != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    // Every save goes through the review screen (spec 5.4), unlocking first when locked; the
+                    // candidate stays in memory (not in the intent) for it.
+                    app.pendingSave.put(data)
+                    callback.onSuccess(savePendingIntent(this).intentSender)
+                    return@thread
+                }
+                // Android 8.0-8.1 cannot open a screen here: save as typed, or ask to unlock first.
+                val outcome = data?.let { saveLogin(app, it) { pkg -> appLabelOf(packageManager, pkg) } } ?: SaveOutcome.NOTHING
+                if (outcome == SaveOutcome.LOCKED) {
+                    callback.onFailure("Odblokuj PassHolder i spróbuj ponownie")
+                    return@thread
+                }
+                saveToast(outcome)?.let { text ->
+                    Handler(Looper.getMainLooper()).post { Toast.makeText(applicationContext, text, Toast.LENGTH_SHORT).show() }
+                }
+                callback.onSuccess()
+            } catch (e: Exception) {
+                Log.w(PassHolderApp.TAG, "Saving the login failed", e)
+                app.pendingSave.clear()
+                try {
+                    callback.onFailure("Nie udało się zapisać w PassHolder")
+                } catch (e2: Exception) {
+                    Log.w(PassHolderApp.TAG, "Save failure rejected", e2)
+                }
+            }
+        }
     }
 }

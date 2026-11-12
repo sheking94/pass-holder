@@ -104,13 +104,14 @@ Dwa moduły Gradle: `core` (czysta JVM, testy bez emulatora) i `app` (Jetpack Co
 | `p2p/PhoneVaultStore.kt`, `PhoneVault.kt`, `FileSyncStore.kt`, `HostState.kt` | sejf telefonu: tworzenie, odtwarzanie, blokada (15 min), wpisy (`entries()` zwraca wszystkie typy, `upsert` zachowuje resztę pól i odmawia nadpisania wpisu innego typu), urządzenia; pliki `records.jsonl` i `host.json`; import: `importContents` (duplikaty po `contentKey`, jeden zapis) i `allContents` |
 | `autofill/Keywords.kt`, `Fields.kt`, `Values.kt`, `Match.kt` | port `core/src/autofill/` 1:1 (`classifyField`, `planFor`, `fillValue`, `matchUrl` z własnym parserem adresu, `matchLogins`) na tych samych wektorach `{match,fields,values}.json`; `matchApp`: zaufana przeglądarka (13 pakietów, `TRUSTED_BROWSERS`) z `webDomain` → `matchLogins`, inaczej loginy z pakietem w `androidApps`, po nazwie; wektory `test-vectors/autofill/app.json` (tylko Kotlin) |
 | `autofill/Planner.kt` | `planRequest`: grupa formularza (login, karta, kontakt) i jej pola; `planDatasets`: pasujące wpisy → wartości pól (`ListIndex` dla list), bez wpisów bez wartości, najwyżej 10; generyczne po typie id pola, więc testowane bez Androida |
+| `save/SaveUrl.kt`, `Decide.kt`, `SaveFields.kt` | port `core/src/save/` (`saveUrl`, `saveName`, `decideSave`; te same wektory `core/test-vectors/save/{url,decide}.json`) plus `saveFields` (pole hasła: pierwsze nowe hasło, inaczej hasło; login: pole loginu, inaczej ostatni e-mail przed hasłem), `saveTargetFor` (zaufana przeglądarka z domeną → `Web`, inaczej `App` z pakietem), `newLogin`, `withPassword` |
 | `SyncStore.putAll` (w `p2p/HostSync.kt`), `p2p/FileSyncStore.kt` | `putAll`: wiele rekordów jednym dopisem i `fsync` (import atomowy); domyślnie pętla `put` |
 
 | Plik (`android/app/.../app/`) | Co robi |
 |---|---|
-| `PassHolderApp.kt` | obiekt procesu: jeden `PhoneVaultStore`, `LeaveLock`, ustawienia, odcisk, haki testowe autouzupełniania |
+| `PassHolderApp.kt` | obiekt procesu: jeden `PhoneVaultStore`, `LeaveLock`, ustawienia (m.in. `askToSave`), `pendingSave`, odcisk, haki testowe autouzupełniania |
 | `MainActivity.kt` | `onStart` / `onStop` (powrót i wyjście z aplikacji), ekran nie gaśnie w trybie Synchronizacja, blokada zrzutów ekranu |
-| `AppViewModel.kt` | stan ekranów (`UiState`) i operacje na sejfie w tle (`launchVaultOperation`) |
+| `AppViewModel.kt` | stan ekranów (`UiState`, `askToSave`) i operacje na sejfie w tle (`launchVaultOperation`) |
 | `SyncController.kt` | tryb Synchronizacja: start i stop serwera, kod parowania, zdarzenia, zatrzymanie po 5 min bez połączeń |
 | `KeystoreSecretWrapper.kt` | zawija klucz tożsamości telefonu kluczem z Android Keystore |
 | `LockController.kt` | kiedy sejf się blokuje (wyjście z aplikacji, 15 minut, „Zablokuj”) i kiedy samo otwiera się okno odcisku |
@@ -121,9 +122,14 @@ Dwa moduły Gradle: `core` (czysta JVM, testy bez emulatora) i `app` (Jetpack Co
 | `entries/EntryTypes.kt` | `EntryType`, opis wiersza, wyszukiwanie, `tidy`, walidacja (port `extension/src/entry-types.ts`) |
 | `SecureClipboard.kt` | kopiowanie i czyszczenie schowka po minucie (WorkManager) |
 | `autofill/ViewNodeReader.kt` | `AssistStructure` → `ParsedRequest`: pakiet, `webDomain`/`webScheme`, widoczne i włączone pola tekstowe i list (`describeNode`: `htmlInfo`, `autofillHints`, `inputType`, `idEntry`, podpowiedź) |
-| `autofill/PassHolderAutofillService.kt` | usługa (`BIND_AUTOFILL_SERVICE`): `respond` (własny pakiet, brak pól, brak sejfu → `null`; zablokowany → „Odblokuj PassHolder”; inaczej `buildFillResponse`), praca w osobnym wątku; `onSaveRequest` nic nie robi |
-| `autofill/ResponseBuilder.kt` | `FillResponse`: `Dataset` z wierszem `res/layout/autofill_item.xml` i, na API 30+, podpowiedzią w pasku klawiatury (`androidx.autofill` `InlineSuggestionUi`, ≤ `min(10, maxSuggestionCount)`); bez `SaveInfo` |
-| `autofill/AutofillUnlockActivity.kt`, `ui/AutofillUnlockScreen.kt` | ekran odblokowania z podpowiedzi (`exported="false"`, `FLAG_SECURE`): hasło albo odcisk, potem `EXTRA_AUTHENTICATION_RESULT` i ponowna blokada (D1) |
+| `autofill/PassHolderAutofillService.kt` | usługa (`BIND_AUTOFILL_SERVICE`): `respond` (własny pakiet, brak sejfu → `null`; ekran bez pól do wypełnienia: odpowiedź tylko z `SaveInfo`, gdy ma pole hasła, inaczej `null`; zablokowany → „Odblokuj PassHolder”; inaczej `buildFillResponse`), praca w osobnym wątku; `onSaveRequest` czyta `readSaveData`: API ≥ 28 zawsze kandydat do `pendingSave` i `onSuccess(savePendingIntent)` (podgląd w `AutofillSaveActivity`); API < 28 `saveLogin` od razu, zablokowany → `onFailure`. Ekran logowania bez pasujących wpisów też dostaje `SaveInfo` |
+| `autofill/ResponseBuilder.kt` | `FillResponse`: `Dataset` z wierszem `res/layout/autofill_item.xml` i, na API 30+, podpowiedzią w pasku klawiatury (`androidx.autofill` `InlineSuggestionUi`, ≤ `min(10, maxSuggestionCount)`); `SaveInfo` (hasło + login, `FLAG_SAVE_ON_ALL_VIEWS_INVISIBLE`) dla każdego ekranu z polem hasła (także „nowe hasło”, każda grupa) przy włączonym „Pytaj o zapis haseł”, id pól i opis aplikacji w `clientState` |
+| `autofill/AutofillUnlockActivity.kt`, `ui/AutofillUnlockScreen.kt` | ekran odblokowania z podpowiedzi (podklasa `AutofillAuthActivity`): po odblokowaniu buduje odpowiedź i zwraca `EXTRA_AUTHENTICATION_RESULT` |
+| `autofill/SaveState.kt` | `SaveSpec` (pola i aplikacja z chwili wypełniania), `saveSpecFor` (przełącznik, pole hasła; grupa bez znaczenia), `clientState` i jego odczyt (`saveSpecIds`, bez `Bundle.getParcelable(String, Class)` poniżej API 33) |
+| `autofill/SaveLogin.kt` | `saveLogin` (tylko API 26–27: zapis bez podglądu, przez `saveReviewed` z danymi jak wpisane; wynik `SAVED`/`UPDATED`/`NOTHING`/`LOCKED`), `readSaveData` (wartości po id ze wszystkich `fillContexts`, od ostatniego), komunikaty, `appLabelOf` |
+| `autofill/PendingSave.kt` | kandydat każdego zapisu (API ≥ 28) do chwili otwarcia podglądu: tylko pamięć procesu, 2 minuty (`app.clock`), jeden naraz |
+| `autofill/AutofillAuthActivity.kt`, `AutofillSaveActivity.kt` | wspólna baza (odblokowanie tylko gdy sejf zablokowany: hasło / odcisk; haki `afterUnlock`, `UnlockedContent`, `onLockedWhileOpen`, `unlockAgain`; Wstecz i Anuluj = `RESULT_CANCELED`, blokada D1 także po wyjściu w tło, anulowanie starego terminu 60 s) i ekran zapisu: odblokowanie, potem podgląd (`exported="false"`, `FLAG_SECURE`) |
+| `autofill/SaveReview.kt`, `ui/SaveReviewScreen.kt` | `SaveReview` (wpisy sejfu odszyfrowane raz, `decision`/`title`/`initialDraft` z `SaveDraft`), `saveReviewed` (ponowny odczyt sejfu, `decideSave` od nowa, `upsertContent`; wynik `SaveOutcome`), `SaveReviewModel` (ViewModel: kandydat, szkic, blokada w trakcie podglądu; bez stanu instancji) i ekran Compose „Zapisz w PassHolder” (Nazwa, Login, Hasło, adres/aplikacja tylko do odczytu) |
 | `AutofillStatus.kt` | czy PassHolder jest usługą autouzupełniania (`hasEnabledAutofillServices`), wiersz w `SettingsScreen` |
 | `ui/*.kt` | ekrany Compose: `StartScreen`, `LockedScreen`, `ListScreen` (dolny pasek zakładek), `EditScreen` (powłoka formularza), `SettingsScreen`, `TransferScreen` (import i eksport; okno wyboru pliku 60 s w `LockController.expectFilePicker`), `VaultTopBar`, `SyncScreen`, `DevicesScreen`, `RestoreScreen`, `FingerprintDialog`, `Common` (m.in. `SecretField`), `PassHolderUi` (wybór ekranu) |
 | `ui/forms/*.kt` | `LoginForm`, `ContactForm`, `CardForm`, `DocumentForm` (notatka używa samej powłoki), `ListEditor`, `CustomFieldsEditor`, `GeneratorCard`, `AppPickerDialog` |
@@ -199,6 +205,32 @@ Usługa nie trzyma wpisów ani kluczy: każde żądanie czyta sejf od nowa. Decy
   w aplikacjach zawsze.
 - **D4** Podpowiedzi także w pasku klawiatury (Android 11+, `androidx.autofill` 1.1.0), obok listy pod polem.
 - **D5** Wektory `matchApp` w `core/test-vectors/autofill/app.json`, czytane tylko przez Kotlin.
+
+## Przepływ pytania o zapis (Android)
+
+```
+ formularz logowania           system Android                  PassHolderAutofillService (wątek)
+ stuknięcie pola ────────────► onFillRequest ─────────────────► respond: pole hasła (każda grupa) + „Pytaj o zapis”
+                                                                 → SaveInfo; id pól, pakiet, domena → clientState
+                                                                 brak wpisów → odpowiedź tylko z SaveInfo
+ wysłanie, ekran znika ──────► okno systemu ─ tak ─► onSaveRequest → readSaveData (id z clientState,
+                                                                 wszystkie fillContexts)
+                                                                 API ≥ 28: pendingSave.put (zawsze)
+                                                                 API < 28: otwarty → saveLogin (decideSave →
+                                                                 upsertContent → toast), zablokowany → onFailure
+ ◄── onSuccess(savePendingIntent) ──────────────────────────────┘
+ AutofillSaveActivity: odblokowanie tylko gdy zablokowany → pendingSave.take → SaveReview
+   → ekran podglądu (edycja; nagłówek z decideSave na bieżąco) → „Zapisz” → saveReviewed (sejf czytany od nowa)
+   → toast; RESULT_OK; blokada D1. Sejf zablokowany w trakcie podglądu → odblokowanie i powrót z tym samym szkicem;
+   wyjście w tło → D1
+```
+
+Decyzje (2026-11-12): **P1** API 26–27 i zablokowany sejf: `onFailure`, bez kandydata (`SaveCallback.onSuccess(IntentSender)` od API 28).
+**P2** id pól i opis aplikacji w `clientState` (czytnik pomija pola niewidoczne, a przy zapisie formularz bywa
+już ukryty). **P3** pole hasła: pierwsze „nowe hasło”, inaczej hasło. **P4** adres dla `saveUrl`:
+`"${webScheme ?: "https"}://$webDomain"`. **P5** po odblokowaniu decyzja „nic”: okno zamyka się bez komunikatu (od API 28 zastąpione przez podgląd, spec 5.4: komunikat „Ten login jest już zapisany”).
+Kandydat żyje tylko w pamięci (2 minuty); Wstecz i Anuluj go kasują. Zapis po odblokowaniu anuluje stary termin
+60 s (`leaveLock.cancel()`), inaczej sejf wyglądałby na zablokowany.
 
 ## Przepływ synchronizacji
 

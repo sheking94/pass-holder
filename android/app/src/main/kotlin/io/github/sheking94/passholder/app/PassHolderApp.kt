@@ -6,6 +6,7 @@ import android.content.Intent
 import android.util.Log
 import androidx.core.content.edit
 import io.github.sheking94.passholder.app.autofill.ParsedRequest
+import io.github.sheking94.passholder.app.autofill.PendingSave
 import io.github.sheking94.passholder.app.autofill.assistStructure
 import io.github.sheking94.passholder.app.autofill.readRequest
 import io.github.sheking94.passholder.core.GeneratorOptions
@@ -45,6 +46,8 @@ class PassHolderApp : Application() {
     var fingerprintPrompt: FingerprintPrompt = SystemFingerprintPrompt
     /** Whether PassHolder is the autofill service, shown in "Ustawienia"; tests replace it. */
     var autofillStatus: AutofillStatus = SystemAutofillStatus(this)
+    /** The login waiting for the unlock of a locked vault (in memory only, 2 minutes). */
+    val pendingSave = PendingSave { clock() }
     /** The fill request behind the autofill unlock screen; tests give one without a real AssistStructure. */
     var autofillRequest: (Intent) -> ParsedRequest? = { it.assistStructure()?.let(::readRequest) }
 
@@ -90,4 +93,9 @@ class Settings(context: Context) {
     var lockDelay: Boolean
         get() = prefs.getBoolean("lockDelay", true)
         set(value) = prefs.edit { putBoolean("lockDelay", value) }
+
+    /** After a login in another app, PassHolder offers to save it. On by default. */
+    var askToSave: Boolean
+        get() = prefs.getBoolean("askToSave", true)
+        set(value) = prefs.edit { putBoolean("askToSave", value) }
 }
