@@ -16,7 +16,7 @@ import io.github.sheking94.passholder.app.autofill.SaveDraft
 /**
  * The login the system's save question is about, to check and edit before it goes into the vault (spec 5.4).
  * [title] is the decision for the current [draft]; the name is asked only for a new entry ([isNew]); [place] is
- * the site or the app, read-only. "Zapisz" needs [canSave]; "Anuluj" works always.
+ * the site or the app, read-only. "Zapisz" needs [canSave]; both buttons are off while [saving].
  */
 @Composable
 fun SaveReviewScreen(
@@ -39,7 +39,7 @@ fun SaveReviewScreen(
         Text(place, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = onSave, enabled = canSave && !saving) { Text("Zapisz") }
-            TextButton(onClick = onCancel) { Text("Anuluj") }
+            TextButton(onClick = onCancel, enabled = !saving) { Text("Anuluj") }
         }
         if (saving) LinearProgressIndicator(Modifier.fillMaxWidth())
     }

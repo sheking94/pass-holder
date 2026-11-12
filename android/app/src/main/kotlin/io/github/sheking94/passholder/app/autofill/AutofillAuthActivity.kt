@@ -76,6 +76,12 @@ abstract class AutofillAuthActivity : FragmentActivity() {
     @Composable
     protected open fun UnlockedContent() {}
 
+    /** False while Back must do nothing (e.g. a save is running). */
+    protected open val canCancel: Boolean get() = true
+
+    /** The vault locked while [UnlockedContent] was open; the unlock screen is back. Drop what was decrypted. */
+    protected open fun onLockedWhileOpen() {}
+
     /** Back, "Anuluj" or a close before the unlock finished (may run twice): drop what [prepare] kept. */
     protected open fun onCancelled() {}
 
@@ -102,7 +108,7 @@ abstract class AutofillAuthActivity : FragmentActivity() {
         }
 
         // Back must cancel like "Anuluj", also while an unlock is running (nothing may be saved then).
-        onBackPressedDispatcher.addCallback(this) { cancel() }
+        onBackPressedDispatcher.addCallback(this) { if (canCancel) cancel() }
         enableEdgeToEdge()
         setContent {
             val fingerprint by biometrics.enabled.collectAsState()
@@ -118,6 +124,29 @@ abstract class AutofillAuthActivity : FragmentActivity() {
                     }
                 }
             }
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        val relock = unlocked.relock ?: return
+        // D1: the 60 s timer may not have run (deep sleep, a frozen app); the deadline still holds.
+        if (app.leaveLock.expired()) app.phoneStore.lock()
+        if (!app.phoneStore.isUnlocked) {
+            unlockAgain()
+        } else if (relock) {
+            // Back in front before the timer of onStop ran out.
+            app.leaveLock.cancel()
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // Left in the background (not a rotation, not closing): D1 as if it had closed. onStart takes it back.
+        if (unlocked.relock == true && !isChangingConfigurations && !isFinishing) {
+            lockAfterUse()
+            // Locked at once (no delay): drop the decrypted data now, not on return.
+            if (!app.phoneStore.isUnlocked) unlockAgain()
         }
     }
 
@@ -139,10 +168,9 @@ abstract class AutofillAuthActivity : FragmentActivity() {
 
     override fun onDestroy() {
         // Closed for good without a successful unlock (Back included); a rotation is not that.
-        if (isFinishing && !delivered) {
-            onCancelled()
-            leaveUnlocked()
-        }
+        if (isFinishing && !delivered) onCancelled()
+        // Closed for good, also by the system without finishing: the vault this screen opened is locked (D1).
+        if (!isChangingConfigurations) leaveUnlocked()
         super.onDestroy()
     }
 
@@ -176,6 +204,19 @@ abstract class AutofillAuthActivity : FragmentActivity() {
         val relock = unlocked.relock ?: return
         unlocked.relock = null
         deliver(data, relock)
+    }
+
+    /**
+     * The vault was locked while [UnlockedContent] was open (a delayed lock, the app's own lock): back to the unlock
+     * screen; the next unlock runs [afterUnlock] again and counts as this screen's (locked again at the end).
+     */
+    protected fun unlockAgain() {
+        if (unlocked.relock == null) return
+        unlocked.relock = null
+        skipping = false
+        busy = false
+        status = Status("PassHolder się zablokował – odblokuj ponownie")
+        onLockedWhileOpen()
     }
 
     /** D1 for a screen kept open by [AfterUnlock.Stay] that closes without delivering; at most once. */

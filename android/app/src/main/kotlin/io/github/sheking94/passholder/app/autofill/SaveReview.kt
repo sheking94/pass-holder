@@ -78,11 +78,16 @@ class SaveReview(val data: SaveData, entries: List<PhoneEntry>, private val appL
     }
 
     internal fun entry(id: String): PhoneEntry = logins.first { it.id == id }
+
+    /** The same request against [entries] read anew. */
+    internal fun with(entries: List<PhoneEntry>) = SaveReview(data, entries, appLabel)
 }
 
 /**
- * Saves [draft] (spec 3.3, 5.4), deciding again from what the user typed: a new login gets the name of the draft
- * (the default one when left blank), a changed password updates only the password. A locked vault, also one whose
+ * Saves [draft] (spec 3.3, 5.4). The vault is read again here and the decision taken anew from what the user typed,
+ * so a change made since the review started (a sync, another save) is not overwritten: a new login gets the name of
+ * the draft (the default one when left blank), a changed password updates only the password of the entry as it is
+ * now. [SaveOutcome.NOTHING]: the vault has this login with this password already. A locked vault, also one whose
  * deadline passed, saves nothing and reports [SaveOutcome.LOCKED].
  */
 fun saveReviewed(app: PassHolderApp, review: SaveReview, draft: SaveDraft): SaveOutcome {
@@ -91,7 +96,8 @@ fun saveReviewed(app: PassHolderApp, review: SaveReview, draft: SaveDraft): Save
     if (app.leaveLock.expired()) store.lock()
     if (!store.isUnlocked) return SaveOutcome.LOCKED
     val target = review.target ?: return SaveOutcome.NOTHING
-    return when (val decision = review.decision(draft)) {
+    val fresh = review.with(store.entries())
+    return when (val decision = fresh.decision(draft)) {
         SaveDecision.None -> SaveOutcome.NOTHING
         SaveDecision.Create -> {
             val name = draft.name.trim().ifEmpty { review.initialDraft().name }
@@ -100,7 +106,7 @@ fun saveReviewed(app: PassHolderApp, review: SaveReview, draft: SaveDraft): Save
             SaveOutcome.SAVED
         }
         is SaveDecision.Update -> {
-            val entry = review.entry(decision.id)
+            val entry = fresh.entry(decision.id)
             store.upsertContent(entry.id, withPassword(entry.content, draft.password))
             SaveOutcome.UPDATED
         }
@@ -113,19 +119,32 @@ fun saveReviewed(app: PassHolderApp, review: SaveReview, draft: SaveDraft): Save
  */
 class SaveReviewModel : ViewModel() {
     var candidate: SaveData? = null
+    /** Null before the review starts, after the save and while the vault is locked again (decrypted logins dropped). */
     var review: SaveReview? by mutableStateOf(null)
+        private set
+    /** Whether the review started: the draft is the user's then and survives a new unlock. */
+    var started = false
+        private set
     var draft by mutableStateOf(SaveDraft("", "", ""))
     var saving by mutableStateOf(false)
         private set
     /** Set once the save ran: the Toast text (null for none). */
     var done: Done? by mutableStateOf(null)
         private set
+    /** The vault was locked when "Zapisz" came: unlock again, then the review with the same draft. */
+    var lockedOut by mutableStateOf(false)
 
     class Done(val toast: String?)
 
     fun start(review: SaveReview, draft: SaveDraft) {
         this.draft = draft
+        started = true
         this.review = review
+    }
+
+    /** Forgets the decrypted logins (saved, or the vault locked); the candidate and the draft stay. */
+    fun dropReview() {
+        review = null
     }
 
     /** Saves [draft] off the main thread; in this scope, so a rotation neither stops nor repeats it. */
@@ -143,9 +162,23 @@ class SaveReviewModel : ViewModel() {
                     null
                 }
             }
-            done = Done(if (outcome == null || outcome == SaveOutcome.LOCKED) SAVE_FAILED else saveToast(outcome))
+            saving = false
+            if (outcome == SaveOutcome.LOCKED) {
+                lockedOut = true
+                return@launch
+            }
+            this@SaveReviewModel.review = null
+            done = Done(
+                when (outcome) {
+                    null -> SAVE_FAILED
+                    // Saved meanwhile (a sync, another save) with this password.
+                    SaveOutcome.NOTHING -> ALREADY_SAVED
+                    else -> saveToast(outcome)
+                },
+            )
         }
     }
 }
 
 const val SAVE_FAILED = "Nie udało się zapisać w PassHolder"
+const val ALREADY_SAVED = "Ten login jest już zapisany w PassHolder"

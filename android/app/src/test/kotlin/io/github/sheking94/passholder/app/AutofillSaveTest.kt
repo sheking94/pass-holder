@@ -4,8 +4,8 @@ import android.app.Activity
 import android.app.Instrumentation
 import android.content.Intent
 import android.os.Looper
-import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -337,5 +337,67 @@ class AutofillSaveReviewRotationTest : AutofillSaveTestBase() {
         assertEquals(Activity.RESULT_OK, waitForResult().resultCode)
         assertFalse(app.phoneStore.isUnlocked)
         assertEquals("jan.kowalski", logins().single().username)
+    }
+}
+
+/** The app's own delayed lock fires while the review of a vault it had open is on screen. */
+class AutofillSaveReviewLeaveLockTest : AutofillSaveTestBase() {
+    override val unlockedAtStart = true
+
+    override fun beforeLaunch() {
+        app.leaveLock = LeaveLock(app.phoneStore, now = { 0L })
+        app.leaveLock.schedule(LeaveLock.DELAY_MS)
+    }
+
+    @Test
+    fun `a vault locked during the review asks to unlock and keeps the edited draft`() {
+        waitFor("Zapisz w PassHolder")
+        type("Login", "jan.kowalski")
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(LeaveLock.DELAY_MS + 1_000))
+        val deadline = System.currentTimeMillis() + 10_000
+        while (app.phoneStore.isUnlocked && System.currentTimeMillis() < deadline) Thread.sleep(20)
+        assertFalse(app.phoneStore.isUnlocked)
+        click("Zapisz")
+        unlock()
+        compose.onNode(hasSetTextAction() and hasText("jan.kowalski")).assertExists()
+        click("Zapisz")
+        assertEquals(Activity.RESULT_OK, waitForResult().resultCode)
+        assertFalse("this screen unlocked it, so it locks it again", app.phoneStore.isUnlocked)
+        assertEquals("jan.kowalski", logins().single().username)
+    }
+}
+
+class AutofillSaveReviewBackgroundTest : AutofillSaveTestBase() {
+    @Test
+    fun `a review left in the background locks the vault and asks again on return`() {
+        unlock()
+        type("Login", "jan.kowalski")
+        scenario.moveToState(Lifecycle.State.CREATED)
+        assertFalse("D1 with the delay off: locked at once", app.phoneStore.isUnlocked)
+        scenario.moveToState(Lifecycle.State.RESUMED)
+        waitFor("PassHolder się zablokował – odblokuj ponownie")
+        unlock()
+        compose.onNode(hasSetTextAction() and hasText("jan.kowalski")).assertExists()
+        click("Zapisz")
+        assertEquals(Activity.RESULT_OK, waitForResult().resultCode)
+        assertFalse(app.phoneStore.isUnlocked)
+        assertEquals("jan.kowalski", logins().single().username)
+    }
+}
+
+/** The same login arrives (a sync) while the review is open. */
+class AutofillSaveReviewFreshEntriesTest : AutofillSaveTestBase() {
+    override val unlockedAtStart = true
+
+    @Test
+    fun `Zapisz decides on the vault as it is then`() {
+        waitFor("Nowy login")
+        app.phoneStore.upsertContent(
+            "1", EntryContentV3("Bank", "", LoginFields("jan", "nowe-haslo", androidApps = listOf("com.example.bank")), emptyList()),
+        )
+        click("Zapisz")
+        assertEquals(Activity.RESULT_OK, waitForResult().resultCode)
+        assertEquals("Ten login jest już zapisany w PassHolder", latestToast())
+        assertEquals(1, logins().size)
     }
 }

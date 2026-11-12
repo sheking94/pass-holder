@@ -24,7 +24,8 @@ fun saveLogin(app: PassHolderApp, data: SaveData, appLabel: (String) -> String):
     // D1: the 60 s timer may not have run (deep sleep, a frozen app); the deadline still holds.
     if (app.leaveLock.expired()) store.lock()
     if (!store.isUnlocked) return SaveOutcome.LOCKED
-    val review = SaveReview(data, store.entries(), appLabel(data.app.packageName))
+    // No entries here: saveReviewed reads the vault itself.
+    val review = SaveReview(data, emptyList(), appLabel(data.app.packageName))
     return saveReviewed(app, review, review.initialDraft())
 }
 

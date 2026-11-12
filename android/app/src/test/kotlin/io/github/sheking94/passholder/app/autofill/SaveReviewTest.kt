@@ -130,6 +130,25 @@ class SaveReviewTest {
     }
 
     @Test
+    fun `saving reads the vault again and updates a login added after the review started`() {
+        val review = review(SaveData(browser("github.com"), "jkowalski", "new"))
+        assertEquals(SaveDecision.Create, review.decision(review.initialDraft()))
+        addGithub()
+        assertEquals(SaveOutcome.UPDATED, saveReviewed(app, review, review.initialDraft()))
+        val entry = app.phoneStore.entries().single()
+        assertEquals("1", entry.id)
+        assertEquals("new", (entry.content.fields as LoginFields).password)
+    }
+
+    @Test
+    fun `a login saved meanwhile with the same password saves nothing`() {
+        val review = review(SaveData(browser("github.com"), "jkowalski", "s3cret"))
+        addGithub()
+        assertEquals(SaveOutcome.NOTHING, saveReviewed(app, review, review.initialDraft()))
+        assertEquals(1, app.phoneStore.entries().size)
+    }
+
+    @Test
     fun `an unsaveable address has no target and saves nothing`() {
         val review = review(SaveData(AppRequest("", null, null), "jan", "pw"))
         assertNull(review.target)

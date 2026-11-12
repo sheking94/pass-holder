@@ -23,9 +23,11 @@ class AutofillSaveActivity : AutofillAuthActivity() {
 
     override val skipsUnlockWhenOpen = true
 
+    override val canCancel: Boolean get() = !model.saving
+
     // Nothing to save (expired, already taken, process restarted): close without asking for the password.
-    // After a rotation the candidate is in the model already.
-    override fun prepare(): Boolean = model.review != null || model.candidate != null || app.pendingSave.peek()
+    // After a rotation or a new unlock the candidate is in the model already.
+    override fun prepare(): Boolean = model.candidate != null || app.pendingSave.peek()
 
     override fun afterUnlock(): AfterUnlock {
         if (model.review != null) return AfterUnlock.Stay
@@ -45,9 +47,14 @@ class AutofillSaveActivity : AutofillAuthActivity() {
         }
         // An address that cannot be saved: nothing to ask about.
         if (review.target == null) return AfterUnlock.Deliver(null)
+        // Unlocked again after the vault locked during the review: the same draft, as the user left it.
+        if (model.started) {
+            model.start(review, model.draft)
+            return AfterUnlock.Stay
+        }
         val draft = review.initialDraft()
         if (review.decision(draft) == SaveDecision.None) {
-            toast("Ten login jest już zapisany w PassHolder")
+            toast(ALREADY_SAVED)
             return AfterUnlock.Deliver(null)
         }
         model.start(review, draft)
@@ -56,15 +63,23 @@ class AutofillSaveActivity : AutofillAuthActivity() {
 
     @Composable
     override fun UnlockedContent() {
-        val review = model.review ?: return
-        val draft = model.draft
         val done = model.done
         if (done != null) {
             LaunchedEffect(done) {
                 done.toast?.let(::toast)
                 finishAfterUnlock(null)
             }
+            return
         }
+        if (model.lockedOut) {
+            LaunchedEffect(Unit) {
+                model.lockedOut = false
+                unlockAgain()
+            }
+            return
+        }
+        val review = model.review ?: return
+        val draft = model.draft
         SaveReviewScreen(
             title = review.title(draft),
             isNew = review.createsEntry(draft),
@@ -80,6 +95,8 @@ class AutofillSaveActivity : AutofillAuthActivity() {
 
     private fun toast(text: String) =
         Handler(Looper.getMainLooper()).post { Toast.makeText(applicationContext, text, Toast.LENGTH_SHORT).show() }
+
+    override fun onLockedWhileOpen() = model.dropReview()
 
     override fun onCancelled() = app.pendingSave.clear()
 }
