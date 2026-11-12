@@ -73,7 +73,7 @@ Chrome, wybór pliku), dlatego parowanie, adresy i import/eksport pokazują się
 | `src/autofill/fill-page.ts`, `src/autofill-content.ts` | `fillPage` w stronie: pola, widoczność, ramki tego samego origin, wpisanie wartości; `autofill-content.ts` wystawia `globalThis.passholderFill` |
 | `src/ui/active-tab.ts` | `activeTab` (karta pod okienkiem) i `requestFill` (komunikat `fill` do service workera) |
 | `src/save/read-form.ts`, `watch.ts`, `src/save-watch.ts` | skrypt w stronie: `readLogin` (hasło i login, `formSignature`), `loginScope`, `emptyLoginForms`; `startSaveWatch` (submit, Enter, klik; ramka główna i ramki tego samego origin; panel jako `<iframe>` w zamkniętym Shadow DOM) |
-| `src/save/candidates.ts` | `SaveCandidates` w service workerze: kandydat w `chrome.storage.session` (`saveCandidates`), lista „Nigdy” w `chrome.storage.local`; `onCandidate` (ten sam login z tej samej karty zachowuje id), `onPending`, `info`, `answer`, alarm 2 min (`save-expire:<karta>`), `onTabRemoved`; operacje po kolei (`serial`); każde usunięcie poza zapisem i zamknięciem karty wysyła `save-hide` |
+| `src/save/candidates.ts` | `SaveCandidates` w service workerze: kandydat w `chrome.storage.session` (`saveCandidates`), lista „Nigdy” w `chrome.storage.local`; `onCandidate` (ten sam login z tej samej karty zachowuje id), `onPending`, `info`, `preview`, `answer`, alarm 2 min (`save-expire:<karta>`), `onTabRemoved`; operacje po kolei (`serial`); każde usunięcie poza zapisem i zamknięciem karty wysyła `save-hide` |
 | `src/save/registration.ts` | `syncSaveWatch`: rejestracja skryptu `save-watch` zgodna z uprawnieniem `https://*/*` (wywołania po kolei); `disableSavePrompt` |
 | `src/save/messages.ts`, `prompt-view.ts`, `prompt-page.ts`, `src/save-prompt.ts` | typy wiadomości (`save-candidate`, `save-pending`, `save-info`, `save-preview` (decyzja dla wpisanego loginu i hasła), `save-answer` (z `draft {name, username, password}`), `save-show`, `save-hide`); `promptView`: podgląd z edycją (Nazwa, Login, Hasło), wspólny dla panelu (`save-prompt.html`) i okienka; `startPromptPage`: strona panelu (brak kandydata → prosi o zamknięcie, sejf zablokowany po załadowaniu → „Odblokuj i zapisz”) |
 | `src/views/save-settings.ts`, `save-question.ts` | „Zapis haseł” (przełącznik, lista „Nigdy”) i pytanie w okienku po odblokowaniu (`showUnlocked` w `locked.ts` pyta tło o kandydata karty) |
@@ -164,7 +164,7 @@ loginie, w pozostałych przypadkach otwiera okienko.
  save-show ◄─────────────────────────────── ramka główna karty
  iframe (zamknięty Shadow DOM) ─────────────────────────────────────────────────────► save-info → {id, host, username,
                                                                                          password, decision, entryName, locked}
-                                           save-preview {draft} ◄──────────────────────── edycja loginu / hasła → decyzja
+                                           save-preview {candidateId, username, password} ◄──────────────────────── edycja loginu / hasła → decyzja
                                            save-answer {draft}: decyzja od nowa z draftu → putEntry ◄── „Zapisz” / „Nie teraz” / „Nigdy”
  save-hide ◄──────────────────────────────  (od razu po „Nie teraz”/„Nigdy”, po 2 min i gdy login już jest; 2 s po zapisie)
  nowa strona ── save-pending ─────────────► kandydat żyje? ten sam pusty formularz? → {candidateId}
@@ -176,7 +176,7 @@ uzgadnia rejestrację przy starcie, instalacji i zmianie uprawnień. Zablokowany
 zapisz” (`chrome.action.openPopup()`), a okienko po odblokowaniu pyta o kandydata karty (`save-info` z `tabId`).
 Odczyt sejfu dla pytania nie przedłuża blokady (`resume({touch: false})`); zapis (`touch: true`) tak.
 
-Bezpieczeństwo: adres z `sender.url`, nie z wiadomości; ramki z innym origin pomijane; `save-info` i
+Bezpieczeństwo: adres z `sender.url`, nie z wiadomości; ramki z innym origin pomijane; `save-info`, `save-preview` i
 `save-answer` tylko ze stron wtyczki; panel dostaje hasło kandydata (nie innych wpisów; strona go nie czyta);
 kandydat tylko w pamięci sesji (domyślnie
 dostępnej tylko dla stron wtyczki); lista „Nigdy” jawna w `storage.local`.

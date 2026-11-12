@@ -387,13 +387,13 @@ istniejącego. Tylko loginy.
   przycisku w tym samym formularzu albo kontenerze), także formularza z danymi kontaktowymi i hasłem oraz z
   samym polem „nowe hasło”. Hasło: pole „nowe hasło” (rejestracja, zmiana hasła), inaczej
   hasło; login: pole loginu, inaczej e-mail przed hasłem. Pyta, gdy nie ma wpisu z tym loginem (**Zapisz**) albo
-  jest z innym hasłem (**Aktualizuj**, zmienia tylko hasło); to samo hasło: cisza. Login porównywany bez
+  jest z innym hasłem (nagłówek „Zmiana hasła: <wpis>”, **Zapisz** zmienia tylko hasło); to samo hasło: cisza. Login porównywany bez
   wielkości liter i spacji na brzegach. Decyzja liczona jest od nowa przy każdym pytaniu i odpowiedzi.
 - **Co się zapisuje:** nazwa i adres to sama domena (`github.com`, bez `www.` i ścieżki); strona `http` →
   `http://domena`, port niestandardowy zostaje.
 - **Panel (podgląd z edycją):** w prawym górnym rogu strony; nagłówek na żywo: „Nowy login”, „Zmiana hasła:
   <wpis>” albo „Ten login jest już zapisany”. Pola **Nazwa** (tylko nowy login; puste = domena), **Login**,
-  **Hasło** (Pokaż, Kopiuj), „Strona: <host>”. Przyciski **Zapisz** (nieaktywny bez hasła i gdy login już jest),
+  **Hasło** (Pokaż/Ukryj, bez Kopiuj), „Strona: <host>”. Przyciski **Zapisz** (nieaktywny bez hasła i gdy login już jest),
   **Nie teraz** (×: to samo), **Nigdy dla tej strony**. Zmiana loginu albo hasła przelicza decyzję (nowy /
   zmiana hasła / już jest); zmiana hasła zmienia tylko hasło. Po zapisie „Zapisano” i panel znika po 2 s. Kandydat (login i hasło)
   żyje w pamięci sesji Chrome do 2 minut albo do decyzji, jeden na kartę, i panel wraca po przeładowaniu

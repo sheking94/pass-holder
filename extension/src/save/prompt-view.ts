@@ -25,20 +25,21 @@ export function promptView(info: SavePromptInfo, actions: PromptActions): HTMLEl
   const name = field("Nazwa", { value: info.host });
   const username = field("Login", { value: info.username });
   const password = field("Hasło", { type: "password", class: "mono", value: info.password });
-  const passwordRow = secretField(password, "hasło", status);
+  const passwordRow = secretField(password, "hasło", status, { copy: false });
   const title = h("h1", {}, "Zapisać login w PassHolder?");
   const nameBox = h("div", {}, h("label", {}, "Nazwa"), name);
 
   // Only the answer to the latest preview counts: a slow earlier one must not overwrite a newer header.
   let decision: NonNullable<SavePreviewResponse>["decision"] = info.decision ?? "create";
   let latest = 0;
+  let saving = false; // in flight or done: Zapisz stays off until a failure
   const refresh = (entryName?: string) => {
     title.textContent =
       decision === "none" ? "Ten login jest już zapisany"
       : decision === "update" ? `Zmiana hasła: ${entryName ?? info.entryName ?? ""}`
       : "Nowy login";
     nameBox.hidden = decision !== "create";
-    primary.disabled = decision === "none" || password.value === "";
+    primary.disabled = saving || decision === "none" || password.value === "";
   };
   const preview = async () => {
     const call = ++latest;
@@ -56,6 +57,7 @@ export function promptView(info: SavePromptInfo, actions: PromptActions): HTMLEl
   password.addEventListener("input", () => void preview());
 
   const send = async (answer: PromptAnswer) => {
+    if (answer === "save") saving = true;
     buttons.forEach((b) => (b.disabled = true));
     setStatus(status, "");
     try {
@@ -67,6 +69,7 @@ export function promptView(info: SavePromptInfo, actions: PromptActions): HTMLEl
         actions.done("Zapisano");
       }
     } catch (error) {
+      saving = false;
       setStatus(status, (error as Error).message, true);
       buttons.forEach((b) => (b.disabled = false));
       if (!info.locked) refresh();

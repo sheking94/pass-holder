@@ -43,6 +43,31 @@ describe("promptView", () => {
     expect(button(el, "Nigdy dla tej strony")).toBeTruthy();
   });
 
+  it("the password field has Pokaż but no Kopiuj", () => {
+    const { el } = setup();
+    expect(button(el, "Pokaż")).toBeTruthy();
+    expect(button(el, "Kopiuj")).toBeUndefined();
+  });
+
+  it("Zapisz stays off while saving and after Zapisano, even when typing", async () => {
+    let resolve!: (v: { ok: boolean }) => void;
+    const answer = vi.fn(() => new Promise<{ ok: boolean }>((r) => (resolve = r)));
+    const { el } = setup({}, answer as never);
+    const save = button(el, "Zapisz") as HTMLButtonElement;
+    save.click();
+    await flush();
+    expect(save.disabled).toBe(true);
+    type(input(el, "Hasło"), "inne");
+    await flush();
+    expect(save.disabled).toBe(true);
+    resolve({ ok: true });
+    await flush();
+    type(input(el, "Hasło"), "jeszcze");
+    await flush();
+    expect(el.textContent).toContain("Zapisano");
+    expect(save.disabled).toBe(true);
+  });
+
   it("an update hides the name and names the entry", () => {
     const { el } = setup({ decision: "update", entryName: "Sklep" });
     expect(el.querySelector("h1")?.textContent).toBe("Zmiana hasła: Sklep");

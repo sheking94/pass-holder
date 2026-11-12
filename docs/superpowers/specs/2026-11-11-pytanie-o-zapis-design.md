@@ -150,7 +150,7 @@ Odpowiednik 5.4 dla Chrome. Wariant wybrany przez właściciela: pola do edycji 
 - **Testy:** formularz kontaktowy z hasłem i samo „nowe hasło” (`read-form`), podgląd w panelu (nagłówek na
   bieżąco, Nazwa tylko przy nowym, Zapisz nieaktywny, zapis edytowanych danych), tło (`save-preview`, zapis z
   `draft`, decyzja liczona ponownie, wiadomości tylko ze stron wtyczki), okienko po odblokowaniu. Zrzut
-  `/mnt/project-files/wtyczka-v3/18-podglad-zapisu.png`.
+  `/mnt/project-files/wtyczka-v3/14-panel-zapisz.png` (podgląd zapisu).
 
 ## 5. Android (krok C2)
 

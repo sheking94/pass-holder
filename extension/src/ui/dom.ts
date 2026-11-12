@@ -63,10 +63,10 @@ export function passwordField(input: HTMLInputElement) {
 }
 
 /**
- * A field with „Kopiuj” and, while secret, hidden behind „Pokaż/Ukryj”; copying a secret clears the
+ * A field with „Kopiuj” (unless options.copy is false) and, while secret, hidden behind „Pokaż/Ukryj”; copying a secret clears the
  * clipboard after a minute. setSecret(false) makes it a plain field (e.g. a custom field not marked hidden).
  */
-export function secretField(input: HTMLInputElement, what: string, status: HTMLElement) {
+export function secretField(input: HTMLInputElement, what: string, status: HTMLElement, options: { copy?: boolean } = {}) {
   let secret = true;
   const toggle = h("button", { type: "button", title: `Pokaż lub ukryj: ${what}` });
   const copy = h("button", {
@@ -89,7 +89,7 @@ export function secretField(input: HTMLInputElement, what: string, status: HTMLE
   };
   toggle.addEventListener("click", () => setVisible(input.type === "password"));
   setSecret(true);
-  return { row: h("div", { class: "row" }, h("div", { class: "grow" }, input), toggle, copy), setVisible, setSecret };
+  return { row: h("div", { class: "row" }, h("div", { class: "grow" }, input), toggle, ...(options.copy === false ? [] : [copy])), setVisible, setSecret };
 }
 
 /** A PIN input: 4-6 digits, or with long=true a long PIN (letters too, see pin-lock.ts). */

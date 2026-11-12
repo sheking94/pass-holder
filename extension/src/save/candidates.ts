@@ -241,9 +241,12 @@ export class SaveCandidates {
     const logins = await this.matching(this.deps.store(), c, false);
     if (!logins) return undefined;
     // Without a password only the login counts (like the phone's review): update the first entry with it, else create.
-    const decision = m.password === ""
-      ? ((l) => (l ? { kind: "update" as const, id: l.id } : { kind: "create" as const }))(logins.find((l) => l.username.trim().toLowerCase() === m.username.trim().toLowerCase()))
-      : save.decideSave(m.username, m.password, logins);
+    const wanted = m.username.trim().toLowerCase();
+    const sameLogin = logins.find((l) => l.username.trim().toLowerCase() === wanted);
+    const decision =
+      m.password !== "" ? save.decideSave(m.username, m.password, logins)
+      : sameLogin ? { kind: "update" as const, id: sameLogin.id }
+      : { kind: "create" as const };
     if (decision.kind !== "update") return { decision: decision.kind };
     return { decision: "update", entryName: logins.find((l) => l.id === decision.id)?.entryName };
   }

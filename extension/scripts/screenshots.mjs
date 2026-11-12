@@ -48,10 +48,9 @@ const SHOTS = [
   ["15-panel-aktualizuj.png", (s) => s.openPrompt("update")],
   ["16-panel-zablokowany.png", (s) => s.openPrompt(null, true)],
   ["17-ustawienia-zapisu.png", (s) => s.openSaveSettings()],
-  ["18-podglad-zapisu.png", (s) => s.openPrompt("create")],
 ];
 // The save panel is an iframe of exactly 360 × 340: shot at that size, its content must fit without scrolling.
-const PANEL_SHOTS = new Set(["14-panel-zapisz.png", "15-panel-aktualizuj.png", "16-panel-zablokowany.png", "18-podglad-zapisu.png"]);
+const PANEL_SHOTS = new Set(["14-panel-zapisz.png", "15-panel-aktualizuj.png", "16-panel-zablokowany.png"]);
 const PANEL_HEIGHT = 340;
 
 mkdirSync(resolve(outDir), { recursive: true });
