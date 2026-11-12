@@ -47,6 +47,8 @@ export interface LocalFileStore {
   /** Stores one chunk; a file announced with another chunk count starts over. */
   putChunk(id: string, index: number, chunks: number, blob: string): Promise<void>;
   markComplete(id: string): Promise<void>;
+  /** Clears `complete` and replaces `have` with the chunks that are really stored (after a lost chunk). */
+  markIncomplete(id: string, have: number[]): Promise<void>;
   markUploaded(id: string, epoch: string): Promise<void>;
   delete(id: string): Promise<void>;
 }
@@ -87,6 +89,13 @@ export class MemoryLocalFileStore implements LocalFileStore {
     if (f) f.state.complete = true;
   }
 
+  async markIncomplete(id: string, have: number[]): Promise<void> {
+    const f = this.#files.get(id);
+    if (!f) return;
+    f.state.complete = false;
+    f.state.have = [...have].sort((a, b) => a - b);
+  }
+
   async markUploaded(id: string, epoch: string): Promise<void> {
     const f = this.#files.get(id);
     if (f) f.state.uploadedEpoch = epoch;
@@ -116,7 +125,10 @@ export function usedAttachments(vault: LocalVaultV2): Map<string, Attachment> {
 export interface FileSyncResult {
   uploaded: number;
   downloaded: number;
-  /** Files neither side has complete yet (e.g. added on another plugin that has not synced). */
+  /**
+   * Files that could not be finished this run: neither side has them complete yet (e.g. added on another plugin
+   * that has not synced), or a chunk went missing (locally or on the phone).
+   */
   pending: number;
   /** Names of downloaded files that did not match their descriptor; their local chunks were removed. */
   corrupted: string[];
@@ -156,16 +168,31 @@ async function phoneStatus(send: P2pFileTransport, epoch: string, ids: string[])
   return status;
 }
 
-/** Puts the chunks the phone lacks, then records the upload. */
-async function upload(files: LocalFileStore, send: P2pFileTransport, epoch: string, a: Attachment, phoneHas: number[]) {
+/**
+ * Puts the chunks the phone lacks, then records the upload. A local chunk that turns out to be missing marks the
+ * file incomplete (so a later run can download it) and yields "pending".
+ */
+async function upload(
+  files: LocalFileStore,
+  send: P2pFileTransport,
+  epoch: string,
+  a: Attachment,
+  phoneHas: number[],
+): Promise<"done" | "pending"> {
   const have = new Set(phoneHas);
   for (let index = 0; index < a.chunks; index++) {
     if (have.has(index)) continue;
     const blob = await files.getChunk(a.id, index);
-    if (blob === undefined) throw new Error(`Local file chunk missing: ${a.name}`);
+    if (blob === undefined) {
+      const present: number[] = [];
+      for (let i = 0; i < a.chunks; i++) if ((await files.getChunk(a.id, i)) !== undefined) present.push(i);
+      await files.markIncomplete(a.id, present);
+      return "pending";
+    }
     await call(send, { op: "put", epoch, id: a.id, index, chunks: a.chunks, blob });
   }
   await files.markUploaded(a.id, epoch);
+  return "done";
 }
 
 /**
@@ -178,13 +205,19 @@ async function download(
   epoch: string,
   a: Attachment,
 ): Promise<"done" | "pending" | "corrupted"> {
+  const corrupted = async () => {
+    await files.delete(a.id);
+    return "corrupted" as const;
+  };
   const local = await files.state(a.id);
   const have = new Set(local?.chunks === a.chunks ? local.have : []);
   for (let index = 0; index < a.chunks; index++) {
     if (have.has(index)) continue;
     const res = await call(send, { op: "get", epoch, id: a.id, index });
     if (res === null) return "pending";
-    if (typeof res.blob !== "string") throw new Error(MALFORMED);
+    if (typeof res.blob !== "string" || !isIndex(res.chunks)) throw new Error(MALFORMED);
+    // The phone's file has another shape than the descriptor: it can never decrypt.
+    if (res.chunks !== a.chunks) return corrupted();
     await files.putChunk(a.id, index, a.chunks, res.blob);
   }
   const blobs: string[] = [];
@@ -197,8 +230,7 @@ async function download(
     await decryptFile(a, blobs);
   } catch (e) {
     if (!(e instanceof Error) || e.message !== FILE_CORRUPTED) throw e;
-    await files.delete(a.id);
-    return "corrupted";
+    return corrupted();
   }
   await files.markComplete(a.id);
   // Came from this phone, so it has the whole file already.
@@ -218,19 +250,23 @@ export async function syncFiles(
   onProgress?: (done: number, total: number) => void,
 ): Promise<FileSyncResult> {
   const result: FileSyncResult = { uploaded: 0, downloaded: 0, pending: 0, corrupted: [] };
-  const used = usedAttachments(vault);
-  if (used.size === 0) return result;
   // An unknown epoch is sent as "" and makes the phone answer with its own (FILE_SYNC_EPOCH_MISMATCH).
   const epoch = vault.epoch ?? "";
-  const status = await phoneStatus(send, epoch, [...used.keys()]);
+  // Only files that may need work: not complete here, or complete but not yet on this epoch's phone.
+  const candidates: { a: Attachment; local: LocalFileState | undefined }[] = [];
+  for (const a of usedAttachments(vault).values()) {
+    const local = await files.state(a.id);
+    if (local?.complete && local.uploadedEpoch === epoch) continue;
+    candidates.push({ a, local });
+  }
+  if (candidates.length === 0) return result;
+  const status = await phoneStatus(send, epoch, candidates.map((c) => c.a.id));
 
   const uploads: { a: Attachment; phoneHas: number[] }[] = [];
   const downloads: Attachment[] = [];
-  for (const a of used.values()) {
-    const local = await files.state(a.id);
+  for (const { a, local } of candidates) {
     const phone = status.get(a.id);
     if (local?.complete) {
-      if (local.uploadedEpoch === epoch) continue;
       if (phone?.complete) {
         // Nothing to send: the phone already has it (e.g. another plugin uploaded the same file).
         await files.markUploaded(a.id, epoch);
@@ -247,8 +283,8 @@ export async function syncFiles(
   const total = uploads.length + downloads.length;
   let done = 0;
   for (const { a, phoneHas } of uploads) {
-    await upload(files, send, epoch, a, phoneHas);
-    result.uploaded++;
+    if ((await upload(files, send, epoch, a, phoneHas)) === "done") result.uploaded++;
+    else result.pending++;
     onProgress?.(++done, total);
   }
   for (const a of downloads) {

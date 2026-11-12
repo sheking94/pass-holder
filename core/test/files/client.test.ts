@@ -120,6 +120,8 @@ describe("MemoryLocalFileStore / storeEncryptedFile", () => {
     await files.markComplete("x");
     await files.markUploaded("x", "E");
     expect(await files.state("x")).toEqual({ id: "x", chunks: 2, have: [0, 1], complete: true, uploadedEpoch: "E" });
+    await files.markIncomplete("x", [1]);
+    expect(await files.state("x")).toEqual({ id: "x", chunks: 2, have: [1], complete: false, uploadedEpoch: "E" });
     await files.delete("x");
     expect(await files.state("x")).toBeUndefined();
     expect(await files.getChunk("x", 0)).toBeUndefined();
@@ -289,6 +291,90 @@ describe("syncFiles", () => {
       uploaded: 0, downloaded: 0, pending: 0, corrupted: [],
     });
     expect(a.ops).toEqual([]);
+  });
+});
+
+describe("syncFiles: what gets asked", () => {
+  it("sends no request at all once everything is synced", async () => {
+    const p = phone();
+    const f = await threeChunks();
+    const { files, vault } = await uploadedFrom(p, f);
+    const a = p.plugin("a2");
+    expect(await syncFiles(vault, files, a.send)).toEqual({ uploaded: 0, downloaded: 0, pending: 0, corrupted: [] });
+    expect(a.ops).toEqual([]);
+
+    const bFiles = new MemoryLocalFileStore();
+    const bVault = vaultWith(p.epoch, [f.attachment]);
+    const b = p.plugin("b");
+    await syncFiles(bVault, bFiles, b.send);
+    const sent = b.ops.length;
+    expect(await syncFiles(bVault, bFiles, b.send)).toEqual({ uploaded: 0, downloaded: 0, pending: 0, corrupted: [] });
+    expect(b.ops.length).toBe(sent);
+  });
+
+  it("asks for status in batches of 500 ids", async () => {
+    const p = phone();
+    const base = (await encryptFile(sample(5), { name: "x", mime: "" })).attachment;
+    const vault = emptyVaultV2();
+    applyVaultInfo(vault, { epoch: p.epoch, addresses: [] });
+    const clock = new HlcClock("dev");
+    const ids: string[] = [];
+    for (let e = 0; e < 13; e++) {
+      const attachments = Array.from({ length: e < 12 ? 40 : 21 }, () => {
+        const id = crypto.randomUUID();
+        ids.push(id);
+        return { ...base, id };
+      });
+      upsertEntryV2(vault, clock, `e${e}`, { ...emptyLogin(`n${e}`), attachments });
+    }
+    expect(ids).toHaveLength(501);
+    const a = p.plugin("a");
+    expect(await syncFiles(vault, new MemoryLocalFileStore(), a.send)).toMatchObject({ pending: 501 });
+    const status = a.ops.filter((r): r is Extract<P2pFileRequest, { op: "status" }> => r.op === "status");
+    expect(status.map((r) => r.ids.length)).toEqual([500, 1]);
+    expect(status.flatMap((r) => r.ids)).toEqual(ids);
+  });
+});
+
+describe("syncFiles: damaged files", () => {
+  /** A store that has lost some chunks without noticing (state still says complete). */
+  class LossyStore extends MemoryLocalFileStore {
+    lost = new Set<string>();
+    override async getChunk(id: string, index: number) {
+      return this.lost.has(`${id}/${index}`) ? undefined : super.getChunk(id, index);
+    }
+  }
+
+  it("marks a local file with a lost chunk incomplete and goes on with the others", async () => {
+    const p = phone();
+    const broken = await threeChunks();
+    const good = await encryptFile(sample(20), { name: "good.txt", mime: "text/plain" });
+    const files = new LossyStore();
+    await storeEncryptedFile(files, broken);
+    await storeEncryptedFile(files, good);
+    files.lost.add(`${broken.attachment.id}/1`);
+    const vault = vaultWith(p.epoch, [broken.attachment, good.attachment]);
+    const progress: [number, number][] = [];
+    expect(await syncFiles(vault, files, p.plugin("a").send, (d, t) => progress.push([d, t]))).toEqual({
+      uploaded: 1, downloaded: 0, pending: 1, corrupted: [],
+    });
+    expect(progress).toEqual([[1, 2], [2, 2]]);
+    expect(await files.state(broken.attachment.id)).toMatchObject({ complete: false, have: [0, 2], uploadedEpoch: null });
+    expect(p.files!.have(good.attachment.id)).toEqual([0]);
+  });
+
+  it("treats a phone file with another chunk count as corrupted", async () => {
+    const p = phone();
+    const f = await encryptFile(sample(FILE_CHUNK_SIZE + 1), { name: "odd.bin", mime: "" });
+    // The phone holds a complete one-chunk file under the id of a two-chunk descriptor.
+    p.files!.put(f.attachment.id, 0, 1, f.blobs[0]!, 0);
+    const files = new MemoryLocalFileStore();
+    const b = p.plugin("b");
+    expect(await syncFiles(vaultWith(p.epoch, [f.attachment]), files, b.send)).toEqual({
+      uploaded: 0, downloaded: 0, pending: 0, corrupted: ["odd.bin"],
+    });
+    expect(b.count("get")).toBe(1);
+    expect(await files.state(f.attachment.id)).toBeUndefined();
   });
 });
 
