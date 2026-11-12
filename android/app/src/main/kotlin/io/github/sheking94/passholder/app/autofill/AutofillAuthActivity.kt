@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.compose.setContent
+import androidx.activity.addCallback
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -70,6 +71,8 @@ abstract class AutofillAuthActivity : FragmentActivity() {
         fingerprintDialog = FingerprintDialog(this, app.fingerprintPrompt) { status = Status(it, isError = true) }
         fingerprintOffered = savedInstanceState?.getBoolean(FINGERPRINT_OFFERED) ?: false
 
+        // Back must cancel like "Anuluj", also while an unlock is running (nothing may be saved then).
+        onBackPressedDispatcher.addCallback(this) { cancel() }
         enableEdgeToEdge()
         setContent {
             val fingerprint by biometrics.enabled.collectAsState()
@@ -140,6 +143,9 @@ abstract class AutofillAuthActivity : FragmentActivity() {
             val data = try {
                 withContext(Dispatchers.IO) {
                     unlock()
+                    // A deadline left by an earlier delayed lock stays "expired" until cancelled, and would
+                    // make the work below see a locked vault; deliver() schedules a fresh one.
+                    if (!wasUnlocked) app.leaveLock.cancel()
                     // Closed while the unlock ran: do not act on it any more.
                     ensureActive()
                     afterUnlock()

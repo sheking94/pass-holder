@@ -20,14 +20,16 @@ class AutofillSaveActivity : AutofillAuthActivity() {
         val data = app.pendingSave.take() ?: return null
         try {
             val outcome = saveLogin(app, data) { pkg -> appLabelOf(packageManager, pkg) }
-            saveToast(outcome)?.let { text ->
-                Handler(Looper.getMainLooper()).post { Toast.makeText(applicationContext, text, Toast.LENGTH_SHORT).show() }
-            }
+            saveToast(outcome)?.let(::toast)
         } catch (e: Exception) {
             Log.w(PassHolderApp.TAG, "Saving the login after unlock failed", e)
+            toast("Nie udało się zapisać w PassHolder")
         }
         return null
     }
+
+    private fun toast(text: String) =
+        Handler(Looper.getMainLooper()).post { Toast.makeText(applicationContext, text, Toast.LENGTH_SHORT).show() }
 
     override fun onCancelled() = app.pendingSave.clear()
 }

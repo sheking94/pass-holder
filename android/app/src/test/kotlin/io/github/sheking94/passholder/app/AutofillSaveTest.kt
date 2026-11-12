@@ -177,3 +177,34 @@ class AutofillSaveNoCandidateTest : AutofillSaveTestBase() {
         assertEquals(Activity.RESULT_CANCELED, scenario.result.resultCode)
     }
 }
+
+class AutofillSaveBackTest : AutofillSaveTestBase() {
+    @Test
+    fun `Back drops the candidate and saves nothing`() {
+        waitFor("Anuluj")
+        scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+        assertEquals(Activity.RESULT_CANCELED, waitForResult().resultCode)
+        assertNull(app.pendingSave.take())
+        assertTrue(logins().isEmpty())
+    }
+}
+
+/** An earlier delayed lock fired and left its deadline behind; that must not make the save see a locked vault. */
+class AutofillSaveStaleDeadlineTest : AutofillSaveTestBase() {
+    override fun beforeLaunch() {
+        app.leaveLock = LeaveLock(app.phoneStore, now = { now() })
+        app.leaveLock.schedule(LeaveLock.DELAY_MS)
+        stale = true
+    }
+    private var stale = false
+    private fun now() = if (stale) 1_000_000_000L else 0L
+
+    @Test
+    fun `a stale leave-lock deadline does not lose the save`() {
+        waitFor("Hasło główne")
+        type("Hasło główne", masterPassword)
+        click("Odblokuj")
+        assertEquals(Activity.RESULT_OK, waitForResult().resultCode)
+        assertEquals("nowe-haslo", logins().single().password)
+    }
+}

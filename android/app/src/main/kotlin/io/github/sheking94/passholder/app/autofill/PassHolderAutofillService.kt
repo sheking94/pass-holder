@@ -117,6 +117,7 @@ class PassHolderAutofillService : AutofillService() {
                 callback.onSuccess()
             } catch (e: Exception) {
                 Log.w(PassHolderApp.TAG, "Saving the login failed", e)
+                app.pendingSave.clear()
                 try {
                     callback.onFailure("Nie udało się zapisać w PassHolder")
                 } catch (e2: Exception) {
