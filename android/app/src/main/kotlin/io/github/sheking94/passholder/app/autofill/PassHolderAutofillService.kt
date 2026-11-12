@@ -63,8 +63,8 @@ internal fun unlockPendingIntent(context: Context): PendingIntent = PendingInten
 )
 
 /**
- * The intent behind the save request of a locked vault. IMMUTABLE and without data: the candidate is in
- * [PassHolderApp.pendingSave], never in the intent. requestCode 1 keeps it apart from [unlockPendingIntent].
+ * The intent behind the system's save question (Android 9+): opens the review screen. IMMUTABLE and without
+ * data: the candidate is in [PassHolderApp.pendingSave], never in the intent. requestCode 1 keeps it apart from [unlockPendingIntent].
  */
 internal fun savePendingIntent(context: Context): PendingIntent = PendingIntent.getActivity(
     context, 1, Intent(context, AutofillSaveActivity::class.java), PendingIntent.FLAG_IMMUTABLE,
@@ -101,15 +101,17 @@ class PassHolderAutofillService : AutofillService() {
         thread(name = "PassHolder-autofill-save") {
             try {
                 val data = readSaveData(request)
+                if (data != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    // Every save goes through the review screen (spec 5.4), unlocking first when locked; the
+                    // candidate stays in memory (not in the intent) for it.
+                    app.pendingSave.put(data)
+                    callback.onSuccess(savePendingIntent(this).intentSender)
+                    return@thread
+                }
+                // Android 8.0-8.1 cannot open a screen here: save as typed, or ask to unlock first.
                 val outcome = data?.let { saveLogin(app, it) { pkg -> appLabelOf(packageManager, pkg) } } ?: SaveOutcome.NOTHING
-                if (outcome == SaveOutcome.LOCKED && data != null) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                        // Ask for the unlock; the candidate stays in memory (not in the intent) for the save screen.
-                        app.pendingSave.put(data)
-                        callback.onSuccess(savePendingIntent(this).intentSender)
-                    } else {
-                        callback.onFailure("Odblokuj PassHolder i spróbuj ponownie")
-                    }
+                if (outcome == SaveOutcome.LOCKED) {
+                    callback.onFailure("Odblokuj PassHolder i spróbuj ponownie")
                     return@thread
                 }
                 saveToast(outcome)?.let { text ->

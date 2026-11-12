@@ -5,18 +5,7 @@ import android.content.pm.PackageManager
 import android.service.autofill.SaveRequest
 import android.view.autofill.AutofillId
 import io.github.sheking94.passholder.app.PassHolderApp
-import io.github.sheking94.passholder.core.autofill.AppCandidate
 import io.github.sheking94.passholder.core.autofill.AppRequest
-import io.github.sheking94.passholder.core.autofill.matchApp
-import io.github.sheking94.passholder.core.p2p.LoginFields
-import io.github.sheking94.passholder.core.save.SaveDecision
-import io.github.sheking94.passholder.core.save.SaveTarget
-import io.github.sheking94.passholder.core.save.SavedLogin
-import io.github.sheking94.passholder.core.save.decideSave
-import io.github.sheking94.passholder.core.save.newLogin
-import io.github.sheking94.passholder.core.save.saveTargetFor
-import io.github.sheking94.passholder.core.save.withPassword
-import java.util.UUID
 
 /** A login the user submitted, read from the save request. */
 data class SaveData(val app: AppRequest, val username: String, val password: String) {
@@ -27,36 +16,16 @@ data class SaveData(val app: AppRequest, val username: String, val password: Str
 enum class SaveOutcome { SAVED, UPDATED, NOTHING, LOCKED }
 
 /**
- * Saves a submitted login (spec 3.2, 3.3). A locked vault, also one whose deadline passed, saves nothing
- * and reports [SaveOutcome.LOCKED].
+ * Saves a submitted login as it was typed, without the review screen (Android 8.0-8.1, spec 5.2, 5.4). A locked
+ * vault, also one whose deadline passed, saves nothing and reports [SaveOutcome.LOCKED].
  */
 fun saveLogin(app: PassHolderApp, data: SaveData, appLabel: (String) -> String): SaveOutcome {
     val store = app.phoneStore
     // D1: the 60 s timer may not have run (deep sleep, a frozen app); the deadline still holds.
     if (app.leaveLock.expired()) store.lock()
     if (!store.isUnlocked) return SaveOutcome.LOCKED
-    val target = saveTargetFor(data.app) ?: return SaveOutcome.NOTHING
-    val logins = matchApp(data.app, store.entries().filter { it.content.fields is LoginFields }) {
-        val f = it.content.fields as LoginFields
-        AppCandidate(it.content.name, f.urls, f.androidApps)
-    }
-    val saved = logins.map {
-        val f = it.content.fields as LoginFields
-        SavedLogin(it.id, f.username, f.password)
-    }
-    return when (val decision = decideSave(data.username, data.password, saved)) {
-        SaveDecision.None -> SaveOutcome.NOTHING
-        SaveDecision.Create -> {
-            val label = (target as? SaveTarget.App)?.let { appLabel(it.packageName) }.orEmpty()
-            store.upsertContent(UUID.randomUUID().toString(), newLogin(target, label, data.username, data.password))
-            SaveOutcome.SAVED
-        }
-        is SaveDecision.Update -> {
-            val entry = logins.first { it.id == decision.id }
-            store.upsertContent(entry.id, withPassword(entry.content, data.password))
-            SaveOutcome.UPDATED
-        }
-    }
+    val review = SaveReview(data, store.entries(), appLabel(data.app.packageName))
+    return saveReviewed(app, review, review.initialDraft())
 }
 
 /** Text typed into the node with [id], searched through the whole structure; null when absent. */

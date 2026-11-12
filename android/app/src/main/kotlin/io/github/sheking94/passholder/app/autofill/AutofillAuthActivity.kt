@@ -6,16 +6,19 @@ import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.activity.addCallback
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.lifecycleScope
 import io.github.sheking94.passholder.app.BiometricController
 import io.github.sheking94.passholder.app.LeaveLock
@@ -31,14 +34,24 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.crypto.Cipher
 
+/** What the subclass does once the vault is open. */
+sealed interface AfterUnlock {
+    /** Close with RESULT_OK and [data] (null for none), locking again (D1). */
+    class Deliver(val data: Intent?) : AfterUnlock
+
+    /** Keep the screen open with [AutofillAuthActivity.UnlockedContent]; it closes with finishAfterUnlock or Back. */
+    data object Stay : AfterUnlock
+}
+
 /**
  * The unlock screen shared by the autofill activities, started by the system from a PendingIntent. After the
  * master password or the fingerprint the subclass does its work ([afterUnlock]) and the vault locks again (D1):
- * at once, or in 60 s with the lock delay on. Back and "Anuluj" give RESULT_CANCELED; an unlock still running
- * then is locked as soon as it ends.
+ * at once, or in 60 s with the lock delay on; a subclass that stays open ([AfterUnlock.Stay]) locks it when it
+ * closes. Back and "Anuluj" give RESULT_CANCELED; an unlock still running then is locked as soon as it ends.
  */
 abstract class AutofillAuthActivity : FragmentActivity() {
     protected val app get() = application as PassHolderApp
+    private val unlocked: UnlockedState by viewModels()
     private lateinit var biometrics: BiometricController
     private lateinit var fingerprintDialog: FingerprintDialog
 
@@ -47,12 +60,21 @@ abstract class AutofillAuthActivity : FragmentActivity() {
     /** The fingerprint dialog opens by itself once, on the first resume (not again after a rotation). */
     private var fingerprintOffered = false
     private var delivered = false
+    /** The vault was already open at the start and [skipsUnlockWhenOpen]: [afterUnlock] runs, no unlock screen. */
+    private var skipping by mutableStateOf(false)
 
     /** Reads what the activity was started for; false when there is nothing to do, and the activity closes. */
     protected abstract fun prepare(): Boolean
 
-    /** Runs on Dispatchers.IO with the vault open; the result is the data of RESULT_OK (null for none). */
-    protected abstract fun afterUnlock(): Intent?
+    /** Runs on Dispatchers.IO with the vault open (again after a rotation that interrupted it). */
+    protected abstract fun afterUnlock(): AfterUnlock
+
+    /** Whether a vault open at the start goes straight to [afterUnlock]; it is then not locked afterwards (R2). */
+    protected open val skipsUnlockWhenOpen = false
+
+    /** The screen after [AfterUnlock.Stay]. */
+    @Composable
+    protected open fun UnlockedContent() {}
 
     /** Back, "Anuluj" or a close before the unlock finished (may run twice): drop what [prepare] kept. */
     protected open fun onCancelled() {}
@@ -70,6 +92,14 @@ abstract class AutofillAuthActivity : FragmentActivity() {
         biometrics = BiometricController(app.biometric)
         fingerprintDialog = FingerprintDialog(this, app.fingerprintPrompt) { status = Status(it, isError = true) }
         fingerprintOffered = savedInstanceState?.getBoolean(FINGERPRINT_OFFERED) ?: false
+        // Already past the unlock (a rotation), or nothing to unlock: no fingerprint dialog, no unlock screen.
+        if (unlocked.relock != null) {
+            fingerprintOffered = true
+        } else if (skipsUnlockWhenOpen && app.phoneStore.isUnlocked && !app.leaveLock.expired()) {
+            fingerprintOffered = true
+            skipping = true
+            runUnlock(null)
+        }
 
         // Back must cancel like "Anuluj", also while an unlock is running (nothing may be saved then).
         onBackPressedDispatcher.addCallback(this) { cancel() }
@@ -79,7 +109,12 @@ abstract class AutofillAuthActivity : FragmentActivity() {
             PassHolderTheme {
                 Surface(Modifier.fillMaxSize()) {
                     Box(Modifier.safeDrawingPadding()) {
-                        AutofillUnlockScreen(busy, status, fingerprint, ::unlockWithPassword, ::unlockWithFingerprint, ::cancel)
+                        when {
+                            unlocked.relock != null -> UnlockedContent()
+                            // Blank for the moment afterUnlock takes.
+                            skipping -> {}
+                            else -> AutofillUnlockScreen(busy, status, fingerprint, ::unlockWithPassword, ::unlockWithFingerprint, ::cancel)
+                        }
                     }
                 }
             }
@@ -104,7 +139,10 @@ abstract class AutofillAuthActivity : FragmentActivity() {
 
     override fun onDestroy() {
         // Closed for good without a successful unlock (Back included); a rotation is not that.
-        if (isFinishing && !delivered) onCancelled()
+        if (isFinishing && !delivered) {
+            onCancelled()
+            leaveUnlocked()
+        }
         super.onDestroy()
     }
 
@@ -125,24 +163,43 @@ abstract class AutofillAuthActivity : FragmentActivity() {
         null
     }
 
-    private fun cancel() {
+    /** Back or "Anuluj": RESULT_CANCELED; after [AfterUnlock.Stay] the vault is locked as after a delivery. */
+    protected fun cancel() {
         onCancelled()
         setResult(RESULT_CANCELED)
+        leaveUnlocked()
         finish()
     }
 
-    /** Unlocks off the main thread (Argon2id), does the subclass's work there too, and hands the result over. */
-    private fun runUnlock(unlock: () -> Unit) {
+    /** Ends a screen kept open by [AfterUnlock.Stay]: RESULT_OK with [data], then D1 if this screen unlocked. */
+    protected fun finishAfterUnlock(data: Intent?) {
+        val relock = unlocked.relock ?: return
+        unlocked.relock = null
+        deliver(data, relock)
+    }
+
+    /** D1 for a screen kept open by [AfterUnlock.Stay] that closes without delivering; at most once. */
+    private fun leaveUnlocked() {
+        val relock = unlocked.relock ?: return
+        unlocked.relock = null
+        if (relock) lockAfterUse()
+    }
+
+    /**
+     * Unlocks off the main thread (Argon2id), does the subclass's work there too, and hands the result over.
+     * [unlock] null: the vault is already open ([skipsUnlockWhenOpen]).
+     */
+    private fun runUnlock(unlock: (() -> Unit)?) {
         if (busy) return
         busy = true
-        status = Status("Odblokowuję…")
+        if (unlock != null) status = Status("Odblokowuję…")
         // Normally locked (that is why the user came here), unless the app was unlocked meanwhile.
         // A vault past its 60 s deadline (the timer did not run) counts as locked: it is locked again after.
         val wasUnlocked = app.phoneStore.isUnlocked && !app.leaveLock.expired()
         lifecycleScope.launch {
-            val data = try {
+            val next = try {
                 withContext(Dispatchers.IO) {
-                    unlock()
+                    unlock?.invoke()
                     // A deadline left by an earlier delayed lock stays "expired" until cancelled, and would
                     // make the work below see a locked vault; deliver() schedules a fresh one.
                     if (!wasUnlocked) app.leaveLock.cancel()
@@ -158,10 +215,19 @@ abstract class AutofillAuthActivity : FragmentActivity() {
             } catch (e: Exception) {
                 // Wrong password and the like: the same message as on the locked screen of the app.
                 busy = false
+                skipping = false
                 status = Status(e.message ?: e.javaClass.simpleName, isError = true)
                 return@launch
             }
-            deliver(data, relock = !wasUnlocked)
+            when (next) {
+                is AfterUnlock.Deliver -> deliver(next.data, relock = !wasUnlocked)
+                AfterUnlock.Stay -> {
+                    busy = false
+                    status = null
+                    // Remembered across a rotation; the screen locks the vault when it closes.
+                    unlocked.relock = !wasUnlocked
+                }
+            }
         }
     }
 
@@ -175,13 +241,25 @@ abstract class AutofillAuthActivity : FragmentActivity() {
         delivered = true
         setResult(RESULT_OK, data)
         // A vault the app itself had open already keeps the app's own lock timing.
-        if (relock) {
-            if (app.settings.lockDelay) app.leaveLock.schedule(LeaveLock.DELAY_MS) else app.phoneStore.lock()
-        }
+        if (relock) lockAfterUse()
         finish()
+    }
+
+    /** D1: at once, or in 60 s with the lock delay on. */
+    private fun lockAfterUse() {
+        if (app.settings.lockDelay) app.leaveLock.schedule(LeaveLock.DELAY_MS) else app.phoneStore.lock()
     }
 
     private companion object {
         const val FINGERPRINT_OFFERED = "fingerprintOffered"
     }
+}
+
+/**
+ * Whether the unlock is done and the screen stays open ([AfterUnlock.Stay]): null before, else whether leaving it
+ * must lock the vault (D1; false when it was open already, R2). A ViewModel: survives a rotation, dies with the
+ * process (and so with the open vault), never in the saved instance state.
+ */
+internal class UnlockedState : ViewModel() {
+    var relock by mutableStateOf<Boolean?>(null)
 }

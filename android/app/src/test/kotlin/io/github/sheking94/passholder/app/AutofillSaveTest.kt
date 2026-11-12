@@ -5,6 +5,7 @@ import android.app.Instrumentation
 import android.content.Intent
 import android.os.Looper
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -31,11 +32,13 @@ import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import org.robolectric.shadows.ShadowToast
 import java.time.Duration
 
 /**
- * Saving a login submitted while the vault was locked: the service left a candidate in [PassHolderApp.pendingSave],
- * the system starts this screen. One test per class (Compose test roots leak between tests in one JVM).
+ * Saving a submitted login through the review screen: the service left a candidate in [PassHolderApp.pendingSave],
+ * the system starts this screen; the vault is locked unless [unlockedAtStart]. One test per class (Compose test
+ * roots leak between tests in one JVM).
  */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -47,6 +50,7 @@ abstract class AutofillSaveTestBase {
     protected val app: PassHolderApp = ApplicationProvider.getApplicationContext()
     protected val masterPassword = "Zażółć gęślą jaźń 2026"
     protected open val lockDelay = false
+    protected open val unlockedAtStart = false
     private var now = 1_000_000L
 
     @Before
@@ -58,7 +62,7 @@ abstract class AutofillSaveTestBase {
         app.phoneStore.disconnect()
         app.settings.lockDelay = lockDelay
         app.phoneStore.createVault(masterPassword)
-        app.phoneStore.lock()
+        if (!unlockedAtStart) app.phoneStore.lock()
         app.pendingSave.put(SaveData(AppRequest("com.example.bank", null, null), "jan", "nowe-haslo"))
         beforeLaunch()
         scenario = ActivityScenario.launchActivityForResult(Intent(app, AutofillSaveActivity::class.java))
@@ -82,6 +86,18 @@ abstract class AutofillSaveTestBase {
 
     protected fun click(text: String) = compose.onNodeWithText(text).performClick()
 
+    protected fun unlock() {
+        waitFor("Hasło główne")
+        type("Hasło główne", masterPassword)
+        click("Odblokuj")
+        waitFor("Zapisz w PassHolder")
+    }
+
+    protected fun latestToast(): String? {
+        shadowOf(Looper.getMainLooper()).idle()
+        return ShadowToast.getTextOfLatestToast()
+    }
+
     protected fun waitFor(text: String) =
         compose.waitUntil(30_000) { compose.onAllNodes(hasText(text)).fetchSemanticsNodes().isNotEmpty() }
 
@@ -97,8 +113,9 @@ abstract class AutofillSaveTestBase {
         return finishing
     }
 
-    /** Logins in the vault, read after unlocking it for the check (the vault is locked again by then). */
+    /** Logins in the vault, read after unlocking it for the check if it is locked (and locked again then). */
     protected fun logins(): List<LoginFields> {
+        if (app.phoneStore.isUnlocked) return app.phoneStore.entries().mapNotNull { it.content.fields as? LoginFields }
         app.phoneStore.unlock(masterPassword)
         return try {
             app.phoneStore.entries().mapNotNull { it.content.fields as? LoginFields }
@@ -110,10 +127,12 @@ abstract class AutofillSaveTestBase {
 
 class AutofillSavePasswordTest : AutofillSaveTestBase() {
     @Test
-    fun `the master password saves the login and locks the vault again at once`() {
-        waitFor("Hasło główne")
-        type("Hasło główne", masterPassword)
-        click("Odblokuj")
+    fun `the master password opens the review, Zapisz saves and locks the vault again at once`() {
+        unlock()
+        compose.onNodeWithText("Nowy login").assertExists()
+        compose.onNodeWithText("Aplikacja: com.example.bank").assertExists()
+        assertTrue("open while the review is shown", app.phoneStore.isUnlocked)
+        click("Zapisz")
         val result = waitForResult()
         assertEquals(Activity.RESULT_OK, result.resultCode)
         assertNull(result.resultData)
@@ -123,6 +142,7 @@ class AutofillSavePasswordTest : AutofillSaveTestBase() {
         assertEquals("jan", saved.username)
         assertEquals("nowe-haslo", saved.password)
         assertEquals(listOf("com.example.bank"), saved.androidApps)
+        assertEquals("Zapisano w PassHolder", latestToast())
     }
 }
 
@@ -131,9 +151,8 @@ class AutofillSaveDelayTest : AutofillSaveTestBase() {
 
     @Test
     fun `with the lock delay on the vault stays open for 60 s after saving`() {
-        waitFor("Hasło główne")
-        type("Hasło główne", masterPassword)
-        click("Odblokuj")
+        unlock()
+        click("Zapisz")
         assertEquals(Activity.RESULT_OK, waitForResult().resultCode)
         assertTrue("the 60 s delay keeps the vault open", app.phoneStore.isUnlocked)
         assertEquals("nowe-haslo", (app.phoneStore.entries().single().content.fields as LoginFields).password)
@@ -165,8 +184,7 @@ class AutofillSaveExpiredTest : AutofillSaveTestBase() {
         assertEquals(Activity.RESULT_OK, waitForResult().resultCode)
         assertFalse(app.phoneStore.isUnlocked)
         assertTrue(logins().isEmpty())
-        shadowOf(Looper.getMainLooper()).idle()
-        assertEquals("Minęły 2 minuty – zaloguj się ponownie, aby zapisać", org.robolectric.shadows.ShadowToast.getTextOfLatestToast())
+        assertEquals("Minęły 2 minuty – zaloguj się ponownie, aby zapisać", latestToast())
     }
 }
 
@@ -203,10 +221,121 @@ class AutofillSaveStaleDeadlineTest : AutofillSaveTestBase() {
 
     @Test
     fun `a stale leave-lock deadline does not lose the save`() {
-        waitFor("Hasło główne")
-        type("Hasło główne", masterPassword)
-        click("Odblokuj")
+        unlock()
+        click("Zapisz")
         assertEquals(Activity.RESULT_OK, waitForResult().resultCode)
         assertEquals("nowe-haslo", logins().single().password)
+    }
+}
+
+class AutofillSaveReviewUnlockedTest : AutofillSaveTestBase() {
+    override val unlockedAtStart = true
+
+    @Test
+    fun `an open vault goes straight to the review, saves the edited login and stays open`() {
+        waitFor("Zapisz w PassHolder")
+        assertTrue(compose.onAllNodes(hasText("Hasło główne")).fetchSemanticsNodes().isEmpty())
+        type("Nazwa", "Mój bank")
+        type("Login", "jan.kowalski")
+        type("Hasło", "poprawione")
+        click("Zapisz")
+        assertEquals(Activity.RESULT_OK, waitForResult().resultCode)
+        assertTrue("R2: the vault the app had open stays open", app.phoneStore.isUnlocked)
+        val entry = app.phoneStore.entries().single()
+        assertEquals("Mój bank", entry.content.name)
+        val fields = entry.content.fields as LoginFields
+        assertEquals("jan.kowalski", fields.username)
+        assertEquals("poprawione", fields.password)
+    }
+}
+
+class AutofillSaveReviewCancelTest : AutofillSaveTestBase() {
+    @Test
+    fun `Anuluj on the review saves nothing and locks the vault this screen opened`() {
+        unlock()
+        click("Anuluj")
+        assertEquals(Activity.RESULT_CANCELED, waitForResult().resultCode)
+        assertFalse(app.phoneStore.isUnlocked)
+        assertNull(app.pendingSave.take())
+        assertTrue(logins().isEmpty())
+    }
+}
+
+class AutofillSaveReviewBackTest : AutofillSaveTestBase() {
+    @Test
+    fun `Back on the review saves nothing and locks the vault this screen opened`() {
+        unlock()
+        scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+        assertEquals(Activity.RESULT_CANCELED, waitForResult().resultCode)
+        assertFalse(app.phoneStore.isUnlocked)
+        assertTrue(logins().isEmpty())
+    }
+}
+
+class AutofillSaveReviewCancelUnlockedTest : AutofillSaveTestBase() {
+    override val unlockedAtStart = true
+
+    @Test
+    fun `Anuluj on the review of an open vault leaves it open`() {
+        waitFor("Zapisz w PassHolder")
+        click("Anuluj")
+        assertEquals(Activity.RESULT_CANCELED, waitForResult().resultCode)
+        assertTrue(app.phoneStore.isUnlocked)
+        assertTrue(logins().isEmpty())
+    }
+}
+
+/** The submitted login is in the vault already, with the same password. */
+class AutofillSaveReviewNoneTest : AutofillSaveTestBase() {
+    override val unlockedAtStart = true
+
+    override fun beforeLaunch() = app.phoneStore.upsertContent(
+        "1", EntryContentV3("Bank", "", LoginFields("jan", "nowe-haslo", androidApps = listOf("com.example.bank")), emptyList()),
+    )
+
+    @Test
+    fun `a login saved already closes the screen with a Toast`() {
+        compose.waitUntil(30_000) { finishing() }
+        assertEquals("Ten login jest już zapisany w PassHolder", latestToast())
+        assertEquals(1, logins().size)
+        assertNull(app.pendingSave.take())
+    }
+}
+
+/** Editing the login into one the vault has with the same password: nothing to save. */
+class AutofillSaveReviewSameLoginTest : AutofillSaveTestBase() {
+    override val unlockedAtStart = true
+
+    override fun beforeLaunch() = app.phoneStore.upsertContent(
+        "1", EntryContentV3("Bank", "", LoginFields("anna", "nowe-haslo", androidApps = listOf("com.example.bank")), emptyList()),
+    )
+
+    @Test
+    fun `the header follows the edits and Zapisz turns off for a saved login`() {
+        waitFor("Nowy login")
+        type("Login", "anna")
+        waitFor("Ten login jest już zapisany")
+        compose.onNodeWithText("Zapisz").assertIsNotEnabled()
+        compose.onNodeWithText("Nazwa").assertDoesNotExist()
+        type("Hasło", "inne")
+        waitFor("Zmiana hasła: Bank")
+        type("Hasło", "")
+        compose.onNodeWithText("Zapisz").assertIsNotEnabled()
+    }
+}
+
+class AutofillSaveReviewRotationTest : AutofillSaveTestBase() {
+    @Test
+    fun `the review and its edits survive a rotation and the vault locks when it ends`() {
+        unlock()
+        type("Login", "jan.kowalski")
+        scenario.recreate()
+        waitFor("Zapisz w PassHolder")
+        assertTrue(compose.onAllNodes(hasText("Hasło główne")).fetchSemanticsNodes().isEmpty())
+        assertTrue(app.phoneStore.isUnlocked)
+        click("Zapisz")
+        assertEquals(Activity.RESULT_OK, waitForResult().resultCode)
+        assertFalse(app.phoneStore.isUnlocked)
+        assertEquals("jan.kowalski", logins().single().username)
     }
 }

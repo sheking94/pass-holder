@@ -30,7 +30,7 @@ class AutofillUnlockActivity : AutofillAuthActivity() {
         return true
     }
 
-    override fun afterUnlock(): Intent? {
+    override fun afterUnlock(): AfterUnlock {
         val response = try {
             buildFillResponse(app, request, inline)
         } catch (e: Exception) {
@@ -38,7 +38,7 @@ class AutofillUnlockActivity : AutofillAuthActivity() {
             Log.w(PassHolderApp.TAG, "Autofill unlock: building the response failed", e)
             null
         }
-        return response?.let { Intent().putExtra(AutofillManager.EXTRA_AUTHENTICATION_RESULT, it) }
+        return AfterUnlock.Deliver(response?.let { Intent().putExtra(AutofillManager.EXTRA_AUTHENTICATION_RESULT, it) })
     }
 }
 
