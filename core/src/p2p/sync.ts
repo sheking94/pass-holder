@@ -1,3 +1,4 @@
+import { parseAttachments } from "../files/attachment.ts";
 import type { RemoteRecord } from "../protocol.ts";
 import {
   decryptPayloadV2,
@@ -42,8 +43,13 @@ export function upsertEntryV2(
   vault: LocalVaultV2,
   clock: HlcClock,
   id: string,
-  content: EntryContentV3,
+  input: EntryContentV3,
 ): void {
+  // An empty list is dropped (a plugin may save one); a bad or over-long list throws before anything changes.
+  const { attachments, ...rest } = input;
+  const content: EntryContentV3 = attachments === undefined || attachments.length === 0
+    ? (rest as EntryContentV3)
+    : { ...rest, attachments: parseAttachments(attachments) } as EntryContentV3;
   const existing = vault.entries.get(id);
   // Size check on a copy of the clock first: a rejected entry changes neither the vault nor the clock.
   const probe = clock.clone();

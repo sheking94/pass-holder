@@ -10,7 +10,14 @@ export function isPassHolderJson(value: unknown): boolean {
 }
 
 export function exportPassHolderJson(entries: readonly EntryContentV3[]): string {
-  return JSON.stringify({ format: "passholder", version: 3, entries: sortForExport(entries) }, null, 2) + "\n";
+  // Attachment descriptors carry file keys and the files are not exported, so they are left out.
+  const bare = entries.map(({ attachments: _attachments, ...rest }) => rest as EntryContentV3);
+  return JSON.stringify({ format: "passholder", version: 3, entries: sortForExport(bare) }, null, 2) + "\n";
+}
+
+/** Number of files that an export of these entries leaves out. */
+export function countAttachments(entries: readonly EntryContentV3[]): number {
+  return entries.reduce((sum, e) => sum + (e.attachments?.length ?? 0), 0);
 }
 
 /** Throws a Polish message if the file is not PassHolder JSON v3; a bad entry is skipped as "wpis N" (from 1). */
