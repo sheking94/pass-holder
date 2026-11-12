@@ -28,13 +28,13 @@ val TRUSTED_BROWSERS: Set<String> = setOf(
     "com.vivaldi.browser",
 )
 
-private class ParsedUrl(val https: Boolean, val host: String, val port: String)
+internal class ParsedUrl(val https: Boolean, val host: String, val port: String)
 
 private val IPV4 = Regex("^\\d{1,3}(\\.\\d{1,3}){3}$")
 private const val FORBIDDEN_HOST_CHARS = "#%/:<>?@[\\]^|"
 
 /** Hand-written stand-in for the WHATWG URL parser, enough for http(s) hosts (java.net.URI rejects e.g. `_`). */
-private fun parse(raw: String): ParsedUrl? {
+internal fun parse(raw: String, wwwBeforeDot: Boolean = false): ParsedUrl? {
     val text = raw.trim()
     val schemeEnd = text.indexOf("://")
     val scheme = if (schemeEnd >= 0) text.substring(0, schemeEnd).lowercase() else "https"
@@ -70,7 +70,7 @@ private fun parse(raw: String): ParsedUrl? {
         }
         // NFKC mapping can yield forbidden characters (e.g. fullwidth slash); punycode output is plain ASCII.
         if (!ascii.all { it in 'a'..'z' || it in '0'..'9' || it == '.' || it == '_' || it == '-' }) return null
-        rawHost = ascii.removeSuffix(".").removePrefix("www.")
+        rawHost = if (wwwBeforeDot) ascii.removePrefix("www.").removeSuffix(".") else ascii.removeSuffix(".").removePrefix("www.")
     }
     if (rawHost.isEmpty()) return null
     if (rawPort.any { it !in '0'..'9' }) return null
