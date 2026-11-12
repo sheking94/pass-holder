@@ -428,37 +428,46 @@ wektory `core/test-vectors/save/`), `extension/src/save/` (`read-form.ts`, `watc
 ### Android
 
 Po wysłaniu formularza logowania w aplikacji lub w Chrome system wyświetla okno z pytaniem o zapis w
-PassHolder (treść zależy od wersji Androida i języka) i PassHolder zapisuje nowy login albo nowe hasło istniejącego. Tylko loginy.
+PassHolder (treść zależy od wersji Androida i języka). Od Androida 9 po „Zapisz” otwiera się podgląd, w którym można poprawić dane
+przed zapisem; PassHolder zapisuje nowy login albo nowe hasło istniejącego. Tylko loginy.
 
 - **Włączenie:** ⋮ → **Ustawienia** → **Pytaj o zapis haseł** (domyślnie włączone). Wymaga włączonej usługi
   autouzupełniania ([Autouzupełnianie](#android-1)). Chrome musi używać „innej usługi autouzupełniania”. Przy
   wyłączonym przełączniku odpowiedzi usługi nie mają prośby o zapis; zmiana działa od następnego wypełniania.
-- **Kiedy pyta:** system pyta, gdy ekran logowania (pole hasła, opcjonalnie login) znika po wpisaniu danych.
+- **Kiedy pyta:** system pyta, gdy ekran z polem hasła (także „nowe hasło”) znika po wpisaniu danych: logowanie,
+  rejestracja, formularz z danymi kontaktowymi i hasłem, zmiana hasła. Login może być pusty (uzupełnisz go w podglądzie).
   Hasło: pole „nowe hasło”, inaczej hasło; login: pole loginu, inaczej ostatni e-mail przed hasłem. Decyzja jak w
   Chrome: brak wpisu z tym loginem → nowy; jest z innym hasłem → zmiana samego hasła; to samo hasło: nic.
   Login porównywany bez wielkości liter i spacji na brzegach. Pytanie dotyczy także ekranu logowania, na którym
   nie było pasujących wpisów (usługa zwraca wtedy odpowiedź tylko z prośbą o zapis, nie „nic”).
+- **Podgląd przed zapisem (Android 9+):** ekran „Zapisz w PassHolder” z polami **Nazwa** (tylko nowy wpis),
+  **Login** i **Hasło** (ukryte, **Pokaż**) do edycji oraz adresem strony albo aplikacją (tylko do odczytu).
+  Nagłówek liczy się na bieżąco: „Nowy login” albo „Zmiana hasła: <nazwa wpisu>”. **Zapisz** jest nieaktywny przy
+  pustym haśle i gdy login z tym hasłem już jest; jeśli taki jest już przy wejściu, krótki komunikat „Ten login jest
+  już zapisany w PassHolder” i zamknięcie. Przy zapisie sejf jest czytany od nowa, więc zmiana z ostatnich chwil
+  (synchronizacja, inny zapis) nie zostaje nadpisana. Zablokowanie sejfu w trakcie podglądu: „Zapisz” prosi o
+  odblokowanie i wraca do podglądu z tym, co wpisano. Wyjście z aplikacji blokuje sejf jak po podpowiedzi (D1).
+  Dane z podglądu żyją tylko w pamięci ekranu.
 - **Co się zapisuje:** w zaufanej przeglądarce (Chrome i pozostałe z listy) nazwa i adres to sama domena, jak w
   Chrome (`github.com`; `http` → `http://domena`). W innej aplikacji wpis dostaje nazwę aplikacji i jej pakiet na
   liście „Aplikacje”; domenę zgłoszoną przez obcą aplikację (WebView) PassHolder pomija. Po zapisie komunikat
   „Zapisano w PassHolder” albo „Zaktualizowano hasło w PassHolder”; po odblokowaniu błąd to komunikat „Nie udało się zapisać w PassHolder”; przy zapisie bez
   odblokowania błąd trafia do systemu, a czy i jak go pokaże, zależy od niego. Zmiana czeka na synchronizację jak każda inna.
 - **Zablokowany sejf:** po zaakceptowaniu okna systemowego otwiera się ekran odblokowania (hasło główne albo
-  odcisk palca, ten sam co przy podpowiedzi), po nim zapis i komunikat. Login i hasło czekają w pamięci procesu
+  odcisk palca, ten sam co przy podpowiedzi), po nim podgląd (otwarty sejf: od razu podgląd) i zapis z komunikatem. Login i hasło czekają w pamięci procesu
   do 2 minut (nie w intencji, nie na dysku); starszych nie zapisuje nic. Wstecz i **Anuluj**: nic nie zapisane,
   kandydat skasowany, sejf zostaje zablokowany. Po zapisie sejf blokuje się jak po podpowiedzi: po 60 s albo od
   razu (zależnie od „Blokuj dopiero po 60 s poza aplikacją”); stary termin 60 s po wcześniejszym odblokowaniu nie
   przeszkadza. Sejf otwarty wcześniej w aplikacji zostaje otwarty.
-- **Android 8.0–8.1 (API 26–27):** przy zablokowanym sejfie system dostaje komunikat „Odblokuj PassHolder i
+- **Android 8.0–8.1 (API 26–27):** bez podglądu (system nie pozwala otworzyć ekranu): otwarty sejf zapisuje od
+  razu; przy zablokowanym system dostaje komunikat „Odblokuj PassHolder i
   spróbuj ponownie” (ekran odblokowania z prośby o zapis działa od API 28); nic nie jest zapisane.
 
 **Ograniczenia:**
 
-- Formularze rejestracji rozpoznane jako kontakty (np. z imieniem i adresem) albo z samym polem „nowe hasło”
-  nie dostają prośby o zapis (usługa ich nie wypełnia); zmiana hasła z samymi polami „nowe hasło” też nie.
 - Tylko login i hasło; adres w aplikacji bez przeglądarki z listy zaufanych zapisuje się pod pakietem.
 - Okno systemowe pojawia się wedle uznania Androida i aplikacji (np. gdy ekran logowania nie znika).
-- Logowanie dwuetapowe (e-mail na wcześniejszym ekranie, hasło na następnym): wpis zapisuje się z pustym loginem.
+- Logowanie dwuetapowe (e-mail na wcześniejszym ekranie, hasło na następnym): wpis zapisuje się z pustym loginem, który (od API 28) można uzupełnić w podglądzie.
 - Zapis w tle odświeża listę po powrocie do aplikacji, ale otwarty już formularz edycji nie jest przeładowywany:
   edycja tego samego wpisu tuż po zapisie w tle może nadpisać nowe hasło.
 

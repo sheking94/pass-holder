@@ -27,7 +27,7 @@
 - **P2 – pola w `clientState`:** czytnik struktury pomija pola niewidoczne, a przy zapisie formularz bywa już ukryty. Dlatego odpowiedź zapamiętuje w `clientState` `AutofillId` pola hasła i loginu oraz pakiet, `webDomain`, `webScheme` z chwili wypełniania. `onSaveRequest` szuka wartości po tych id we wszystkich `fillContexts` (od ostatniego).
 - **P3 – które pole hasła:** pierwsze `NEW_PASSWORD`, a gdy go brak – pierwsze `PASSWORD` (zmiana hasła: zapisuje nowe). Login: pierwsze `USERNAME`, inaczej ostatnie `EMAIL` przed polem hasła.
 - **P4 – adres w Kotlinie:** `saveUrl(page)` przyjmuje adres jak w TS (te same wektory); usługa podaje `"${webScheme ?: "https"}://$webDomain"`.
-- **P5 – po odblokowaniu decyzja `none`:** okno zapisu zamyka się bez komunikatu (jak w Chrome).
+- **P5 – po odblokowaniu decyzja `none`:** okno zapisu zamyka się bez komunikatu (jak w Chrome) (od API 28 zastąpione przez podgląd, spec 5.4).
 
 ## Review Focus
 

@@ -123,12 +123,13 @@ Dwa moduły Gradle: `core` (czysta JVM, testy bez emulatora) i `app` (Jetpack Co
 | `SecureClipboard.kt` | kopiowanie i czyszczenie schowka po minucie (WorkManager) |
 | `autofill/ViewNodeReader.kt` | `AssistStructure` → `ParsedRequest`: pakiet, `webDomain`/`webScheme`, widoczne i włączone pola tekstowe i list (`describeNode`: `htmlInfo`, `autofillHints`, `inputType`, `idEntry`, podpowiedź) |
 | `autofill/PassHolderAutofillService.kt` | usługa (`BIND_AUTOFILL_SERVICE`): `respond` (własny pakiet, brak pól, brak sejfu → `null`; zablokowany → „Odblokuj PassHolder”; inaczej `buildFillResponse`), praca w osobnym wątku; `onSaveRequest` czyta `readSaveData` i woła `saveLogin` (zablokowany: kandydat do `pendingSave` i `AutofillSaveActivity`; API < 28: `onFailure`). Ekran logowania bez pasujących wpisów dostaje odpowiedź tylko z `SaveInfo` |
-| `autofill/ResponseBuilder.kt` | `FillResponse`: `Dataset` z wierszem `res/layout/autofill_item.xml` i, na API 30+, podpowiedzią w pasku klawiatury (`androidx.autofill` `InlineSuggestionUi`, ≤ `min(10, maxSuggestionCount)`); `SaveInfo` (hasło + login, `FLAG_SAVE_ON_ALL_VIEWS_INVISIBLE`) dla grupy login przy włączonym „Pytaj o zapis haseł”, id pól i opis aplikacji w `clientState` |
+| `autofill/ResponseBuilder.kt` | `FillResponse`: `Dataset` z wierszem `res/layout/autofill_item.xml` i, na API 30+, podpowiedzią w pasku klawiatury (`androidx.autofill` `InlineSuggestionUi`, ≤ `min(10, maxSuggestionCount)`); `SaveInfo` (hasło + login, `FLAG_SAVE_ON_ALL_VIEWS_INVISIBLE`) dla każdego ekranu z polem hasła (także „nowe hasło”, każda grupa) przy włączonym „Pytaj o zapis haseł”, id pól i opis aplikacji w `clientState` |
 | `autofill/AutofillUnlockActivity.kt`, `ui/AutofillUnlockScreen.kt` | ekran odblokowania z podpowiedzi (podklasa `AutofillAuthActivity`): po odblokowaniu buduje odpowiedź i zwraca `EXTRA_AUTHENTICATION_RESULT` |
-| `autofill/SaveState.kt` | `SaveSpec` (pola i aplikacja z chwili wypełniania), `saveSpecFor` (przełącznik, grupa login, pole hasła), `clientState` i jego odczyt (`saveSpecIds`, bez `Bundle.getParcelable(String, Class)` poniżej API 33) |
+| `autofill/SaveState.kt` | `SaveSpec` (pola i aplikacja z chwili wypełniania), `saveSpecFor` (przełącznik, pole hasła; grupa bez znaczenia), `clientState` i jego odczyt (`saveSpecIds`, bez `Bundle.getParcelable(String, Class)` poniżej API 33) |
 | `autofill/SaveLogin.kt` | `saveLogin` (cel, pasujące loginy, `decideSave`, `upsertContent`; wynik `SAVED`/`UPDATED`/`NOTHING`/`LOCKED`), `readSaveData` (wartości po id ze wszystkich `fillContexts`, od ostatniego), komunikaty, `appLabelOf` |
 | `autofill/PendingSave.kt` | kandydat zapisu przy zablokowanym sejfie: tylko pamięć procesu, 2 minuty (`app.clock`), jeden naraz |
-| `autofill/AutofillAuthActivity.kt`, `AutofillSaveActivity.kt` | wspólna baza ekranu odblokowania (hasło / odcisk, Wstecz i Anuluj = `RESULT_CANCELED`, blokada D1, anulowanie starego terminu 60 s po odblokowaniu) i ekran zapisu po odblokowaniu (`exported="false"`, `FLAG_SECURE`) |
+| `autofill/AutofillAuthActivity.kt`, `AutofillSaveActivity.kt` | wspólna baza (odblokowanie tylko gdy sejf zablokowany: hasło / odcisk; haki `afterUnlock`, `UnlockedContent`, `onLockedWhileOpen`, `unlockAgain`; Wstecz i Anuluj = `RESULT_CANCELED`, blokada D1 także po wyjściu w tło, anulowanie starego terminu 60 s) i ekran zapisu: odblokowanie, potem podgląd (`exported="false"`, `FLAG_SECURE`) |
+| `autofill/SaveReview.kt`, `ui/SaveReviewScreen.kt` | `SaveReview` (wpisy sejfu odszyfrowane raz, `decision`/`title`/`initialDraft` z `SaveDraft`), `saveReviewed` (ponowny odczyt sejfu, `decideSave` od nowa, `upsertContent`; wynik `SaveOutcome`), `SaveReviewModel` (ViewModel: kandydat, szkic, blokada w trakcie podglądu; bez stanu instancji) i ekran Compose „Zapisz w PassHolder” (Nazwa, Login, Hasło, adres/aplikacja tylko do odczytu) |
 | `AutofillStatus.kt` | czy PassHolder jest usługą autouzupełniania (`hasEnabledAutofillServices`), wiersz w `SettingsScreen` |
 | `ui/*.kt` | ekrany Compose: `StartScreen`, `LockedScreen`, `ListScreen` (dolny pasek zakładek), `EditScreen` (powłoka formularza), `SettingsScreen`, `TransferScreen` (import i eksport; okno wyboru pliku 60 s w `LockController.expectFilePicker`), `VaultTopBar`, `SyncScreen`, `DevicesScreen`, `RestoreScreen`, `FingerprintDialog`, `Common` (m.in. `SecretField`), `PassHolderUi` (wybór ekranu) |
 | `ui/forms/*.kt` | `LoginForm`, `ContactForm`, `CardForm`, `DocumentForm` (notatka używa samej powłoki), `ListEditor`, `CustomFieldsEditor`, `GeneratorCard`, `AppPickerDialog` |
@@ -215,15 +216,19 @@ Usługa nie trzyma wpisów ani kluczy: każde żądanie czyta sejf od nowa. Decy
  wysłanie, ekran znika ──────► okno systemu ─ tak ─► onSaveRequest → readSaveData (id z clientState,
                                                                  wszystkie fillContexts) → saveLogin
                                                                  otwarty: decideSave → upsertContent → toast
-                                                                 zablokowany (API ≥ 28): pendingSave.put
+                                                                 API ≥ 28: pendingSave.put (zawsze)
+                                                                 API < 28: otwarty → zapis od razu, zablokowany → onFailure
  ◄── onSuccess(savePendingIntent) ──────────────────────────────┘
- AutofillSaveActivity: hasło / odcisk → pendingSave.take → saveLogin → toast; RESULT_OK; blokada D1
+ AutofillSaveActivity: odblokowanie tylko gdy zablokowany → pendingSave.take → SaveReview
+   → ekran podglądu (edycja; nagłówek z decideSave na bieżąco) → „Zapisz” → saveReviewed (sejf czytany od nowa)
+   → toast; RESULT_OK; blokada D1. Sejf zablokowany w trakcie podglądu → odblokowanie i powrót z tym samym szkicem;
+   wyjście w tło → D1
 ```
 
 Decyzje (2026-11-12): **P1** API 26–27 i zablokowany sejf: `onFailure`, bez kandydata (`SaveCallback.onSuccess(IntentSender)` od API 28).
 **P2** id pól i opis aplikacji w `clientState` (czytnik pomija pola niewidoczne, a przy zapisie formularz bywa
 już ukryty). **P3** pole hasła: pierwsze „nowe hasło”, inaczej hasło. **P4** adres dla `saveUrl`:
-`"${webScheme ?: "https"}://$webDomain"`. **P5** po odblokowaniu decyzja „nic”: okno zamyka się bez komunikatu.
+`"${webScheme ?: "https"}://$webDomain"`. **P5** po odblokowaniu decyzja „nic”: okno zamyka się bez komunikatu (od API 28 zastąpione przez podgląd, spec 5.4: komunikat „Ten login jest już zapisany”).
 Kandydat żyje tylko w pamięci (2 minuty); Wstecz i Anuluj go kasują. Zapis po odblokowaniu anuluje stary termin
 60 s (`leaveLock.cancel()`), inaczej sejf wyglądałby na zablokowany.
 
