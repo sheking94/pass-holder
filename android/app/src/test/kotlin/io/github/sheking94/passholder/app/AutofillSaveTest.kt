@@ -401,3 +401,46 @@ class AutofillSaveReviewFreshEntriesTest : AutofillSaveTestBase() {
         assertEquals(1, logins().size)
     }
 }
+
+/** With the lock delay on, leaving the review starts the 60 s timer; coming back stops it. */
+class AutofillSaveReviewBackgroundDelayTest : AutofillSaveTestBase() {
+    override val lockDelay = true
+    private var leaveNow = 0L
+
+    override fun beforeLaunch() {
+        app.leaveLock = LeaveLock(app.phoneStore, now = { leaveNow })
+    }
+
+    @Test
+    fun `back in front within 60 s the timer is cancelled`() {
+        unlock()
+        scenario.moveToState(Lifecycle.State.CREATED)
+        assertTrue("the 60 s delay keeps the vault open", app.phoneStore.isUnlocked)
+        leaveNow += 30_000
+        scenario.moveToState(Lifecycle.State.RESUMED)
+        waitFor("Zapisz w PassHolder")
+        leaveNow += 31_000
+        assertFalse("no deadline left after the return", app.leaveLock.expired())
+        assertTrue(app.phoneStore.isUnlocked)
+    }
+}
+
+/** With the lock delay on, closing a review left in the background keeps the deadline set when it was left. */
+class AutofillSaveReviewDestroyDelayTest : AutofillSaveTestBase() {
+    override val lockDelay = true
+    private var leaveNow = 0L
+
+    override fun beforeLaunch() {
+        app.leaveLock = LeaveLock(app.phoneStore, now = { leaveNow })
+    }
+
+    @Test
+    fun `closing after onStop does not move the deadline`() {
+        unlock()
+        scenario.moveToState(Lifecycle.State.CREATED)
+        leaveNow += 30_000
+        scenario.moveToState(Lifecycle.State.DESTROYED)
+        leaveNow += 31_000
+        assertTrue("the deadline is 60 s after leaving, not after closing", app.leaveLock.expired())
+    }
+}

@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.sheking94.passholder.app.PassHolderApp
 import io.github.sheking94.passholder.core.autofill.AppCandidate
+import io.github.sheking94.passholder.core.autofill.AppRequest
 import io.github.sheking94.passholder.core.autofill.matchApp
 import io.github.sheking94.passholder.core.p2p.LoginFields
 import io.github.sheking94.passholder.core.p2p.PhoneEntry
@@ -29,21 +30,34 @@ data class SaveDraft(val name: String, val username: String, val password: Strin
     override fun toString() = "SaveDraft(name=$name)"
 }
 
+/** The vault's logins for [request], in `matchApp` order. */
+private fun matchingLogins(request: AppRequest, entries: List<PhoneEntry>): List<PhoneEntry> =
+    matchApp(request, entries.filter { it.content.fields is LoginFields }) {
+        val f = it.content.fields as LoginFields
+        AppCandidate(it.content.name, f.urls, f.androidApps)
+    }
+
+private fun PhoneEntry.savedLogin(): SavedLogin {
+    val f = content.fields as LoginFields
+    return SavedLogin(id, f.username, f.password)
+}
+
 /**
  * A submitted login checked against the vault (spec 3.2, 5.4). [entries] are the vault's entries, decrypted by the
- * caller; only the logins matching the request are kept. [appLabel] names a new login of an app.
+ * caller; of the logins matching the request only what the decision and the header need is kept (id, name, login,
+ * password). [appLabel] names a new login of an app.
  */
 class SaveReview(val data: SaveData, entries: List<PhoneEntry>, private val appLabel: String) {
     /** Null when the address cannot be saved. */
     val target: SaveTarget? = saveTargetFor(data.app)
 
-    private val logins: List<PhoneEntry> = matchApp(data.app, entries.filter { it.content.fields is LoginFields }) {
-        val f = it.content.fields as LoginFields
-        AppCandidate(it.content.name, f.urls, f.androidApps)
-    }
-    private val saved = logins.map {
-        val f = it.content.fields as LoginFields
-        SavedLogin(it.id, f.username, f.password)
+    private val saved: List<SavedLogin>
+    private val names: Map<String, String>
+
+    init {
+        val logins = matchingLogins(data.app, entries)
+        saved = logins.map { it.savedLogin() }
+        names = logins.associate { it.id to it.content.name }
     }
 
     fun decision(draft: SaveDraft): SaveDecision = decideSave(draft.username, draft.password, saved)
@@ -57,7 +71,7 @@ class SaveReview(val data: SaveData, entries: List<PhoneEntry>, private val appL
     /** "Nowy login" or "Zmiana hasła: <entry>"; while the password is empty, what saving would do once typed. */
     fun title(draft: SaveDraft): String = when (val d = intent(draft)) {
         SaveDecision.Create -> "Nowy login"
-        is SaveDecision.Update -> "Zmiana hasła: ${entry(d.id).content.name}"
+        is SaveDecision.Update -> "Zmiana hasła: ${names.getValue(d.id)}"
         SaveDecision.None -> "Ten login jest już zapisany"
     }
 
@@ -76,11 +90,6 @@ class SaveReview(val data: SaveData, entries: List<PhoneEntry>, private val appL
         val probe = draft.password.ifEmpty { saved.joinToString("") { it.password } + "x" }
         return decision(draft.copy(password = probe))
     }
-
-    internal fun entry(id: String): PhoneEntry = logins.first { it.id == id }
-
-    /** The same request against [entries] read anew. */
-    internal fun with(entries: List<PhoneEntry>) = SaveReview(data, entries, appLabel)
 }
 
 /**
@@ -96,8 +105,8 @@ fun saveReviewed(app: PassHolderApp, review: SaveReview, draft: SaveDraft): Save
     if (app.leaveLock.expired()) store.lock()
     if (!store.isUnlocked) return SaveOutcome.LOCKED
     val target = review.target ?: return SaveOutcome.NOTHING
-    val fresh = review.with(store.entries())
-    return when (val decision = fresh.decision(draft)) {
+    val logins = matchingLogins(review.data.app, store.entries())
+    return when (val decision = decideSave(draft.username, draft.password, logins.map { it.savedLogin() })) {
         SaveDecision.None -> SaveOutcome.NOTHING
         SaveDecision.Create -> {
             val name = draft.name.trim().ifEmpty { review.initialDraft().name }
@@ -106,7 +115,7 @@ fun saveReviewed(app: PassHolderApp, review: SaveReview, draft: SaveDraft): Save
             SaveOutcome.SAVED
         }
         is SaveDecision.Update -> {
-            val entry = fresh.entry(decision.id)
+            val entry = logins.first { it.id == decision.id }
             store.upsertContent(entry.id, withPassword(entry.content, draft.password))
             SaveOutcome.UPDATED
         }
@@ -145,6 +154,8 @@ class SaveReviewModel : ViewModel() {
     /** Forgets the decrypted logins (saved, or the vault locked); the candidate and the draft stay. */
     fun dropReview() {
         review = null
+        // A new unlock follows anyway; a stale flag would ask for a second one.
+        lockedOut = false
     }
 
     /** Saves [draft] off the main thread; in this scope, so a rotation neither stops nor repeats it. */

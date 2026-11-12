@@ -446,17 +446,18 @@ przed zapisem; PassHolder zapisuje nowy login albo nowe hasło istniejącego. Ty
   pustym haśle i gdy login z tym hasłem już jest; jeśli taki jest już przy wejściu, krótki komunikat „Ten login jest
   już zapisany w PassHolder” i zamknięcie. Przy zapisie sejf jest czytany od nowa, więc zmiana z ostatnich chwil
   (synchronizacja, inny zapis) nie zostaje nadpisana. Zablokowanie sejfu w trakcie podglądu: „Zapisz” prosi o
-  odblokowanie i wraca do podglądu z tym, co wpisano. Wyjście z aplikacji blokuje sejf jak po podpowiedzi (D1).
+  odblokowanie i wraca do podglądu z tym, co wpisano. Wyjście z podglądu (także w tło) blokuje sejf (D1), jeśli to
+  ten ekran go odblokował; sejf otwarty wcześniej w aplikacji zostaje otwarty.
   Dane z podglądu żyją tylko w pamięci ekranu.
 - **Co się zapisuje:** w zaufanej przeglądarce (Chrome i pozostałe z listy) nazwa i adres to sama domena, jak w
   Chrome (`github.com`; `http` → `http://domena`). W innej aplikacji wpis dostaje nazwę aplikacji i jej pakiet na
   liście „Aplikacje”; domenę zgłoszoną przez obcą aplikację (WebView) PassHolder pomija. Po zapisie komunikat
-  „Zapisano w PassHolder” albo „Zaktualizowano hasło w PassHolder”; po odblokowaniu błąd to komunikat „Nie udało się zapisać w PassHolder”; przy zapisie bez
-  odblokowania błąd trafia do systemu, a czy i jak go pokaże, zależy od niego. Zmiana czeka na synchronizację jak każda inna.
+  „Zapisano w PassHolder” albo „Zaktualizowano hasło w PassHolder”; błąd to komunikat „Nie udało się zapisać w
+  PassHolder” (Android 8.0–8.1: błąd trafia do systemu, a czy i jak go pokaże, zależy od niego). Zmiana czeka na synchronizację jak każda inna.
 - **Zablokowany sejf:** po zaakceptowaniu okna systemowego otwiera się ekran odblokowania (hasło główne albo
   odcisk palca, ten sam co przy podpowiedzi), po nim podgląd (otwarty sejf: od razu podgląd) i zapis z komunikatem. Login i hasło czekają w pamięci procesu
   do 2 minut (nie w intencji, nie na dysku); starszych nie zapisuje nic. Wstecz i **Anuluj**: nic nie zapisane,
-  kandydat skasowany, sejf zostaje zablokowany. Po zapisie sejf blokuje się jak po podpowiedzi: po 60 s albo od
+  kandydat skasowany; przed odblokowaniem sejf zostaje zablokowany, na podglądzie blokuje się jak po zapisie (D1). Po zapisie sejf blokuje się jak po podpowiedzi: po 60 s albo od
   razu (zależnie od „Blokuj dopiero po 60 s poza aplikacją”); stary termin 60 s po wcześniejszym odblokowaniu nie
   przeszkadza. Sejf otwarty wcześniej w aplikacji zostaje otwarty.
 - **Android 8.0–8.1 (API 26–27):** bez podglądu (system nie pozwala otworzyć ekranu): otwarty sejf zapisuje od

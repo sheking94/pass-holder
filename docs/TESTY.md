@@ -55,7 +55,7 @@ katalogu pakietu.
 | `core` | 28 | 489 | w tym `core/test/p2p/`, `core/test/autofill/` i `core/test/save/` |
 | `extension` | 29 | 291 | w tym widoki w happy-dom (`extension/test/ui/`), `extension/test/autofill/` i `extension/test/save/`; `background.ts` bez testów (logika w `fill-tab.ts` i `save/candidates.ts`) |
 | `android/core` | 41 | 637 | 4 pomijane bez `PASSHOLDER_INTEROP_TEST=1`; w tym `autofill/` (wektory `core/test-vectors/autofill/`) i `save/` (wektory `core/test-vectors/save/`) |
-| `android/app` | 32 | 160 | Robolectric, zrzuty ekranów; w tym `autofill/`, ekrany autouzupełniania i zapis po odblokowaniu |
+| `android/app` | 32 | 162 | Robolectric, zrzuty ekranów; w tym `autofill/`, ekrany autouzupełniania i zapis po odblokowaniu |
 
 ## Co testują pliki
 
@@ -153,7 +153,7 @@ Playwright z Chromium nie jest zależnością repozytorium: w kontenerze w chmur
 | `AutofillUnlockTest`, `AutofillUnlockScreenTest`, `AutofillSettingTest` (app) | odblokowanie z podpowiedzi (złe i dobre hasło, odcisk, Wstecz, Anuluj, brak pasujących, brak żądania, ponowna blokada, powrót do aplikacji → lista), wiersz „Autouzupełnianie” w Ustawieniach (stan, „Włącz” → systemowy wybór, odświeżenie po powrocie) |
 | `save/SaveVectorsTest`, `SaveFieldsTest`, `SaveTargetTest` | port pytania o zapis: te same wektory `{url,decide}.json` co TypeScript (adres, nazwa, decyzja; `www.` → brak adresu), wybór pól hasła i loginu (nowe hasło przed hasłem, e-mail przed hasłem), cel zapisu (domena tylko od zaufanej przeglądarki, inaczej pakiet), `newLogin`, `withPassword` |
 | `autofill/SaveStateTest`, `SaveLoginTest`, `PendingSaveTest` (app) | `clientState` (id pól i aplikacja; tylko poniżej API 33, `SaveInfo` testuje `FillLogicTest`), zapis nowego loginu pod domeną i pod pakietem, obca aplikacja z domeną banku, zmiana hasła, to samo hasło → nic, zablokowany → `LOCKED`, komunikaty; kandydat tylko w pamięci, 2 minuty, jeden naraz |
-| `AutofillSaveTest` (app) | ekran zapisu: odblokowanie tylko przy zablokowanym sejfie, podgląd i edycja (nazwa, login, hasło), zmiana hasła, „Ten login jest już zapisany”, sejf zablokowany w trakcie podglądu (ten sam szkic), wyjście w tło (D1), Anuluj, Wstecz, kandydat starszy niż 2 minuty z komunikatem, brak kandydata, stary termin 60 s; `SaveReviewTest` (logika: `SaveReview`, `saveReviewed`, ponowny odczyt sejfu), `SaveReviewScreenTest` (zrzut podglądu); `FillLogicTest` (`SaveInfo` dla każdego ekranu z polem hasła: kontakt, samo „nowe hasło”, odpowiedź z samym `SaveInfo` bez pasujących wpisów, brak `SaveInfo` przy wyłączonym przełączniku), `SettingsScreenTests` (przełącznik „Pytaj o zapis haseł”), `BackgroundSaveRefreshTest` (powrót do aplikacji odświeża listę po zapisie w tle) |
+| `AutofillSaveTest` (app) | ekran zapisu: odblokowanie tylko przy zablokowanym sejfie, podgląd i edycja (nazwa, login, hasło), zmiana hasła, „Ten login jest już zapisany”, sejf zablokowany w trakcie podglądu (ten sam szkic), wyjście w tło (D1; z opóźnieniem: powrót kasuje termin, zamknięcie go nie przesuwa), Anuluj, Wstecz, kandydat starszy niż 2 minuty z komunikatem, brak kandydata, stary termin 60 s; `SaveReviewTest` (logika: `SaveReview`, `saveReviewed`, ponowny odczyt sejfu), `SaveReviewScreenTest` (zrzut podglądu); `FillLogicTest` (`SaveInfo` dla każdego ekranu z polem hasła: kontakt, samo „nowe hasło”, odpowiedź z samym `SaveInfo` bez pasujących wpisów, brak `SaveInfo` przy wyłączonym przełączniku), `SettingsScreenTests` (przełącznik „Pytaj o zapis haseł”), `BackgroundSaveRefreshTest` (powrót do aplikacji odświeża listę po zapisie w tle) |
 
 Zrzuty ekranów telefonu (`android/app/screenshots/`, przepisywane przy każdym przebiegu testów): 30 Ustawienia,
 31-35 zakładki (Loginy, Karty, Kontakty, Notatki, Dokumenty), 36 formularz loginu, 37 pole ukryte pokazane,
@@ -307,7 +307,7 @@ hasło główne. „Otwórz w karcie ↗” dwa razy: drugi raz przełącza na i
 
 **T21. Pytanie o zapis na telefonie.** Aplikacja zainstalowana, usługa autouzupełniania włączona, w Chrome „inna usługa
 autouzupełniania”, sejf z kilkoma wpisami, w Ustawieniach „Pytaj o zapis haseł” włączone. (1) **Aplikacja, nowy
-login:** aplikacja z ekranem logowania (własna testowa albo prawdziwa) → zaloguj się nowym loginem: okno systemu
+login:** aplikacja z ekranem logowania (własna testowa albo prawdziwa) → zaloguj się nowym loginem:
 okno systemu z pytaniem o zapis w PassHolder → **Zapisz**: „Zapisano w PassHolder”, na liście loginów nowy wpis z nazwą aplikacji i jej
 pakietem. (2) **Chrome, nowy login:** strona logowania (własny HTML albo prawdziwa) → nowy login: okno systemu →
 zapis; wpis ma nazwę i adres samej domeny. Ponowne logowanie tym samym hasłem: bez okna. (3) **Chrome, zmiana
@@ -315,7 +315,8 @@ hasła:** ten sam login z innym hasłem → okno → „Zaktualizowano hasło w 
 (login w innej wielkości liter: aktualizacja, nie duplikat). (4) **Zablokowany sejf:** zablokuj sejf, zaloguj się
 nowym loginem: okno systemu → ekran odblokowania; hasło główne (potem to samo z odciskiem palca: okno odcisku
 otwiera się samo) → „Zapisano w PassHolder”, sejf znów zablokowany (po 60 s albo od razu, zależnie od „Blokuj
-dopiero po 60 s”). Wstecz i **Anuluj** na tym ekranie: nic nie zapisane, kolejne logowanie pyta od nowa; po 2
+dopiero po 60 s”). Wstecz i **Anuluj** przed odblokowaniem: nic nie zapisane, sejf zablokowany, kolejne logowanie pyta od nowa; na
+podglądzie: nic nie zapisane, sejf blokuje się jak po zapisie (po 60 s albo od razu); po 2
 minutach bez odblokowania nic się nie zapisuje. (5) **Przełącznik wyłączony:** „Pytaj o zapis haseł” wyłączony,
 ponowne wypełnienie ekranu logowania (stuknięcie w pole) → logowanie nie pokazuje okna. (6) **Brak pasujących
 wpisów:** logowanie na stronie bez wpisu w sejfie też pyta o zapis. (7) **Rejestracja i kontakt:** formularz rejestracji (e-mail i „nowe hasło”)

@@ -62,6 +62,11 @@ abstract class AutofillAuthActivity : FragmentActivity() {
     private var delivered = false
     /** The vault was already open at the start and [skipsUnlockWhenOpen]: [afterUnlock] runs, no unlock screen. */
     private var skipping by mutableStateOf(false)
+    /**
+     * onStop already started D1 for the vault this screen opened (the 60 s timer runs): closing must not start it
+     * again, which would move the deadline (or lock a vault reopened in the app meanwhile).
+     */
+    private var lockPendingFromStop = false
 
     /** Reads what the activity was started for; false when there is nothing to do, and the activity closes. */
     protected abstract fun prepare(): Boolean
@@ -129,12 +134,14 @@ abstract class AutofillAuthActivity : FragmentActivity() {
 
     override fun onStart() {
         super.onStart()
-        val relock = unlocked.relock ?: return
+        val pending = lockPendingFromStop
+        lockPendingFromStop = false
+        if (unlocked.relock == null) return
         // D1: the 60 s timer may not have run (deep sleep, a frozen app); the deadline still holds.
         if (app.leaveLock.expired()) app.phoneStore.lock()
         if (!app.phoneStore.isUnlocked) {
             unlockAgain()
-        } else if (relock) {
+        } else if (pending) {
             // Back in front before the timer of onStop ran out.
             app.leaveLock.cancel()
         }
@@ -146,7 +153,7 @@ abstract class AutofillAuthActivity : FragmentActivity() {
         if (unlocked.relock == true && !isChangingConfigurations && !isFinishing) {
             lockAfterUse()
             // Locked at once (no delay): drop the decrypted data now, not on return.
-            if (!app.phoneStore.isUnlocked) unlockAgain()
+            if (app.phoneStore.isUnlocked) lockPendingFromStop = true else unlockAgain()
         }
     }
 
@@ -203,7 +210,7 @@ abstract class AutofillAuthActivity : FragmentActivity() {
     protected fun finishAfterUnlock(data: Intent?) {
         val relock = unlocked.relock ?: return
         unlocked.relock = null
-        deliver(data, relock)
+        deliver(data, relock && !lockPendingFromStop)
     }
 
     /**
@@ -223,7 +230,7 @@ abstract class AutofillAuthActivity : FragmentActivity() {
     private fun leaveUnlocked() {
         val relock = unlocked.relock ?: return
         unlocked.relock = null
-        if (relock) lockAfterUse()
+        if (relock && !lockPendingFromStop) lockAfterUse()
     }
 
     /**
