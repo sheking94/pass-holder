@@ -61,6 +61,14 @@ internal fun unlockPendingIntent(context: Context): PendingIntent = PendingInten
     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
 )
 
+/**
+ * The intent behind the save request of a locked vault. IMMUTABLE and without data: the candidate is in
+ * [PassHolderApp.pendingSave], never in the intent. requestCode 1 keeps it apart from [unlockPendingIntent].
+ */
+internal fun savePendingIntent(context: Context): PendingIntent = PendingIntent.getActivity(
+    context, 1, Intent(context, AutofillSaveActivity::class.java), PendingIntent.FLAG_IMMUTABLE,
+)
+
 /** The system autofill service. Holds no entries or keys: each request reads the store anew. */
 class PassHolderAutofillService : AutofillService() {
     override fun onFillRequest(request: FillRequest, cancellationSignal: CancellationSignal, callback: FillCallback) {
@@ -93,7 +101,16 @@ class PassHolderAutofillService : AutofillService() {
             try {
                 val data = readSaveData(request)
                 val outcome = data?.let { saveLogin(app, it) { pkg -> appLabelOf(packageManager, pkg) } } ?: SaveOutcome.NOTHING
-                // SaveOutcome.LOCKED: nothing is shown or saved for now (the locked-vault path is a later step).
+                if (outcome == SaveOutcome.LOCKED && data != null) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        // Ask for the unlock; the candidate stays in memory (not in the intent) for the save screen.
+                        app.pendingSave.put(data)
+                        callback.onSuccess(savePendingIntent(this).intentSender)
+                    } else {
+                        callback.onFailure("Odblokuj PassHolder i spróbuj ponownie")
+                    }
+                    return@thread
+                }
                 saveToast(outcome)?.let { text ->
                     Handler(Looper.getMainLooper()).post { Toast.makeText(applicationContext, text, Toast.LENGTH_SHORT).show() }
                 }

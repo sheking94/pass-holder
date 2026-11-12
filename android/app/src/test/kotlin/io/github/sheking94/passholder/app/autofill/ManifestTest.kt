@@ -32,5 +32,9 @@ class ManifestTest {
             android.content.ComponentName(app, AutofillUnlockActivity::class.java), 0,
         )
         assertFalse(unlock.exported)
+        val save = app.packageManager.getActivityInfo(
+            android.content.ComponentName(app, AutofillSaveActivity::class.java), 0,
+        )
+        assertFalse(save.exported)
     }
 }
