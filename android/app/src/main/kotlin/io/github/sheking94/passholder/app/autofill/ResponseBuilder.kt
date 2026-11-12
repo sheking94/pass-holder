@@ -8,6 +8,7 @@ import android.os.Build
 import android.service.autofill.Dataset
 import android.service.autofill.FillResponse
 import android.service.autofill.InlinePresentation
+import android.service.autofill.SaveInfo
 import android.view.View
 import android.view.autofill.AutofillId
 import android.view.autofill.AutofillValue
@@ -27,8 +28,14 @@ object ResponseBuilder {
     private const val MAX_INLINE = 10
     const val UNLOCK_TITLE = "Odblokuj PassHolder"
 
-    fun datasets(context: Context, specs: List<DatasetSpec<AutofillId>>, inline: InlineSuggestionsRequest?): FillResponse? {
-        if (specs.isEmpty()) return null
+    /** Null only when there is nothing to offer: no datasets and no [save]. */
+    fun datasets(
+        context: Context,
+        specs: List<DatasetSpec<AutofillId>>,
+        inline: InlineSuggestionsRequest?,
+        save: SaveSpec?,
+    ): FillResponse? {
+        if (specs.isEmpty() && save == null) return null
         val response = FillResponse.Builder()
         specs.forEachIndexed { index, spec ->
             // Deprecated in API 33 (Presentations), but the only form that works from API 26.
@@ -52,11 +59,12 @@ object ResponseBuilder {
             }
             response.addDataset(dataset.build())
         }
+        withSave(response, save)
         return response.build()
     }
 
     /** One "Odblokuj PassHolder" suggestion over [ids]; choosing it starts [auth]. */
-    fun locked(context: Context, ids: List<AutofillId>, auth: IntentSender, inline: InlineSuggestionsRequest?): FillResponse {
+    fun locked(context: Context, ids: List<AutofillId>, auth: IntentSender, inline: InlineSuggestionsRequest?, save: SaveSpec?): FillResponse {
         val presentation = presentation(context, UNLOCK_TITLE, null)
         val response = FillResponse.Builder()
         val inlinePresentation = if (inline != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -71,7 +79,21 @@ object ResponseBuilder {
             @Suppress("DEPRECATION")
             response.setAuthentication(ids.toTypedArray(), auth, presentation)
         }
+        withSave(response, save)
         return response.build()
+    }
+
+    /** Asks the system to offer a save once the login screen goes away; [SaveSpec] rides along as client state. */
+    private fun withSave(response: FillResponse.Builder, save: SaveSpec?) {
+        if (save == null) return
+        val info = SaveInfo.Builder(
+            SaveInfo.SAVE_DATA_TYPE_PASSWORD or SaveInfo.SAVE_DATA_TYPE_USERNAME,
+            arrayOf(save.fields.password),
+        )
+        save.fields.username?.let { info.setOptionalIds(arrayOf(it)) }
+        info.setFlags(SaveInfo.FLAG_SAVE_ON_ALL_VIEWS_INVISIBLE)
+        response.setSaveInfo(info.build())
+        response.setClientState(save.toClientState())
     }
 
     /**

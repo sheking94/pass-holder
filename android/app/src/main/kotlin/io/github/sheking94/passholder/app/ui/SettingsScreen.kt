@@ -29,7 +29,7 @@ import io.github.sheking94.passholder.app.BiometricAvailability
 import io.github.sheking94.passholder.app.PassHolderApp
 import io.github.sheking94.passholder.app.UiState
 
-/** "Ustawienia": fingerprint unlock, the lock delay and autofill. "Wróć" and the system back go to the list. */
+/** "Ustawienia": fingerprint unlock, the lock delay, autofill and the save prompt. "Wróć" and the system back go to the list. */
 @Composable
 fun SettingsScreen(state: UiState, vm: AppViewModel) {
     BackHandler(onBack = vm::backToList)
@@ -38,6 +38,7 @@ fun SettingsScreen(state: UiState, vm: AppViewModel) {
         FingerprintSetting(state, vm)
         LockDelaySetting(state, vm)
         AutofillSetting()
+        AskToSaveSetting(state, vm)
         OutlinedButton(onClick = vm::backToList) { Text("Wróć") }
         StatusLine(state.status, state.busy)
     }
@@ -82,6 +83,25 @@ private fun LockDelaySetting(state: UiState, vm: AppViewModel) {
             Text("Blokuj dopiero po 60 s poza aplikacją", style = MaterialTheme.typography.bodyLarge)
             Text(
                 if (on) "Krótkie wyjście (np. wklejenie hasła) nie blokuje sejfu." else "Sejf blokuje się od razu po wyjściu z aplikacji.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        Switch(checked = on, onCheckedChange = null, enabled = !state.busy)
+    }
+}
+
+/** Whether PassHolder offers to save a login typed into another app. */
+@Composable
+private fun AskToSaveSetting(state: UiState, vm: AppViewModel) {
+    val on by vm.askToSave.collectAsStateWithLifecycle()
+    Row(
+        Modifier.fillMaxWidth().toggleable(value = on, enabled = !state.busy, role = Role.Switch) { vm.setAskToSave(it) },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("Pytaj o zapis haseł", style = MaterialTheme.typography.bodyLarge)
+            Text(
+                if (on) "Po zalogowaniu PassHolder zapyta, czy zapisać hasło." else "PassHolder nie pyta o zapis.",
                 style = MaterialTheme.typography.bodySmall,
             )
         }

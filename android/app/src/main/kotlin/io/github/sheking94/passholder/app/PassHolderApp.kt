@@ -90,4 +90,9 @@ class Settings(context: Context) {
     var lockDelay: Boolean
         get() = prefs.getBoolean("lockDelay", true)
         set(value) = prefs.edit { putBoolean("lockDelay", value) }
+
+    /** After a login in another app, PassHolder offers to save it. On by default. */
+    var askToSave: Boolean
+        get() = prefs.getBoolean("askToSave", true)
+        set(value) = prefs.edit { putBoolean("askToSave", value) }
 }

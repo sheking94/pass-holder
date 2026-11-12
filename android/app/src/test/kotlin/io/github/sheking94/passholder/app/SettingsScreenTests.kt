@@ -1,6 +1,8 @@
 package io.github.sheking94.passholder.app
 
 import io.github.sheking94.passholder.app.entries.EntryType
+import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.test.onNodeWithText
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -83,5 +85,31 @@ class SettingsScreenTest : ScreenTestBase() {
     private fun unlock() {
         type("Hasło główne", masterPassword)
         click("Odblokuj")
+    }
+}
+
+class AskToSaveSettingTest : ScreenTestBase() {
+    override fun beforeLaunch(app: PassHolderApp) {
+        app.settings.askToSave = true
+    }
+
+    @Test
+    fun `Pytaj o zapis haseł sits under Autouzupełnianie, is on by default and the click turns it off`() {
+        val app = androidx.test.core.app.ApplicationProvider.getApplicationContext<PassHolderApp>()
+        createVault()
+        menu("Ustawienia")
+        waitFor("Pytaj o zapis haseł")
+        waitFor("Po zalogowaniu PassHolder zapyta, czy zapisać hasło.")
+        val autofillTop = compose.onNodeWithText("Autouzupełnianie").getBoundsInRoot().top
+        val saveTop = compose.onNodeWithText("Pytaj o zapis haseł").getBoundsInRoot().top
+        assertTrue(saveTop > autofillTop)
+        shot("62-ustawienia-zapis")
+
+        click("Pytaj o zapis haseł")
+        waitFor("PassHolder nie pyta o zapis.")
+        assertFalse(app.settings.askToSave)
+        click("Pytaj o zapis haseł")
+        waitFor("Po zalogowaniu PassHolder zapyta, czy zapisać hasło.")
+        assertTrue(app.settings.askToSave)
     }
 }

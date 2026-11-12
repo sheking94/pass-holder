@@ -120,6 +120,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** "Blokuj dopiero po 60 s poza aplikacją" is on. */
     val lockDelay: StateFlow<Boolean> = _lockDelay.asStateFlow()
 
+    private val _askToSave = MutableStateFlow(app.settings.askToSave)
+    /** "Pytaj o zapis haseł" is on. */
+    val askToSave: StateFlow<Boolean> = _askToSave.asStateFlow()
+
     init {
         // Auto-lock also while the app sits in the background, as long as the process lives.
         viewModelScope.launch {
@@ -166,6 +170,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun setLockDelay(on: Boolean) {
         app.settings.lockDelay = on
         _lockDelay.value = on
+    }
+
+    fun setAskToSave(on: Boolean) {
+        app.settings.askToSave = on
+        _askToSave.value = on
     }
 
     override fun onCleared() {

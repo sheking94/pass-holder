@@ -181,7 +181,7 @@ class AutofillUnlockFingerprintTest : AutofillUnlockTestBase() {
     }
 }
 
-/** No password field the vault can fill: RESULT_OK without suggestions, and the vault locks again. */
+/** No login the vault can fill: RESULT_OK with the save request only, no suggestions, and the vault locks again. */
 class AutofillUnlockNoMatchTest : AutofillUnlockTestBase() {
     override val request = ParsedRequest(
         AppRequest("com.example.other", null, null),
@@ -189,13 +189,15 @@ class AutofillUnlockNoMatchTest : AutofillUnlockTestBase() {
     )
 
     @Test
-    fun `no matching login returns OK without a response`() {
+    fun `no matching login returns OK with save info and no datasets`() {
         waitFor("Hasło główne")
         type("Hasło główne", masterPassword)
         click("Odblokuj")
         val result = waitForResult()
         assertEquals(Activity.RESULT_OK, result.resultCode)
-        assertNull(result.response())
+        val response = result.response()!!
+        assertNull(response.javaClass.getMethod("getDatasets").invoke(response))
+        assertNotNull(response.javaClass.getMethod("getSaveInfo").invoke(response))
         assertFalse(app.phoneStore.isUnlocked)
     }
 }

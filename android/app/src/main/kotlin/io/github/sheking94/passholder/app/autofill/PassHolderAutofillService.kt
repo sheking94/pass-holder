@@ -20,12 +20,12 @@ import io.github.sheking94.passholder.core.autofill.planRequest
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
-/** Suggestions for the unlocked vault (null when no entry matches); also used by the unlock screen. */
+/** Suggestions and the save request for the unlocked vault (null when neither applies); also used by the unlock screen. */
 fun buildFillResponse(app: PassHolderApp, request: ParsedRequest, inline: InlineSuggestionsRequest?): FillResponse? {
     val plan = planRequest(request.nodes) ?: return null
     // Entries are decrypted here, per request, and dropped with the response.
     val specs = planDatasets(plan, request.app, app.phoneStore.entries())
-    return ResponseBuilder.datasets(app, specs, inline)
+    return ResponseBuilder.datasets(app, specs, inline, saveSpecFor(app, request))
 }
 
 /**
@@ -44,7 +44,7 @@ internal fun respond(
     if (!store.hasVault) return null
     // D1: the 60 s timer may not have run (deep sleep, a frozen app); the deadline still holds.
     if (app.leaveLock.expired()) store.lock()
-    if (!store.isUnlocked) return ResponseBuilder.locked(app, plan.nodes.map { it.first.id }, auth(), inline)
+    if (!store.isUnlocked) return ResponseBuilder.locked(app, plan.nodes.map { it.first.id }, auth(), inline, saveSpecFor(app, request))
     return buildFillResponse(app, request, inline)
 }
 
@@ -85,7 +85,7 @@ class PassHolderAutofillService : AutofillService() {
     private fun unlockSender(): IntentSender = unlockPendingIntent(this).intentSender
 
     override fun onSaveRequest(request: SaveRequest, callback: SaveCallback) {
-        // Saving is subproject C; the responses carry no SaveInfo, so this is not expected to be called.
+        // Saving the login is not implemented yet.
         callback.onSuccess()
     }
 }
