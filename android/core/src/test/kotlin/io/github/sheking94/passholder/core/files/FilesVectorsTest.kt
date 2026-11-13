@@ -113,4 +113,32 @@ class FilesVectorsTest {
             assertArrayEquals(bytes, FileChunks.decrypt(a, enc.blobs))
         }
     }
+
+    @Test
+    fun hostSteps() {
+        val h = FilesVectors.root.getValue("host").jsonObject
+        FileHostSteps.run(MemoryFileStore(), h.str("epoch"), h.int("now"), h.getValue("steps").jsonArray)
+    }
+
+    @Test
+    fun storageSteps() {
+        val h = FilesVectors.root.getValue("host").jsonObject
+        val s = h.getValue("storage").jsonObject
+        FileHostSteps.run(MemoryFileStore(s.int("capacity")), h.str("epoch"), h.int("now"), s.getValue("steps").jsonArray)
+    }
+
+    @Test
+    fun orphans() {
+        val o = FilesVectors.root.getValue("host").jsonObject.getValue("orphan").jsonObject
+        val store = MemoryFileStore()
+        val used = mutableSetOf<String>()
+        for (f in o.getValue("files").jsonArray) {
+            store.put(f.str("id"), 0, 1, "AAAA", f.int("createdAt"))
+            if (f.jsonObject.getValue("used").jsonPrimitive.content == "true") used += f.str("id")
+        }
+        for (c in o.getValue("cases").jsonArray) {
+            val expected = c.jsonObject.getValue("expected").jsonArray.map { it.jsonPrimitive.content }.sorted()
+            assertEquals(expected, FileHost.orphanIds(store, used, c.int("now")).sorted())
+        }
+    }
 }
