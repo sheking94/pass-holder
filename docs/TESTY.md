@@ -48,11 +48,11 @@ Testy ekranów (`:app:testDebugUnitTest`, Robolectric + Roborazzi, ok. 5 min) za
 Pokrycie TypeScript (opcjonalnie): `npm i --no-save @vitest/coverage-v8 && npx vitest run --coverage` w
 katalogu pakietu.
 
-## Liczby (2026-11-12)
+## Liczby (2026-11-13)
 
 | Pakiet | Pliki | Testy | Uwagi |
 |---|---|---|---|
-| `core` | 28 | 489 | w tym `core/test/p2p/`, `core/test/autofill/` i `core/test/save/` |
+| `core` | 34 | 601 | w tym `core/test/p2p/`, `core/test/files/`, `core/test/autofill/` i `core/test/save/` |
 | `extension` | 29 | 308 | w tym widoki w happy-dom (`extension/test/ui/`), `extension/test/autofill/` i `extension/test/save/`; `background.ts` bez testów (logika w `fill-tab.ts` i `save/candidates.ts`) |
 | `android/core` | 41 | 637 | 4 pomijane bez `PASSHOLDER_INTEROP_TEST=1`; w tym `autofill/` (wektory `core/test-vectors/autofill/`) i `save/` (wektory `core/test-vectors/save/`) |
 | `android/app` | 32 | 162 | Robolectric, zrzuty ekranów; w tym `autofill/`, ekrany autouzupełniania i zapis po odblokowaniu |
@@ -66,7 +66,23 @@ katalogu pakietu.
 | `edge-cases.test.ts` | NFC, Base64/hex, AES-GCM (zły klucz i nonce, ucięty blob), złe hasło, granice KDF, generator |
 | `cipher.test.ts`, `generator.test.ts`, `vectors.test.ts` | szyfrowanie, generator, wektory `v1.json` |
 | `sync-edge.test.ts` | `processSync`: duplikaty, nieznana rewizja, rosnące rewizje |
-| `p2p/*.test.ts` | HLC, ristretto255 (RFC 9496), CPace (draft, dodatek B.3), Noise KK (Cacophony), parowanie, klient parowania, host, transport (ścieżki v2, 410/404), synchronizacja (stronicowanie po bajtach, rundy `more`), wpis v3 (`entry-v3.test.ts`), wektory `v2.json` i `v3.json` |
+| `p2p/*.test.ts` | HLC, ristretto255 (RFC 9496), CPace (draft, dodatek B.3), Noise KK (Cacophony), parowanie, klient parowania, host, transport (ścieżki v2, 410/404), synchronizacja (stronicowanie po bajtach, rundy `more`, łączenie załączników przy konflikcie), wpis v3 (`entry-v3.test.ts`), wektory `v2.json` i `v3.json` |
+
+`core/test/files/*.test.ts` (6 plików, pliki w sejfie, rdzeń TS):
+
+| Plik | Co sprawdza |
+|---|---|
+| `attachment.test.ts` | opis załącznika: kolejność kluczy, odrzucane opisy, 40 opisów, `upsertEntryV2` bez pustej listy, eksport bez plików |
+| `chunks.test.ts` | `encryptFile`/`decryptFile`: granice kawałków, AAD (zamiana, ucięcie, przestawienie), `size`, `sha256`, typ MIME |
+| `host-files.test.ts` | `processP2pFile`: `status`/`put`/`get`, 409, 400, 404, 507, inna epoka, sprzątanie 24 h, ścieżka w `P2pHost` |
+| `client.test.ts` | `syncFiles`: wysyłanie i pobieranie, wznowienie po przerwie, zgubiony kawałek, zły `sha256`, `uploadedEpoch`, stary telefon |
+| `merge.test.ts` | `mergeAttachments`: kolejność, brak listy, ten sam `id` |
+| `vectors.test.ts` | wektory `files/files.json` odtworzone z kodu |
+
+`files/files.json` (sekcje `limits`, `files`, `entries`, `rejected`, `merge`, `host`) trzyma pliki 5 B i 262144 + 1000 B
+(stałe klucze i nonce; treść większego Kotlin liczy sam), wpis z dwoma załącznikami i wpis po łączeniu, 22 odrzucane
+opisy, 3 przypadki łączenia, kroki hosta na jednym magazynie (z 507 na osobnym) i sprzątanie; odtwarza go
+`npm run gen-vectors-files -w core`, a w Kotlinie sprawdzi go krok 2.
 
 `core/test/transfer/*.test.ts` (6 plików): `csv` (cudzysłowy, CRLF, BOM, niezamknięty cudzysłów), `common` (klucz duplikatu,
 sortowanie), `passholder-json` (zły typ i nieznany klucz pomijane z numerem), `bitwarden-json` (typy 1–4, dokument,
@@ -332,6 +348,10 @@ odblokowanie → ten sam podgląd z wpisanymi danymi; wyjście z aplikacji z pod
 na następnym: wpis ma pusty login, który można uzupełnić w podglądzie (od API 28). (10) **Zapis w tle:** po zapisie przy otwartej
 aplikacji (np. po powrocie do niej) lista pokazuje nowy wpis albo nowe hasło. Zapisz wynik, model telefonu, wersję
 Androida i Chrome.
+
+**T22. Pliki w sejfie (plan, do wykonania po krokach 3–4; dziś nie da się go uruchomić).** Dodaj zdjęcie 5 MB
+we wtyczce → „Synchronizuj” → pobierz na telefonie (ostrzeżenie, zapis pliku, ta sama treść); to samo w drugą
+stronę. Usuń załącznik → po synchronizacji znika na obu urządzeniach (na telefonie najpóźniej po 24 h).
 
 ## Czego brakuje
 

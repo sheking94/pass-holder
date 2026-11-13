@@ -1,3 +1,5 @@
+import { MAX_ATTACHMENTS_PARSED, parseAttachments } from "../files/attachment.ts";
+import { mergeAttachments } from "../files/merge.ts";
 import type { RemoteRecord } from "../protocol.ts";
 import {
   decryptPayloadV2,
@@ -42,8 +44,13 @@ export function upsertEntryV2(
   vault: LocalVaultV2,
   clock: HlcClock,
   id: string,
-  content: EntryContentV3,
+  input: EntryContentV3,
 ): void {
+  // An empty list is dropped (a plugin may save one); a bad or over-long list throws before anything changes.
+  const { attachments, ...rest } = input;
+  const content: EntryContentV3 = attachments === undefined || attachments.length === 0
+    ? (rest as EntryContentV3)
+    : { ...rest, attachments: parseAttachments(attachments) } as EntryContentV3;
   const existing = vault.entries.get(id);
   // Size check on a copy of the clock first: a rejected entry changes neither the vault nor the clock.
   const probe = clock.clone();
@@ -158,7 +165,8 @@ function addAddresses(vault: LocalVaultV2, addresses: string[]): void {
 
 /**
  * Applies the phone's answer (same epoch). Conflicts are resolved by HLC: a dirty local change wins only when
- * its HLC is greater. Returns true when a local change won a conflict and must be pushed again.
+ * its HLC is greater. Returns true when something local must be pushed again: a local change won a conflict, or
+ * the attachment lists were merged and the merged entry was saved as a new local change (even if the remote won).
  */
 async function applyResponse(
   vault: LocalVaultV2,
@@ -185,8 +193,19 @@ async function applyResponse(
     const remote = await decodeRemote(vaultKey, record);
     clock.observe(remote.data.hlc);
     const local = vault.entries.get(record.id);
-    if (local?.dirty && compareHlc(local.data.hlc, remote.data.hlc) > 0) {
-      vault.entries.set(record.id, { ...local, revision: record.revision });
+    const localWins = local?.dirty === true && compareHlc(local.data.hlc, remote.data.hlc) > 0;
+    // Both versions live and the local one unsent: the HLC picks the entry, but the attachment lists are merged.
+    const merged = local?.dirty && !local.deleted && !remote.deleted
+      ? localWins ? mergeEntryAttachments(local.data, remote.data, clock) : mergeEntryAttachments(remote.data, local.data, clock)
+      : undefined;
+    if (localWins) {
+      vault.entries.set(record.id, merged
+        ? { id: record.id, revision: record.revision, dirty: true, deleted: false, data: merged }
+        : { ...local!, revision: record.revision });
+      needsResync = true;
+    } else if (merged) {
+      // The remote version wins but lacks some local files: keep it with the merged list as a new local change.
+      vault.entries.set(record.id, { id: record.id, revision: record.revision, dirty: true, deleted: false, data: merged });
       needsResync = true;
     } else {
       vault.entries.set(record.id, remote);
@@ -198,12 +217,28 @@ async function applyResponse(
   return needsResync;
 }
 
+/**
+ * The winning entry with the merged attachment list and a fresh HLC when the merge adds files to it, otherwise
+ * undefined. The winner's list stays unchanged when the merge would exceed MAX_ATTACHMENTS_PARSED or make the
+ * entry too large to sync. The merged list always holds the winner's files, so it is never empty.
+ */
+function mergeEntryAttachments(winner: EntryDataV3, loser: EntryDataV3, clock: HlcClock): EntryDataV3 | undefined {
+  const merged = mergeAttachments(winner.attachments, loser.attachments);
+  // The merge only appends, so an unchanged length means an unchanged id sequence.
+  if (merged.length === (winner.attachments?.length ?? 0) || merged.length > MAX_ATTACHMENTS_PARSED) return undefined;
+  // Measure with a throwaway tick; the real clock moves only when the merge is accepted.
+  const probe: EntryDataV3 = { ...winner, attachments: merged, hlc: clock.clone().tick() };
+  if (entryBlobLength(probe) > MAX_ENTRY_BLOB_LENGTH) return undefined;
+  return { ...probe, hlc: clock.tick() };
+}
+
 export type P2pTransport = (request: P2pSyncRequest) => Promise<P2pSyncResponse>;
 
 /**
- * Full sync with the phone: push local changes, pull remote ones, repeat while local changes win conflicts.
+ * Full sync with the phone: push local changes, pull remote ones, repeat while something local must be pushed
+ * again (a local change won a conflict, or merged attachment lists were saved as a new local change).
  * Changes go out at most MAX_CHANGES_PER_REQUEST (and MAX_BLOB_BYTES_PER_ROUND blob characters) per request and
- * come back in pages (`more`); those extra rounds, including rounds where local changes won conflicts but the
+ * come back in pages (`more`); those extra rounds, including rounds that need a resync but the
  * answer was cut, do not use the maxRounds conflict budget, but all rounds together are capped at MAX_SYNC_ROUNDS.
  * An epoch change (including learning the first epoch) restarts the loop with a fresh round budget, once.
  * A phone whose revision went backwards within the same epoch is treated the same way.
@@ -230,10 +265,10 @@ export async function syncVaultV2(
       resyncs = 0;
       continue;
     }
-    const localWon = await applyResponse(vault, clock, response, sent, vaultKey);
+    const needsResync = await applyResponse(vault, clock, response, sent, vaultKey);
     // A round whose answer was cut (more) resolves at least one record, so it is paging, not a conflict ping-pong.
-    if (localWon && !response.more && ++resyncs >= maxRounds) throw new Error("Sync did not settle, try again");
-    if (!localWon && !capped && !response.more) return;
+    if (needsResync && !response.more && ++resyncs >= maxRounds) throw new Error("Sync did not settle, try again");
+    if (!needsResync && !capped && !response.more) return;
   }
   throw new Error("Sync exceeded the round limit");
 }

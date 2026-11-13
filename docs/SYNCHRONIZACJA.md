@@ -7,7 +7,7 @@ Noise KK po zwykłym HTTP. Klucze i format szyfrogramu opisuje [SPEC.md](SPEC.md
 
 Implementacja referencyjna to TypeScript w `core/src/p2p/`. Telefon ma tę samą logikę w Kotlinie
 (`android/core/.../core/p2p/`); przy rozbieżności wzorcem jest TypeScript. Zgodność sprawdzają wektory
-`core/test-vectors/v2.json`, `v3.json` i testy współpracy ([TESTY.md](TESTY.md)).
+`core/test-vectors/v2.json`, `v3.json`, `files/files.json` i testy współpracy ([TESTY.md](TESTY.md)).
 
 Spis: [1. Założenia](#1-założenia) · [2. Architektura](#2-architektura) · [3. Parowanie](#3-parowanie) ·
 [4. Synchronizacja](#4-synchronizacja) · [5. Kontrakt HTTP](#5-kontrakt-http) · [6. Telefon](#6-telefon) ·
@@ -106,7 +106,8 @@ wtyczka robi reset (punkt 4.2). **`vault.epoch` nigdy nie przypisuje się bezpo�
 
 - Wzorzec **Noise_KK_25519_AESGCM_SHA256** (rev. 34), prolog `passholder/v2/noise`. Obie strony znają swoje
   klucze statyczne z parowania: obustronne uwierzytelnienie i poufność do przodu.
-- Każde żądanie to osobne uzgadnianie: `POST /p2p/v2/handshake`, potem jedno `POST /p2p/v2/sync`.
+- Każde żądanie to osobne uzgadnianie: `POST /p2p/v2/handshake`, potem jedno `POST /p2p/v2/sync` albo
+  `POST /p2p/v2/file` (pliki, punkt 5.3).
 - **Wersje ścieżek:** parowanie (`/p2p/v1/pair/*`) i `/p2p/v1/ping` bez zmian. Synchronizacja przeniosła się na
   `/p2p/v2/*` razem z formatem wpisu v3 ([SPEC.md](SPEC.md) punkt 4). Stara wtyczka wołająca
   `/p2p/v1/handshake` albo `/p2p/v1/sync` dostaje `410 {"error":"update required"}` i pokazuje swój ogólny
@@ -158,6 +159,14 @@ Wpis zamiast czasu modyfikacji ma w szyfrogramie **hybrydowy zegar logiczny** `{
 Reguła: lokalny wpis `dirty` wygrywa tylko z większym HLC; inaczej wygrywa wersja z telefonu. Zmiana
 zrobiona po zobaczeniu innej zawsze ma większy HLC, nawet przy rozjechanych zegarach.
 
+**Łączenie załączników:** gdy obie wersje są żywe, a lokalna `dirty`, HLC wybiera wpis, ale lista
+`attachments` jest łączona (`mergeAttachments`): lista zwycięzcy, potem opisy przegranej, których `id` zwycięzca
+nie ma (w kolejności przegranej; przy tym samym `id` zostaje opis zwycięzcy). Gdy to dodaje pliki, wtyczka
+zapisuje `{...zwycięzca, attachments: połączona, hlc: nowy tick}` jako lokalną zmianę `dirty`, która idzie w
+następnej rundzie (także gdy wygrał telefon). Gdy połączona lista miałaby > 40 opisów albo wpis przekroczyłby
+`MAX_ENTRY_BLOB_LENGTH`, zostaje sama lista zwycięzcy. Pusta lista nigdy nie jest zapisywana. Wada: plik
+usunięty na jednym urządzeniu przy równoczesnej edycji wpisu na drugim może wrócić.
+
 **Usuwanie:** nagrobek ma `deleted = true` jawnie, a w szyfrogramie tylko `{hlc}`. „Edycja kontra
 usunięcie” rozstrzyga HLC. Telefon trzyma nagrobki na stałe; wpis, który nigdy nie trafił na telefon,
 wtyczka kasuje lokalnie.
@@ -172,6 +181,7 @@ JSON, binaria w Base64 z dopełnieniem.
 |---|---|---|
 | `POST /p2p/v2/handshake` | `{deviceId, message}` | `{session, message}` (`session` = 16 B) |
 | `POST /p2p/v2/sync` | `{session, frames: string[]}` | `{frames: string[]}` |
+| `POST /p2p/v2/file` | `{session, frames: string[]}` | `{frames: string[]}` (punkt 5.3) |
 
 Błędy `{error: "…"}`, w tej kolejności:
 
@@ -208,6 +218,50 @@ niczego nie zapisuje i odpowiada swoim `currentRevision`.
 Kotlin dodatkowo: liczby z sieci (`safeLong`) muszą być liczbą JSON z zakresu `0..2^53-1`; tekst liczby
 dłuższy niż 32 znaki i `0e<ogromny wykładnik>` są odrzucane (ochrona pamięci). Limit 1 MiB liczy surowe
 bajty ciała.
+
+### 5.3. Pliki (`/p2p/v2/file`)
+
+`POST /p2p/v2/file` działa jak `/p2p/v2/sync`: osobne uzgadnianie, jedna sesja = jedno żądanie, te same ramki,
+limit 1 MiB i błędy sesji (punkt 5.1); działa przy zablokowanym telefonie. Treść żądania w ramkach to jedna
+operacja (host referencyjny `processP2pFile` w `core/src/files/host-files.ts`):
+
+| `op` | Żądanie | Odpowiedź 200 (w ramkach) |
+|---|---|---|
+| `status` | `{op, epoch, ids}` (0..500 `id`) | `{files: [{id, chunks, have, complete}]}`; nieznane `id` → `chunks: 0, have: [], complete: false` |
+| `put` | `{op, epoch, id, index, chunks, blob}` | `{have}` (liczba zapisanych kawałków) |
+| `get` | `{op, epoch, id, index}` | `{chunks, blob}` |
+
+- **Inna epoka** (każda operacja poprawnego żądania; zniekształcone dostaje najpierw 400): 200 `{epoch}` z epoką telefonu, nic nie zapisane.
+- **400 `malformed file request`:** zły `op`, `epoch` nie tekstem, `id` nie jest UUID v4 małymi literami,
+  `put`: `0 ≤ index < chunks ≤ 40` (liczby całkowite), `blob` tekstem ≤ 349564 znaków; `get`: `0 ≤ index ≤ 39`;
+  `status`: `ids` listą ≤ 500 poprawnych `id`.
+- **400 `chunk count mismatch`:** `put` z innym `chunks` niż przy pierwszym kawałku tego `id`.
+- **409 `chunk differs`:** kawałek już jest i ma inny blob (pliki są niezmienne); ten sam blob → 200 bez zmian.
+- **404 `chunk not found`:** `get` kawałka, którego nie ma (też nieznany plik i `index ≥ chunks`).
+- **507 `insufficient storage`:** brak miejsca na nowy kawałek, nic nie zapisane (ponowny identyczny `put` nie
+  potrzebuje miejsca).
+- Statusy inne niż 200 idą jawnie (`{error}`), jak w sync. Stary telefon odpowiada 404 `not found` (nieznana
+  ścieżka); klient rozróżnia po tekście i rzuca „Zaktualizuj aplikację na telefonie” (`PHONE_UPDATE_REQUIRED`).
+
+**Przebieg w kliencie** (`syncFiles` w `core/src/files/client.ts`, po udanej synchronizacji wpisów, przy
+odblokowanym sejfie):
+
+1. Kandydaci: załączniki żywych wpisów, które lokalnie nie są kompletne albo nie mają `uploadedEpoch` równego
+   epoce sejfu. Jedno `status` na każde 500 `id`.
+2. **Wysyłanie:** plik kompletny lokalnie, a niekompletny na telefonie → `put` brakujących kawałków, potem
+   `uploadedEpoch = epoka`. Gdy telefon ma go już całego, tylko `uploadedEpoch`.
+3. **Pobieranie:** plik niekompletny lokalnie, a kompletny na telefonie → `get` brakujących kawałków (każdy
+   zapisywany od razu), potem `decryptFile` (`size`, `sha256`); niezgodność kasuje lokalne kawałki i dopisuje
+   nazwę do `corrupted`.
+4. Plik, którego nikt nie ma całego (np. dodany na innej wtyczce i niewysłany), albo zgubiony kawałek → `pending`,
+   na następną synchronizację. Bez ponowień: błąd transportu przerywa fazę, a następne uruchomienie wznawia od
+   brakujących kawałków. Inna epoka w odpowiedzi → `Epoch changed, sync again`.
+5. `uploadedEpoch` zamiast flagi: zmiana epoki (`adoptEpoch`) sama sprawia, że pliki trzeba wysłać ponownie.
+
+**Sprzątanie:** telefon (`orphanFileIds`, przy odblokowanym sejfie) usuwa pliki nieużywane przez żaden żywy wpis
+i starsze niż 24 h (`ORPHAN_FILE_AGE_MS = 86400000`, od pierwszego kawałka, ściśle starsze); 24 h chroni plik
+wysłany przed wpisem, który go używa. Wtyczka po synchronizacji usuwa nieużywane pliki od razu
+(`pruneLocalFiles`). Wektory hosta i sprzątania: `core/test-vectors/files/files.json`.
 
 ## 6. Telefon
 
@@ -324,6 +378,11 @@ druga dostaje 500. „Przerwij odtwarzanie” kasuje wszystko.
   Host nie widzi treści, więc nie sprawdza typów wpisów, tylko rozmiar.
 - **Cofnięcie telefonu wykrywane częściowo** (tylko gdy `currentRevision` spadnie). Dlatego kopie zapasowe
   telefonu są wyłączone.
+- **Pliki:** do 10 MiB i 40 kawałków po 256 KiB, najwyżej 20 na wpis przy dodawaniu (40 po łączeniu).
+  Bez limitu łącznego, tylko wolne miejsce (507). Telefon nie widzi, które pliki są używane (wie to
+  dopiero przy odblokowanym sejfie), więc plik osierocony zostaje co najmniej 24 h od pierwszego kawałka, a
+  faktycznie do pierwszego sprzątania przy odblokowanym sejfie. Eksport PassHolder JSON pomija pliki. Ekrany i magazyny plików (wtyczka, telefon)
+  to kroki 2–4 planu, na razie jest tylko rdzeń TS.
 - **Własne CPace i Noise** w dwóch językach: wektory testowe zmniejszają ryzyko, ale to nie audyt.
 - **ristretto255 w Kotlinie bez stałego czasu** (`BigInteger`). Akceptowane tylko dla jednorazowego CPace
   (skalar i kod są jednorazowe); klucze długoterminowe liczy X25519 z Bouncy Castle. Klasy nie wolno używać

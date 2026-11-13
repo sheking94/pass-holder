@@ -1,5 +1,6 @@
 import { open, seal } from "../cipher.ts";
 import { fromUtf8, utf8 } from "../encoding.ts";
+import { attachmentJson, parseAttachments, type Attachment } from "../files/attachment.ts";
 import { parseHlc, type Hlc } from "./hlc.ts";
 
 export type EntryType = "login" | "contact" | "card" | "note" | "document";
@@ -28,7 +29,7 @@ export interface DocumentFields {
   issuer: string;
 }
 
-export type EntryContentV3 = { name: string; note: string; custom: CustomField[] } & (
+export type EntryContentV3 = { name: string; note: string; custom: CustomField[]; attachments?: Attachment[] } & (
   | { type: "login"; fields: LoginFields }
   | { type: "contact"; fields: ContactFields }
   | { type: "card"; fields: CardFields }
@@ -103,6 +104,8 @@ export function serializeEntryData(data: EntryDataV3 | TombstoneDataV2): string 
     note: data.note,
     fields: fieldsJson(data),
     custom: data.custom.map((c) => ({ label: c.label, value: c.value, hidden: c.hidden })),
+    // Only a non-empty list is written, so entries without files keep their exact bytes.
+    ...(data.attachments && data.attachments.length > 0 ? { attachments: data.attachments.map(attachmentJson) } : {}),
     hlc: hlcJson(data.hlc),
   });
 }
@@ -247,9 +250,12 @@ export function parseEntryData(value: unknown): EntryDataV3 {
       hlc: strictHlc(o.hlc, INVALID_ENTRY),
     };
   }
-  const o = record(value, ["v", "type", "name", "note", "fields", "custom", "hlc"]);
+  const withAttachments = Object.hasOwn(obj, "attachments");
+  const o = record(value, ["v", "type", "name", "note", "fields", "custom", ...(withAttachments ? ["attachments"] : []), "hlc"]);
   if (o.v !== 3) fail();
-  return { v: 3, ...contentOf(o), hlc: strictHlc(o.hlc, INVALID_ENTRY) } as EntryDataV3;
+  const content = contentOf(o);
+  if (withAttachments) content.attachments = parseAttachments(o.attachments);
+  return { v: 3, ...content, hlc: strictHlc(o.hlc, INVALID_ENTRY) } as EntryDataV3;
 }
 
 /** Fields shared by a stored entry and an exported one; the caller has checked the object's own keys. */

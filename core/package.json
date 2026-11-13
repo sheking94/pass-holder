@@ -6,6 +6,7 @@
   "main": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./files": "./src/files/index.ts",
     "./autofill": "./src/autofill/index.ts",
     "./save": "./src/save/index.ts"
   },
@@ -14,7 +15,8 @@
     "typecheck": "tsc --noEmit",
     "gen-vectors": "tsx scripts/gen-vectors.ts",
     "gen-vectors-v2": "tsx scripts/gen-vectors-v2.ts",
-    "gen-vectors-v3": "tsx scripts/gen-vectors-v3.ts"
+    "gen-vectors-v3": "tsx scripts/gen-vectors-v3.ts",
+    "gen-vectors-files": "tsx scripts/gen-vectors-files.ts"
   },
   "dependencies": {
     "@noble/curves": "^2.4.0",

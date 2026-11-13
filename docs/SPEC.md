@@ -57,6 +57,7 @@ Bajt `0x01` to wersja formatu. AAD (dane uwierzytelniane, nieszyfrowane):
 | wpis o identyfikatorze `id` | `passholder/v2/entry/<id>` |
 | lokalny sejf wtyczki, klucz statyczny wtyczki | `passholder/v2/local-vault`, `passholder/v2/ext-static-key` ([SYNCHRONIZACJA.md](SYNCHRONIZACJA.md#73-dane-w-chromestorage)) |
 | klucze zawinięte PIN-em we wtyczce | `passholder/v1/pin-lock` ([FUNKCJE.md](FUNKCJE.md#pin-we-wtyczce)) |
+| kawałek `i` z `n` pliku `id` (klucz pliku) | `passholder/v3/file/<id>/<i>/<n>` (punkt 4.1) |
 
 AAD z `id` wiąże szyfrogram z wpisem, więc host nie może podmienić treści między wpisami.
 
@@ -69,7 +70,7 @@ AAD z `id` wiąże szyfrogram z wpisem, więc host nie może podmienić treści 
 {"v":3,"type":"login","name":"Poczta","note":"","fields":{"username":"jan","password":"…","totp":"","urls":["https://mail.example"],"androidApps":[]},"custom":[{"label":"PIN","value":"1234","hidden":true}],"hlc":{"ms":0,"c":0,"d":"<deviceId>"}}
 ```
 
-- Klucze zawsze w tej kolejności: `v, type, name, note, fields, custom, hlc`; `v` to liczba całkowita `3`. Wartości
+- Klucze zawsze w tej kolejności: `v, type, name, note, fields, custom, [attachments,] hlc`; `v` to liczba całkowita `3`. Wartości
   są tekstami (`hidden` to boolean), puste pole to `""`, pusta lista `[]`.
 
 | `type` | `fields` (w tej kolejności) |
@@ -84,6 +85,23 @@ AAD z `id` wiąże szyfrogram z wpisem, więc host nie może podmienić treści 
   `type`, brak pola, zły typ wartości albo **nieznany klucz na dowolnym poziomie** → błąd
   `Invalid entry payload`. Formatu dat parser nie sprawdza (to zadanie formularzy). `custom`: `label, value,
   hidden`; `hlc`: dokładnie `ms, c, d`.
+- **Załączniki** (`attachments`, opcjonalne, między `custom` a `hlc`): lista opisów plików, zapisywana tylko,
+  gdy nie jest pusta (wpis bez plików ma te same bajty co wcześniej; `"attachments": []` → błąd). Opis ma klucze
+  dokładnie w tej kolejności:
+
+```json
+{"id":"<uuid v4>","name":"skan.jpg","mime":"image/jpeg","size":263144,"chunks":2,"sha256":"<64 hex>","key":"<Base64 32 B>"}
+```
+
+  - `id`: UUID v4 małymi literami (`crypto.randomUUID()`), unikalny w liście,
+  - `name`: 1..255 znaków, bez `/`, `\`, U+0000–U+001F i U+007F–U+009F; `mime`: 0..127 znaków bez znaków
+    sterujących (puste = `application/octet-stream`; nieużywalny typ przy dodaniu zamienia się na `""`);
+    długości w jednostkach UTF-16 (`String.length` w TS i Kotlinie),
+  - `size`: 1..10 485 760, `chunks = ceil(size / 262144)`, `sha256`: skrót treści jawnej (małe hex),
+    `key`: losowy klucz pliku AES-256 w kanonicznym Base64.
+  - Parser (`parseAttachments`) przyjmuje 1..40 opisów, ekran dodaje najwyżej 20 (`canAddAttachment`); więcej niż
+    20 może powstać tylko z łączenia przy konflikcie ([SYNCHRONIZACJA.md](SYNCHRONIZACJA.md#43-konflikty-hlc)).
+  - Każdy błąd opisu → `Invalid entry payload`. Treść pliku nie jest we wpisie (punkt 4.1).
 - **Stara treść v2** `{name, username, password, hlc}` (dokładnie te klucze, bez `v`) jest czytana jako login z
   pustymi `totp`, `urls`, `androidApps`, `note`, `custom`. Zapis zawsze tworzy v3, więc sejf przechodzi na v3
   stopniowo, przy edycjach; to samo dotyczy lokalnego sejfu wtyczki (`vaultV2`) i sejfu telefonu.
@@ -104,8 +122,22 @@ AAD z `id` wiąże szyfrogram z wpisem, więc host nie może podmienić treści 
   odrzuca.
 
 - **Plik PassHolder JSON** (eksport i import wtyczki): `{"format":"passholder","version":3,"entries":[…]}`, wpisy
-  `{type,name,note,fields,custom}` jak wyżej, bez `v` i `hlc`; ścisły odczyt `parseEntryContent`. Eksport
+  `{type,name,note,fields,custom}` jak wyżej, bez `v`, `hlc` i `attachments` (eksport pomija pliki, a
+  `countAttachments` podaje ich liczbę do komunikatu); ścisły odczyt `parseEntryContent`. Eksport
   posortowany po nazwie (`localeCompare` „pl”), potem po typie. Opis: [FUNKCJE.md](FUNKCJE.md#import-i-eksport).
+
+### 4.1. Treść plików (kawałki)
+
+- Plik dzielony na kawałki `CHUNK = 262144` B treści jawnej (ostatni krótszy), najwyżej 40 kawałków.
+- Kawałek `i` (od 0) z `n`: `blob = seal(klucz pliku, kawałek, AAD "passholder/v3/file/<id>/<i>/<n>")`, format jak
+  w punkcie 3. Blob ma najwyżej `MAX_FILE_BLOB_LENGTH = 4·ceil((29 + CHUNK)/3) = 349564` znaków. AAD wiąże kawałek
+  z plikiem, pozycją i liczbą kawałków, więc host nie zamieni, nie utnie ani nie przestawi kawałków.
+- Odbiorca (`decryptFile`) sprawdza liczbę kawałków, AES-GCM każdego, łączny `size` i `sha256` całości;
+  każda niezgodność → `File is corrupted` („Plik jest uszkodzony”).
+- Pliki leżą na obu urządzeniach jako zaszyfrowane kawałki, odszyfrowane tylko przy pobieraniu. Przesyłanie:
+  [SYNCHRONIZACJA.md](SYNCHRONIZACJA.md#53-pliki-p2pv2file).
+- Wektory: `core/test-vectors/files/files.json` (pliki 5 B i 262144 + 1000 B, wpis z plikami i po łączeniu,
+  22 odrzucane opisy, łączenie list, odpowiedzi hosta, sprzątanie); odtwarza je `npm run gen-vectors-files -w core`.
 
 ## 5. Synchronizacja
 
