@@ -46,7 +46,8 @@ fun EditScreen(id: String?, type: EntryType, state: UiState, vm: AppViewModel) {
     fun edit(updated: EntryContentV3) { content = updated; vm.clearError() }
     var askDelete by remember { mutableStateOf(false) }
 
-    BackHandler(enabled = !state.busy, onBack = vm::backToList)
+    // Stays enabled while busy (backToList ignores it then): a disabled handler would let Back close the app mid-operation.
+    BackHandler(onBack = vm::backToList)
 
     FormColumn {
         Text(if (original != null) type.editTitle else type.newTitle, style = MaterialTheme.typography.headlineSmall)

@@ -489,7 +489,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             store.discardFiles(ids)
         } catch (e: Exception) {
             Log.w(TAG, "Could not discard files added to a form", e)
-            addedFiles.addAll(ids)
+            synchronized(addedFiles) { addedFiles.addAll(ids) }
         }
     }
 
