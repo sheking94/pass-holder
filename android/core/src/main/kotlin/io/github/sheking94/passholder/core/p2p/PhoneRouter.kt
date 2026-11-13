@@ -14,9 +14,9 @@ object PhoneSync {
 }
 
 /**
- * Every request the phone's HTTP server gets: ping, pairing ([pairing]) and Noise sync ([host]; the old v1 paths are forwarded too, the host answers them 410).
+ * Every request the phone's HTTP server gets: ping, pairing ([pairing]) and Noise sync and files ([host]; the old v1 paths are forwarded too, the host answers them 410).
  * Checks in order: unknown path 404, then [onRequest], body not a JSON object 400, then the path's own handler.
- * [host] is null until the phone has a vault (or a restore in progress): handshake and sync then answer 503.
+ * [host] is null until the phone has a vault (or a restore in progress): handshake, sync and file then answer 503.
  */
 class PhoneRouter(
     private val pairing: PairingHost,
@@ -28,7 +28,7 @@ class PhoneRouter(
 ) {
     private companion object {
         const val PING = "/p2p/v1/ping"
-        val SYNC_PATHS = setOf("/p2p/v1/handshake", "/p2p/v1/sync", "/p2p/v2/handshake", "/p2p/v2/sync")
+        val SYNC_PATHS = setOf("/p2p/v1/handshake", "/p2p/v1/sync", "/p2p/v2/handshake", "/p2p/v2/sync", "/p2p/v2/file")
         val PAIRING_PATHS = setOf("/p2p/v1/pair/hello", "/p2p/v1/pair/start", "/p2p/v1/pair/finish")
     }
 

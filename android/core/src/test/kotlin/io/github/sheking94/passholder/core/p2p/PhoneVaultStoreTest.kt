@@ -6,6 +6,9 @@ import io.github.sheking94.passholder.core.Encoding
 import io.github.sheking94.passholder.core.Kdf
 import io.github.sheking94.passholder.core.KdfParams
 import io.github.sheking94.passholder.core.VaultCrypto
+import io.github.sheking94.passholder.core.files.Attachment
+import io.github.sheking94.passholder.core.files.Attachments
+import io.github.sheking94.passholder.core.files.FileChunks
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -505,5 +508,191 @@ class PhoneVaultStoreTest {
             putAll.invoke(old, listOf(io.github.sheking94.passholder.core.RemoteRecord("a", 1, false, "x")))
         }
         assertTrue(e.cause is IllegalStateException)
+    }
+
+    // ---- Files ----
+
+    private val day = Attachments.ORPHAN_FILE_AGE_MS
+
+    private fun filesDir() = File(dir, "p2p/files")
+
+    private fun storedIds() = filesDir().listFiles().orEmpty().map { it.name }.toSet()
+
+    private fun withFile(name: String, a: Attachment) =
+        EntryContentV3(name, "", LoginFields("u", "p"), emptyList(), listOf(a))
+
+    private fun putBody(epoch: String, id: String, index: Int, chunks: Int, blob: String) =
+        """{"op":"put","epoch":"$epoch","id":"$id","index":$index,"chunks":$chunks,"blob":"$blob"}"""
+
+    @Test
+    fun addFileStoresACompleteFileTheHostServes() {
+        val store = newStore()
+        store.createVault("pw")
+        val bytes = ByteArray(600_000) { (it % 251).toByte() }
+        val a = store.addFile(bytes, "skan.pdf", "application/pdf")
+        assertEquals(3, a.chunks)
+        assertEquals("skan.pdf", a.name)
+        assertTrue(store.isFileComplete(a))
+        assertArrayEquals(bytes, store.readFile(a))
+        assertEquals(setOf(a.id), storedIds())
+
+        val http = serve(store)
+        val pair = TestP2pClient.pair(http, store.offerPairing().code, extIdentity)
+        val res = clientFor(http, pair).file("""{"op":"status","epoch":"${pair.phoneVaultInfo!!.epoch}","ids":["${a.id}"]}""")
+        assertEquals(HostReply(200, """{"files":[{"id":"${a.id}","chunks":3,"have":[0,1,2],"complete":true}]}"""), res)
+    }
+
+    @Test
+    fun fileSentByTheExtensionIsReadableOnThePhone() {
+        val store = newStore()
+        store.createVault("pw")
+        val http = serve(store)
+        val pair = TestP2pClient.pair(http, store.offerPairing().code, extIdentity)
+        val epoch = pair.phoneVaultInfo!!.epoch
+        val client = clientFor(http, pair)
+        val bytes = "zawartość pliku".toByteArray()
+        val enc = FileChunks.encrypt(bytes, "notatka.txt", "text/plain")
+        val a = enc.attachment
+        assertFalse(store.isFileComplete(a))
+        assertEquals(HostReply(200, """{"have":1}"""), client.file(putBody(epoch, a.id, 0, 1, enc.blobs[0])))
+        store.upsertContent("e1", withFile("Z plikiem", a))
+        val entry = store.entry("e1")!!
+        assertEquals(listOf(a), entry.content.attachments)
+        assertTrue(store.isFileComplete(entry.content.attachments[0]))
+        assertArrayEquals(bytes, store.readFile(entry.content.attachments[0]))
+    }
+
+    @Test
+    fun incompleteOrBrokenFileIsCorrupted() {
+        val store = newStore()
+        store.createVault("pw")
+        val enc = FileChunks.encrypt(ByteArray(300_000) { 7 }, "a.bin", "")
+        val http = serve(store)
+        val pair = TestP2pClient.pair(http, store.offerPairing().code, extIdentity)
+        val client = clientFor(http, pair)
+        val a = enc.attachment
+        assertEquals(200, client.file(putBody(pair.phoneVaultInfo!!.epoch, a.id, 0, 2, enc.blobs[0])).status)
+        assertFalse(store.isFileComplete(a))
+        assertEquals("File is corrupted", assertThrows<IllegalArgumentException> { store.readFile(a) }.message)
+    }
+
+    @Test
+    fun pruneFilesDeletesOnlyOldUnusedFiles() {
+        val store = newStore()
+        store.createVault("pw")
+        val used = store.addFile("a".toByteArray(), "a.txt", "text/plain")
+        val oldUnused = store.addFile("b".toByteArray(), "b.txt", "text/plain")
+        store.upsertContent("e1", withFile("A", used))
+        time += day + 1
+        val youngUnused = store.addFile("c".toByteArray(), "c.txt", "text/plain")
+        assertEquals(1, store.pruneFiles())
+        assertEquals(setOf(used.id, youngUnused.id), storedIds())
+        assertFalse(store.isFileComplete(oldUnused))
+        assertTrue(store.isFileComplete(used))
+        assertEquals(0, store.pruneFiles())
+    }
+
+    @Test
+    fun pruneRunsAfterUnlockAndAfterEntryWrites() {
+        val store = newStore()
+        store.createVault("pw")
+        val orphan = store.addFile("o".toByteArray(), "o.txt", "")
+        val a = store.addFile("a".toByteArray(), "a.txt", "")
+        val b = store.addFile("b".toByteArray(), "b.txt", "")
+        store.upsertContent("e1", withFile("A", a))
+        store.upsertContent("e2", withFile("B", b))
+        store.lock()
+        time += day + 1
+        store.unlock("pw")
+        assertEquals(setOf(a.id, b.id), storedIds())
+        assertFalse(store.isFileComplete(orphan))
+        // Editing the login keeps the attachments, so nothing goes.
+        store.upsert("e1", Credentials("A2", "u2", "p2"))
+        assertEquals(setOf(a.id, b.id), storedIds())
+        store.upsertContent("e1", EntryContentV3("A3", "", LoginFields("u", "p"), emptyList()))
+        assertEquals(setOf(b.id), storedIds())
+        store.delete("e2")
+        assertEquals(emptySet<String>(), storedIds())
+    }
+
+    @Test
+    fun unreadableEntryStopsPruning() {
+        val store = newStore()
+        store.createVault("pw")
+        val orphan = store.addFile("o".toByteArray(), "o.txt", "")
+        val http = serve(store)
+        val pair = TestP2pClient.pair(http, store.offerPairing().code, extIdentity)
+        // An entry this vault key cannot open: it might use any file.
+        val foreign = blob(VaultCrypto.newVaultKey(), "x", "Obcy")
+        val res = clientFor(http, pair).syncResponse(P2pSyncRequest(pair.phoneVaultInfo!!.epoch, 0, listOf(ChangeRequest("x", 0, false, foreign))))
+        assertEquals(1, res.accepted.size)
+        assertEquals(listOf("x"), store.unreadableIds())
+        time += day + 1
+        assertEquals(0, store.pruneFiles())
+        store.upsertContent("e1", EntryContentV3("A", "", LoginFields("u", "p"), emptyList()))
+        store.lock()
+        store.unlock("pw")
+        assertEquals(setOf(orphan.id), storedIds())
+    }
+
+    @Test
+    fun newVaultDropsOldFilesAndTheOldHostCannotWriteThem() {
+        val store = newStore()
+        store.createVault("pw")
+        val http = serve(store)
+        val pair = TestP2pClient.pair(http, store.offerPairing().code, extIdentity)
+        val oldEpoch = pair.phoneVaultInfo!!.epoch
+        val client = clientFor(http, pair)
+        val first = FileChunks.encrypt("x".toByteArray(), "x.txt", "")
+        assertEquals(200, client.file(putBody(oldEpoch, first.attachment.id, 0, 1, first.blobs[0])).status)
+        assertEquals(setOf(first.attachment.id), storedIds())
+        // A request in flight on the old host: its session was opened before the reset.
+        val oldHost = PhoneVaultStore::class.java.getDeclaredField("host").apply { isAccessible = true }.get(store) as P2pHost
+        val oldClient = TestP2pClient(extIdentity.deviceId, extKey, Encoding.fromBase64(pair.phoneIdentity!!.staticPublicKey), oldHost)
+        val (session, ciphers) = oldClient.handshake()
+
+        store.disconnect()
+        store.createVault("pw")
+        assertEquals(emptySet<String>(), storedIds())
+        // The same extension pairs with the new vault (new identity), so the old host still sees it as paired.
+        val pair2 = TestP2pClient.pair(http, store.offerPairing().code, extIdentity)
+        assertEquals(200, pair2.finish!!.status)
+        val late = FileChunks.encrypt("y".toByteArray(), "y.txt", "")
+        val body = kotlinx.serialization.json.buildJsonObject {
+            put("session", kotlinx.serialization.json.JsonPrimitive(session))
+            put(
+                "frames",
+                kotlinx.serialization.json.JsonArray(
+                    Frames.encrypt(ciphers.send, putBody(oldEpoch, late.attachment.id, 0, 1, late.blobs[0]))
+                        .map { kotlinx.serialization.json.JsonPrimitive(it) },
+                ),
+            )
+        }
+        assertEquals(HostReply(500, """{"error":"internal error"}"""), oldHost.handle("/p2p/v2/file", body.toString().toByteArray()))
+        assertEquals(emptySet<String>(), storedIds())
+    }
+
+    @Test
+    fun startRestoreDropsFiles() {
+        val store = newStore()
+        store.createVault("pw")
+        store.addFile("x".toByteArray(), "x.txt", "")
+        store.disconnect()
+        File(dir, "p2p/files/00000000-0000-4000-8000-000000000000").mkdirs()
+        store.startRestore()
+        assertEquals(emptySet<String>(), storedIds())
+    }
+
+    @Test
+    fun fileApiNeedsAnUnlockedVault() {
+        val store = newStore()
+        store.createVault("pw")
+        val a = store.addFile("x".toByteArray(), "x.txt", "")
+        store.lock()
+        val locked = "Sejf jest zablokowany"
+        assertEquals(locked, assertThrows<IllegalStateException> { store.addFile("y".toByteArray(), "y.txt", "") }.message)
+        assertEquals(locked, assertThrows<IllegalStateException> { store.readFile(a) }.message)
+        assertEquals(locked, assertThrows<IllegalStateException> { store.isFileComplete(a) }.message)
+        assertEquals(locked, assertThrows<IllegalStateException> { store.pruneFiles() }.message)
     }
 }

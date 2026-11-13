@@ -80,14 +80,19 @@ class TestP2pClient(
     }
 
     /** Handshake plus one sync of the raw JSON [request]; a 200 reply carries the decrypted response JSON. */
-    fun sync(request: String): HostReply {
+    fun sync(request: String): HostReply = sessionRequest("/p2p/v2/sync", request)
+
+    /** Handshake plus one /p2p/v2/file request (raw JSON); a 200 reply carries the decrypted response JSON. */
+    fun file(request: String): HostReply = sessionRequest("/p2p/v2/file", request)
+
+    private fun sessionRequest(path: String, request: String): HostReply {
         val (session, ciphers) = handshake()
         val frames = Frames.encrypt(ciphers.send, request)
         val body = buildJsonObject {
             put("session", session)
             put("frames", JsonArray(frames.map { JsonPrimitive(it) }))
         }
-        val reply = transport("/p2p/v2/sync", body.toString().toByteArray())
+        val reply = transport(path, body.toString().toByteArray())
         if (reply.status != 200) return reply
         val incoming = (P2pJson.json.parseToJsonElement(reply.body) as JsonObject)["frames"] as JsonArray
         val plain = Frames.decrypt(ciphers.recv, incoming.map { (it as JsonPrimitive).content })

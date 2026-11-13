@@ -2,6 +2,9 @@ package io.github.sheking94.passholder.core.p2p
 
 import io.github.sheking94.passholder.core.Credentials
 import io.github.sheking94.passholder.core.Encoding
+import io.github.sheking94.passholder.core.files.Attachment
+import io.github.sheking94.passholder.core.files.FileChunks
+import io.github.sheking94.passholder.core.files.MemoryFileStore
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -48,7 +51,7 @@ class P2pInteropTest {
         val deviceId: String,
     )
 
-    private fun start(addresses: List<String>): Fixture {
+    private fun start(addresses: List<String>, files: MemoryFileStore? = null): Fixture {
         val store = MemorySyncStore()
         val vaultKey = Encoding.randomBytes(32)
         val epoch = Encoding.toBase64(Encoding.randomBytes(16))
@@ -61,6 +64,7 @@ class P2pInteropTest {
             store = store,
             epoch = epoch,
             addresses = { addresses },
+            files = files,
         )
         web.dispatcher = object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse {
@@ -76,7 +80,13 @@ class P2pInteropTest {
     }
 
     /** Runs the TypeScript client and returns the JSON it prints on its last line. */
-    private fun runClient(f: Fixture, count: Int, startPrefix: String, tmp: File): JsonObject {
+    private fun runClient(
+        f: Fixture,
+        count: Int,
+        startPrefix: String,
+        tmp: File,
+        phoneFileId: String? = null,
+    ): JsonObject {
         val config = File(tmp, "config.json")
         config.writeText(
             buildJsonObject {
@@ -88,6 +98,10 @@ class P2pInteropTest {
                 put("count", count)
                 put("startPrefix", startPrefix)
                 put("password", password)
+                if (phoneFileId != null) {
+                    put("files", true)
+                    put("phoneFileId", phoneFileId)
+                }
             }.toString(),
             Charsets.UTF_8,
         )
@@ -134,5 +148,36 @@ class P2pInteropTest {
         assertEquals(names.sorted(), names)
         assertEquals(2500, f.vault.entries().size)
         assertTrue(syncCalls.get() >= 3, "sync calls: ${syncCalls.get()}")
+    }
+
+    @Test
+    fun `extension file sync uploads to and downloads from the phone`(@TempDir tmp: File) {
+        assumeTrue(System.getenv("PASSHOLDER_INTEROP_TEST") == "1", "set PASSHOLDER_INTEROP_TEST=1")
+        val files = MemoryFileStore()
+        val f = start(emptyList(), files)
+        // A file added on the phone: complete in its store, described by an entry.
+        val original = ByteArray(300_000) { (it * 13 + 5).toByte() }
+        val enc = FileChunks.encrypt(original, "z-telefonu.bin", "application/octet-stream")
+        enc.blobs.forEachIndexed { i, blob -> files.put(enc.attachment.id, i, enc.blobs.size, blob, 0L) }
+        f.vault.upsertContent(
+            "phone-1",
+            EntryContentV3("z-telefonu.pl", "", LoginFields("jan", "x"), emptyList(), listOf(enc.attachment)),
+        )
+
+        val out = runClient(f, 0, "z-przegladarki", tmp, phoneFileId = enc.attachment.id)
+
+        val result = out.getValue("files").jsonObject
+        assertEquals(1, result.getValue("uploaded").jsonPrimitive.content.toInt())
+        assertEquals(1, result.getValue("downloaded").jsonPrimitive.content.toInt())
+        assertEquals(0, result.getValue("pending").jsonPrimitive.content.toInt())
+        assertEquals(FileChunks.sha256Hex(original), result.getValue("downloadedSha256").jsonPrimitive.content)
+        // The plugin's file reached the phone's store and decrypts to the original bytes.
+        val fromPlugin: Attachment = f.vault.entries().single { it.data.content.name == "z-plikiem" }
+            .data.content.attachments.single()
+        assertEquals(3, fromPlugin.chunks)
+        val blobs = (0 until fromPlugin.chunks).map { files.get(fromPlugin.id, it)!! }
+        val bytes = FileChunks.decrypt(fromPlugin, blobs)
+        assertEquals(600_000, bytes.size)
+        assertEquals(fromPlugin.sha256, FileChunks.sha256Hex(bytes))
     }
 }

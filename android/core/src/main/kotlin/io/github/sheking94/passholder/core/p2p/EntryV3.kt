@@ -2,6 +2,8 @@ package io.github.sheking94.passholder.core.p2p
 
 import io.github.sheking94.passholder.core.Aead
 import io.github.sheking94.passholder.core.Encoding
+import io.github.sheking94.passholder.core.files.Attachments
+import io.github.sheking94.passholder.core.files.Attachment
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -65,7 +67,13 @@ data class DocumentFields(
     override val type get() = "document"
 }
 
-data class EntryContentV3(val name: String, val note: String, val fields: EntryFieldsV3, val custom: List<CustomField>)
+data class EntryContentV3(
+    val name: String,
+    val note: String,
+    val fields: EntryFieldsV3,
+    val custom: List<CustomField>,
+    val attachments: List<Attachment> = emptyList(),
+)
 data class EntryDataV3(val content: EntryContentV3, val hlc: Hlc)
 data class TombstoneData(val hlc: Hlc)
 
@@ -95,6 +103,19 @@ object EntryV3 {
             s.append("{\"label\":"); str(s, f.label)
             s.append(",\"value\":"); str(s, f.value)
             s.append(",\"hidden\":").append(f.hidden).append('}')
+        }
+        if (c.attachments.isNotEmpty()) {
+            sb.append(",\"attachments\":")
+            array(sb, c.attachments) { s, a ->
+                s.append("{\"id\":"); str(s, a.id)
+                s.append(",\"name\":"); str(s, a.name)
+                s.append(",\"mime\":"); str(s, a.mime)
+                s.append(",\"size\":").append(a.size)
+                s.append(",\"chunks\":").append(a.chunks)
+                s.append(",\"sha256\":"); str(s, a.sha256)
+                s.append(",\"key\":"); str(s, a.key)
+                s.append('}')
+            }
         }
         sb.append(",\"hlc\":"); hlc(sb, data.hlc)
         return sb.append('}').toString()
@@ -308,14 +329,22 @@ object EntryV3 {
                 strictHlc(o["hlc"], INVALID_ENTRY),
             )
         }
-        val o = record(value, "v", "type", "name", "note", "fields", "custom", "hlc")
+        val withFiles = value.containsKey("attachments")
+        val o = if (withFiles) {
+            record(value, "v", "type", "name", "note", "fields", "custom", "attachments", "hlc")
+        } else {
+            record(value, "v", "type", "name", "note", "fields", "custom", "hlc")
+        }
         val v = o["v"]
         if (v !is JsonPrimitive || v is JsonNull || v.isString || v.content != "3") fail()
         return EntryDataV3(contentOf(o), strictHlc(o["hlc"], INVALID_ENTRY))
     }
 
     private fun contentOf(o: JsonObject): EntryContentV3 =
-        EntryContentV3(str(o["name"]), str(o["note"]), parseFields(str(o["type"]), o["fields"]), list(o["custom"], ::customField))
+        EntryContentV3(
+            str(o["name"]), str(o["note"]), parseFields(str(o["type"]), o["fields"]), list(o["custom"], ::customField),
+            if (o.containsKey("attachments")) Attachments.parseList(o["attachments"]) else emptyList(),
+        )
 
     /** Entry content without the sync metadata: exactly type, name, note, fields and custom, validated as strictly as [parse]. */
     fun parseContent(value: JsonElement): EntryContentV3 = contentOf(record(value, "type", "name", "note", "fields", "custom"))

@@ -54,7 +54,7 @@ katalogu pakietu.
 |---|---|---|---|
 | `core` | 34 | 601 | w tym `core/test/p2p/`, `core/test/files/`, `core/test/autofill/` i `core/test/save/` |
 | `extension` | 29 | 308 | w tym widoki w happy-dom (`extension/test/ui/`), `extension/test/autofill/` i `extension/test/save/`; `background.ts` bez testów (logika w `fill-tab.ts` i `save/candidates.ts`) |
-| `android/core` | 41 | 637 | 4 pomijane bez `PASSHOLDER_INTEROP_TEST=1`; w tym `autofill/` (wektory `core/test-vectors/autofill/`) i `save/` (wektory `core/test-vectors/save/`) |
+| `android/core` | 46 | 728 | 5 pomijane bez `PASSHOLDER_INTEROP_TEST=1`; w tym `autofill/` (wektory `core/test-vectors/autofill/`) i `save/` (wektory `core/test-vectors/save/`) |
 | `android/app` | 32 | 162 | Robolectric, zrzuty ekranów; w tym `autofill/`, ekrany autouzupełniania i zapis po odblokowaniu |
 
 ## Co testują pliki
@@ -82,7 +82,7 @@ katalogu pakietu.
 `files/files.json` (sekcje `limits`, `files`, `entries`, `rejected`, `merge`, `host`) trzyma pliki 5 B i 262144 + 1000 B
 (stałe klucze i nonce; treść większego Kotlin liczy sam), wpis z dwoma załącznikami i wpis po łączeniu, 22 odrzucane
 opisy, 3 przypadki łączenia, kroki hosta na jednym magazynie (z 507 na osobnym) i sprzątanie; odtwarza go
-`npm run gen-vectors-files -w core`, a w Kotlinie sprawdzi go krok 2.
+`npm run gen-vectors-files -w core`, a w Kotlinie sprawdza go `FilesVectorsTest` (w tym wektory hosta).
 
 `core/test/transfer/*.test.ts` (6 plików): `csv` (cudzysłowy, CRLF, BOM, niezamknięty cudzysłów), `common` (klucz duplikatu,
 sortowanie), `passholder-json` (zły typ i nieznany klucz pomijane z numerem), `bitwarden-json` (typy 1–4, dokument,
@@ -153,7 +153,8 @@ Playwright z Chromium nie jest zależnością repozytorium: w kontenerze w chmur
 | `p2p/P2pVectorsTest`, `P2pVectorsV3Test`, `Ristretto255Test`, `CpaceTest`, `NoiseTest`, `PairingTest`, `HlcTest`, `P2pJsonTest`, `EntryV3Test`, `FramesTest` | te same wektory bit w bit, `safeLong`, ramki |
 | `HostSyncTest`, `P2pHostTest`, `PhoneVaultTest` | rewizje, stronicowanie (500 zmian i 512 KiB), cięcie konfliktów, 410 dla starych ścieżek, odmowa nadpisania wpisu innego typu, cofnięty telefon, kody HTTP, sesje (60 s, 32), wiele wątków |
 | `SyncHttpServerTest`, `FileSyncStoreTest`, `HostStateTest`, `PairingHostTest`, `PhoneRouterTest`, `LocalAddressesTest`, `PhoneVaultStoreTest` | serwer HTTP i limity, `Host`, trwała baza, parowanie po HTTP, sejf telefonu |
-| `P2pInteropTest`, `PhoneInteropTest` (opcjonalne) | prawdziwy klient wtyczki w Node przeciw hostowi w Kotlinie: wpisy w obie strony, 1300/1200 wpisów, odtworzenie |
+| `files/AttachmentTest`, `FileChunksTest`, `FilesVectorsTest`, `FileHostTest`, `DiskFileStoreTest` | załączniki we wpisie v3, szyfrowanie kawałkami, wektory `files/files.json` 1:1, `/p2p/v2/file` (400/404/409/507), magazyn na dysku (kawałek `.tmp` po przerwaniu, wątki, 507 przy < 50 MB) |
+| `P2pInteropTest`, `PhoneInteropTest` (opcjonalne) | prawdziwy klient wtyczki w Node przeciw hostowi w Kotlinie: wpisy w obie strony, 1300/1200 wpisów, odtworzenie, plik 3 kawałki w górę i plik z telefonu w dół (`syncFiles`, ten sam SHA-256) |
 | `ScreenTests`, `SyncScreenTests`, `SyncControllerTest`, `CorruptHostStateTest` (app) | ekrany, tryb Synchronizacja, odświeżenie po synchronizacji, uszkodzony stan |
 | `BiometricScreenTests` (app) | odcisk palca, blokada po wyjściu, opóźnienie 60 s (zegar Robolectric) |
 | `EntryTypesTest` (app) | opisy wierszy, wyszukiwanie, `tidy`, walidacja (te same reguły co `entry-types.ts`) |
@@ -349,7 +350,7 @@ na następnym: wpis ma pusty login, który można uzupełnić w podglądzie (od 
 aplikacji (np. po powrocie do niej) lista pokazuje nowy wpis albo nowe hasło. Zapisz wynik, model telefonu, wersję
 Androida i Chrome.
 
-**T22. Pliki w sejfie (plan, do wykonania po krokach 3–4; dziś nie da się go uruchomić).** Dodaj zdjęcie 5 MB
+**T22. Pliki w sejfie (plan, do wykonania po krokach 3–4; dziś nie da się go uruchomić: telefon ma host plików, ale jeszcze nie ekrany).** Dodaj zdjęcie 5 MB
 we wtyczce → „Synchronizuj” → pobierz na telefonie (ostrzeżenie, zapis pliku, ta sama treść); to samo w drugą
 stronę. Usuń załącznik → po synchronizacji znika na obu urządzeniach (na telefonie najpóźniej po 24 h).
 

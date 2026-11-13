@@ -3,6 +3,9 @@ package io.github.sheking94.passholder.core.p2p
 import io.github.sheking94.passholder.core.ChangeRequest
 import io.github.sheking94.passholder.core.Encoding
 import io.github.sheking94.passholder.core.RemoteRecord
+import io.github.sheking94.passholder.core.files.FileChunks
+import io.github.sheking94.passholder.core.files.FileStore
+import io.github.sheking94.passholder.core.files.MemoryFileStore
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -24,7 +27,8 @@ class P2pHostTest {
         val hostKey = NoiseKeys.generate()
         val devices = ArrayList<PairedDevice>()
         var time = 1_000_000L
-        val host = P2pHost(hostKey, { devices.toList() }, store, epoch, { listOf("192.168.1.5:8787") }, { time })
+        val files = MemoryFileStore()
+        val host = P2pHost(hostKey, { devices.toList() }, store, epoch, { listOf("192.168.1.5:8787") }, { time }, files = files)
 
         fun addDevice(deviceId: String): KeyPair {
             val key = NoiseKeys.generate()
@@ -445,5 +449,108 @@ class P2pHostTest {
         assertEquals(gone, s.post("/p2p/v1/handshake", "{}"))
         assertEquals(gone, s.post("/p2p/v1/sync", "{}"))
         assertError(404, "not found", s.post("/p2p/v3/sync", "{}"))
+    }
+
+    // ---- /p2p/v2/file ----
+
+    private fun fileText(reply: HostReply, name: String) =
+        ((P2pJson.json.parseToJsonElement(reply.body) as JsonObject)[name] as JsonPrimitive).content
+
+    @Test
+    fun filePutStatusAndGetGoThroughNoise() {
+        val s = Setup()
+        val enc = FileChunks.encrypt(ByteArray(300_000) { it.toByte() }, "a.bin", "application/octet-stream")
+        val a = enc.attachment
+        assertEquals(2, a.chunks)
+        val c = s.client("a")
+        enc.blobs.forEachIndexed { i, b ->
+            val res = c.file("""{"op":"put","epoch":"${s.epoch}","id":"${a.id}","index":$i,"chunks":2,"blob":"$b"}""")
+            assertEquals(HostReply(200, """{"have":${i + 1}}"""), res)
+        }
+        val status = c.file("""{"op":"status","epoch":"${s.epoch}","ids":["${a.id}"]}""")
+        assertEquals(HostReply(200, """{"files":[{"id":"${a.id}","chunks":2,"have":[0,1],"complete":true}]}"""), status)
+        val got = c.file("""{"op":"get","epoch":"${s.epoch}","id":"${a.id}","index":1}""")
+        assertEquals(200, got.status)
+        assertEquals(enc.blobs[1], fileText(got, "blob"))
+        assertEquals("2", fileText(got, "chunks"))
+        assertEquals(2, s.files.have(a.id).size)
+    }
+
+    @Test
+    fun fileRequestWithAnotherEpochGetsTheHostEpoch() {
+        val s = Setup()
+        val res = s.client("a").file("""{"op":"status","epoch":"other","ids":[]}""")
+        assertEquals(HostReply(200, """{"epoch":"${s.epoch}"}"""), res)
+    }
+
+    @Test
+    fun fileErrorsGoOutInPlaintext() {
+        val s = Setup()
+        val enc = FileChunks.encrypt(ByteArray(10) { 1 }, "a.txt", "text/plain")
+        val id = enc.attachment.id
+        val c = s.client("a")
+        assertEquals(200, c.file("""{"op":"put","epoch":"${s.epoch}","id":"$id","index":0,"chunks":1,"blob":"${enc.blobs[0]}"}""").status)
+        // TestP2pClient returns non-200 replies as they came, so a JSON error body here means plaintext.
+        assertError(409, "chunk differs", c.file("""{"op":"put","epoch":"${s.epoch}","id":"$id","index":0,"chunks":1,"blob":"AAAA"}"""))
+        assertError(400, "malformed file request", c.file("""{"op":"nope","epoch":"${s.epoch}"}"""))
+        assertError(404, "chunk not found", c.file("""{"op":"get","epoch":"${s.epoch}","id":"$id","index":3}"""))
+    }
+
+    @Test
+    fun filePathIs404WithoutAFileStore() {
+        val hostKey = NoiseKeys.generate()
+        val key = NoiseKeys.generate()
+        val host = P2pHost(hostKey, { listOf(PairedDevice("a", "a", key.publicKey)) }, MemorySyncStore(), "e", { emptyList() })
+        assertError(404, "not found", host.handle("/p2p/v2/file", "{}".toByteArray()))
+        assertError(404, "not found", TestP2pClient("a", key, hostKey.publicKey, host).file("""{"op":"status","epoch":"e","ids":[]}"""))
+    }
+
+    @Test
+    fun fileRequestNeedsAFreshSessionAndAPairedDevice() {
+        val s = Setup()
+        val request = """{"op":"status","epoch":"${s.epoch}","ids":[]}"""
+        val (session, ciphers) = s.rawHandshake("a")
+        val body = s.syncBody(session, Frames.encrypt(ciphers.send, request))
+        assertEquals(200, s.post("/p2p/v2/file", body).status)
+        // One request per session, whatever the path.
+        assertError(401, "unknown or expired session", s.post("/p2p/v2/file", body))
+        val (session2, ciphers2) = s.rawHandshake("b")
+        s.devices.removeAll { it.deviceId == "b" }
+        assertError(403, "device not paired", s.post("/p2p/v2/file", s.syncBody(session2, Frames.encrypt(ciphers2.send, request))))
+        assertError(400, "malformed request", s.post("/p2p/v2/file", "{}"))
+    }
+
+    @Test
+    fun fileRequestIsNotASync() {
+        val epoch = Encoding.toBase64(Encoding.randomBytes(16))
+        val hostKey = NoiseKeys.generate()
+        val key = NoiseKeys.generate()
+        val synced = ArrayList<String>()
+        val host = P2pHost(
+            hostKey, { listOf(PairedDevice("a", "a", key.publicKey)) }, MemorySyncStore(), epoch, { emptyList() },
+            onSynced = { synced.add(it) }, files = MemoryFileStore(),
+        )
+        val res = TestP2pClient("a", key, hostKey.publicKey, host).file("""{"op":"status","epoch":"$epoch","ids":[]}""")
+        assertEquals(HostReply(200, """{"files":[]}"""), res)
+        assertEquals(emptyList<String>(), synced)
+    }
+
+    @Test
+    fun fileStoreFailureIs500() {
+        val errors = ArrayList<Throwable>()
+        val broken = object : FileStore by MemoryFileStore() {
+            override fun put(id: String, index: Int, chunks: Int, blob: String, now: Long) = throw IllegalStateException("disk gone")
+        }
+        val hostKey = NoiseKeys.generate()
+        val key = NoiseKeys.generate()
+        val host = P2pHost(
+            hostKey, { listOf(PairedDevice("a", "a", key.publicKey)) }, MemorySyncStore(), "e", { emptyList() },
+            onError = { errors.add(it) }, files = broken,
+        )
+        val enc = FileChunks.encrypt(ByteArray(10) { 1 }, "a.txt", "text/plain")
+        val res = TestP2pClient("a", key, hostKey.publicKey, host)
+            .file("""{"op":"put","epoch":"e","id":"${enc.attachment.id}","index":0,"chunks":1,"blob":"${enc.blobs[0]}"}""")
+        assertError(500, "internal error", res)
+        assertEquals(listOf("disk gone"), errors.map { it.message })
     }
 }

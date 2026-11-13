@@ -60,3 +60,6 @@ fun labelled(name: String, label: String): String = if (label == "") name else "
 /** "ulica, kod miasto, kraj" with empty parts left out. */
 fun addressLine(a: PostalAddress): String =
     listOf(a.street, listOf(a.postalCode, a.city).filter { it != "" }.joinToString(" "), a.country).filter { it != "" }.joinToString(", ")
+
+/** Total number of file attachments over [entries] (for the export screen: files are not exported). */
+fun countAttachments(entries: List<EntryContentV3>): Int = entries.sumOf { it.attachments.size }

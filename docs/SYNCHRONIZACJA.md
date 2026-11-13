@@ -263,6 +263,24 @@ i starsze niż 24 h (`ORPHAN_FILE_AGE_MS = 86400000`, od pierwszego kawałka, ś
 wysłany przed wpisem, który go używa. Wtyczka po synchronizacji usuwa nieużywane pliki od razu
 (`pruneLocalFiles`). Wektory hosta i sprzątania: `core/test-vectors/files/files.json`.
 
+**Host na telefonie (Kotlin, `core/files/`):** `P2pHost` obsługuje `/p2p/v2/file` przez `FileHost`, gdy dostał magazyn;
+bez niego odpowiada 404 jak na nieznaną ścieżkę. Zasady zgodne z hostem referencyjnym (walidacja, potem epoka, potem
+operacja; przy `put` 400 `chunk count mismatch` przed 409).
+
+- **Magazyn na dysku** (`DiskFileStore`): `filesDir/p2p/files/<id>/` z `meta.json` (`{chunks, createdAt}`) i kawałkami
+  `<i>`. Każdy kawałek trafia najpierw do `<i>.tmp`, potem `fsync` i atomowy `rename` na `<i>`, więc istniejący `<i>`
+  jest zawsze cały i osobny znacznik „kompletny” nie jest potrzebny: plik jest kompletny, gdy liczba kawałków równa się
+  `chunks`. Zabicie aplikacji w trakcie zapisu zostawia co najwyżej `*.tmp` (kasowane przy otwarciu magazynu) albo
+  brakujący kawałek, który wtyczka dośle przy następnej synchronizacji. Dwa równoległe `put` tego samego kawałka dają jeden zapis i dwa 200.
+- **507 `insufficient storage`:** gdy po zapisie kawałka zostałoby mniej niż 50 MB wolnego miejsca (`MIN_FREE_BYTES = 52428800`).
+- **Sprzątanie** (`PhoneVaultStore.pruneFiles`): po odblokowaniu i po każdym zapisie lub usunięciu wpisu; usuwa pliki
+  nieużywane przez żaden żywy wpis i starsze niż 24 h. Pomijane (nic się nie kasuje), gdy którykolwiek wpis jest
+  nieczytelny, bo nie wiadomo, jakich plików używa. Błąd sprzątania nie psuje zapisu wpisu.
+- **Zmiana epoki** (nowy sejf, odtwarzanie od zera, rozłączenie) kasuje cały `p2p/files/`; „Odtwórz z wtyczki”
+  po zakończeniu nie zmienia epoki, więc pliki wysłane w trakcie zostają.
+- Plik dodany na telefonie (`PhoneVaultStore.addFile`) trafia od razu do magazynu jako kompletny; wpis zapisuje ekran
+  „Zapisz”, a 24 h chroni plik przed sprzątaniem do tego czasu. Ekrany plików telefonu i ręczny test **T22** dochodzą w krokach 3–4.
+
 ## 6. Telefon
 
 ### 6.1. Serwer HTTP (`SyncHttpServer.kt`)

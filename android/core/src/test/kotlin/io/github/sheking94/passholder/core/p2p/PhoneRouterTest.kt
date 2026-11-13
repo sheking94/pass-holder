@@ -112,4 +112,22 @@ class PhoneRouterTest {
         assertEquals(HostReply(400, """{"error":"malformed request"}"""), post(router, "/p2p/v2/handshake"))
         assertEquals(2, calls.get())
     }
+
+    @Test
+    fun filePathIsRoutedAndCountsAsActivity() {
+        var count = 0
+        val notReady = HostReply(503, """{"error":"vault not ready"}""")
+        assertEquals(notReady, post(PhoneRouter(pairing, { null }, { count++ }), "/p2p/v2/file"))
+        assertEquals(1, count)
+        val hostKey = NoiseKeys.generate()
+        val key = NoiseKeys.generate()
+        val host = P2pHost(
+            hostKey, { listOf(PairedDevice("a", "a", key.publicKey)) }, MemorySyncStore(), "e", { emptyList() },
+            files = io.github.sheking94.passholder.core.files.MemoryFileStore(),
+        )
+        val router = PhoneRouter(pairing, { host }, { count++ })
+        val client = TestP2pClient("a", key, hostKey.publicKey, router::handle)
+        assertEquals(HostReply(200, """{"files":[]}"""), client.file("""{"op":"status","epoch":"e","ids":[]}"""))
+        assertEquals(3, count)
+    }
 }
