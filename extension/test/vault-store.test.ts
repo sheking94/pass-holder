@@ -5,6 +5,7 @@ import {
   CODE,
   FakePhone,
   names,
+  NO_FILES,
   newBrowser,
   pairedBrowser,
   PASSWORD,
@@ -109,7 +110,7 @@ describe("pairing an existing browser again (repair)", () => {
     const { store, phone, local, session, makeClient } = await pairedBrowser();
     const before = (await store.getAccount())!;
     phone.offerPairing();
-    expect(await store.repair(PHONE_URL, CODE, PASSWORD)).toEqual({ mode: "paired", skipped: [] });
+    expect(await store.repair(PHONE_URL, CODE, PASSWORD)).toEqual({ mode: "paired", skipped: [], files: NO_FILES });
     const after = (await store.getAccount())!;
     expect(after.deviceId).toBe(before.deviceId);
     expect(after.staticPublicKey).toBe(before.staticPublicKey);
@@ -130,7 +131,7 @@ describe("pairing an existing browser again (repair)", () => {
     const browser = newBrowser(new Map([[SECOND_URL, fresh]]));
     const sameStore = new VaultStore(local, session, browser.makeClient);
     fresh.offerPairing();
-    expect(await sameStore.repair(SECOND_URL, CODE, PASSWORD)).toEqual({ mode: "restored", skipped: [] });
+    expect(await sameStore.repair(SECOND_URL, CODE, PASSWORD)).toEqual({ mode: "restored", skipped: [], files: NO_FILES });
 
     expect(fresh.receivedVaultInfo).toMatchObject({ kdf: before.kdf, wrappedVaultKey: before.wrappedVaultKey });
     // A non-zero baseRevision for an entry the empty phone does not know would be refused with 400.
@@ -152,7 +153,7 @@ describe("pairing an existing browser again (repair)", () => {
     await store.pairStart(PHONE_URL, CODE, "Chrome");
     await store.pairFinish(PASSWORD);
     phone.offerPairing();
-    expect(await store.repair(PHONE_URL, CODE, PASSWORD)).toEqual({ mode: "paired", skipped: [SECOND_URL] });
+    expect(await store.repair(PHONE_URL, CODE, PASSWORD)).toEqual({ mode: "paired", skipped: [SECOND_URL], files: NO_FILES });
   }, 60_000);
 
   it("checks the master password before spending the phone's code", async () => {

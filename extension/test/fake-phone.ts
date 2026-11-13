@@ -14,6 +14,7 @@ import {
   type KdfParams,
   type SyncStore,
 } from "@passholder/core";
+import * as files from "@passholder/core/files";
 import { PhoneClient } from "../src/phone-client.ts";
 import { memoryStore, VaultStore } from "../src/vault-store.ts";
 
@@ -40,6 +41,12 @@ export class FakePhone {
   readonly devices: p2p.PairedDevice[] = [];
   readonly calls: string[] = [];
   readonly host: p2p.P2pHost;
+  /** The phone's encrypted file chunks (the host side of /p2p/v2/file). */
+  readonly files = new files.MemoryFileStore();
+  /** false: an older phone app that does not know the file path (answers 404 "not found"). */
+  fileSupport = true;
+  /** When set, the n-th file request from now (1 = the next one) fails once with 500; then it is cleared. */
+  failFileRequest: number | undefined;
   addresses: string[];
   /** undefined while the phone waits for "Odtwórz z wtyczki". */
   kdf: KdfParams | undefined;
@@ -67,6 +74,7 @@ export class FakePhone {
       store,
       epoch: this.epoch,
       addresses: () => this.addresses,
+      files: this.files,
     });
   }
 
@@ -148,6 +156,13 @@ export class FakePhone {
         return this.start(body);
       case "/p2p/v1/pair/finish":
         return this.finish(body);
+      case p2p.P2P_FILE_PATH:
+        if (!this.fileSupport) return fail(404, "not found");
+        if (this.failFileRequest !== undefined && --this.failFileRequest === 0) {
+          this.failFileRequest = undefined;
+          return fail(500, "internal error");
+        }
+        return this.host.handle(path, raw);
       default:
         return this.host.handle(path, raw);
     }
@@ -232,13 +247,21 @@ export function networkFetch(network: Network): typeof fetch {
 }
 
 /** A browser whose VaultStore reaches the fake network. */
-export function newBrowser(network: Network, now: () => number = Date.now, canReach?: (url: string) => Promise<boolean>) {
+export function newBrowser(
+  network: Network,
+  now: () => number = Date.now,
+  canReach?: (url: string) => Promise<boolean>,
+  fileStore: files.LocalFileStore = new files.MemoryLocalFileStore(),
+) {
   const local = memoryStore();
   const session = memoryStore();
   const fetchFn = networkFetch(network);
   const makeClient = (url: string) => new PhoneClient(url, fetchFn);
-  return { local, session, makeClient, store: new VaultStore(local, session, makeClient, now, canReach) };
+  return { local, session, makeClient, files: fileStore, store: new VaultStore(local, session, makeClient, now, canReach, fileStore) };
 }
+
+/** The file phase of a sync that had no attachments to move. */
+export const NO_FILES = { uploaded: 0, downloaded: 0, pending: 0, corrupted: [] };
 
 export const PHONE_URL = "http://192.168.1.5:8787";
 export const SECOND_URL = "http://100.64.0.7:8787";

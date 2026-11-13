@@ -13,6 +13,7 @@ import {
   utf8,
   type KdfParams,
 } from "@passholder/core";
+import * as files from "@passholder/core/files";
 import { PhoneClient, phoneErrorInPolish } from "./phone-client.ts";
 import { invalidPinMessage, isValidPin } from "./pin-lock.ts";
 import { PinStore, type PinStatus } from "./pin-store.ts";
@@ -123,9 +124,16 @@ export interface PendingPairingInfo {
   phoneUrls: string[];
 }
 
-/** What a sync did besides syncing: addresses it did not try because Chrome does not allow them yet. */
+/** What the file phase of a sync did; `error` (in Polish) when it stopped early. The entries are synced either way. */
+export type FilesOutcome = files.FileSyncResult & { error?: string };
+
+/**
+ * What a sync did besides syncing: addresses it did not try because Chrome does not allow them yet, and
+ * the outcome of the file phase.
+ */
 export interface SyncResult {
   skipped: string[];
+  files: FilesOutcome;
 }
 
 /** What repair() did: paired with a phone that has the vault, or restored an empty one; and what its sync skipped. */
@@ -192,6 +200,33 @@ export interface StoredEntry {
 const OTHER_TYPE = "Ten wpis ma inny typ";
 const NOT_A_LOGIN = "Ten wpis nie jest loginem";
 const ENTRY_TOO_LARGE_PL = "Wpis jest za duży";
+const FILE_CORRUPTED_PL = "Plik jest uszkodzony";
+const FILE_NOT_READY = "Plik czeka na synchronizację";
+const SYNC_AGAIN = "Zsynchronizuj ponownie";
+
+/** The file phase's error as the screen shows it. */
+function fileErrorInPolish(error: unknown): string {
+  if (error instanceof Error && error.message === files.FILE_SYNC_EPOCH_MISMATCH) return SYNC_AGAIN;
+  const polish = phoneErrorInPolish(error);
+  return polish instanceof Error ? polish.message : String(polish);
+}
+
+/** Delegates to store and reports every delete (syncFiles deletes only a downloaded file that turned out corrupted). */
+function reportingDeletes(store: files.LocalFileStore, onDelete: (id: string) => void): files.LocalFileStore {
+  return {
+    state: (id) => store.state(id),
+    ids: () => store.ids(),
+    getChunk: (id, index) => store.getChunk(id, index),
+    putChunk: (id, index, chunks, blob) => store.putChunk(id, index, chunks, blob),
+    markComplete: (id) => store.markComplete(id),
+    markIncomplete: (id, have) => store.markIncomplete(id, have),
+    markUploaded: (id, epoch) => store.markUploaded(id, epoch),
+    delete: (id) => {
+      onDelete(id);
+      return store.delete(id);
+    },
+  };
+}
 
 function loginView(e: p2p.LocalEntryV2): LiveEntry | undefined {
   if (e.deleted || e.data.type !== "login") return undefined;
@@ -214,6 +249,7 @@ function loginContent(existing: p2p.LocalEntryV2 | undefined, fields: EntryField
     note: base.note,
     custom: base.custom,
     fields: { ...base.fields, username: fields.username, password: fields.password },
+    ...(base.attachments && base.attachments.length > 0 ? { attachments: base.attachments } : {}),
   };
 }
 
@@ -310,6 +346,8 @@ export class VaultStore {
     private readonly now: () => number = Date.now,
     /** Whether Chrome lets this page reach the address (host permission); sync skips those it does not. */
     private readonly canReach: (url: string) => Promise<boolean> = async () => true,
+    /** Encrypted chunks of attachments (IndexedDB in the extension). */
+    private readonly fileStore: files.LocalFileStore = new files.MemoryLocalFileStore(),
   ) {
     this.pin = new PinStore(local, session);
   }
@@ -357,17 +395,66 @@ export class VaultStore {
     return entry && storedView(entry);
   }
 
-  /** Saves exactly this content under id; a live entry of another type under that id is refused. */
-  async putEntry(id: string, content: p2p.EntryContentV3): Promise<void> {
+  /**
+   * Saves exactly this content under id; a live entry of another type under that id is refused. newFiles
+   * (encrypted when chosen in the form) are stored before the entry; if the entry cannot be saved they are
+   * removed again. Afterwards local files no live entry uses are removed.
+   */
+  async putEntry(id: string, content: p2p.EntryContentV3, newFiles: readonly files.EncryptedFile[] = []): Promise<void> {
     const vault = this.requireVault();
+    const clock = this.requireClock();
     const existing = vault.entries.get(id);
     if (existing && !existing.deleted && existing.data.type !== content.type) throw new Error(OTHER_TYPE);
     try {
-      p2p.upsertEntryV2(vault, this.requireClock(), id, content);
+      for (const f of newFiles) await files.storeEncryptedFile(this.fileStore, f);
+      try {
+        p2p.upsertEntryV2(vault, clock, id, content);
+      } catch (error) {
+        throw tooLargeInPolish(error);
+      }
+      await this.save();
     } catch (error) {
-      throw tooLargeInPolish(error);
+      for (const f of newFiles) await this.fileStore.delete(f.attachment.id);
+      throw error;
     }
-    await this.save();
+    await files.pruneLocalFiles(vault, this.fileStore);
+  }
+
+  /** "ready": the whole file is here; "corrupted": the phone's copy did not match; otherwise "waiting" for a sync. */
+  async fileStatus(a: files.Attachment): Promise<"ready" | "waiting" | "corrupted"> {
+    if ((await this.fileStore.state(a.id))?.complete) return "ready";
+    if ((await this.corruptFiles()).includes(a.id)) return "corrupted";
+    return "waiting";
+  }
+
+  /** The phone of the current epoch has the whole file (otherwise the screen adds "czeka na synchronizację"). */
+  async fileUploaded(a: files.Attachment): Promise<boolean> {
+    const vault = this.requireVault();
+    const state = await this.fileStore.state(a.id);
+    return state !== undefined && state.uploadedEpoch === vault.epoch;
+  }
+
+  /** Decrypts a local file for download; only while unlocked. Nothing decrypted is kept. */
+  async readFile(a: files.Attachment): Promise<Uint8Array> {
+    this.requireVault();
+    if (!(await this.fileStore.state(a.id))?.complete) throw new Error(FILE_NOT_READY);
+    const blobs: string[] = [];
+    for (let index = 0; index < a.chunks; index++) {
+      const blob = await this.fileStore.getChunk(a.id, index);
+      if (blob === undefined) throw new Error(FILE_CORRUPTED_PL);
+      blobs.push(blob);
+    }
+    try {
+      return await files.decryptFile(a, blobs);
+    } catch (error) {
+      if (error instanceof Error && error.message === files.FILE_CORRUPTED) throw new Error(FILE_CORRUPTED_PL);
+      throw error;
+    }
+  }
+
+  /** Ids of files whose download did not match their descriptor; sync skips them. */
+  private async corruptFiles(): Promise<string[]> {
+    return (await this.local.get<string[]>(STORAGE_KEYS.corruptFiles)) ?? [];
   }
 
   /** Number of local changes the phone has not seen yet. */
@@ -434,8 +521,10 @@ export class VaultStore {
   }
 
   async delete(id: string): Promise<void> {
-    p2p.deleteEntryV2(this.requireVault(), this.requireClock(), id);
+    const vault = this.requireVault();
+    p2p.deleteEntryV2(vault, this.requireClock(), id);
     await this.save();
+    await files.pruneLocalFiles(vault, this.fileStore);
   }
 
   /**
@@ -597,8 +686,8 @@ export class VaultStore {
     await this.saveAccount(updated);
     await this.startSession(vaultKey, vault, updated);
     const mode = res.mode === "pair" ? "paired" : "restored";
-    const { skipped } = await this.firstSync(mode);
-    return { mode, skipped };
+    const { skipped, files: filesOutcome } = await this.firstSync(mode);
+    return { mode, skipped, files: filesOutcome };
   }
 
   /** Works offline: the wrapped vault key and the encrypted vault are on disk. */
@@ -707,6 +796,9 @@ export class VaultStore {
     await this.session.remove(STORAGE_KEYS.pendingPairing);
     await this.local.remove(STORAGE_KEYS.account);
     await this.local.remove(STORAGE_KEYS.vault);
+    // The files are the local copy of the vault's attachments: they go with it.
+    for (const id of await this.fileStore.ids()) await this.fileStore.delete(id);
+    await this.local.remove(STORAGE_KEYS.corruptFiles);
   }
 
   /**
@@ -714,8 +806,10 @@ export class VaultStore {
    * over Noise KK with this browser's static key and the phone's key from pairing. Addresses the phone
    * reports are added to phoneUrls; typed ones stay. Addresses Chrome does not allow yet (e.g. learned ones
    * the user has not approved) are skipped and returned, so the screen can say where to allow them.
+   * After the entries, the file phase uploads and downloads attachments over the same address and keys; its
+   * failure does not undo the entries and is reported in `files.error` (the next sync resumes).
    */
-  async sync(): Promise<SyncResult> {
+  async sync(onFileProgress?: (done: number, total: number) => void): Promise<SyncResult> {
     const vault = this.requireVault();
     const vaultKey = fromBase64(this.requireKeys().vaultKey);
     const clock = this.requireClock();
@@ -726,26 +820,53 @@ export class VaultStore {
     if (allowed.length === 0) throw new Error(NO_ALLOWED_ADDRESS);
     const { url, client } = await pickPhone(allowed, this.makeClient, account.lastPhoneUrl);
     const staticKey = p2p.keyPairFromPrivateKey(await open(vaultKey, account.sealedStaticKey, STATIC_KEY_AAD));
-    const send = p2p.noiseTransport({
+    const noise: p2p.NoiseClientOptions = {
       baseUrl: url,
       deviceId: account.deviceId,
       staticKey,
       peerPublicKey: fromBase64(account.phone.staticPublicKey),
       post: client.post,
-    });
-    await talkToPhone(() => p2p.syncVaultV2(vault, vaultKey, clock, send));
+    };
+    await talkToPhone(() => p2p.syncVaultV2(vault, vaultKey, clock, p2p.noiseTransport(noise)));
     await this.save();
+    const filesOutcome = await this.syncFilePhase(vault, files.noiseFileTransport(noise), onFileProgress);
     // Another page may have changed the account during the sync (addresses, a repair): merge into the
     // current one, and only while it is still the same phone; otherwise its state wins.
     const current = await this.getAccount();
-    if (!current || current.phone.staticPublicKey !== account.phone.staticPublicKey) return { skipped };
+    if (!current || current.phone.staticPublicKey !== account.phone.staticPublicKey) return { skipped, files: filesOutcome };
     const phoneUrls = withLearned(current.phoneUrls, vault.addresses);
     const lastPhoneUrl = phoneUrls.includes(url) ? url : current.lastPhoneUrl;
     if (lastPhoneUrl !== current.lastPhoneUrl || phoneUrls.length !== current.phoneUrls.length) {
       await this.saveAccount({ ...current, phoneUrls, lastPhoneUrl });
     }
     for (const u of phoneUrls) if (!account.phoneUrls.includes(u) && !skipped.includes(u) && !(await this.canReach(u))) skipped.push(u);
-    return { skipped };
+    return { skipped, files: filesOutcome };
+  }
+
+  /**
+   * Runs syncFiles and never throws: an error ends up in `error`. Newly found corrupted files are remembered
+   * (skipped from now on); ids no live entry uses are dropped from that list. After a complete phase, local
+   * files no live entry uses are removed.
+   */
+  private async syncFilePhase(
+    vault: p2p.LocalVaultV2,
+    send: files.P2pFileTransport,
+    onProgress?: (done: number, total: number) => void,
+  ): Promise<FilesOutcome> {
+    const known = await this.corruptFiles();
+    const corrupt = new Set(known);
+    let outcome: FilesOutcome;
+    try {
+      const store = reportingDeletes(this.fileStore, (id) => corrupt.add(id));
+      outcome = await files.syncFiles(vault, store, send, onProgress, new Set(known));
+      await files.pruneLocalFiles(vault, this.fileStore);
+    } catch (error) {
+      outcome = { uploaded: 0, downloaded: 0, pending: 0, corrupted: [], error: fileErrorInPolish(error) };
+    }
+    const used = files.usedAttachments(vault);
+    const kept = [...corrupt].filter((id) => used.has(id));
+    if (kept.length !== known.length || kept.some((id, i) => id !== known[i])) await this.local.set(STORAGE_KEYS.corruptFiles, kept);
+    return outcome;
   }
 
   private async requireAccount(): Promise<Account> {
