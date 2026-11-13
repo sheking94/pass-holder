@@ -249,6 +249,19 @@ describe("syncFiles", () => {
     expect(await files.getChunk(f.attachment.id, 0)).toBeUndefined();
   });
 
+  it("skips ids in skip", async () => {
+    const p = phone();
+    const f = await encryptFile(sample(FILE_CHUNK_SIZE + 3, 11), { name: "photo.jpg", mime: "image/jpeg" });
+    await uploadedFrom(p, f);
+
+    const b = p.plugin("b");
+    const vault = vaultWith(p.epoch, [f.attachment]);
+    expect(await syncFiles(vault, new MemoryLocalFileStore(), b.send, undefined, new Set([f.attachment.id]))).toEqual({
+      uploaded: 0, downloaded: 0, pending: 0, corrupted: [],
+    });
+    expect(b.ops).toEqual([]);
+  });
+
   it("uploads again after the vault moved to a new epoch", async () => {
     const first = phone();
     const f = await threeChunks();

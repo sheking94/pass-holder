@@ -242,13 +242,15 @@ async function download(
  * File phase after an entry sync: uploads complete local files the phone (of the vault's epoch) does not have yet,
  * then downloads used files that are complete on the phone but not here. No retries: a transport error is thrown
  * after whatever was already stored, and the next run resumes from the missing chunks. A per-file refusal during
- * upload (host status 409 or 400) only counts the file as pending.
+ * upload (host status 409 or 400) only counts the file as pending. Ids in `skip` (e.g. files known to be corrupted)
+ * are not candidates: they are not worked on and do not count as pending.
  */
 export async function syncFiles(
   vault: LocalVaultV2,
   files: LocalFileStore,
   send: P2pFileTransport,
   onProgress?: (done: number, total: number) => void,
+  skip?: ReadonlySet<string>,
 ): Promise<FileSyncResult> {
   const result: FileSyncResult = { uploaded: 0, downloaded: 0, pending: 0, corrupted: [] };
   // An unknown epoch is sent as "" and makes the phone answer with its own (FILE_SYNC_EPOCH_MISMATCH).
@@ -256,6 +258,7 @@ export async function syncFiles(
   // Only files that may need work: not complete here, or complete but not yet on this epoch's phone.
   const candidates: { a: Attachment; local: LocalFileState | undefined }[] = [];
   for (const a of usedAttachments(vault).values()) {
+    if (skip?.has(a.id)) continue;
     const local = await files.state(a.id);
     if (local?.complete && local.uploadedEpoch === epoch) continue;
     candidates.push({ a, local });
