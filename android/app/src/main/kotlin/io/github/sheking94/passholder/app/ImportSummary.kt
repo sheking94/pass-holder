@@ -18,6 +18,10 @@ fun plural(n: Int, one: String, few: String, many: String): String {
 /** "1 wpis", "3 wpisy", "5 wpisów". */
 fun entriesNoun(n: Int): String = "$n ${plural(n, "wpis", "wpisy", "wpisów")}"
 
+/** "1 plik nie zostanie wyeksportowany", "2 pliki nie zostaną wyeksportowane", "5 plików nie zostanie wyeksportowanych". */
+fun skippedFilesPhrase(n: Int): String =
+    "$n ${plural(n, "plik nie zostanie wyeksportowany", "pliki nie zostaną wyeksportowane", "plików nie zostanie wyeksportowanych")}"
+
 /**
  * The message shown after an import: what was added, what was skipped and why, and a reminder to delete the file.
  * Port of extension/src/import-summary.ts; on the phone the new entries reach the extension with the next sync.
