@@ -1,4 +1,5 @@
-import { parseAttachments } from "../files/attachment.ts";
+import { MAX_ATTACHMENTS_PARSED, parseAttachments } from "../files/attachment.ts";
+import { mergeAttachments } from "../files/merge.ts";
 import type { RemoteRecord } from "../protocol.ts";
 import {
   decryptPayloadV2,
@@ -191,8 +192,19 @@ async function applyResponse(
     const remote = await decodeRemote(vaultKey, record);
     clock.observe(remote.data.hlc);
     const local = vault.entries.get(record.id);
-    if (local?.dirty && compareHlc(local.data.hlc, remote.data.hlc) > 0) {
-      vault.entries.set(record.id, { ...local, revision: record.revision });
+    const localWins = local?.dirty === true && compareHlc(local.data.hlc, remote.data.hlc) > 0;
+    // Both versions live and the local one unsent: the HLC picks the entry, but the attachment lists are merged.
+    const merged = local?.dirty && !local.deleted && !remote.deleted
+      ? localWins ? mergeEntryAttachments(local.data, remote.data, clock) : mergeEntryAttachments(remote.data, local.data, clock)
+      : undefined;
+    if (localWins) {
+      vault.entries.set(record.id, merged
+        ? { id: record.id, revision: record.revision, dirty: true, deleted: false, data: merged }
+        : { ...local!, revision: record.revision });
+      needsResync = true;
+    } else if (merged) {
+      // The remote version wins but lacks some local files: keep it with the merged list as a new local change.
+      vault.entries.set(record.id, { id: record.id, revision: record.revision, dirty: true, deleted: false, data: merged });
       needsResync = true;
     } else {
       vault.entries.set(record.id, remote);
@@ -202,6 +214,20 @@ async function applyResponse(
   vault.lastSyncRevision = response.currentRevision;
   addAddresses(vault, response.addresses);
   return needsResync;
+}
+
+/**
+ * The winning entry with the merged attachment list and a fresh HLC when the merge adds files to it, otherwise
+ * undefined. The winner's list stays unchanged when the merge would exceed MAX_ATTACHMENTS_PARSED or make the
+ * entry too large to sync. The merged list always holds the winner's files, so it is never empty.
+ */
+function mergeEntryAttachments(winner: EntryDataV3, loser: EntryDataV3, clock: HlcClock): EntryDataV3 | undefined {
+  const merged = mergeAttachments(winner.attachments, loser.attachments);
+  // The merge only appends, so an unchanged length means an unchanged id sequence.
+  if (merged.length === (winner.attachments?.length ?? 0) || merged.length > MAX_ATTACHMENTS_PARSED) return undefined;
+  // Measured with the real HLC; a tick spent on a rejected merge only moves the clock forward.
+  const data: EntryDataV3 = { ...winner, attachments: merged, hlc: clock.tick() };
+  return entryBlobLength(data) > MAX_ENTRY_BLOB_LENGTH ? undefined : data;
 }
 
 export type P2pTransport = (request: P2pSyncRequest) => Promise<P2pSyncResponse>;

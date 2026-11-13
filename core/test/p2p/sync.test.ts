@@ -5,6 +5,7 @@ import { newVaultKey } from "../../src/vault.ts";
 import {
   applyVaultInfo,
   clockForVault,
+  compareHlc,
   decryptPayloadV2,
   deleteEntryV2,
   emptyLogin,
@@ -30,6 +31,7 @@ import {
   type P2pTransport,
 } from "../../src/p2p/index.ts";
 import { MemorySyncStore } from "../../src/protocol.ts";
+import { MAX_ATTACHMENTS_PARSED, type Attachment } from "../../src/files/index.ts";
 
 const newEpoch = () => toBase64(randomBytes(16));
 const ADDRESS = "192.168.1.5:8787";
@@ -518,5 +520,157 @@ describe("p2p sync: v3 entries and byte budget", () => {
     const ext = emptyVaultV2();
     await s.sync(ext, new HlcClock("ext", () => 1000));
     expect(ext.entries.get("1")).toMatchObject({ deleted: false, data: { type: "login", name: "Old" } });
+  });
+});
+
+describe("p2p sync: attachment merge on conflict", () => {
+  const KEY = toBase64(new Uint8Array(32).fill(9));
+  const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+  const file = (n: number): Attachment => ({
+    id: uuid(n), name: `f${n}.bin`, mime: "application/octet-stream", size: 300_000, chunks: 2, sha256: "b".repeat(64), key: KEY,
+  });
+  const files = (from: number, count: number) => Array.from({ length: count }, (_, i) => file(from + i));
+  const withFiles = (name: string, attachments: Attachment[], note = ""): EntryContentV3 => ({ ...login(name), note, attachments });
+  const fileIds = (v: LocalVaultV2, id = "1") => {
+    const e = v.entries.get(id);
+    return e && !e.deleted ? (e.data.attachments ?? []).map((a) => a.id) : undefined;
+  };
+  const counting = (s: ReturnType<typeof setup>) => {
+    const requests: P2pSyncRequest[] = [];
+    const sync = (vault: LocalVaultV2, clock: HlcClock) =>
+      syncVaultV2(vault, s.vaultKey, clock, async (r) => { requests.push(structuredClone(r)); return s.send(r); });
+    return { requests, sync };
+  };
+
+  /** Both devices hold entry "1" in sync; each clock reads t at the time of the call. */
+  async function twoDevices() {
+    const s = setup();
+    const a = emptyVaultV2();
+    const b = emptyVaultV2();
+    const time = { t: 1000 };
+    const aClock = new HlcClock("a", () => time.t);
+    const bClock = new HlcClock("b", () => time.t);
+    upsertEntryV2(a, aClock, "1", login("Start"));
+    await s.sync(a, aClock);
+    await s.sync(b, bClock);
+    return { s, a, b, aClock, bClock, time };
+  }
+
+  it("remote wins: the merged list (winner first) is pushed back and reaches both devices", async () => {
+    const { s, a, b, aClock, bClock, time } = await twoDevices();
+    time.t = 2000;
+    upsertEntryV2(a, aClock, "1", withFiles("Start", [file(1)]));
+    time.t = 3000;
+    upsertEntryV2(b, bClock, "1", withFiles("From B", [file(2)]));
+    await s.sync(b, bClock);
+    const winnerHlc = b.entries.get("1")!.data.hlc;
+    const counted = counting(s);
+    await counted.sync(a, aClock);
+    // One request lost the conflict, the next pushed the merged list.
+    expect(counted.requests).toHaveLength(2);
+    await s.sync(b, bClock);
+
+    for (const v of [a, b]) {
+      expect(fileIds(v)).toEqual([uuid(2), uuid(1)]);
+      expect(v.entries.get("1")).toMatchObject({ dirty: false, data: { name: "From B" } });
+    }
+    // The merged version is a new change, ordered after the winner it was built from.
+    expect(compareHlc(a.entries.get("1")!.data.hlc, winnerHlc)).toBeGreaterThan(0);
+  });
+
+  it("local wins: the loser's files are appended and the entry gets a fresh HLC", async () => {
+    const { s, a, b, aClock, bClock, time } = await twoDevices();
+    time.t = 2000;
+    upsertEntryV2(b, bClock, "1", withFiles("From B", [file(2)]));
+    await s.sync(b, bClock);
+    time.t = 3000;
+    upsertEntryV2(a, aClock, "1", withFiles("From A", [file(1)]));
+    const before = a.entries.get("1")!.data.hlc;
+    await s.sync(a, aClock);
+    await s.sync(b, bClock);
+
+    for (const v of [a, b]) {
+      expect(fileIds(v)).toEqual([uuid(1), uuid(2)]);
+      expect(v.entries.get("1")).toMatchObject({ dirty: false, data: { name: "From A" } });
+    }
+    expect(a.entries.get("1")!.data.hlc).not.toEqual(before);
+  });
+
+  it("a tombstone with a later HLC deletes the entry with its files", async () => {
+    const { s, a, b, aClock, bClock, time } = await twoDevices();
+    time.t = 2000;
+    upsertEntryV2(a, aClock, "1", withFiles("Start", [file(1)]));
+    time.t = 3000;
+    deleteEntryV2(b, bClock, "1");
+    await s.sync(b, bClock);
+    await s.sync(a, aClock);
+    await s.sync(b, bClock);
+
+    for (const v of [a, b]) {
+      expect(v.entries.get("1")).toMatchObject({ deleted: true, dirty: false });
+    }
+  });
+
+  it("keeps the winner's list when the merged one would exceed the parser limit", async () => {
+    const { s, a, b, aClock, bClock, time } = await twoDevices();
+    time.t = 2000;
+    upsertEntryV2(a, aClock, "1", withFiles("Start", files(100, 20)));
+    time.t = 3000;
+    upsertEntryV2(b, bClock, "1", withFiles("Start", files(200, 21)));
+    expect(20 + 21).toBeGreaterThan(MAX_ATTACHMENTS_PARSED);
+    await s.sync(b, bClock);
+    const counted = counting(s);
+    await counted.sync(a, aClock);
+
+    expect(counted.requests).toHaveLength(1);
+    expect(fileIds(a)).toEqual(files(200, 21).map((f) => f.id));
+    expect(a.entries.get("1")!.dirty).toBe(false);
+  });
+
+  it("keeps the winner's list when the merged entry would be too large to sync", async () => {
+    const { s, a, b, aClock, bClock, time } = await twoDevices();
+    time.t = 2000;
+    upsertEntryV2(a, aClock, "1", withFiles("Start", [file(1)]));
+    time.t = 3000;
+    // Fits on its own, but not with one more descriptor.
+    const note = "n".repeat(48_560);
+    upsertEntryV2(b, bClock, "1", withFiles("Start", [file(2)], note));
+    const merged = { ...(b.entries.get("1")!.data as EntryContentV3), attachments: [file(2), file(1)] };
+    expect(entryBlobLength({ ...merged, v: 3, hlc: { ms: 9999, c: 0, d: "a" } })).toBeGreaterThan(MAX_ENTRY_BLOB_LENGTH);
+    await s.sync(b, bClock);
+    await s.sync(a, aClock);
+
+    expect(fileIds(a)).toEqual([uuid(2)]);
+    expect(a.entries.get("1")!.dirty).toBe(false);
+  });
+
+  it("no extra round when both versions hold the same files", async () => {
+    const { s, a, b, aClock, bClock, time } = await twoDevices();
+    time.t = 2000;
+    upsertEntryV2(a, aClock, "1", withFiles("From A", [file(1)]));
+    time.t = 3000;
+    upsertEntryV2(b, bClock, "1", withFiles("From B", [file(1)]));
+    await s.sync(b, bClock);
+    const counted = counting(s);
+    await counted.sync(a, aClock);
+
+    expect(counted.requests).toHaveLength(1);
+    expect(fileIds(a)).toEqual([uuid(1)]);
+    expect(a.entries.get("1")).toMatchObject({ dirty: false, data: { name: "From B" } });
+  });
+
+  it("a non-dirty local entry simply takes the remote version", async () => {
+    const { s, a, b, aClock, bClock, time } = await twoDevices();
+    time.t = 2000;
+    upsertEntryV2(a, aClock, "1", withFiles("Start", [file(1)]));
+    await s.sync(a, aClock);
+    await s.sync(b, bClock);
+    time.t = 3000;
+    // B removes the file; A has nothing pending, so the file must not come back.
+    upsertEntryV2(b, bClock, "1", login("Start"));
+    await s.sync(b, bClock);
+    await s.sync(a, aClock);
+    expect(fileIds(a)).toEqual([]);
+    expect(a.entries.get("1")!.data).not.toHaveProperty("attachments");
   });
 });
