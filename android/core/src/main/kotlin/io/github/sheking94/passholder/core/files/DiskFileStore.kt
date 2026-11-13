@@ -2,10 +2,14 @@ package io.github.sheking94.passholder.core.files
 
 import io.github.sheking94.passholder.core.p2p.P2pJson
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
+import java.nio.channels.FileChannel
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.nio.file.StandardOpenOption
 
 /**
  * [FileStore] on disk: `dir/<id>/meta.json` (`{"chunks":n,"createdAt":ms}`) and `dir/<id>/<i>` (blob).
@@ -37,7 +41,9 @@ class DiskFileStore(
         val f = File(File(dir, id), "meta.json")
         return try {
             if (!f.isFile) null else P2pJson.json.decodeFromString(Meta.serializer(), f.readText(Charsets.UTF_8))
-        } catch (e: Exception) {
+        } catch (e: SerializationException) {
+            null
+        } catch (e: IllegalArgumentException) {
             null
         }
     }
@@ -50,6 +56,11 @@ class DiskFileStore(
             out.fd.sync()
         }
         Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+        // Persist the rename itself (the directory entry); best effort, some platforms do not allow opening a directory.
+        try {
+            FileChannel.open(target.parentFile.toPath(), StandardOpenOption.READ).use { it.force(true) }
+        } catch (_: IOException) {
+        }
     }
 
     private fun valid(id: String) = Attachments.UUID_V4.matches(id)

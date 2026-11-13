@@ -80,6 +80,18 @@ class DiskFileStoreTest {
     }
 
     @Test
+    fun corruptMetaIsTreatedAsNoMeta() {
+        File(dir, id).mkdirs()
+        File(dir, "$id/meta.json").writeText("{\"chunks\":")
+        File(dir, id2).mkdirs()
+        File(dir, "$id2/meta.json").writeText("{\"chunks\":\"x\",\"createdAt\":1}")
+        val s = open()
+        assertEquals(emptyList<String>(), s.ids())
+        assertFalse(File(dir, id).exists())
+        assertFalse(File(dir, id2).exists())
+    }
+
+    @Test
     fun insufficientStorageIs507() {
         val s = open(DiskFileStore.MIN_FREE_BYTES + 9)
         assertEquals(507, put(s, id, 0, 1, "0123456789").status)

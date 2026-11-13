@@ -402,6 +402,8 @@ class PhoneVaultStore(
     fun pruneFiles(): Int {
         val (used, store) = synchronized(this) {
             val vault = requireSession().vault
+            val fs = openFiles()
+            if (synchronized(fs) { fs.ids().isEmpty() }) return 0
             if (vault.unreadableIds().isNotEmpty()) return 0
             vault.entries().flatMap { e -> e.content.attachments.map { it.id } }.toSet() to openFiles()
         }
@@ -600,15 +602,19 @@ class PhoneVaultStore(
     /** Caller holds [stateLock]. */
     private fun resetFiles() {
         val old = files
-        if (old != null) {
-            synchronized(old) {
-                old.closed = true
+        try {
+            if (old != null) {
+                synchronized(old) {
+                    old.closed = true
+                    deleteFilesDir()
+                }
+            } else {
                 deleteFilesDir()
             }
-        } else {
-            deleteFilesDir()
+        } finally {
+            // Never leave a closed store behind; the next DiskFileStore open cleans a half-deleted directory.
+            files = null
         }
-        files = null
     }
 
     private fun deleteFilesDir() {
