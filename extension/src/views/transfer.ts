@@ -1,6 +1,6 @@
 import { transfer } from "@passholder/core";
 import { importSummary } from "../import-summary.ts";
-import { entriesNoun, filesNoun } from "../plural.ts";
+import { entriesNoun, skippedFilesPhrase } from "../plural.ts";
 import { busy, h, setStatus, show, statusLine } from "../ui/dom.ts";
 import { downloadFile } from "../ui/download.ts";
 import { showInTab } from "../ui/page.ts";
@@ -45,7 +45,7 @@ function exportSection(status: HTMLElement) {
     {},
     h("legend", {}, "Eksport"),
     ...choices,
-    skipped > 0 && h("p", { class: "hint" }, `${filesNoun(skipped)} nie zostaną wyeksportowane (eksport z plikami będzie w kolejnej wersji).`),
+    skipped > 0 && h("p", { class: "hint" }, `${skippedFilesPhrase(skipped)} (eksport z plikami będzie w kolejnej wersji).`),
     h("p", { class: "warning" }, "Uwaga: plik nie jest zaszyfrowany. Każdy, kto go zobaczy (inny program, kopia zapasowa, synchronizacja folderu Pobrane z chmurą), pozna wszystkie Twoje hasła. Usuń go zaraz po użyciu."),
     h("label", { class: "check" }, understood, "Rozumiem, plik będzie zawierał hasła jawnym tekstem"),
     h("div", { class: "actions" }, exportButton),

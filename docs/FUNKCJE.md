@@ -154,8 +154,8 @@ zamknęłoby okienko).
   zawierał hasła jawnym tekstem” → **Pobierz plik** (`<format>-RRRR-MM-DD.json` albo `.csv`). Wpisy posortowane po
   nazwie (`localeCompare` „pl”), przy równej nazwie w kolejności login, kontakt, karta, notatka, dokument.
   **Załączniki wpisów nie są eksportowane:** gdy sejf je ma, ekran eksportu pisze np. „2 pliki nie zostaną
-  wyeksportowane (eksport z plikami będzie w kolejnej wersji).” (`transfer.countAttachments`; odmiana `filesNoun`:
-  1 plik, 2–4 pliki, 5+ plików). Import też ich nie przenosi, a wpis różniący się tylko plikami jest duplikatem.
+  wyeksportowane (eksport z plikami będzie w kolejnej wersji).” (`transfer.countAttachments`; czasownik odmienia `skippedFilesPhrase`:
+  „1 plik nie zostanie wyeksportowany”, „5 plików nie zostanie wyeksportowanych”). Import też ich nie przenosi, a wpis różniący się tylko plikami jest duplikatem.
 - **Import:** wybierz plik → **Importuj**. Format rozpoznaje się z treści pliku (JSON z `"format":"passholder"` →
   PassHolder; JSON z `items` → Bitwarden; plik niebędący JSON-em → NordPass CSV; inny JSON → błąd). Podsumowanie mówi, ile dodano, ile pominięto i dlaczego
   (z numerem wpisu albo wiersza). Wpisy są zmianami lokalnymi (•); na telefon trafiają po **Synchronizuj**.

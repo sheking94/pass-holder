@@ -117,7 +117,7 @@ wartości losowe mają stałe klucze i nonce.
 | `phone-urls.test.ts` | adresy IPv4, zera wiodące, porty, `pickPhone` (4 s) |
 | `pin.test.ts` | PIN: kształt, 5 prób, licznik przed sprawdzeniem, długi PIN na dysku |
 | `import.test.ts` | `importContents` (wszystkie typy, duplikaty w sejfie i w pliku, ponowny import, wpis za duży, jeden zapis), `allContents`, podsumowanie importu |
-| `plural.test.ts` | odmiana „wpis/wpisy/wpisów” i `filesNoun` („1 plik”, „3 pliki”, „5 plików”) |
+| `plural.test.ts` | odmiana „wpis/wpisy/wpisów” , `filesNoun` („1 plik”, „3 pliki”, „5 plików”) i `skippedFilesPhrase` (zgodny czasownik) |
 | `open-in-tab.test.ts` | tryby strony, przełączanie na otwartą kartę |
 | `auto-lock.test.ts` | blokada po 15 min na stronie i alarm service workera |
 | `entry-types.test.ts`, `vault-store-types.test.ts` | opis wiersza, wyszukiwanie, sprzątanie, formaty i nazwa pakietu (tylko zmienione pola); `listEntries`/`getEntry`/`putEntry`, odmowa innego typu, za duży wpis, synchronizacja kart i kontaktów |
