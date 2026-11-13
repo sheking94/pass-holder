@@ -55,7 +55,7 @@ export function teardownPopup(): void {
 
 /**
  * Creates <main id="app">, installs the fake chrome (storage, runtime.sendMessage into messages,
- * runtime.getURL, permissions.contains → true, tabs.query → options.activeTab, window.close → close; a "fill" message gets options.fillResult, "save-info" options.saveInfo, "save-answer" options.saveAnswer), navigator.clipboard (writes into clipboard) and a fetch
+ * runtime.getURL, permissions.contains → true, tabs.query → options.activeTab, tabs.create → createdTabs, window.close → close; a "fill" message gets options.fillResult, "save-info" options.saveInfo, "save-answer" options.saveAnswer), navigator.clipboard (writes into clipboard) and a fetch
  * that reaches the fake phone; pairs with a FakePhone, adds entries, then loads the view modules afresh
  * and resumes their store, which it returns.
  */
@@ -78,6 +78,7 @@ export async function setupPopup(
 
   const clipboard: string[] = [];
   const messages: unknown[] = [];
+  const createdTabs: string[] = [];
   const local = fakeArea();
   const session = fakeArea();
   const held = options.permissions?.held;
@@ -115,6 +116,7 @@ export async function setupPopup(
     }),
     tabs: strict("chrome.tabs", {
       query: async () => (options.activeTab ? [options.activeTab] : []),
+      create: async ({ url }: { url: string }) => void createdTabs.push(url),
     }),
     permissions: strict("chrome.permissions", permissionsApi),
   }));
@@ -140,7 +142,7 @@ export async function setupPopup(
   vi.resetModules();
   const { store } = await import("../../src/ui/state.ts");
   if (!(await store.resume())) throw new Error("setupPopup: the views' store did not resume");
-  return { app, store, clipboard, messages, phone, close, permissions };
+  return { app, store, clipboard, messages, phone, close, permissions, createdTabs, local };
 }
 
 /**

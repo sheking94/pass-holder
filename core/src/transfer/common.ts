@@ -19,9 +19,13 @@ function trimmed(value: unknown): unknown {
   return value;
 }
 
-/** Equal keys mean a duplicate: same whole content, every text trimmed at its edges, object keys in sorted order. */
+/**
+ * Equal keys mean a duplicate: same content except attachments (an entry differing only in files is a duplicate,
+ * as in the Android app), every text trimmed at its edges, object keys in sorted order.
+ */
 export function contentKey(c: EntryContentV3): string {
-  return JSON.stringify(trimmed(c));
+  const { attachments: _attachments, ...rest } = c as EntryContentV3 & { attachments?: unknown };
+  return JSON.stringify(trimmed(rest));
 }
 
 /** A copy sorted by name (Polish collation), then by type in ENTRY_TYPE_ORDER. */

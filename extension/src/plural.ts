@@ -10,3 +10,8 @@ export function plural(n: number, one: string, few: string, many: string): strin
 export function entriesNoun(n: number): string {
   return `${n} ${plural(n, "wpis", "wpisy", "wpisów")}`;
 }
+
+/** "1 plik nie zostanie wyeksportowany", "3 pliki nie zostaną wyeksportowane", "5 plików nie zostanie wyeksportowanych" (with the verb agreeing). */
+export function skippedFilesPhrase(n: number): string {
+  return `${n} ${plural(n, "plik nie zostanie wyeksportowany", "pliki nie zostaną wyeksportowane", "plików nie zostanie wyeksportowanych")}`;
+}

@@ -5,6 +5,11 @@ import { emptyLogin, type EntryContentV3 } from "../../src/p2p/index.ts";
 const note = (name: string): EntryContentV3 => ({ type: "note", name, note: "", fields: {}, custom: [] });
 
 describe("contentKey", () => {
+  it("ignores attachments", () => {
+    const a = { id: "f1", name: "a.pdf", mime: "application/pdf", size: 1, chunks: 1, key: "k", sha256: "h" };
+    expect(contentKey({ ...note("A"), attachments: [a] } as EntryContentV3)).toBe(contentKey(note("A")));
+  });
+
   it("ignores key order and outer spaces, not inner differences", () => {
     const a: EntryContentV3 = { type: "note", name: " A ", note: "x", fields: {}, custom: [] };
     const b: EntryContentV3 = { custom: [], fields: {}, note: "x ", name: "A", type: "note" };

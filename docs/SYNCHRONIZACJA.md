@@ -256,12 +256,13 @@ odblokowanym sejfie):
 4. Plik, którego nikt nie ma całego (np. dodany na innej wtyczce i niewysłany), albo zgubiony kawałek → `pending`,
    na następną synchronizację. Bez ponowień: błąd transportu przerywa fazę, a następne uruchomienie wznawia od
    brakujących kawałków. Inna epoka w odpowiedzi → `Epoch changed, sync again`.
-5. `uploadedEpoch` zamiast flagi: zmiana epoki (`adoptEpoch`) sama sprawia, że pliki trzeba wysłać ponownie.
+5. Postęp: `onProgress(0, n)` przed pierwszym przesłaniem, potem po każdym pliku.
+6. `uploadedEpoch` zamiast flagi: zmiana epoki (`adoptEpoch`) sama sprawia, że pliki trzeba wysłać ponownie.
 
 **Sprzątanie:** telefon (`orphanFileIds`, przy odblokowanym sejfie) usuwa pliki nieużywane przez żaden żywy wpis
 i starsze niż 24 h (`ORPHAN_FILE_AGE_MS = 86400000`, od pierwszego kawałka, ściśle starsze); 24 h chroni plik
-wysłany przed wpisem, który go używa. Wtyczka po synchronizacji usuwa nieużywane pliki od razu
-(`pruneLocalFiles`). Wektory hosta i sprzątania: `core/test-vectors/files/files.json`.
+wysłany przed wpisem, który go używa. Wtyczka po synchronizacji usuwa nieużywane pliki od razu (własne
+`pruneUnusedFiles`, punkt 7.5; `pruneLocalFiles` z rdzenia to wariant wzorcowy). Wektory hosta i sprzątania: `core/test-vectors/files/files.json`.
 
 **Host na telefonie (Kotlin, `core/files/`):** `P2pHost` obsługuje `/p2p/v2/file` przez `FileHost`, gdy dostał magazyn;
 bez niego odpowiada 404 jak na nieznaną ścieżkę. Zasady zgodne z hostem referencyjnym (walidacja, potem epoka, potem
@@ -361,6 +362,7 @@ zwykłe parowanie kończy się błędem bez spalenia kodu.
 | `vaultV2` | `local` | `LocalVaultV2` (epoka, `lastSyncRevision`, adresy, wpisy), AAD `passholder/v2/local-vault` |
 | `pendingPairing` | `session` | parowanie czekające na hasło |
 | `keys` | `session` | `{vaultKey, unlockedUntil}` odblokowanej sesji |
+| `corruptFiles` | `local` | `id` plików uszkodzonych po pobraniu (pomijane przy synchronizacji) |
 | `pinLock`, `generator` | | PIN ([FUNKCJE.md](FUNKCJE.md#pin-we-wtyczce)) i ustawienia generatora |
 
 ### 7.4. Inny telefon i odłączanie
@@ -368,8 +370,33 @@ zwykłe parowanie kończy się błędem bez spalenia kodu.
 - „Adresy telefonu” → „Sparuj z innym telefonem / odtwórz telefon”: hasło sprawdzane przed siecią, potem
   parowanie z tym samym `deviceId` i kluczem. Telefon z sejfem musi mieć **ten sam** klucz sejfu, inaczej
   „To inny sejf…” i nic się nie zmienia. Pusty telefon w trybie `restore`: punkt 8.
-- „Odłącz tę przeglądarkę” (ekran blokady, drugie kliknięcie potwierdza) usuwa konto, sejf, PIN i
-  `pendingPairing`. Telefon zachowuje to, co dostał; przeglądarkę usuwa się tam w „Urządzenia”.
+- „Odłącz tę przeglądarkę” (ekran blokady, drugie kliknięcie potwierdza) usuwa konto, sejf, PIN,
+  `pendingPairing` i pliki z IndexedDB. Telefon zachowuje to, co dostał; przeglądarkę usuwa się tam w „Urządzenia”.
+
+### 7.5. Pliki we wtyczce (`vault-store.ts`, `files/idb-file-store.ts`)
+
+- **Kolejność w `sync()`:** najpierw wpisy (punkt 4.2), potem faza plików (`syncFiles` z rdzenia, punkt 5.3). Błąd fazy
+  plików nie cofa wpisów: trafia do wyniku (`files.error`), a okno pokazuje „Nie wszystkie pliki zsynchronizowane: …”.
+  Stary telefon (404 na `/p2p/v2/file`) daje „Zaktualizuj aplikację na telefonie”. Pierwsza synchronizacja po
+  parowaniu i „Odtwórz telefon” (`pairFinish`, `repair`) też ją uruchamiają.
+- **Postęp:** „Pliki: 0 z 12” od razu, potem „Pliki: 3 z 12” przy „Synchronizuj”; po zakończeniu „wysłano N, pobrano M” i liczba plików czekających.
+- **Wznawianie:** kawałek trafia do IndexedDB od razu po pobraniu. Zamknięcie karty lub okienka w połowie nic nie
+  psuje, a następna synchronizacja bierze tylko brakujące kawałki. Plik dodany tu i jeszcze niewysłany to
+  „czeka na synchronizację”; plik dodany gdzie indziej i niewysłany tam też.
+- **Plik dodany na formularzu:** szyfrowany od razu w pamięci (`encryptFile`), do IndexedDB trafia dopiero w `putEntry`,
+  przed zapisem wpisu. „Anuluj” nie zostawia nic. Zablokowany sejf (15 min) → „Sejf jest zablokowany”, nic nie
+  zapisane. Treść jawna pliku jest zerowana zaraz po zaszyfrowaniu.
+- **Blokada w trakcie:** gdy sejf się zablokuje w fazie plików (15 min, „Zablokuj”, inna strona), kolejne żądanie
+  nie wychodzi: faza kończy się „Sejf jest zablokowany”, bez sprzątania; następna synchronizacja wznawia.
+- **Uszkodzone:** plik z innym rozmiarem lub `sha256` po pobraniu jest kasowany lokalnie, a jego `id` zapisany w
+  `chrome.storage.local` (`corruptFiles`). Kolejne synchronizacje go pomijają (`skip` w `syncFiles`; plik jest
+  niezmienny, ponowna próba nic nie da), a wpis pokazuje „Plik jest uszkodzony”. `id` znika z listy, gdy żaden wpis go
+  nie używa.
+- **Sprzątanie** (`pruneUnusedFiles`): po udanej fazie plików oraz po każdym `putEntry` i usunięciu wpisu kasuje
+  lokalne pliki, których nie używa żaden żywy wpis. Wyjątek: plik kompletny, dodany tu i nigdy niewysłany, zostaje
+  (może należeć do wpisu zapisanego w innej karcie, jeszcze niezsynchronizowanego). Usunięty załącznik znika więc
+  lokalnie od razu, a na telefonie po jego sprzątaniu (24 h). Błąd sprzątania nie psuje zapisu.
+- **Odłączenie** („Odłącz tę przeglądarkę”) usuwa też wszystkie pliki z IndexedDB i listę `corruptFiles`.
 
 ## 8. Odtwarzanie z wtyczki
 
@@ -399,8 +426,8 @@ druga dostaje 500. „Przerwij odtwarzanie” kasuje wszystko.
 - **Pliki:** do 10 MiB i 40 kawałków po 256 KiB, najwyżej 20 na wpis przy dodawaniu (40 po łączeniu).
   Bez limitu łącznego, tylko wolne miejsce (507). Telefon nie widzi, które pliki są używane (wie to
   dopiero przy odblokowanym sejfie), więc plik osierocony zostaje co najmniej 24 h od pierwszego kawałka, a
-  faktycznie do pierwszego sprzątania przy odblokowanym sejfie. Eksport PassHolder JSON pomija pliki. Ekrany i magazyny plików (wtyczka, telefon)
-  to kroki 2–4 planu, na razie jest tylko rdzeń TS.
+  faktycznie do pierwszego sprzątania przy odblokowanym sejfie. Eksport PassHolder JSON pomija pliki (ekran eksportu we wtyczce mówi, ile ich pominie). Ekrany telefonu to krok 4 planu;
+  wtyczka ma już pliki (punkt 7.5). Wtyczka trzyma kawałki w IndexedDB bez limitu (`unlimitedStorage`).
 - **Własne CPace i Noise** w dwóch językach: wektory testowe zmniejszają ryzyko, ale to nie audyt.
 - **ristretto255 w Kotlinie bez stałego czasu** (`BigInteger`). Akceptowane tylko dla jednorazowego CPace
   (skalar i kod są jednorazowe); klucze długoterminowe liczy X25519 z Bouncy Castle. Klasy nie wolno używać

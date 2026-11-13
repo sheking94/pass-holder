@@ -15,7 +15,8 @@
     "alarms",
     "offscreen",
     "activeTab",
-    "scripting"
+    "scripting",
+    "unlimitedStorage"
   ],
   "optional_host_permissions": [
     "https://*/*",

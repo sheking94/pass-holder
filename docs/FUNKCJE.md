@@ -37,7 +37,23 @@ typów; reguły (opis wiersza, pola wrażliwe, formaty, zapis) są wspólne, ró
   inny typ”.
 - **Zapis:** tekst bez zmian (przycinana tylko nazwa); puste elementy list i puste własne pola są pomijane.
   Pola, których formularz nie zna, zostają; typu wpisu nie da się zmienić.
-- **Import i eksport obejmują wszystkie typy** ([Import i eksport](#import-i-eksport)).
+- **Załączniki** (każdy typ wpisu, sekcja „Załączniki” formularza; opis w SPEC punkt 4):
+  - **Dodawanie:** „+ Dodaj plik” wybiera plik, który jest szyfrowany od razu, ale zapisuje się dopiero z wpisem
+    („Zapisz”); „Anuluj” nie zostawia nic. Ten sam plik wybrany dwa razy to dwa niezależne załączniki. „Usuń” zdejmuje
+    plik z formularza.
+  - **Limity** (z rdzenia, `MAX_FILE_SIZE`, `MAX_ATTACHMENTS_PER_ENTRY`): plik do 10 MB, najwyżej 20 we wpisie.
+    Błędy: „Plik jest za duży (limit 10 MB)”, „Najwyżej 20 plików we wpisie”, „Plik jest pusty”,
+    „Nieprawidłowa nazwa pliku”. Rozmiar na ekranie: „N KB” poniżej 1 MiB, wyżej „4,6 MB”.
+  - **Okienko i karta:** okienko zamyka się przy wyborze pliku, więc „+ Dodaj plik” w okienku najpierw pyta: „Formularz
+    otworzy się w karcie. Niezapisane zmiany z tego okna przepadną – najpierw zapisz wpis, jeśli coś zmieniłeś.”
+    („Otwórz w karcie” / „Anuluj”) i otwiera ten sam formularz w karcie (`?edit&type=<typ>&id=<id>`).
+  - **Pobieranie:** „Pobierz” pokazuje ostrzeżenie „Pobierasz plik, który zostanie odszyfrowany i będzie dostępny na tym
+    urządzeniu.” („Pobierz” / „Anuluj”); dopiero po nim plik jest odszyfrowywany i zapisywany. Treść jawna nie trafia
+    nigdzie indziej (ani do IndexedDB, ani do `chrome.storage`).
+  - **Stany:** „czeka na synchronizację” (pliku nie ma jeszcze lokalnie albo nie został wysłany), „Plik jest
+    uszkodzony”; takiego pliku nie da się pobrać. Wiersz listy pokazuje „📎 N”.
+  - Edycja loginu przez pytanie o zapis zachowuje załączniki. Synchronizacja plików: [SYNCHRONIZACJA.md](SYNCHRONIZACJA.md#75-pliki-we-wtyczce-vault-storets-filesidb-file-storets).
+- **Import i eksport obejmują wszystkie typy** ([Import i eksport](#import-i-eksport)); pliki wpisów nie są eksportowane.
 - **Obie aplikacje trzeba zaktualizować razem.** Stara wtyczka dostaje od nowego telefonu 410 i pokazuje
   ogólny błąd synchronizacji; nowa wtyczka ze starym telefonem pokazuje „Zaktualizuj aplikację na telefonie”
   ([SYNCHRONIZACJA.md](SYNCHRONIZACJA.md#41-transport-noise-kk)).
@@ -137,6 +153,9 @@ zamknęłoby okienko).
 - **Eksport:** wybierz format (PassHolder JSON, Bitwarden JSON, NordPass CSV), zaznacz „Rozumiem, plik będzie
   zawierał hasła jawnym tekstem” → **Pobierz plik** (`<format>-RRRR-MM-DD.json` albo `.csv`). Wpisy posortowane po
   nazwie (`localeCompare` „pl”), przy równej nazwie w kolejności login, kontakt, karta, notatka, dokument.
+  **Załączniki wpisów nie są eksportowane:** gdy sejf je ma, ekran eksportu pisze np. „2 pliki nie zostaną
+  wyeksportowane (eksport z plikami będzie w kolejnej wersji).” (`transfer.countAttachments`; czasownik odmienia `skippedFilesPhrase`:
+  „1 plik nie zostanie wyeksportowany”, „5 plików nie zostanie wyeksportowanych”). Import też ich nie przenosi, a wpis różniący się tylko plikami jest duplikatem.
 - **Import:** wybierz plik → **Importuj**. Format rozpoznaje się z treści pliku (JSON z `"format":"passholder"` →
   PassHolder; JSON z `items` → Bitwarden; plik niebędący JSON-em → NordPass CSV; inny JSON → błąd). Podsumowanie mówi, ile dodano, ile pominięto i dlaczego
   (z numerem wpisu albo wiersza). Wpisy są zmianami lokalnymi (•); na telefon trafiają po **Synchronizuj**.

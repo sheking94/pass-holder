@@ -125,6 +125,9 @@ AAD z `id` wiąże szyfrogram z wpisem, więc host nie może podmienić treści 
   `{type,name,note,fields,custom}` jak wyżej, bez `v`, `hlc` i `attachments` (eksport pomija pliki, a
   `countAttachments` podaje ich liczbę do komunikatu); ścisły odczyt `parseEntryContent`. Eksport
   posortowany po nazwie (`localeCompare` „pl”), potem po typie. Opis: [FUNKCJE.md](FUNKCJE.md#import-i-eksport).
+- **Duplikat przy imporcie** (`contentKey` w `core/src/transfer/common.ts`): klucz z typu, nazwy, notatki, pól i własnych
+  pól, **bez `attachments`** (jak w Kotlinie). Wpis różniący się od istniejącego tylko plikami jest duplikatem, a
+  import nie przenosi plików.
 
 ### 4.1. Treść plików (kawałki)
 

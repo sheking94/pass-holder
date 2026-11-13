@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { STORAGE_KEYS, PAIRING_PENDING_MS, PairedButSyncFailed, VaultStore } from "../src/vault-store.ts";
-import { CODE, FakePhone, names, newBrowser, pairedBrowser, PASSWORD, PHONE_URL, SECOND_URL } from "./fake-phone.ts";
+import { CODE, FakePhone, names, newBrowser, NO_FILES, pairedBrowser, PASSWORD, PHONE_URL, SECOND_URL } from "./fake-phone.ts";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -127,7 +127,7 @@ describe("host permissions", () => {
     await store.sync(); // learns SECOND_URL
     await phone.addEntry("1", "bank.pl");
 
-    expect(await store.sync()).toEqual({ skipped: [SECOND_URL] });
+    expect(await store.sync()).toEqual({ skipped: [SECOND_URL], files: NO_FILES });
     expect(names(store)).toEqual(["bank.pl"]);
   }, 30_000);
 

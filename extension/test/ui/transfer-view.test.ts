@@ -82,6 +82,23 @@ describe("transfer view", () => {
     expect(status().classList.contains("error")).toBe(false);
   });
 
+  it("tells how many attachments the export leaves out", async () => {
+    const ctx = await setupPopup();
+    const { store } = ctx;
+    const att = (id: string) => ({ id, name: "a.pdf", size: 1, key: "k", chunks: 1 });
+    vi.spyOn(store, "allContents").mockReturnValue([
+      { type: "login", name: "A", attachments: [att("1"), att("2")] },
+    ] as never);
+    const { transferView } = await import("../../src/views/transfer.ts");
+    transferView();
+    expect(ctx.app.textContent).toContain("2 pliki nie zostaną wyeksportowane (eksport z plikami będzie w kolejnej wersji).");
+  });
+
+  it("says nothing about files when the vault has no attachments", async () => {
+    const { app } = await open();
+    expect(app.textContent).not.toContain("nie zostaną wyeksportowane");
+  });
+
   it("shows a broken file as an error", async () => {
     const { app, status } = await open();
     chooseFile(app, "{ to nie jest JSON");

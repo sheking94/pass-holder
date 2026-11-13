@@ -1,3 +1,5 @@
+import * as files from "@passholder/core/files";
+import { IdbFileStore } from "../files/idb-file-store.ts";
 import { PhoneClient } from "../phone-client.ts";
 import { chromeStore, VaultStore } from "../vault-store.ts";
 import { hostPermissionGranted } from "./phone-url-fields.ts";
@@ -10,4 +12,6 @@ export const store = new VaultStore(
   (url) => new PhoneClient(url),
   Date.now,
   hostPermissionGranted,
+  // happy-dom (UI tests) has no IndexedDB: those pages keep the files in memory.
+  typeof indexedDB !== "undefined" ? new IdbFileStore() : new files.MemoryLocalFileStore(),
 );
