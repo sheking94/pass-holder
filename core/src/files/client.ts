@@ -288,6 +288,8 @@ export async function syncFiles(
 
   const total = uploads.length + downloads.length;
   let done = 0;
+  // So a screen can show "0 of N" before the first (possibly slow) transfer.
+  if (total > 0) onProgress?.(0, total);
   for (const { a, phoneHas } of uploads) {
     let outcome: "done" | "pending";
     try {
@@ -314,7 +316,11 @@ export async function syncFiles(
   return result;
 }
 
-/** Removes local files no live entry uses; returns how many were removed. */
+/**
+ * Removes local files no live entry uses; returns how many were removed. The extension prunes with its own rule
+ * (it keeps files added there and never uploaded, which another page may still save); this one stays for the
+ * reference flow and parity with the phone.
+ */
 export async function pruneLocalFiles(vault: LocalVaultV2, files: LocalFileStore): Promise<number> {
   const used = usedAttachments(vault);
   let removed = 0;

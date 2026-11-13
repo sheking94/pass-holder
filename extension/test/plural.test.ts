@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { entriesNoun, filesNoun, skippedFilesPhrase, plural } from "../src/plural.ts";
+import { entriesNoun, skippedFilesPhrase, plural } from "../src/plural.ts";
 
 describe("plural", () => {
   const w = (n: number) => plural(n, "wpis", "wpisy", "wpisów");
@@ -16,8 +16,5 @@ describe("plural", () => {
       "1 plik nie zostanie wyeksportowany", "2 pliki nie zostaną wyeksportowane", "5 plików nie zostanie wyeksportowanych",
       "12 plików nie zostanie wyeksportowanych", "22 pliki nie zostaną wyeksportowane", "25 plików nie zostanie wyeksportowanych",
     ]);
-  });
-  it("filesNoun", () => {
-    expect([1, 3, 5].map(filesNoun)).toEqual(["1 plik", "3 pliki", "5 plików"]);
   });
 });

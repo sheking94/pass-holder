@@ -37,7 +37,7 @@ typów; reguły (opis wiersza, pola wrażliwe, formaty, zapis) są wspólne, ró
   inny typ”.
 - **Zapis:** tekst bez zmian (przycinana tylko nazwa); puste elementy list i puste własne pola są pomijane.
   Pola, których formularz nie zna, zostają; typu wpisu nie da się zmienić.
-- **Załączniki** (każdy typ wpisu, sekcja „Pliki” formularza; opis w SPEC punkt 4):
+- **Załączniki** (każdy typ wpisu, sekcja „Załączniki” formularza; opis w SPEC punkt 4):
   - **Dodawanie:** „+ Dodaj plik” wybiera plik, który jest szyfrowany od razu, ale zapisuje się dopiero z wpisem
     („Zapisz”); „Anuluj” nie zostawia nic. Ten sam plik wybrany dwa razy to dwa niezależne załączniki. „Usuń” zdejmuje
     plik z formularza.

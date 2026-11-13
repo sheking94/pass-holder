@@ -256,12 +256,13 @@ odblokowanym sejfie):
 4. Plik, którego nikt nie ma całego (np. dodany na innej wtyczce i niewysłany), albo zgubiony kawałek → `pending`,
    na następną synchronizację. Bez ponowień: błąd transportu przerywa fazę, a następne uruchomienie wznawia od
    brakujących kawałków. Inna epoka w odpowiedzi → `Epoch changed, sync again`.
-5. `uploadedEpoch` zamiast flagi: zmiana epoki (`adoptEpoch`) sama sprawia, że pliki trzeba wysłać ponownie.
+5. Postęp: `onProgress(0, n)` przed pierwszym przesłaniem, potem po każdym pliku.
+6. `uploadedEpoch` zamiast flagi: zmiana epoki (`adoptEpoch`) sama sprawia, że pliki trzeba wysłać ponownie.
 
 **Sprzątanie:** telefon (`orphanFileIds`, przy odblokowanym sejfie) usuwa pliki nieużywane przez żaden żywy wpis
 i starsze niż 24 h (`ORPHAN_FILE_AGE_MS = 86400000`, od pierwszego kawałka, ściśle starsze); 24 h chroni plik
-wysłany przed wpisem, który go używa. Wtyczka po synchronizacji usuwa nieużywane pliki od razu
-(`pruneLocalFiles`). Wektory hosta i sprzątania: `core/test-vectors/files/files.json`.
+wysłany przed wpisem, który go używa. Wtyczka po synchronizacji usuwa nieużywane pliki od razu (własne
+`pruneUnusedFiles`, punkt 7.5; `pruneLocalFiles` z rdzenia to wariant wzorcowy). Wektory hosta i sprzątania: `core/test-vectors/files/files.json`.
 
 **Host na telefonie (Kotlin, `core/files/`):** `P2pHost` obsługuje `/p2p/v2/file` przez `FileHost`, gdy dostał magazyn;
 bez niego odpowiada 404 jak na nieznaną ścieżkę. Zasady zgodne z hostem referencyjnym (walidacja, potem epoka, potem
@@ -378,13 +379,15 @@ zwykłe parowanie kończy się błędem bez spalenia kodu.
   plików nie cofa wpisów: trafia do wyniku (`files.error`), a okno pokazuje „Nie wszystkie pliki zsynchronizowane: …”.
   Stary telefon (404 na `/p2p/v2/file`) daje „Zaktualizuj aplikację na telefonie”. Pierwsza synchronizacja po
   parowaniu i „Odtwórz telefon” (`pairFinish`, `repair`) też ją uruchamiają.
-- **Postęp:** „Pliki: 3 z 12” przy „Synchronizuj”; po zakończeniu „wysłano N, pobrano M” i liczba plików czekających.
+- **Postęp:** „Pliki: 0 z 12” od razu, potem „Pliki: 3 z 12” przy „Synchronizuj”; po zakończeniu „wysłano N, pobrano M” i liczba plików czekających.
 - **Wznawianie:** kawałek trafia do IndexedDB od razu po pobraniu. Zamknięcie karty lub okienka w połowie nic nie
   psuje, a następna synchronizacja bierze tylko brakujące kawałki. Plik dodany tu i jeszcze niewysłany to
   „czeka na synchronizację”; plik dodany gdzie indziej i niewysłany tam też.
 - **Plik dodany na formularzu:** szyfrowany od razu w pamięci (`encryptFile`), do IndexedDB trafia dopiero w `putEntry`,
   przed zapisem wpisu. „Anuluj” nie zostawia nic. Zablokowany sejf (15 min) → „Sejf jest zablokowany”, nic nie
-  zapisane.
+  zapisane. Treść jawna pliku jest zerowana zaraz po zaszyfrowaniu.
+- **Blokada w trakcie:** gdy sejf się zablokuje w fazie plików (15 min, „Zablokuj”, inna strona), kolejne żądanie
+  nie wychodzi: faza kończy się „Sejf jest zablokowany”, bez sprzątania; następna synchronizacja wznawia.
 - **Uszkodzone:** plik z innym rozmiarem lub `sha256` po pobraniu jest kasowany lokalnie, a jego `id` zapisany w
   `chrome.storage.local` (`corruptFiles`). Kolejne synchronizacje go pomijają (`skip` w `syncFiles`; plik jest
   niezmienny, ponowna próba nic nie da), a wpis pokazuje „Plik jest uszkodzony”. `id` znika z listy, gdy żaden wpis go

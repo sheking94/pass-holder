@@ -10,6 +10,7 @@
  *  - "edit":      the form of one entry, to add attachments (the file chooser); see editQuery.
  */
 import type { p2p } from "@passholder/core";
+import { ENTRY_TYPES } from "./entry-types.ts";
 
 export type PageMode = "popup" | "tab" | "setup" | "addresses" | "transfer" | "edit";
 export type TabMode = Exclude<PageMode, "popup">;
@@ -36,8 +37,6 @@ export function isMainTab(mode: PageMode): boolean {
 export function modeQuery(mode: TabMode): string {
   return `?${mode}`;
 }
-
-const ENTRY_TYPES: readonly p2p.EntryType[] = ["login", "contact", "card", "note", "document"];
 
 /** The query string of the edit tab: the form of this type, for the saved entry with this id or a new one. */
 export function editQuery(type: p2p.EntryType, id?: string): string {

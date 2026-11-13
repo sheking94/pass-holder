@@ -37,6 +37,9 @@ export class IdbFileStore implements LocalFileStore {
       open.onsuccess = () => resolve(open.result);
       open.onerror = () => reject(open.error);
     });
+    // Each operation awaits #db and re-raises the failure; this only keeps a store nobody uses from
+    // reporting an unhandled rejection.
+    this.#db.catch(() => undefined);
   }
 
   async #tx(mode: IDBTransactionMode): Promise<{ tx: IDBTransaction; files: IDBObjectStore; chunks: IDBObjectStore }> {
@@ -100,14 +103,6 @@ export class IdbFileStore implements LocalFileStore {
     const t = await this.#tx("readwrite");
     t.files.delete(id);
     t.chunks.delete(chunkRange(id));
-    await done(t.tx);
-  }
-
-  /** Removes every file (the local copy of the vault is gone, e.g. on disconnect). */
-  async clear(): Promise<void> {
-    const t = await this.#tx("readwrite");
-    t.files.clear();
-    t.chunks.clear();
     await done(t.tx);
   }
 

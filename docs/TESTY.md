@@ -53,7 +53,7 @@ katalogu pakietu.
 | Pakiet | Pliki | Testy | Uwagi |
 |---|---|---|---|
 | `core` | 34 | 603 | w tym `core/test/p2p/`, `core/test/files/`, `core/test/autofill/` i `core/test/save/` |
-| `extension` | 33 | 351 | w tym widoki w happy-dom (`extension/test/ui/`), `extension/test/autofill/` i `extension/test/save/`; `background.ts` bez testów (logika w `fill-tab.ts` i `save/candidates.ts`) |
+| `extension` | 33 | 361 | w tym widoki w happy-dom (`extension/test/ui/`), `extension/test/autofill/` i `extension/test/save/`; `background.ts` bez testów (logika w `fill-tab.ts` i `save/candidates.ts`) |
 | `android/core` | 46 | 728 | 5 pomijane bez `PASSHOLDER_INTEROP_TEST=1`; w tym `autofill/` (wektory `core/test-vectors/autofill/`) i `save/` (wektory `core/test-vectors/save/`) |
 | `android/app` | 32 | 162 | Robolectric, zrzuty ekranów; w tym `autofill/`, ekrany autouzupełniania i zapis po odblokowaniu |
 
@@ -117,16 +117,16 @@ wartości losowe mają stałe klucze i nonce.
 | `phone-urls.test.ts` | adresy IPv4, zera wiodące, porty, `pickPhone` (4 s) |
 | `pin.test.ts` | PIN: kształt, 5 prób, licznik przed sprawdzeniem, długi PIN na dysku |
 | `import.test.ts` | `importContents` (wszystkie typy, duplikaty w sejfie i w pliku, ponowny import, wpis za duży, jeden zapis), `allContents`, podsumowanie importu |
-| `plural.test.ts` | odmiana „wpis/wpisy/wpisów” , `filesNoun` („1 plik”, „3 pliki”, „5 plików”) i `skippedFilesPhrase` (zgodny czasownik) |
+| `plural.test.ts` | odmiana „wpis/wpisy/wpisów” i `skippedFilesPhrase` (zgodny czasownik) |
 | `open-in-tab.test.ts` | tryby strony, przełączanie na otwartą kartę |
 | `auto-lock.test.ts` | blokada po 15 min na stronie i alarm service workera |
 | `entry-types.test.ts`, `vault-store-types.test.ts` | opis wiersza, wyszukiwanie, sprzątanie, formaty i nazwa pakietu (tylko zmienione pola); `listEntries`/`getEntry`/`putEntry`, odmowa innego typu, za duży wpis, synchronizacja kart i kontaktów |
 | `ui/list-view.test.ts` | zakładki, opis wiersza, wyszukiwanie w obrębie zakładki, powrót na zakładkę typu |
 | `ui/edit-login.test.ts`, `ui/edit-types.test.ts` | formularze: zapis każdego pola, puste elementy list pomijane, data w innym zapisie oraz e-mail i adres strony ze spacjami zapisują się bez zmian, etykiety pól list, błędy formatów, zachowanie pól spoza formularza, ukryte własne pole, generator, „Usuń” |
 | `ui/transfer-view.test.ts` | ekran „Import i eksport”: formaty, zgoda przed eksportem, import pliku, błąd uszkodzonego pliku, zdanie o pominiętych plikach (`2 pliki nie zostaną wyeksportowane…`, brak go bez załączników) |
-| `idb-file-store.test.ts` | `IdbFileStore` (`fake-indexeddb`): plik kompletny, kawałki jeden po drugim, zmiana liczby kawałków, prefiks `id`, `clear`, dane między instancjami, synchronizacja z hostem telefonu (wysłanie i pobranie w drugim magazynie) |
-| `vault-store-files.test.ts` | pliki w `VaultStore`: plik z przeglądarki A pobrany w B, wznowienie po przerwanej fazie (jeden kawałek), sprzątanie po usunięciu załącznika i wpisu (plik niewysłany zostaje), błąd zapisu wpisu i sprzątania, stary telefon (404), zapamiętany plik uszkodzony, `upsert` zachowuje załączniki, `putEntry` po blokadzie, `disconnect` czyści pliki |
-| `ui/attachments.test.ts` | sekcja „Pliki” w karcie i okienku: nowy plik dopiero po „Zapisz”, limity (21. plik, 10 MB, pusty, zła nazwa), ten sam plik dwa razy, „Usuń”, ostrzeżenie przed „Pobierz”, „czeka na synchronizację” i „Plik jest uszkodzony”, ostrzeżenie „Otwórz w karcie”, tryb `edit`, „📎 N” na liście, „Pliki: d z t” i komunikat po synchronizacji |
+| `idb-file-store.test.ts` | `IdbFileStore` (`fake-indexeddb`): plik kompletny, kawałki jeden po drugim, zmiana liczby kawałków, prefiks `id`, baza, która się nie otwiera (błąd w każdej operacji), dane między instancjami, synchronizacja z hostem telefonu (wysłanie i pobranie w drugim magazynie) |
+| `vault-store-files.test.ts` | pliki w `VaultStore`: plik z przeglądarki A pobrany w B, wznowienie po przerwanej fazie (jeden kawałek), sprzątanie po usunięciu załącznika i wpisu (plik niewysłany zostaje), błąd zapisu wpisu i sprzątania, stary telefon (404), zapamiętany plik uszkodzony, `upsert` zachowuje załączniki, `putEntry` po blokadzie (także w trakcie zapisu plików), faza plików przerwana blokadą (bez kolejnych żądań i sprzątania), `disconnect` czyści pliki (i działa przy błędzie IndexedDB) |
+| `ui/attachments.test.ts` | sekcja „Załączniki” w karcie i okienku: nowy plik dopiero po „Zapisz” (treść jawna wyczyszczona po szyfrowaniu), limity (21. plik, 10 MB, pusty, zła nazwa), ten sam plik dwa razy, „Usuń” (zamyka pytanie o pobranie), ostrzeżenie przed „Pobierz”, „czeka na synchronizację” (także gdy stanu nie da się odczytać) i „Plik jest uszkodzony”, ostrzeżenie „Otwórz w karcie”, tryb `edit` (cel jednorazowy, id innego typu daje nowy wpis), „📎 N” na liście, „Pliki: 0 z t” … „Pliki: t z t” i komunikat po synchronizacji |
 | `format-size.test.ts` | `formatSize`: KB poniżej 1 MiB (co najmniej 1), MB z przecinkiem od 1 MiB |
 | `autofill/fill-page.test.ts` | `fillPage` w happy-dom: logowanie, dwuetapowe, rejestracja (`new-password` pomijane), karta z jednym i dwoma polami ważności, `<select>`, adres; pola ukryte, wyłączone i tylko do odczytu, pusta wartość, obcy origin i inny origin niż sprawdzony |
 | `autofill/fill-tab.test.ts` | `fillTab` i `onFillCommand` z atrapą `TabApi`: zablokowany sejf, strona niepasująca, karta na http, brak pól, błąd wstrzyknięcia; skrót przy jednym, kilku i zerze loginów |
@@ -358,12 +358,12 @@ Androida i Chrome.
 sparowana z telefonem w trybie „Synchronizacja”, sejf z kilkoma wpisami. (1) Otwórz wpis w karcie → „+ Dodaj plik” →
 zdjęcie ok. 5 MB → wiersz z nazwą i „4,8 MB” → „Zapisz”; lista pokazuje „📎 1”. (2) W okienku „+ Dodaj plik”
 pokazuje ostrzeżenie „Formularz otworzy się w karcie…”; „Otwórz w karcie” otwiera ten sam wpis. (3) „Synchronizuj”:
-„Pliki: 1 z 1”, potem „wysłano 1”. (4) Druga przeglądarka (albo telefon po kroku 4) sparowana z tym sejfem →
+„Pliki: 0 z 1”, „Pliki: 1 z 1”, potem „wysłano 1”. (4) Druga przeglądarka (albo telefon po kroku 4) sparowana z tym sejfem →
 „Synchronizuj”: „pobrano 1”; „Pobierz” pokazuje ostrzeżenie, a po nim zapisuje plik o tej samej treści (porównaj sumę
 kontrolną). (5) Usuń załącznik („Usuń”, „Zapisz”) → „Synchronizuj” na obu: znika z wpisu; na telefonie plik
 znika najpóźniej po 24 h. (6) Przerwanie: zamknij kartę w trakcie „Pliki: …” przy kilku dużych plikach, otwórz
-ponownie → „Synchronizuj” dokańcza. (7) Eksport: **Plik** → ekran eksportu mówi „N plików nie zostaną
-wyeksportowane…”, a plik PassHolder JSON nie ma `attachments`. Zapisz wynik i wersję Chrome.
+ponownie → „Synchronizuj” dokańcza. (7) Eksport: **Plik** → ekran eksportu mówi „N plików nie zostanie
+wyeksportowanych…”, a plik PassHolder JSON nie ma `attachments`. Zapisz wynik i wersję Chrome.
 
 ## Czego brakuje
 

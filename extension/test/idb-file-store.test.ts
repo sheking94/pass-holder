@@ -74,13 +74,21 @@ describe("IdbFileStore", () => {
     expect((await store.state("a1"))!.have).toEqual([0]);
   });
 
-  it("clear removes every file", async () => {
-    const store = newStore();
-    await store.putChunk("x", 0, 1, "A");
-    await store.putChunk("y", 0, 1, "B");
-    await store.clear();
-    expect(await store.ids()).toEqual([]);
-    expect(await store.getChunk("x", 0)).toBeUndefined();
+  it("a database that does not open fails each operation, without an unhandled rejection", async () => {
+    const failing = {
+      open: () => {
+        const request = {} as { error?: Error; onerror?: () => void };
+        setTimeout(() => {
+          request.error = new Error("blocked");
+          request.onerror?.();
+        }, 0);
+        return request;
+      },
+    } as unknown as IDBFactory;
+    const store = new IdbFileStore(failing);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    await expect(store.ids()).rejects.toThrow("blocked");
+    await expect(store.state("x")).rejects.toThrow("blocked");
   });
 
   it("keeps data across instances on the same database", async () => {
@@ -128,7 +136,7 @@ describe("IdbFileStore", () => {
     expect(await files.syncFiles(vault, b, plugin("b"), (d, t) => progress.push([d, t]))).toEqual({
       uploaded: 0, downloaded: 1, pending: 0, corrupted: [], corruptedIds: [],
     });
-    expect(progress).toEqual([[1, 1]]);
+    expect(progress).toEqual([[0, 1], [1, 1]]);
     const blobs = await Promise.all([0, 1, 2].map((i) => b.getChunk(f.attachment.id, i)));
     expect(await files.decryptFile(f.attachment, blobs as string[])).toEqual(sample(files.FILE_CHUNK_SIZE * 2 + 10));
     expect(await b.state(f.attachment.id)).toMatchObject({ complete: true, have: [0, 1, 2] });

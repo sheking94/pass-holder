@@ -174,7 +174,7 @@ describe("syncFiles", () => {
     expect(await syncFiles(vault, files, b.send, (done, total) => progress.push([done, total]))).toEqual({
       uploaded: 0, downloaded: 1, pending: 0, corrupted: [], corruptedIds: [],
     });
-    expect(progress).toEqual([[1, 1]]);
+    expect(progress).toEqual([[0, 1], [1, 1]]);
     expect(await decryptFile(f.attachment, await localBlobs(files, f.attachment))).toEqual(bytes);
     expect(await files.state(f.attachment.id)).toMatchObject({ complete: true, have: [0, 1] });
     expect(b.count("put")).toBe(0);
@@ -405,7 +405,7 @@ describe("syncFiles: damaged files", () => {
     expect(await syncFiles(vault, files, p.plugin("a").send, (d, t) => progress.push([d, t]))).toEqual({
       uploaded: 1, downloaded: 0, pending: 1, corrupted: [], corruptedIds: [],
     });
-    expect(progress).toEqual([[1, 2], [2, 2]]);
+    expect(progress).toEqual([[0, 2], [1, 2], [2, 2]]);
     expect(await files.state(broken.attachment.id)).toMatchObject({ complete: false, have: [0, 2], uploadedEpoch: null });
     expect(p.files!.have(good.attachment.id)).toEqual([0]);
   });

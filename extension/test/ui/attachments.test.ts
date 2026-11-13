@@ -180,6 +180,49 @@ describe("attachments section in a tab", () => {
   }, 30_000);
 });
 
+describe("attachments section, robustness", () => {
+  it("a file whose state cannot be read waits for a sync instead of breaking the form", async () => {
+    const a = remoteAttachment("skan.pdf");
+    const b = remoteAttachment("dowod.pdf");
+    const { app, store, editView } = await inTab([{ id: "d1", content: { ...doc(), attachments: [a, b] } }]);
+    vi.spyOn(store, "fileStatus").mockImplementation(async (x) => {
+      if (x.id === a.id) throw new Error("idb gone");
+      return "ready";
+    });
+    vi.spyOn(store, "fileUploaded").mockRejectedValue(new Error("idb gone"));
+    await editView("document", "d1");
+    await settle(() => rows(app).length === 2);
+    const [first, second] = rows(app);
+    expect(rowText(first!)).toContain("czeka na synchronizację");
+    expect((byText(first!, "Pobierz") as HTMLButtonElement).disabled).toBe(true);
+    expect(rowText(second!)).toContain("czeka na synchronizację");
+    expect((byText(second!, "Pobierz") as HTMLButtonElement).disabled).toBe(false);
+  }, 30_000);
+
+  it("„Usuń” on a row closes its open download question", async () => {
+    const { app, editView } = await inTab([{ id: "d1", content: doc() }]);
+    await editView("document", "d1");
+    await addFile(app, photo());
+    await save(app);
+    await editView("document", "d1");
+    await settle(() => rows(app).length === 1);
+    await click(byText(rows(app)[0]!, "Pobierz"));
+    expect(app.querySelector(".confirm-box")).not.toBeNull();
+    await click(byText(rows(app)[0]!, "Usuń"));
+    expect(app.querySelector(".confirm-box")).toBeNull();
+  }, 30_000);
+
+  it("the plaintext of an added file is wiped once it is encrypted", async () => {
+    const { app, editView } = await inTab();
+    await editView("document");
+    const file = photo();
+    const buffer = await file.arrayBuffer();
+    vi.spyOn(file, "arrayBuffer").mockResolvedValue(buffer);
+    await addFile(app, file);
+    expect([...new Uint8Array(buffer)]).toEqual([0, 0, 0, 0, 0]);
+  }, 30_000);
+});
+
 describe("attachments section in the popup", () => {
   it("„+ Dodaj plik” warns first; „Anuluj” stays, „Otwórz w karcie” opens the form in a tab", async () => {
     const { app, createdTabs, close } = await setupPopup([{ id: "d1", content: doc() }]);
@@ -228,6 +271,34 @@ describe("edit tab", () => {
   }, 30_000);
 });
 
+describe("edit target", () => {
+  it("a form opened for an id of another type saves a new entry and leaves that one alone", async () => {
+    const { app, store, editView } = await inTab([{ id: "d1", content: doc("Paszport") }]);
+    await editView("note", "d1");
+    (app.querySelector("input") as HTMLInputElement).value = "Notatka";
+    await save(app);
+    expect(store.listEntries("note").map((e) => e.data.name)).toEqual(["Notatka"]);
+    expect(store.listEntries("note")[0]!.id).not.toBe("d1");
+    expect(store.getEntry("d1")!.data).toMatchObject({ type: "document", name: "Paszport" });
+  }, 30_000);
+
+  for (const button of ["Zapisz", "Anuluj"]) {
+    it(`after „${button}” in the edit tab a relock and unlock show the list`, async () => {
+      history.replaceState({}, "", "/?edit&type=document&id=d1");
+      const { app } = await setupPopup([{ id: "d1", content: doc("Paszport") }]);
+      const { showUnlocked } = await import("../../src/views/locked.ts");
+      await showUnlocked();
+      await settle(() => app.querySelector("h1")?.textContent === "Edytuj dokument");
+      await click(byText(app, button));
+      await settle(() => app.querySelector("ul.entries"));
+      expect(location.search).toBe("?tab");
+      await showUnlocked();
+      await settle(() => app.querySelector("ul.entries"));
+      expect(app.querySelector("h1")?.textContent).not.toBe("Edytuj dokument");
+    }, 30_000);
+  }
+});
+
 describe("list and sync", () => {
   it("the list shows a paperclip with the number of files", async () => {
     const { app, listView } = await (async () => {
@@ -258,6 +329,7 @@ describe("list and sync", () => {
     await settle(() => statusEl.textContent?.startsWith("Zsynchronizowano"));
     expect(statusEl.textContent).toContain(" Pliki: wysłano 1, pobrano 0.");
     expect(statusEl.classList.contains("error")).toBe(false);
+    expect(seen).toContain("Pliki: 0 z 1");
     expect(seen).toContain("Pliki: 1 z 1");
   }, 30_000);
 });

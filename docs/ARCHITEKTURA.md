@@ -78,7 +78,7 @@ osobno przez `fake-indexeddb`). Treść jawna nigdy nie jest zapisywana: odszyfr
 | `src/phone-urls.ts` | adresy telefonu: `normalizePhoneUrl` (tylko IPv4), `learnedPhoneUrls`, `pickPhone` (wybór działającego adresu, ping 4 s) |
 | `src/auto-lock.ts` | blokada po 15 minutach: `watchIdle` na stronie i alarm w service workerze |
 | `src/pin-lock.ts`, `src/pin-store.ts` | PIN: kryptografia (`createPinLock`, `openPinLock`) i przechowywanie z licznikiem prób |
-| `src/import-summary.ts`, `src/plural.ts` | polskie podsumowanie importu (dodano, duplikaty, pominięte) i odmiana „wpis/wpisy/wpisów” oraz „plik/pliki/plików” (`filesNoun`) |
+| `src/import-summary.ts`, `src/plural.ts` | polskie podsumowanie importu (dodano, duplikaty, pominięte) i odmiana „wpis/wpisy/wpisów” oraz zdanie o pominiętych plikach (`skippedFilesPhrase`) |
 | `src/clipboard.ts`, `src/background.ts`, `src/offscreen.ts` | czyszczenie schowka po minucie (alarm + dokument offscreen); `background.ts` obsługuje też autouzupełnianie (komunikat `fill`, polecenie `fill-login`) |
 | `src/autofill/fill-tab.ts` | `fillTab` (sprawdza sejf, wpis, adres karty, https, `matchLogins`; wstrzykuje skrypt), `onFillCommand` (skrót), `chromeTabApi` (`tabs.get`, `scripting.executeScript`, przypięty origin) |
 | `src/autofill/fill-page.ts`, `src/autofill-content.ts` | `fillPage` w stronie: pola, widoczność, ramki tego samego origin, wpisanie wartości; `autofill-content.ts` wystawia `globalThis.passholderFill` |
@@ -95,7 +95,7 @@ osobno przez `fake-indexeddb`). Treść jawna nigdy nie jest zapisywana: odszyfr
 | `src/ui/page.ts` | `MODE`, `IN_TAB`, `showInTab(tryb, widok)`, `openInTabButton` |
 | `src/ui/phone-url-fields.ts` | pola adresów telefonu (`phoneUrlFields`), wzorzec zgody, prośby o zgodę Chrome |
 | `src/files/idb-file-store.ts`, `src/files/format-size.ts` | `IdbFileStore` (IndexedDB `passholder-files`: opisy plików i kawałki, zapis kawałek po kawałku, `uploadedEpoch`); `formatSize` („N KB”, „4,6 MB”) |
-| `src/views/forms/attachments.ts`, `src/ui/download.ts` | sekcja „Pliki” formularza (dodawanie, limity, ostrzeżenia, pobieranie) i zapis pliku przez `Blob` |
+| `src/views/forms/attachments.ts`, `src/ui/download.ts` | sekcja „Załączniki” formularza (dodawanie, limity, ostrzeżenia, pobieranie) i zapis pliku przez `Blob` |
 | `src/ui/state.ts` | jeden `VaultStore` strony, wspólny dla widoków |
 | `src/views/*.ts` | ekrany: `connect` (parowanie), `locked`, `list` (zakładki typów), `edit` (formularz wpisu), `addresses`, `pin-settings`, `transfer` |
 | `src/views/forms/*.ts` | części formularza: `login` (z `generator`), `contact`, `card`, `document`, `note`, `custom-fields` (własne pola) |

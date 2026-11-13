@@ -29,10 +29,17 @@ interface Item {
   note: string;
 }
 
+/** A file whose state cannot be read (e.g. IndexedDB fails) is shown as waiting, so the form still opens. */
 async function savedItem(a: files.Attachment): Promise<Item> {
-  const state = await store.fileStatus(a);
-  const note = state === "corrupted" ? CORRUPTED : state === "waiting" || !(await store.fileUploaded(a)) ? WAITING : "";
-  return { attachment: a, ready: state === "ready", note };
+  let state: "ready" | "waiting" | "corrupted";
+  try {
+    state = await store.fileStatus(a);
+  } catch {
+    return { attachment: a, ready: false, note: WAITING };
+  }
+  if (state === "corrupted") return { attachment: a, ready: false, note: CORRUPTED };
+  const uploaded = state === "ready" && (await store.fileUploaded(a).catch(() => false));
+  return { attachment: a, ready: state === "ready", note: uploaded ? "" : WAITING };
 }
 
 export async function attachmentsEditor(
@@ -44,8 +51,12 @@ export async function attachmentsEditor(
   const list = h("ul", { class: "attachments" });
   // Holds the one open question box (download warning or the W6 warning).
   const dialog = h("div", {});
+  // The row whose download question is open, if one is.
+  let asking: Item | undefined;
 
-  const download = (a: files.Attachment) =>
+  const download = (item: Item) => {
+    const a = item.attachment;
+    asking = item;
     dialog.replaceChildren(confirmBox(DOWNLOAD_WARNING, "Pobierz", () =>
       void busy(status, "Odszyfrowuję plik…", async () => {
         const bytes = await store.readFile(a);
@@ -54,6 +65,7 @@ export async function attachmentsEditor(
         bytes.fill(0);
         setStatus(status, "");
       })));
+  };
 
   const render = () =>
     list.replaceChildren(...items.map((item) => {
@@ -67,12 +79,16 @@ export async function attachmentsEditor(
           h("span", { class: "name", title: a.name }, a.name),
           h("span", { class: "user" }, formatSize(a.size), item.note && ` · ${item.note}`),
         ),
-        h("button", { type: "button", title: `Pobierz: ${a.name}`, disabled: !item.ready, onclick: () => download(a) }, "Pobierz"),
+        h("button", { type: "button", title: `Pobierz: ${a.name}`, disabled: !item.ready, onclick: () => download(item) }, "Pobierz"),
         h("button", {
           type: "button",
           title: `Usuń: ${a.name}`,
           onclick: () => {
             items.splice(items.indexOf(item), 1);
+            if (asking === item) {
+              asking = undefined;
+              dialog.replaceChildren();
+            }
             render();
           },
         }, "Usuń"),
@@ -86,7 +102,14 @@ export async function attachmentsEditor(
       if (file.size === 0) throw new Error(EMPTY);
       if (file.size > files.MAX_FILE_SIZE) throw new Error(TOO_LARGE);
       if (!files.isAttachmentName(file.name)) throw new Error(BAD_NAME);
-      const added = await files.encryptFile(new Uint8Array(await file.arrayBuffer()), { name: file.name, mime: file.type });
+      const plain = new Uint8Array(await file.arrayBuffer());
+      let added: files.EncryptedFile;
+      try {
+        added = await files.encryptFile(plain, { name: file.name, mime: file.type });
+      } finally {
+        // Only the encrypted chunks are kept.
+        plain.fill(0);
+      }
       items.push({ attachment: added.attachment, added, ready: false, note: NEW });
       render();
       setStatus(status, "");
@@ -106,7 +129,10 @@ export async function attachmentsEditor(
     chooser = [h("button", {
       type: "button",
       class: "small",
-      onclick: () => dialog.replaceChildren(confirmBox(TAB_WARNING, "Otwórz w karcie", openInTab)),
+      onclick: () => {
+        asking = undefined;
+        dialog.replaceChildren(confirmBox(TAB_WARNING, "Otwórz w karcie", openInTab));
+      },
     }, "+ Dodaj plik")];
   }
 

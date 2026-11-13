@@ -48,7 +48,7 @@ describe("attachments in the vault store", () => {
     const rb = await b.store.sync((done, total) => progress.push([done, total]));
     expect(rb.files.downloaded).toBe(1);
     expect(rb.files.error).toBeUndefined();
-    expect(progress).toEqual([[1, 1]]);
+    expect(progress).toEqual([[0, 1], [1, 1]]);
     expect(await b.store.fileStatus(ef.attachment)).toBe("ready");
     expect(await b.store.fileUploaded(ef.attachment)).toBe(true);
     expect(await b.store.readFile(ef.attachment)).toEqual(bytesOf(1));
@@ -231,6 +231,71 @@ describe("attachments in the vault store", () => {
     const huge = { ...loginWith("big"), note: "x".repeat(70_000), attachments: [ef.attachment] };
     await expect(a.store.putEntry("e2", huge, [ef])).rejects.toThrow("Wpis jest za duży");
     expect(await a.files.ids()).toEqual([]);
+  });
+
+  it("the file phase stops when the vault auto-locks mid-transfer", async () => {
+    let clock = Date.now();
+    const a = await pairedBrowser({ now: () => clock });
+    const ef = await encrypt();
+    await a.store.putEntry("e1", loginWith("bank.pl", [ef.attachment]), [ef]);
+    // After status and put #0 the 15 minutes pass.
+    const handle = a.phone.handle.bind(a.phone);
+    a.phone.handle = async (path, raw) => {
+      const reply = await handle(path, raw);
+      if (path === p2p.P2P_FILE_PATH && fileCalls(a.phone.calls) === 2) clock += AUTO_LOCK_MS + 1;
+      return reply;
+    };
+    const used = await encrypt(2, "inny.pdf");
+    await files.storeEncryptedFile(a.files, used);
+    await a.files.markUploaded(used.attachment.id, "epoch");
+
+    const result = await a.store.sync();
+    expect(result.files.error).toBe("Sejf jest zablokowany");
+    expect(fileCalls(a.phone.calls)).toBe(2);
+    expect(a.phone.files.have(ef.attachment.id)).toEqual([0]);
+    // No prune after a stopped phase.
+    expect((await a.files.ids()).sort()).toEqual([ef.attachment.id, used.attachment.id].sort());
+  });
+
+  it("the file phase stops when the vault is locked mid-transfer", async () => {
+    const a = await pairedBrowser();
+    const ef = await encrypt();
+    await a.store.putEntry("e1", loginWith("bank.pl", [ef.attachment]), [ef]);
+    const handle = a.phone.handle.bind(a.phone);
+    a.phone.handle = async (path, raw) => {
+      const reply = await handle(path, raw);
+      if (path === p2p.P2P_FILE_PATH && fileCalls(a.phone.calls) === 2) await a.store.lock();
+      return reply;
+    };
+    const result = await a.store.sync();
+    expect(result.files.error).toBe("Sejf jest zablokowany");
+    expect(fileCalls(a.phone.calls)).toBe(2);
+  });
+
+  it("putEntry that locks while storing files does not save the entry and removes the files", async () => {
+    let clock = Date.now();
+    const a = await pairedBrowser({ now: () => clock });
+    const ef = await encrypt();
+    const markComplete = a.files.markComplete.bind(a.files);
+    a.files.markComplete = async (id) => {
+      await markComplete(id);
+      clock += AUTO_LOCK_MS + 1;
+    };
+    await expect(a.store.putEntry("e1", loginWith("bank.pl", [ef.attachment]), [ef])).rejects.toThrow("Sejf jest zablokowany");
+    expect(await a.files.ids()).toEqual([]);
+    clock -= AUTO_LOCK_MS + 1;
+    expect(a.store.getEntry("e1")).toBeUndefined();
+  });
+
+  it("disconnect still forgets everything when the file store fails", async () => {
+    const a = await pairedBrowser();
+    await a.local.set(STORAGE_KEYS.corruptFiles, ["x"]);
+    a.files.ids = async () => {
+      throw new Error("idb gone");
+    };
+    await a.store.disconnect({ force: true });
+    expect(await a.local.get(STORAGE_KEYS.account)).toBeUndefined();
+    expect(await a.local.get(STORAGE_KEYS.corruptFiles)).toBeUndefined();
   });
 
   it("disconnect clears files", async () => {

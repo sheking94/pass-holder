@@ -410,6 +410,8 @@ export class VaultStore {
     if (existing && !existing.deleted && existing.data.type !== content.type) throw new Error(OTHER_TYPE);
     try {
       for (const f of newFiles) await files.storeEncryptedFile(this.fileStore, f);
+      // Storing the files takes a while: the vault may have locked meanwhile, then the entry is not saved.
+      this.requireKeys();
       try {
         p2p.upsertEntryV2(vault, clock, id, content);
       } catch (error) {
@@ -801,8 +803,13 @@ export class VaultStore {
     await this.session.remove(STORAGE_KEYS.pendingPairing);
     await this.local.remove(STORAGE_KEYS.account);
     await this.local.remove(STORAGE_KEYS.vault);
-    // The files are the local copy of the vault's attachments: they go with it.
-    for (const id of await this.fileStore.ids()) await this.fileStore.delete(id);
+    // The files are the local copy of the vault's attachments: they go with it. The account is gone already,
+    // so a failing IndexedDB only leaves encrypted leftovers behind and must not fail the disconnect.
+    try {
+      for (const id of await this.fileStore.ids()) await this.fileStore.delete(id);
+    } catch {
+      // Unreadable without the vault key; a later disconnect tries again.
+    }
     await this.local.remove(STORAGE_KEYS.corruptFiles);
   }
 
@@ -851,7 +858,8 @@ export class VaultStore {
   /**
    * Runs syncFiles and never throws: an error ends up in `error`. Newly found corrupted files are remembered
    * (skipped from now on); ids no live entry uses are dropped from that list. After a complete phase, unused
-   * local files are pruned (see pruneUnusedFiles).
+   * local files are pruned (see pruneUnusedFiles). Once the vault locks (auto-lock, „Zablokuj”) no further
+   * request is sent: the phase ends with LOCKED and nothing is pruned.
    */
   private async syncFilePhase(
     vault: p2p.LocalVaultV2,
@@ -860,9 +868,14 @@ export class VaultStore {
   ): Promise<FilesOutcome> {
     const known = await this.corruptFiles();
     const corrupt = new Set(known);
+    // A lock clears this.vault and an unlock loads a new one, so the same object means the same session.
+    const whileUnlocked: files.P2pFileTransport = async (request) => {
+      if (!this.keys || this.expired() || this.vault !== vault) throw new Error(LOCKED);
+      return send(request);
+    };
     let outcome: FilesOutcome;
     try {
-      outcome = await files.syncFiles(vault, this.fileStore, send, onProgress, new Set(known));
+      outcome = await files.syncFiles(vault, this.fileStore, whileUnlocked, onProgress, new Set(known));
       for (const id of outcome.corruptedIds) corrupt.add(id);
       await pruneUnusedFiles(vault, this.fileStore);
     } catch (error) {
