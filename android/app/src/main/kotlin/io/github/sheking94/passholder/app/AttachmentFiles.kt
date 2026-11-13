@@ -73,30 +73,50 @@ object AttachmentFiles {
         }
         val bytes = try {
             val input = open() ?: throw IOException("no stream")
-            input.use { readCapped(it) }
+            input.use { readCapped(it, size) }
         } catch (_: IOException) {
             throw IOException(READ_FAILED)
-        } catch (_: SecurityException) {
+        } catch (_: RuntimeException) {
+            // SecurityException and whatever else a provider throws; our own limit messages are thrown below.
             throw IOException(READ_FAILED)
         }
-        if (bytes.isEmpty()) throw IllegalArgumentException(EMPTY)
-        if (bytes.size > Attachments.MAX_FILE_SIZE) throw IllegalArgumentException(TOO_LARGE)
-        val fileName = name ?: DEFAULT_NAME
-        if (!Attachments.isName(fileName)) throw IllegalArgumentException(BAD_NAME)
-        return PickedFile(fileName, mime ?: "", bytes)
+        try {
+            if (bytes.isEmpty()) throw IllegalArgumentException(EMPTY)
+            if (bytes.size > Attachments.MAX_FILE_SIZE) throw IllegalArgumentException(TOO_LARGE)
+            val fileName = name ?: DEFAULT_NAME
+            if (!Attachments.isName(fileName)) throw IllegalArgumentException(BAD_NAME)
+            return PickedFile(fileName, mime ?: "", bytes)
+        } catch (e: IllegalArgumentException) {
+            bytes.fill(0)
+            throw e
+        }
     }
 
-    /** Reads at most [Attachments.MAX_FILE_SIZE] + 1 bytes; the extra byte tells the caller the file is too large. */
-    private fun readCapped(input: InputStream): ByteArray {
+    /**
+     * Reads at most [Attachments.MAX_FILE_SIZE] + 1 bytes into one array of our own (no stream buffers that would
+     * keep plaintext): the extra byte tells the caller the file is too large. The result has exactly the bytes read;
+     * every larger array is zeroed, also when reading fails.
+     */
+    private fun readCapped(input: InputStream, knownSize: Long?): ByteArray {
         val limit = Attachments.MAX_FILE_SIZE + 1
-        val out = ByteArrayOutputStream()
-        val buffer = ByteArray(64 * 1024)
-        while (out.size() < limit) {
-            val n = input.read(buffer, 0, minOf(buffer.size, limit - out.size()))
-            if (n < 0) break
-            out.write(buffer, 0, n)
+        var buf = ByteArray(if (knownSize != null) minOf(maxOf(knownSize + 1, 1L), limit.toLong()).toInt() else 64 * 1024)
+        var n = 0
+        try {
+            while (n < limit) {
+                if (n == buf.size) {
+                    val bigger = buf.copyOf(minOf(buf.size.toLong() * 2, limit.toLong()).toInt())
+                    buf.fill(0)
+                    buf = bigger
+                }
+                val r = input.read(buf, n, buf.size - n)
+                if (r < 0) break
+                n += r
+            }
+            return if (n == buf.size) buf else buf.copyOf(n).also { buf.fill(0) }
+        } catch (e: Throwable) {
+            buf.fill(0)
+            throw e
         }
-        return out.toByteArray()
     }
 
     /** Writes [bytes] over the whole document at [uri] ("wt": an existing file is truncated, not overwritten in part). */

@@ -418,7 +418,8 @@ class PhoneVaultStore(
 
     /**
      * Deletes the files with the given [ids] at once (the UI uses it for files added to an entry that was not
-     * saved), skipping any id a live entry uses; returns how many were deleted. Does nothing (0) while some record
+     * saved), skipping any id a live entry uses. There is no age guard: callers must pass only ids of files they
+     * just added and never saved in an entry; returns how many were deleted. Does nothing (0) while some record
      * cannot be read: it might use any file.
      */
     fun discardFiles(ids: Collection<String>): Int {

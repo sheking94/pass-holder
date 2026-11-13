@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -72,7 +73,7 @@ class AttachmentFilesTest {
 
     @Test
     fun `provider failures become the read error`() {
-        listOf<() -> java.io.InputStream?>({ throw SecurityException("no") }, { throw IOException("io") }, { null }).forEach { open ->
+        listOf<() -> java.io.InputStream?>({ throw SecurityException("no") }, { throw IOException("io") }, { throw IllegalStateException("x") }, { null }).forEach { open ->
             val e = assertThrows(IOException::class.java) { AttachmentFiles.read("a", "", null, open) }
             assertEquals("Nie udało się odczytać pliku.", e.message)
         }
@@ -96,7 +97,7 @@ class AttachmentFilesTest {
         assertEquals(Intent.ACTION_CREATE_DOCUMENT, any.action)
         assertEquals("application/octet-stream", any.type)
         assertEquals("a.jpg", any.getStringExtra(Intent.EXTRA_TITLE))
-        assert(any.categories.contains(Intent.CATEGORY_OPENABLE))
+        assertTrue(any.categories.contains(Intent.CATEGORY_OPENABLE))
         assertEquals("image/jpeg", CreateDocumentOf().createIntent(ctx, CreateDocumentOf.Input("a.jpg", "image/jpeg")).type)
     }
 
