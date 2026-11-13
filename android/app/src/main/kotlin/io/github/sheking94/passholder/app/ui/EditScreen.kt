@@ -46,7 +46,7 @@ fun EditScreen(id: String?, type: EntryType, state: UiState, vm: AppViewModel) {
     fun edit(updated: EntryContentV3) { content = updated; vm.clearError() }
     var askDelete by remember { mutableStateOf(false) }
 
-    BackHandler(onBack = vm::backToList)
+    BackHandler(enabled = !state.busy, onBack = vm::backToList)
 
     FormColumn {
         Text(if (original != null) type.editTitle else type.newTitle, style = MaterialTheme.typography.headlineSmall)

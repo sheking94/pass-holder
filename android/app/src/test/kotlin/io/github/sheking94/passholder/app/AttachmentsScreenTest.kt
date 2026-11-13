@@ -8,6 +8,7 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -329,5 +330,60 @@ class AttachmentsKeepScreenTest : AttachmentsScreenBase() {
         val review = SaveReview(SaveData(AppRequest("com.android.chrome", "github.com", "https"), "jkowalski", "nowe"), phoneStore().entries(), "Chrome")
         assertEquals(SaveOutcome.UPDATED, saveReviewed(app(), review, review.initialDraft()))
         assertEquals(listOf(a), phoneStore().entry("1")!!.content.attachments)
+    }
+}
+
+/** A provider stream that waits until the test lets it read: keeps the app busy ("Szyfruję plik…") for as long as needed. */
+private class BlockedStream(bytes: ByteArray, private val release: java.util.concurrent.CountDownLatch) : java.io.InputStream() {
+    private val inner = ByteArrayInputStream(bytes)
+    override fun read(): Int { release.await(); return inner.read() }
+    override fun read(b: ByteArray, off: Int, len: Int): Int { release.await(); return inner.read(b, off, len) }
+}
+
+class AttachmentsBackWhileBusyScreenTest : AttachmentsScreenBase() {
+    @Test
+    fun `Back while a file is being encrypted does nothing, the file stays in the form and Anuluj then discards it`() {
+        newNote("Skany")
+        val release = java.util.concurrent.CountDownLatch(1)
+        val uri = Uri.parse("content://test.docs/doc/blocked")
+        shadowOf(app().contentResolver).setCursor(uri, OpenableCursor("dowod.jpg", 3L))
+        shadowOf(app().contentResolver).registerInputStream(uri, BlockedStream(byteArrayOf(1, 2, 3), release))
+        val vm = viewModel()
+        click("+ Dodaj plik")
+        answerPicker(uri)
+        compose.waitUntil(10_000) { vm.state.value.busy }
+
+        // The system Back and the ViewModel itself are both guarded.
+        scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+        compose.runOnIdle { vm.backToList() }
+        assertTrue(vm.state.value.screen is Screen.Edit)
+
+        release.countDown()
+        waitFor("dowod.jpg")
+        assertEquals(1, filesOnDisk().size)
+        click("Anuluj")
+        waitFor("Brak wpisów. Dodaj pierwszy.")
+        compose.waitUntil(10_000) { filesOnDisk().isEmpty() }
+    }
+}
+
+class AttachmentsDeleteEntryScreenTest : AttachmentsScreenBase() {
+    @Test
+    fun `deleting an entry discards the files added in its form`() {
+        createVault()
+        val old = phoneStore().addFile(byteArrayOf(1, 2, 3), "stary.jpg", "image/jpeg")
+        noteWith("Skany", old)
+        openNote("Skany")
+        waitFor("stary.jpg")
+        addFile(provided("nowy.jpg", byteArrayOf(4, 5, 6)))
+        waitFor("nowy.jpg")
+        assertEquals(2, filesOnDisk().size)
+
+        // The entry's own "Usuń" is the last one in the form (the rows' come before it).
+        compose.onAllNodes(hasText("Usuń")).onLast().performScrollTo().performClick()
+        waitFor("Usunąć wpis?")
+        compose.onNode(hasText("Usuń") and hasAnyAncestor(isDialog())).performClick()
+        waitFor("Usunięto na telefonie", substring = true)
+        compose.waitUntil(10_000) { filesOnDisk() == listOf(old.id) }
     }
 }

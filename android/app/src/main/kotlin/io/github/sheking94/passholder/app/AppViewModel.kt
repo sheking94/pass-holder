@@ -370,6 +370,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Back to the list, on the tab of the entry that was being edited (or the tab it was on). */
     fun backToList() {
+        // A vault operation is running (e.g. saving the files of this form): leaving now would discard them.
+        if (_state.value.busy) return
         discardAddedInBackground()
         _state.update { it.copy(screen = Screen.List, status = null, editing = null, tab = it.returnTab()) }
     }
@@ -476,20 +478,29 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Deletes the files added in this form, except the [keep] ones (saved in the entry). Blocking; a failure only goes to the log. */
-    private fun discardAdded(keep: Set<String> = emptySet()) {
-        val ids = synchronized(addedFiles) { (addedFiles - keep).also { addedFiles.clear() } }
+    /** Takes the ids of the files added in this form out of [addedFiles], except the [keep] ones (saved in the entry). */
+    private fun takeAdded(keep: Set<String> = emptySet()): Set<String> =
+        synchronized(addedFiles) { (addedFiles - keep).also { addedFiles.clear() } }
+
+    /** Deletes [ids] (blocking). A failure goes to the log and the ids are kept for a later discard. */
+    private fun discardFiles(ids: Set<String>) {
         if (ids.isEmpty()) return
         try {
             store.discardFiles(ids)
         } catch (e: Exception) {
             Log.w(TAG, "Could not discard files added to a form", e)
+            addedFiles.addAll(ids)
         }
     }
 
+    /** Blocking: for code already off the main thread. */
+    private fun discardAdded(keep: Set<String> = emptySet()) = discardFiles(takeAdded(keep))
+
+    /** The ids are taken now, the files deleted off the main thread. */
     private fun discardAddedInBackground() {
-        if (addedFiles.isEmpty()) return
-        viewModelScope.launch { withContext(Dispatchers.IO) { discardAdded() } }
+        val ids = takeAdded()
+        if (ids.isEmpty()) return
+        viewModelScope.launch { withContext(Dispatchers.IO) { discardFiles(ids) } }
     }
 
     // --- Import and export -------------------------------------------------------------------------

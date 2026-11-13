@@ -20,6 +20,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,9 +41,11 @@ import io.github.sheking94.passholder.core.files.Attachment
 fun AttachmentsEditor(attachments: List<Attachment>, onChange: (List<Attachment>) -> Unit, vm: AppViewModel, busy: Boolean) {
     // Ids added in this form: the form's own copy, the ViewModel keeps its own to discard them.
     var added by remember { mutableStateOf(emptySet<String>()) }
-    var ready by remember { mutableStateOf(emptySet<String>()) }
+    // Null until the first check is done: no note and no download then.
+    var ready by remember { mutableStateOf<Set<String>?>(null) }
     var asking by remember { mutableStateOf<Attachment?>(null) }
-    var saving by remember { mutableStateOf<Attachment?>(null) }
+    // The id only (not secret): a result that comes after the activity was recreated still finds its file.
+    var savingId by rememberSaveable { mutableStateOf<String?>(null) }
     val current by rememberUpdatedState(attachments)
 
     LaunchedEffect(attachments) { ready = vm.fileReady(attachments) }
@@ -54,8 +57,8 @@ fun AttachmentsEditor(attachments: List<Attachment>, onChange: (List<Attachment>
         }
     }
     val saveFile = rememberLauncherForActivityResult(CreateDocumentOf()) { uri ->
-        val target = saving
-        saving = null
+        val target = current.firstOrNull { it.id == savingId }
+        savingId = null
         if (target == null) vm.endFilePick() else vm.downloadFile(target, uri)
     }
 
@@ -64,6 +67,7 @@ fun AttachmentsEditor(attachments: List<Attachment>, onChange: (List<Attachment>
         try {
             launch()
         } catch (_: ActivityNotFoundException) {
+            savingId = null
             vm.endFilePick()
             vm.fail("Na telefonie nie ma aplikacji do wyboru plików.")
         }
@@ -76,7 +80,7 @@ fun AttachmentsEditor(attachments: List<Attachment>, onChange: (List<Attachment>
                 key(a.id) {
                     val note = when {
                         a.id in added -> AttachmentFiles.NEW
-                        a.id !in ready -> AttachmentFiles.WAITING
+                        ready?.contains(a.id) == false -> AttachmentFiles.WAITING
                         else -> null
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -87,7 +91,7 @@ fun AttachmentsEditor(attachments: List<Attachment>, onChange: (List<Attachment>
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         }
-                        TextButton(onClick = { asking = a }, enabled = note == null && !busy) { Text("Pobierz") }
+                        TextButton(onClick = { asking = a }, enabled = ready != null && note == null && !busy) { Text("Pobierz") }
                         TextButton(onClick = { onChange(attachments.filter { it.id != a.id }) }, enabled = !busy) {
                             Text("Usuń", color = MaterialTheme.colorScheme.error)
                         }
@@ -106,7 +110,7 @@ fun AttachmentsEditor(attachments: List<Attachment>, onChange: (List<Attachment>
             confirmButton = {
                 TextButton(onClick = {
                     asking = null
-                    saving = a
+                    savingId = a.id
                     pick { saveFile.launch(CreateDocumentOf.Input(a.name, a.mime)) }
                 }) { Text("Pobierz") }
             },
