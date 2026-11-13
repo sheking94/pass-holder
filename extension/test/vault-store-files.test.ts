@@ -40,7 +40,7 @@ describe("attachments in the vault store", () => {
     expect(await a.store.fileUploaded(ef.attachment)).toBe(false);
 
     const ra = await a.store.sync();
-    expect(ra.files).toEqual({ uploaded: 1, downloaded: 0, pending: 0, corrupted: [] });
+    expect(ra.files).toEqual({ uploaded: 1, downloaded: 0, pending: 0, corrupted: [], corruptedIds: [] });
     expect(await a.store.fileUploaded(ef.attachment)).toBe(true);
     expect(a.phone.files.have(ef.attachment.id)).toEqual([0, 1, 2]);
 
@@ -70,16 +70,17 @@ describe("attachments in the vault store", () => {
 
     const before = fileCalls(a.phone.calls);
     const second = await a.store.sync();
-    expect(second.files).toEqual({ uploaded: 1, downloaded: 0, pending: 0, corrupted: [] });
+    expect(second.files).toEqual({ uploaded: 1, downloaded: 0, pending: 0, corrupted: [], corruptedIds: [] });
     // status plus the two chunks the phone lacked.
     expect(fileCalls(a.phone.calls) - before).toBe(3);
     expect(a.phone.files.have(ef.attachment.id)).toEqual([0, 1, 2]);
   });
 
-  it("removing an attachment prunes it locally", async () => {
+  it("removing an uploaded attachment prunes it locally", async () => {
     const a = await pairedBrowser();
     const ef = await encrypt();
     await a.store.putEntry("e1", loginWith("bank.pl", [ef.attachment]), [ef]);
+    await a.store.sync();
     expect(await a.files.ids()).toEqual([ef.attachment.id]);
 
     await a.store.putEntry("e1", loginWith("bank.pl"));
@@ -87,12 +88,67 @@ describe("attachments in the vault store", () => {
     expect(await a.files.ids()).toEqual([]);
   });
 
-  it("deleting the entry prunes its files locally", async () => {
+  it("deleting the entry prunes its uploaded files locally", async () => {
     const a = await pairedBrowser();
     const ef = await encrypt();
     await a.store.putEntry("e1", loginWith("bank.pl", [ef.attachment]), [ef]);
+    await a.store.sync();
     await a.store.delete("e1");
     expect(await a.files.ids()).toEqual([]);
+  });
+
+  it("pruning keeps an unused file that was added here and never uploaded (another tab may use it)", async () => {
+    const a = await pairedBrowser();
+    const fresh = await encrypt(1, "nowy.pdf");
+    const old = await encrypt(2, "stary.pdf");
+    // Saved by another page whose vault this page has not seen yet.
+    await files.storeEncryptedFile(a.files, fresh);
+    // Unused here and already on a phone: may go.
+    await files.storeEncryptedFile(a.files, old);
+    await a.files.markUploaded(old.attachment.id, "epoch");
+
+    await a.store.putEntry("e1", loginWith("bank.pl"));
+    expect(await a.files.ids()).toEqual([fresh.attachment.id]);
+    await a.store.sync();
+    await a.store.delete("e1");
+    expect(await a.files.ids()).toEqual([fresh.attachment.id]);
+  });
+
+  it("an entry save that fails after the upsert keeps the new files", async () => {
+    const a = await pairedBrowser();
+    const ef = await encrypt();
+    const set = a.local.set;
+    a.local.set = async (key, value) => {
+      if (key === STORAGE_KEYS.vault) throw new Error("disk full");
+      return set(key, value);
+    };
+    await expect(a.store.putEntry("e1", loginWith("bank.pl", [ef.attachment]), [ef])).rejects.toThrow("disk full");
+    // The entry in memory refers to the file.
+    expect(a.store.getEntry("e1")!.data.attachments).toEqual([ef.attachment]);
+    expect(await a.files.ids()).toEqual([ef.attachment.id]);
+  });
+
+  it("a failing prune does not fail putEntry or delete", async () => {
+    const a = await pairedBrowser();
+    const ef = await encrypt();
+    await a.store.putEntry("e1", loginWith("bank.pl", [ef.attachment]), [ef]);
+    await a.store.sync();
+    a.files.delete = async () => {
+      throw new Error("idb gone");
+    };
+    await a.store.putEntry("e1", loginWith("bank.pl"));
+    await a.store.delete("e1");
+    expect(a.store.getEntry("e1")).toBeUndefined();
+  });
+
+  it("a failing cleanup does not hide why the entry was not saved", async () => {
+    const a = await pairedBrowser();
+    const ef = await encrypt();
+    a.files.delete = async () => {
+      throw new Error("idb gone");
+    };
+    const huge = { ...loginWith("big"), note: "x".repeat(70_000), attachments: [ef.attachment] };
+    await expect(a.store.putEntry("e2", huge, [ef])).rejects.toThrow("Wpis jest za duży");
   });
 
   it("old phone without file path", async () => {
@@ -124,7 +180,7 @@ describe("attachments in the vault store", () => {
 
     const before = fileCalls(a.phone.calls);
     const second = await a.store.sync();
-    expect(second.files).toEqual({ uploaded: 0, downloaded: 0, pending: 0, corrupted: [] });
+    expect(second.files).toEqual({ uploaded: 0, downloaded: 0, pending: 0, corrupted: [], corruptedIds: [] });
     expect(fileCalls(a.phone.calls)).toBe(before);
     expect(await a.store.fileStatus(ef.attachment)).toBe("corrupted");
 

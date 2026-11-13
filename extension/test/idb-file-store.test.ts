@@ -119,14 +119,14 @@ describe("IdbFileStore", () => {
 
     const a = newStore();
     await files.storeEncryptedFile(a, f);
-    expect(await files.syncFiles(vault, a, plugin("a"))).toEqual({ uploaded: 1, downloaded: 0, pending: 0, corrupted: [] });
+    expect(await files.syncFiles(vault, a, plugin("a"))).toEqual({ uploaded: 1, downloaded: 0, pending: 0, corrupted: [], corruptedIds: [] });
     expect(phoneFiles.have(f.attachment.id)).toEqual([0, 1, 2]);
     expect((await a.state(f.attachment.id))!.uploadedEpoch).toBe(epoch);
 
     const b = newStore();
     const progress: [number, number][] = [];
     expect(await files.syncFiles(vault, b, plugin("b"), (d, t) => progress.push([d, t]))).toEqual({
-      uploaded: 0, downloaded: 1, pending: 0, corrupted: [],
+      uploaded: 0, downloaded: 1, pending: 0, corrupted: [], corruptedIds: [],
     });
     expect(progress).toEqual([[1, 1]]);
     const blobs = await Promise.all([0, 1, 2].map((i) => b.getChunk(f.attachment.id, i)));

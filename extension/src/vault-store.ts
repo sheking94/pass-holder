@@ -211,21 +211,24 @@ function fileErrorInPolish(error: unknown): string {
   return polish instanceof Error ? polish.message : String(polish);
 }
 
-/** Delegates to store and reports every delete (syncFiles deletes only a downloaded file that turned out corrupted). */
-function reportingDeletes(store: files.LocalFileStore, onDelete: (id: string) => void): files.LocalFileStore {
-  return {
-    state: (id) => store.state(id),
-    ids: () => store.ids(),
-    getChunk: (id, index) => store.getChunk(id, index),
-    putChunk: (id, index, chunks, blob) => store.putChunk(id, index, chunks, blob),
-    markComplete: (id) => store.markComplete(id),
-    markIncomplete: (id, have) => store.markIncomplete(id, have),
-    markUploaded: (id, epoch) => store.markUploaded(id, epoch),
-    delete: (id) => {
-      onDelete(id);
-      return store.delete(id);
-    },
-  };
+/**
+ * Removes local files no live entry of `vault` uses, except files added on this browser and never uploaded
+ * (complete, uploadedEpoch null). Every page shares IndexedDB but prunes against its own vault, which may be
+ * stale: such a file may belong to an entry another page has saved but not synced yet.
+ * Best effort: a failure is ignored (the next prune tries again).
+ */
+async function pruneUnusedFiles(vault: p2p.LocalVaultV2, store: files.LocalFileStore): Promise<void> {
+  try {
+    const used = files.usedAttachments(vault);
+    for (const id of await store.ids()) {
+      if (used.has(id)) continue;
+      const state = await store.state(id);
+      if (state?.complete && state.uploadedEpoch === null) continue;
+      await store.delete(id);
+    }
+  } catch {
+    // Leftover files only take space; they are removed on a later prune or on disconnect.
+  }
 }
 
 function loginView(e: p2p.LocalEntryV2): LiveEntry | undefined {
@@ -397,8 +400,8 @@ export class VaultStore {
 
   /**
    * Saves exactly this content under id; a live entry of another type under that id is refused. newFiles
-   * (encrypted when chosen in the form) are stored before the entry; if the entry cannot be saved they are
-   * removed again. Afterwards local files no live entry uses are removed.
+   * (encrypted when chosen in the form) are stored before the entry; if the entry is refused (e.g. too large)
+   * they are removed again. Afterwards unused local files are pruned (see pruneUnusedFiles).
    */
   async putEntry(id: string, content: p2p.EntryContentV3, newFiles: readonly files.EncryptedFile[] = []): Promise<void> {
     const vault = this.requireVault();
@@ -412,12 +415,14 @@ export class VaultStore {
       } catch (error) {
         throw tooLargeInPolish(error);
       }
-      await this.save();
     } catch (error) {
-      for (const f of newFiles) await this.fileStore.delete(f.attachment.id);
+      // Nothing refers to the new files: remove them, without letting a failed delete hide the error.
+      for (const f of newFiles) await this.fileStore.delete(f.attachment.id).catch(() => undefined);
       throw error;
     }
-    await files.pruneLocalFiles(vault, this.fileStore);
+    // The entry in memory refers to the new files now, so they stay even if saving to disk fails.
+    await this.save();
+    await pruneUnusedFiles(vault, this.fileStore);
   }
 
   /** "ready": the whole file is here; "corrupted": the phone's copy did not match; otherwise "waiting" for a sync. */
@@ -524,7 +529,7 @@ export class VaultStore {
     const vault = this.requireVault();
     p2p.deleteEntryV2(vault, this.requireClock(), id);
     await this.save();
-    await files.pruneLocalFiles(vault, this.fileStore);
+    await pruneUnusedFiles(vault, this.fileStore);
   }
 
   /**
@@ -845,8 +850,8 @@ export class VaultStore {
 
   /**
    * Runs syncFiles and never throws: an error ends up in `error`. Newly found corrupted files are remembered
-   * (skipped from now on); ids no live entry uses are dropped from that list. After a complete phase, local
-   * files no live entry uses are removed.
+   * (skipped from now on); ids no live entry uses are dropped from that list. After a complete phase, unused
+   * local files are pruned (see pruneUnusedFiles).
    */
   private async syncFilePhase(
     vault: p2p.LocalVaultV2,
@@ -857,11 +862,11 @@ export class VaultStore {
     const corrupt = new Set(known);
     let outcome: FilesOutcome;
     try {
-      const store = reportingDeletes(this.fileStore, (id) => corrupt.add(id));
-      outcome = await files.syncFiles(vault, store, send, onProgress, new Set(known));
-      await files.pruneLocalFiles(vault, this.fileStore);
+      outcome = await files.syncFiles(vault, this.fileStore, send, onProgress, new Set(known));
+      for (const id of outcome.corruptedIds) corrupt.add(id);
+      await pruneUnusedFiles(vault, this.fileStore);
     } catch (error) {
-      outcome = { uploaded: 0, downloaded: 0, pending: 0, corrupted: [], error: fileErrorInPolish(error) };
+      outcome = { uploaded: 0, downloaded: 0, pending: 0, corrupted: [], corruptedIds: [], error: fileErrorInPolish(error) };
     }
     const used = files.usedAttachments(vault);
     const kept = [...corrupt].filter((id) => used.has(id));

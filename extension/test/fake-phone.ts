@@ -261,7 +261,7 @@ export function newBrowser(
 }
 
 /** The file phase of a sync that had no attachments to move. */
-export const NO_FILES = { uploaded: 0, downloaded: 0, pending: 0, corrupted: [] };
+export const NO_FILES = { uploaded: 0, downloaded: 0, pending: 0, corrupted: [], corruptedIds: [] };
 
 export const PHONE_URL = "http://192.168.1.5:8787";
 export const SECOND_URL = "http://100.64.0.7:8787";

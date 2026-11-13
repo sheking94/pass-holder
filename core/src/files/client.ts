@@ -132,6 +132,8 @@ export interface FileSyncResult {
   pending: number;
   /** Names of downloaded files that did not match their descriptor; their local chunks were removed. */
   corrupted: string[];
+  /** Ids of those files, parallel to `corrupted` (same order), e.g. to skip them in later runs. */
+  corruptedIds: string[];
 }
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -252,7 +254,7 @@ export async function syncFiles(
   onProgress?: (done: number, total: number) => void,
   skip?: ReadonlySet<string>,
 ): Promise<FileSyncResult> {
-  const result: FileSyncResult = { uploaded: 0, downloaded: 0, pending: 0, corrupted: [] };
+  const result: FileSyncResult = { uploaded: 0, downloaded: 0, pending: 0, corrupted: [], corruptedIds: [] };
   // An unknown epoch is sent as "" and makes the phone answer with its own (FILE_SYNC_EPOCH_MISMATCH).
   const epoch = vault.epoch ?? "";
   // Only files that may need work: not complete here, or complete but not yet on this epoch's phone.
@@ -303,7 +305,10 @@ export async function syncFiles(
     const outcome = await download(files, send, epoch, a);
     if (outcome === "done") result.downloaded++;
     else if (outcome === "pending") result.pending++;
-    else result.corrupted.push(a.name);
+    else {
+      result.corrupted.push(a.name);
+      result.corruptedIds.push(a.id);
+    }
     onProgress?.(++done, total);
   }
   return result;

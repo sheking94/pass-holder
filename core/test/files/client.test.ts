@@ -151,13 +151,13 @@ describe("syncFiles", () => {
     await storeEncryptedFile(files, f);
     const vault = vaultWith(p.epoch, [f.attachment]);
     const a = p.plugin("a");
-    expect(await syncFiles(vault, files, a.send)).toEqual({ uploaded: 1, downloaded: 0, pending: 0, corrupted: [] });
+    expect(await syncFiles(vault, files, a.send)).toEqual({ uploaded: 1, downloaded: 0, pending: 0, corrupted: [], corruptedIds: [] });
     expect(p.files!.have(f.attachment.id)).toEqual([0, 1, 2]);
     expect(p.files!.get(f.attachment.id, 2)).toBe(f.blobs[2]);
     expect((await files.state(f.attachment.id))!.uploadedEpoch).toBe(p.epoch);
     expect(a.count("put")).toBe(3);
 
-    expect(await syncFiles(vault, files, a.send)).toEqual({ uploaded: 0, downloaded: 0, pending: 0, corrupted: [] });
+    expect(await syncFiles(vault, files, a.send)).toEqual({ uploaded: 0, downloaded: 0, pending: 0, corrupted: [], corruptedIds: [] });
     expect(a.count("put")).toBe(3);
   });
 
@@ -172,7 +172,7 @@ describe("syncFiles", () => {
     const progress: [number, number][] = [];
     const b = p.plugin("b");
     expect(await syncFiles(vault, files, b.send, (done, total) => progress.push([done, total]))).toEqual({
-      uploaded: 0, downloaded: 1, pending: 0, corrupted: [],
+      uploaded: 0, downloaded: 1, pending: 0, corrupted: [], corruptedIds: [],
     });
     expect(progress).toEqual([[1, 1]]);
     expect(await decryptFile(f.attachment, await localBlobs(files, f.attachment))).toEqual(bytes);
@@ -180,7 +180,7 @@ describe("syncFiles", () => {
     expect(b.count("put")).toBe(0);
 
     // Nothing left to do.
-    expect(await syncFiles(vault, files, b.send)).toEqual({ uploaded: 0, downloaded: 0, pending: 0, corrupted: [] });
+    expect(await syncFiles(vault, files, b.send)).toEqual({ uploaded: 0, downloaded: 0, pending: 0, corrupted: [], corruptedIds: [] });
     expect(b.count("get")).toBe(2);
     expect(b.count("put")).toBe(0);
   });
@@ -229,7 +229,7 @@ describe("syncFiles", () => {
     const b = p.plugin("b");
     const progress: number[] = [];
     expect(await syncFiles(vaultWith(p.epoch, [f.attachment]), files, b.send, (d) => progress.push(d))).toEqual({
-      uploaded: 0, downloaded: 0, pending: 1, corrupted: [],
+      uploaded: 0, downloaded: 0, pending: 1, corrupted: [], corruptedIds: [],
     });
     expect(b.count("get")).toBe(0);
     expect(progress).toEqual([]);
@@ -243,7 +243,7 @@ describe("syncFiles", () => {
     const bad = { ...f.attachment, sha256: "0".repeat(64) };
     const files = new MemoryLocalFileStore();
     expect(await syncFiles(vaultWith(p.epoch, [bad]), files, p.plugin("b").send)).toEqual({
-      uploaded: 0, downloaded: 0, pending: 0, corrupted: ["scan.pdf"],
+      uploaded: 0, downloaded: 0, pending: 0, corrupted: ["scan.pdf"], corruptedIds: [f.attachment.id],
     });
     expect(await files.state(f.attachment.id)).toBeUndefined();
     expect(await files.getChunk(f.attachment.id, 0)).toBeUndefined();
@@ -257,7 +257,7 @@ describe("syncFiles", () => {
     const b = p.plugin("b");
     const vault = vaultWith(p.epoch, [f.attachment]);
     expect(await syncFiles(vault, new MemoryLocalFileStore(), b.send, undefined, new Set([f.attachment.id]))).toEqual({
-      uploaded: 0, downloaded: 0, pending: 0, corrupted: [],
+      uploaded: 0, downloaded: 0, pending: 0, corrupted: [], corruptedIds: [],
     });
     expect(b.ops).toEqual([]);
   });
@@ -302,7 +302,7 @@ describe("syncFiles", () => {
     const p = phone();
     const a = p.plugin("a");
     expect(await syncFiles(vaultWith(p.epoch, []), new MemoryLocalFileStore(), a.send)).toEqual({
-      uploaded: 0, downloaded: 0, pending: 0, corrupted: [],
+      uploaded: 0, downloaded: 0, pending: 0, corrupted: [], corruptedIds: [],
     });
     expect(a.ops).toEqual([]);
   });
@@ -314,7 +314,7 @@ describe("syncFiles: what gets asked", () => {
     const f = await threeChunks();
     const { files, vault } = await uploadedFrom(p, f);
     const a = p.plugin("a2");
-    expect(await syncFiles(vault, files, a.send)).toEqual({ uploaded: 0, downloaded: 0, pending: 0, corrupted: [] });
+    expect(await syncFiles(vault, files, a.send)).toEqual({ uploaded: 0, downloaded: 0, pending: 0, corrupted: [], corruptedIds: [] });
     expect(a.ops).toEqual([]);
 
     const bFiles = new MemoryLocalFileStore();
@@ -322,7 +322,7 @@ describe("syncFiles: what gets asked", () => {
     const b = p.plugin("b");
     await syncFiles(bVault, bFiles, b.send);
     const sent = b.ops.length;
-    expect(await syncFiles(bVault, bFiles, b.send)).toEqual({ uploaded: 0, downloaded: 0, pending: 0, corrupted: [] });
+    expect(await syncFiles(bVault, bFiles, b.send)).toEqual({ uploaded: 0, downloaded: 0, pending: 0, corrupted: [], corruptedIds: [] });
     expect(b.ops.length).toBe(sent);
   });
 
@@ -365,7 +365,7 @@ describe("syncFiles: files the phone refuses", () => {
     // A stale status can lead to 409 "chunk differs"; simulate it for the second file.
     const send: P2pFileTransport = (r) =>
       r.op === "put" && r.id === differs.attachment.id ? Promise.reject(new P2pHostError(409, "chunk differs")) : a.send(r);
-    expect(await syncFiles(vault, files, send)).toEqual({ uploaded: 1, downloaded: 0, pending: 2, corrupted: [] });
+    expect(await syncFiles(vault, files, send)).toEqual({ uploaded: 1, downloaded: 0, pending: 2, corrupted: [], corruptedIds: [] });
     expect(p.files!.have(good.attachment.id)).toEqual([0]);
     expect((await files.state(good.attachment.id))!.uploadedEpoch).toBe(p.epoch);
     expect((await files.state(mismatch.attachment.id))!.uploadedEpoch).toBeNull();
@@ -403,7 +403,7 @@ describe("syncFiles: damaged files", () => {
     const vault = vaultWith(p.epoch, [broken.attachment, good.attachment]);
     const progress: [number, number][] = [];
     expect(await syncFiles(vault, files, p.plugin("a").send, (d, t) => progress.push([d, t]))).toEqual({
-      uploaded: 1, downloaded: 0, pending: 1, corrupted: [],
+      uploaded: 1, downloaded: 0, pending: 1, corrupted: [], corruptedIds: [],
     });
     expect(progress).toEqual([[1, 2], [2, 2]]);
     expect(await files.state(broken.attachment.id)).toMatchObject({ complete: false, have: [0, 2], uploadedEpoch: null });
@@ -418,7 +418,7 @@ describe("syncFiles: damaged files", () => {
     const files = new MemoryLocalFileStore();
     const b = p.plugin("b");
     expect(await syncFiles(vaultWith(p.epoch, [f.attachment]), files, b.send)).toEqual({
-      uploaded: 0, downloaded: 0, pending: 0, corrupted: ["odd.bin"],
+      uploaded: 0, downloaded: 0, pending: 0, corrupted: ["odd.bin"], corruptedIds: [f.attachment.id],
     });
     expect(b.count("get")).toBe(1);
     expect(await files.state(f.attachment.id)).toBeUndefined();
