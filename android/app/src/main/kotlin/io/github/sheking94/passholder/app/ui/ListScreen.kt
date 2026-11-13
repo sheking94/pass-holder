@@ -82,7 +82,13 @@ fun ListScreen(state: UiState, vm: AppViewModel) {
                     ) {
                         Text(state.tab.icon, style = MaterialTheme.typography.titleLarge)
                         Column(Modifier.weight(1f)) {
-                            Text(entry.content.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            val files = entry.content.attachments.size
+                            Text(
+                                if (files > 0) "${entry.content.name} 📎 $files" else entry.content.name,
+                                style = MaterialTheme.typography.titleMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
                             Text(entrySummary(entry.content), style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                         if (login != null) {

@@ -98,10 +98,10 @@ abstract class AttachmentsScreenBase : ScreenTestBase() {
         type("Nazwa", name)
     }
 
-    /** Opens the saved note [name] from the list. */
+    /** Opens the saved note [name] from the list (its row may carry the " 📎 N" clip). */
     protected fun openNote(name: String) {
         click("Notatki")
-        click(name)
+        compose.onNode(hasText(name).or(hasText("$name 📎", substring = true))).performClick()
         waitFor("Edytuj notatkę")
     }
 

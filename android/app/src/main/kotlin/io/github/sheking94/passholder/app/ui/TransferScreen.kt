@@ -32,7 +32,9 @@ import androidx.compose.ui.unit.dp
 import io.github.sheking94.passholder.app.AppViewModel
 import io.github.sheking94.passholder.app.TransferFiles
 import io.github.sheking94.passholder.app.UiState
+import io.github.sheking94.passholder.app.skippedFilesPhrase
 import io.github.sheking94.passholder.core.transfer.TransferFormat
+import io.github.sheking94.passholder.core.transfer.countAttachments
 
 /** What an import file may be called by the picker: JSON and CSV come under many names. */
 private val IMPORT_TYPES = arrayOf("application/json", "text/*", "text/comma-separated-values", "application/octet-stream")
@@ -98,6 +100,10 @@ fun TransferScreen(state: UiState, vm: AppViewModel) {
                     )
                 }
             }
+        }
+        val files = countAttachments(state.entries.map { it.content })
+        if (files > 0) {
+            Text("${skippedFilesPhrase(files)} (eksport z plikami będzie w kolejnej wersji).", style = MaterialTheme.typography.bodySmall)
         }
         Text(
             "Uwaga: plik nie jest zaszyfrowany. Każdy, kto go zobaczy (inny program, kopia zapasowa, folder w chmurze), " +
