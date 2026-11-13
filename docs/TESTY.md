@@ -360,8 +360,9 @@ wpisami. (1) Na telefonie: wpis → „+ Dodaj plik” → zdjęcie ok. 5 MB →
 lista pokazuje „📎 1”. „Anuluj” po dodaniu drugiego pliku nie zostawia go (po ponownym otwarciu wpisu go nie ma).
 (2) Wtyczka, wpis w karcie → „+ Dodaj plik” → zdjęcie ok. 5 MB → „Zapisz”; lista pokazuje „📎 1”. W okienku „+ Dodaj
 plik” pokazuje ostrzeżenie „Formularz otworzy się w karcie…”; „Otwórz w karcie” otwiera ten sam wpis.
-(3) „Synchronizuj” we wtyczce: „Pliki: 0 z 1”, „Pliki: 1 z 1”, potem „wysłano 1”. Na telefonie przed synchronizacją plik
-z wtyczki jest „czeka na synchronizację” („Pobierz” nieaktywne), po niej „Pobierz” działa: ostrzeżenie, systemowe okno
+(3) „Synchronizuj” we wtyczce: „Pliki: 0 z 1”, „Pliki: 1 z 1”, potem „wysłano 1”. Na telefonie (po zakończonej synchronizacji)
+„Pobierz” przy pliku z wtyczki działa (gdy synchronizację przerwano w trakcie „Pliki: …”, plik jest „czeka na
+synchronizację”, a „Pobierz” nieaktywne): ostrzeżenie, systemowe okno
 zapisu, „Zapisano plik …”; porównaj sumę kontrolną z oryginałem. (4) Plik dodany na telefonie: „Synchronizuj” we
 wtyczce → „pobrano 1”; „Pobierz” pokazuje ostrzeżenie i zapisuje plik o tej samej sumie. (5) Usuń załącznik („Usuń”,
 „Zapisz”) → „Synchronizuj” na obu: znika z wpisu; na telefonie plik znika najpóźniej po 24 h. (6) Przerwanie: zamknij

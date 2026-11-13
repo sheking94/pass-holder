@@ -130,7 +130,8 @@ object AttachmentFiles {
             output.use { it.write(bytes) }
         } catch (_: IOException) {
             throw IOException(WRITE_FAILED)
-        } catch (_: SecurityException) {
+        } catch (_: RuntimeException) {
+            // SecurityException and whatever else a provider throws: never its raw (English) message.
             throw IOException(WRITE_FAILED)
         }
     }
