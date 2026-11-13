@@ -2,12 +2,15 @@ package io.github.sheking94.passholder.app
 
 import android.app.Application
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.sheking94.passholder.app.entries.EntryType
 import io.github.sheking94.passholder.app.entries.tidyContent
 import io.github.sheking94.passholder.app.entries.validateContent
 import io.github.sheking94.passholder.core.GeneratorOptions
+import io.github.sheking94.passholder.core.files.Attachment
+import io.github.sheking94.passholder.core.files.Attachments
 import io.github.sheking94.passholder.core.p2p.EntryContentV3
 import io.github.sheking94.passholder.core.p2p.EntryTooLargeException
 import io.github.sheking94.passholder.core.p2p.EntryTypeMismatchException
@@ -25,6 +28,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.IOException
 import java.util.UUID
 
 sealed interface Screen {
@@ -334,7 +338,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun selectTab(type: EntryType) = _state.update { it.copy(tab = type) }
 
     /** "+ Dodaj": an empty form for an entry of [type]. */
-    fun newEntry(type: EntryType) = _state.update { it.copy(screen = Screen.Edit(null, type), editing = null, status = null) }
+    fun newEntry(type: EntryType) {
+        discardAddedInBackground()
+        _state.update { it.copy(screen = Screen.Edit(null, type), editing = null, status = null) }
+    }
 
     /**
      * The edit form for [id]. The entry is read from the store, off the main thread: the list on screen may
@@ -349,6 +356,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 refresh()
                 return@launch fail("Tego wpisu już nie ma na telefonie.")
             }
+            discardAddedInBackground()
             // Not if the vault locked or the screen changed in the meantime.
             _state.update {
                 if (store.isUnlocked && it.screen == Screen.List) {
@@ -361,7 +369,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Back to the list, on the tab of the entry that was being edited (or the tab it was on). */
-    fun backToList() = _state.update { it.copy(screen = Screen.List, status = null, editing = null, tab = it.returnTab()) }
+    fun backToList() {
+        discardAddedInBackground()
+        _state.update { it.copy(screen = Screen.List, status = null, editing = null, tab = it.returnTab()) }
+    }
 
     fun openSettings() = _state.update { it.copy(screen = Screen.Settings, status = null) }
 
@@ -380,6 +391,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: EntryTypeMismatchException) {
                 return@launchVaultOperation fail("Ten wpis ma inny typ")
             }
+            // Files added in this form and removed from it before saving belong to no entry.
+            discardAdded(keep = tidy.attachments.mapTo(HashSet()) { it.id })
             showList(SAVED, EntryType.of(tidy.fields))
         }
     }
@@ -388,6 +401,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val tab = _state.value.returnTab()
         launchVaultOperation("Usuwam…") {
             store.delete(id)
+            discardAdded()
             showList(DELETED, tab)
         }
     }
@@ -406,6 +420,76 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             SecureClipboard.copyText(app, label, value)
             showStatus("Skopiowano $label.")
         }
+    }
+
+    // --- Attachments ------------------------------------------------------------------------------
+
+    /** Ids of the files added in the form now open: encrypted on disk already, in no saved entry yet. */
+    private val addedFiles = java.util.Collections.synchronizedSet(HashSet<String>())
+
+    /**
+     * The file chosen for "+ Dodaj plik", or null when the picker was cancelled. The file is read and encrypted
+     * straight onto the disk; [onAdded] gets its descriptor on the main thread. [count] is how many files the
+     * form has already.
+     */
+    fun attachFile(uri: Uri?, count: Int, onAdded: (Attachment) -> Unit) {
+        endFilePick()
+        // The vault may have locked while the picker was open: the file is not even read then.
+        if (uri == null || !store.isUnlocked) return
+        if (!Attachments.canAdd(count)) return fail(AttachmentFiles.TOO_MANY)
+        launchVaultOperation("Szyfruję plik…") {
+            val picked = AttachmentFiles.read(app.contentResolver, uri)
+            val attachment = try {
+                store.addFile(picked.bytes, picked.name, picked.mime)
+            } finally {
+                picked.bytes.fill(0)
+            }
+            addedFiles.add(attachment.id)
+            _state.update { it.copy(status = null) }
+            viewModelScope.launch { onAdded(attachment) }
+        }
+    }
+
+    /** The ids of the [attachments] that are complete on the phone; a file that cannot be checked counts as not ready. */
+    suspend fun fileReady(attachments: List<Attachment>): Set<String> = withContext(Dispatchers.IO) {
+        attachments.filter { runCatching { store.isFileComplete(it) }.getOrDefault(false) }.mapTo(HashSet()) { it.id }
+    }
+
+    /** The document created for "Pobierz", or null when the save dialog was cancelled. Writes the decrypted file there. */
+    fun downloadFile(a: Attachment, uri: Uri?) {
+        endFilePick()
+        if (uri == null || !store.isUnlocked) return
+        launchVaultOperation("Odszyfrowuję plik…") {
+            val bytes = try {
+                store.readFile(a)
+            } catch (_: IllegalArgumentException) {
+                throw IllegalArgumentException(AttachmentFiles.CORRUPTED)
+            } catch (_: IOException) {
+                throw IOException(AttachmentFiles.VAULT_READ_FAILED)
+            }
+            try {
+                AttachmentFiles.write(app.contentResolver, uri, bytes)
+            } finally {
+                bytes.fill(0)
+            }
+            showStatus("Zapisano plik ${a.name}.")
+        }
+    }
+
+    /** Deletes the files added in this form, except the [keep] ones (saved in the entry). Blocking; a failure only goes to the log. */
+    private fun discardAdded(keep: Set<String> = emptySet()) {
+        val ids = synchronized(addedFiles) { (addedFiles - keep).also { addedFiles.clear() } }
+        if (ids.isEmpty()) return
+        try {
+            store.discardFiles(ids)
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not discard files added to a form", e)
+        }
+    }
+
+    private fun discardAddedInBackground() {
+        if (addedFiles.isEmpty()) return
+        viewModelScope.launch { withContext(Dispatchers.IO) { discardAdded() } }
     }
 
     // --- Import and export -------------------------------------------------------------------------
@@ -579,6 +663,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private companion object {
+        const val TAG = "AppViewModel"
         const val MIN_MASTER_PASSWORD = 12
         const val SAVED = "Zapisano na telefonie. Wtyczka dostanie zmianę przy następnej synchronizacji."
         const val DELETED = "Usunięto na telefonie. Wtyczka dostanie zmianę przy następnej synchronizacji."

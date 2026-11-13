@@ -19,6 +19,7 @@ import io.github.sheking94.passholder.app.AppViewModel
 import io.github.sheking94.passholder.app.UiState
 import io.github.sheking94.passholder.app.entries.EntryType
 import io.github.sheking94.passholder.app.entries.emptyContent
+import io.github.sheking94.passholder.app.ui.forms.AttachmentsEditor
 import io.github.sheking94.passholder.app.ui.forms.CardForm
 import io.github.sheking94.passholder.app.ui.forms.ContactForm
 import io.github.sheking94.passholder.app.ui.forms.CustomFieldsEditor
@@ -32,7 +33,7 @@ import io.github.sheking94.passholder.core.p2p.LoginFields
 import io.github.sheking94.passholder.core.p2p.NoteFields
 
 /**
- * The entry form of every type: "Nazwa", the type's section, "Notatka" ("Treść" for a note), "Własne pola",
+ * The entry form of every type: "Nazwa", the type's section, "Notatka" ("Treść" for a note), "Własne pola", "Załączniki",
  * Zapisz/Anuluj/Usuń. The form edits a copy of the whole content, so what it does not show is saved as it was.
  */
 @Composable
@@ -67,6 +68,7 @@ fun EditScreen(id: String?, type: EntryType, state: UiState, vm: AppViewModel) {
             minLines = if (type == EntryType.NOTE) 8 else 3,
         )
         CustomFieldsEditor(content.custom, { edit(content.copy(custom = it)) }, vm)
+        AttachmentsEditor(content.attachments, { edit(content.copy(attachments = it)) }, vm, state.busy)
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = { vm.save(id, content, original) }, enabled = !state.busy) { Text("Zapisz") }
