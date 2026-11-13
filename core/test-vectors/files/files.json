@@ -1,0 +1,5652 @@
+{
+  "format": "passholder-test-vectors",
+  "name": "files",
+  "version": 1,
+  "notes": "Chunk i of n: blob = seal(fileKey, plaintext[i*CHUNK, (i+1)*CHUNK), aad = passholder/v3/file/<id>/<i>/<n>), same blob format as entries (Base64(0x01 || nonce(12) || ciphertext || tag(16)), AES-256-GCM). Keys and nonces are hex. blobSha256 is the SHA-256 (hex) of the UTF-8 bytes of each Base64 blob string, not of the decoded bytes. A file with contentRule has no content: generate size bytes with byte[i] = (i * 31 + 7) & 0xff. Entry payloads are compact JSON in canonical key order (attachments between custom and hlc, descriptor keys id, name, mime, size, chunks, sha256, key). A merged entry is {...winner, attachments: mergeAttachments(winner, loser), hlc: merge.hlc}. Host steps run in order against one fresh store with the given epoch and now; storage steps use a separate store of the given capacity (sum of stored blob lengths). A step with expand has its request field replaced before sending: ids = count copies of repeat, blob = repeat repeated count times. Orphan: each file is one chunk stored at createdAt; expected ids are sorted (order is not significant).",
+  "limits": {
+    "MAX_FILE_SIZE": 10485760,
+    "FILE_CHUNK_SIZE": 262144,
+    "MAX_FILE_CHUNKS": 40,
+    "MAX_FILE_BLOB_LENGTH": 349564,
+    "MAX_ATTACHMENTS_PER_ENTRY": 20,
+    "MAX_ATTACHMENTS_PARSED": 40,
+    "ORPHAN_FILE_AGE_MS": 86400000
+  },
+  "files": [
+    {
+      "description": "5-byte file, one chunk, full blobs",
+      "id": "7c9e6679-7425-40de-944b-e07fc1f90401",
+      "key": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+      "nonces": [
+        "3132333435363738393a3b3c"
+      ],
+      "name": "notatka żółć.txt",
+      "mime": "text/plain",
+      "size": 5,
+      "content": "48656c6c6f",
+      "aads": [
+        "passholder/v3/file/7c9e6679-7425-40de-944b-e07fc1f90401/0/1"
+      ],
+      "attachment": {
+        "id": "7c9e6679-7425-40de-944b-e07fc1f90401",
+        "name": "notatka żółć.txt",
+        "mime": "text/plain",
+        "size": 5,
+        "chunks": 1,
+        "sha256": "185f8db32271fe25f561a6fc938b2e264306ec304eda518007d1764826381969",
+        "key": "ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8="
+      },
+      "blobSha256": [
+        "03e4f1267c9448b760971524f94d0e1d22291da35f5e53795b5a67ec50bd1004"
+      ],
+      "blobs": [
+        "ATEyMzQ1Njc4OTo7PDmKs+Y+Sm6XQvR1La4WameYFnCBbQ=="
+      ],
+      "lastBlob": "ATEyMzQ1Njc4OTo7PDmKs+Y+Sm6XQvR1La4WameYFnCBbQ=="
+    },
+    {
+      "description": "263144-byte file, two chunks, content by rule",
+      "id": "7c9e6679-7425-40de-944b-e07fc1f90402",
+      "key": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f",
+      "nonces": [
+        "5152535455565758595a5b5c",
+        "6162636465666768696a6b6c"
+      ],
+      "name": "skan dowodu.jpg",
+      "mime": "image/jpeg",
+      "size": 263144,
+      "contentRule": "byte[i] = (i * 31 + 7) & 0xff",
+      "aads": [
+        "passholder/v3/file/7c9e6679-7425-40de-944b-e07fc1f90402/0/2",
+        "passholder/v3/file/7c9e6679-7425-40de-944b-e07fc1f90402/1/2"
+      ],
+      "attachment": {
+        "id": "7c9e6679-7425-40de-944b-e07fc1f90402",
+        "name": "skan dowodu.jpg",
+        "mime": "image/jpeg",
+        "size": 263144,
+        "chunks": 2,
+        "sha256": "33561cc732523e3be9cd824c214391fba24f2d0a3c122cdab5e7d833cb164a9f",
+        "key": "QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl8="
+      },
+      "blobSha256": [
+        "55e9c73c15c80d82abc412d6d3304f348f96a00bddbb83f400a2af7acc0f398b",
+        "ae411bdd46942955da8550905ac1c09c8225436c606328922cafd3388b459e91"
+      ],
+      "lastBlob": "AWFiY2RlZmdoaWprbGcFFqvSo+jLv3en7Nnwitue8Exss9RZosbB9/4zp2Ba4gKZRhaQv+yTA39jDkBbs1HrYZPOw8yBmDrtmquJWSnu8XM3XjRh7bL/QyyoACoDCw41EVFEr7qFD++TNBvgUEU8kbEDcX6ny25QIIXn17V07z5I94H29hrO0iiYeHcJR4CotIbxI25x2l7UF9f390PjtgNH4GFWs942IPb5AmAiZA2jJkLsyHIA0dqZanDROuSjQmZO6HwtWGfnWnKGF7CfwEl2vsrX/INaXLez2S6wpgG8GUFW3vyEmky8FY3EJ4VQD9oHRXvi3DrjZz8w0yetCfOV2r3GxWbnSBOF9A1XiXmoTQRHUY2SykU+0nGoEy7aRpL4TzclUL/rEgU+hN5Va1xLr7F9OuVyJtsNlznguMzJeUByumber1Q1gqf/hC5qXUjkcNnsDbTFdMn6HGTqmsun32y3/wfEQtY1FgGicIrgY59Ay7n57X/UrS93r67V5np1GAUDh/Km41vyAlLfG9RHNF4QJsICZZq1vjwIf2kdtrq7O3MUflBHDn7IqFs20S4FhjCpZzEg8WkrLdydlN+RWMPNILxGWyx+QjHYiRGyGog+jNaQgjgXT9qwtjX9yMRzINHDk48BIijBW9saYlAxGVzrZx1GmSSXn92wJmGBwZKKyIdnXc5/ZWzmVkcaE9KRLdyvP9btu3WpMw9ppt+r1HST+71csDNkvk1ZmMm8AkD6pjl6i27ruv88SJthlvvPFVmv4jZUePFgBZLflOldTu5F3fJ3AqZKwW375klgqxN84GtQRiVvqVPMcu8qswpvkbOixs9Tq6htGvj9uY8+VpZ68shnZtNwfMdaMPDHq6nDzcOao5oM1lgt8hdQw9lR1Vv9ufthCrUtaahOHL0sLRlD/D88eO4zv7r0TBWBwcKCI8Z6G/nVGzw9Ne8vlGP7lPiNAD04oQ5u6FlZH1G+L9UFcc4ftqvdp7cqwk8PNCj542Niu89lI6YqeB78KbQVrWYReQ9WmP+G0t9hcLSPD9EDcRWDYLNcqps3SP/q07HKg24IZCdIJQVzRsHYctCF1EQUo24iuycnp5UW9m3XbCOEnoHEjSHWQF5//KxjMC2HY339owDh4VgR2uxt8XJggMHh2h7kBePuyOtQq+BiOId4JTeu2x0fD8+ILNanRYWwdPe9i5u/sSdY0V1har82sZJndDupqu68CkQjEVGKMWsZvwn4qgcGRq3qlx9Hor5zPXw7y3vqj1JvDV/SEGiPh39d6GBcYSCDlYyvqQ9+mewKx/qlJGSNJ6xSOdxua1QB8rj4Vy0Zy7jmKiDotjz7RDP5DX7YB9x9+ZPda2J0fYXN"
+    }
+  ],
+  "entries": [
+    {
+      "description": "document with two attachments",
+      "vaultKey": "5f9d1c3a7b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7",
+      "id": "3f2a8c1e-6b4d-4e9a-9c7f-1a2b3c4d5f01",
+      "nonce": "1112131415161718191a1b1c",
+      "payload": "{\"v\":3,\"type\":\"document\",\"name\":\"Dowód osobisty\",\"note\":\"przód i tył\",\"fields\":{\"kind\":\"id_card\",\"number\":\"ABC123456\",\"fullName\":\"Jan Kowalski\",\"issueDate\":\"2021-01-02\",\"expiryDate\":\"2031-01-01\",\"issuer\":\"Prezydent Miasta\"},\"custom\":[],\"attachments\":[{\"id\":\"7c9e6679-7425-40de-944b-e07fc1f90401\",\"name\":\"notatka żółć.txt\",\"mime\":\"text/plain\",\"size\":5,\"chunks\":1,\"sha256\":\"185f8db32271fe25f561a6fc938b2e264306ec304eda518007d1764826381969\",\"key\":\"ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8=\"},{\"id\":\"7c9e6679-7425-40de-944b-e07fc1f90402\",\"name\":\"skan dowodu.jpg\",\"mime\":\"image/jpeg\",\"size\":263144,\"chunks\":2,\"sha256\":\"33561cc732523e3be9cd824c214391fba24f2d0a3c122cdab5e7d833cb164a9f\",\"key\":\"QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl8=\"}],\"hlc\":{\"ms\":1793404800000,\"c\":1,\"d\":\"device-a\"}}",
+      "parsed": {
+        "v": 3,
+        "type": "document",
+        "name": "Dowód osobisty",
+        "note": "przód i tył",
+        "fields": {
+          "kind": "id_card",
+          "number": "ABC123456",
+          "fullName": "Jan Kowalski",
+          "issueDate": "2021-01-02",
+          "expiryDate": "2031-01-01",
+          "issuer": "Prezydent Miasta"
+        },
+        "custom": [],
+        "attachments": [
+          {
+            "id": "7c9e6679-7425-40de-944b-e07fc1f90401",
+            "name": "notatka żółć.txt",
+            "mime": "text/plain",
+            "size": 5,
+            "chunks": 1,
+            "sha256": "185f8db32271fe25f561a6fc938b2e264306ec304eda518007d1764826381969",
+            "key": "ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8="
+          },
+          {
+            "id": "7c9e6679-7425-40de-944b-e07fc1f90402",
+            "name": "skan dowodu.jpg",
+            "mime": "image/jpeg",
+            "size": 263144,
+            "chunks": 2,
+            "sha256": "33561cc732523e3be9cd824c214391fba24f2d0a3c122cdab5e7d833cb164a9f",
+            "key": "QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl8="
+          }
+        ],
+        "hlc": {
+          "ms": 1793404800000,
+          "c": 1,
+          "d": "device-a"
+        }
+      },
+      "blob": "ARESExQVFhcYGRobHKD8nFWvbAPkGY89vYLJh/pJllVFuekKJjSDxcppMoFLIvA+9rsL319P5xDVbGo0Qg1FV40bU+2kkMV3QEYXwo4XZNNukCRT64soD0L4BOk3SiisRERumNClpTE6Q7dfR6+IHHsOWAF/zr/DOHTUdlbIQfuI83Qn38rGLpWn8vYGkQqUyCdIfatDZ76cB2KgQHBWz7z2CVbo28KI4jPBFgA2bG2DHbcg6s0td+TbOgg/F8KZtk603EBSUKPbAg2g8NipvwUEfweorFuS6WIODGNhp/TasTu9c9EmQdbn9gmkKcIhj1QNo5p2BhXRDTy0twFvw7J9stm2vLQWEQeX8X9vScex/yF5vEbdXhnEnDNfy6y/fRZmh/fYiSeONV6H1iAj3lBjUa94qJLiUmzMDZrkscNN7W63Y+nilBzp7XhF8+HUpJytI3LhtHzVswtCptoM0aiPUC0BDwzlh0RJteXoKpEAu1AQdZ2gc9an5RjPbGDsumtdA5lRM2y/stPsu5dnHt0GhGshXAI8BBTQ++z7fVTlVAo2FpQhD67P8IZJYO7PrKLofDvSzGooKD77vYqbFOlk7B/+h1t3YWBX3mZDu5vTyIoa839fkJnXiHS50xFjm3mfvRAx2+A1nTR0/NIW9j8KMoBaesGaj2eIeHun0BBzEX1WiKfgSjBrQIT+iHpp3b6yL02kau6HX9tAPueWI6JBxe+rPtEjPpV4oKCYV5yL2aR1gY40lEQsWAjJEL9qXbHV7RSmGjCZs45ewBGcYsf/4N5ZcM+cDwpf5uru/tEoASX96Ic9GwSHueFH83KcG+XbXrCbt4jnRGv/6in3K8eo6fhDH5y1tCtOc840OwL++0QAN9jqSFXvJpG5sa0M3L8XlrPerhQfQwxvnfhI3EE4WTkL4BNXu6A2dwSlaq6VoFduBtEyPH7FP4ajQLtHLcm+RILqlbnKz6ff5a/nJ+ee2KyqxiE6HOLJ0cF8B9xvjGIGSktBJ7HBYCPPSOu8Sr3aRsZDYgmg2gb3z2y2F6UeQQfxbz6dYQ/cZ864mx20YxsgzpmJ7OEQRdMHyfL7p1zgfA2Z"
+    },
+    {
+      "description": "entry after an attachment merge (winner's list, then the loser's missing ids)",
+      "vaultKey": "5f9d1c3a7b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7",
+      "id": "3f2a8c1e-6b4d-4e9a-9c7f-1a2b3c4d5f02",
+      "nonce": "2122232425262728292a2b2c",
+      "payload": "{\"v\":3,\"type\":\"document\",\"name\":\"Dowód osobisty\",\"note\":\"zwycięzca\",\"fields\":{\"kind\":\"id_card\",\"number\":\"ABC123456\",\"fullName\":\"Jan Kowalski\",\"issueDate\":\"2021-01-02\",\"expiryDate\":\"2031-01-01\",\"issuer\":\"Prezydent Miasta\"},\"custom\":[],\"attachments\":[{\"id\":\"7c9e6679-7425-40de-944b-e07fc1f90402\",\"name\":\"skan dowodu.jpg\",\"mime\":\"image/jpeg\",\"size\":263144,\"chunks\":2,\"sha256\":\"33561cc732523e3be9cd824c214391fba24f2d0a3c122cdab5e7d833cb164a9f\",\"key\":\"QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl8=\"},{\"id\":\"7c9e6679-7425-40de-944b-e07fc1f90401\",\"name\":\"notatka żółć.txt\",\"mime\":\"text/plain\",\"size\":5,\"chunks\":1,\"sha256\":\"185f8db32271fe25f561a6fc938b2e264306ec304eda518007d1764826381969\",\"key\":\"ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8=\"}],\"hlc\":{\"ms\":1793404800600,\"c\":0,\"d\":\"device-c\"}}",
+      "parsed": {
+        "v": 3,
+        "type": "document",
+        "name": "Dowód osobisty",
+        "note": "zwycięzca",
+        "fields": {
+          "kind": "id_card",
+          "number": "ABC123456",
+          "fullName": "Jan Kowalski",
+          "issueDate": "2021-01-02",
+          "expiryDate": "2031-01-01",
+          "issuer": "Prezydent Miasta"
+        },
+        "custom": [],
+        "attachments": [
+          {
+            "id": "7c9e6679-7425-40de-944b-e07fc1f90402",
+            "name": "skan dowodu.jpg",
+            "mime": "image/jpeg",
+            "size": 263144,
+            "chunks": 2,
+            "sha256": "33561cc732523e3be9cd824c214391fba24f2d0a3c122cdab5e7d833cb164a9f",
+            "key": "QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl8="
+          },
+          {
+            "id": "7c9e6679-7425-40de-944b-e07fc1f90401",
+            "name": "notatka żółć.txt",
+            "mime": "text/plain",
+            "size": 5,
+            "chunks": 1,
+            "sha256": "185f8db32271fe25f561a6fc938b2e264306ec304eda518007d1764826381969",
+            "key": "ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8="
+          }
+        ],
+        "hlc": {
+          "ms": 1793404800600,
+          "c": 0,
+          "d": "device-c"
+        }
+      },
+      "blob": "ASEiIyQlJicoKSorLFKw4l1a8dn0rLlyuB9/TeENPMXzHdDDBmVgIpWtscFUqNpfOXespsERAyG0ejKVf1Ih+xnKVqL5AhxINpIK3C4iA9AAYKE+sh7pBwnHQvG8TqvJgwq72FFS2T7j2Sx+i0wzRL8f7jzYA+QvXZUOCGoL7MIF3VvtZUMvU4zaVUxPHG2dCWyr9jDIb82Ldx6KhzXrZiH5zkdIpkBevLnfvwa9iJqWzE3N50zqfFeGtU7PAIrJn9GEEFHXQcURi8jgKSCrC+OTYCcGGOazT4P44y2inJ5BmfjEJA8XhXs5WjuVpOApBVYMplOpsvCtBPL9ys4k0iLAE1+6iNXUtJcwzNR/5ySjc01px4HwD3ciyt6+hIcKlUOf5/dT34FxFd284B2ANLHfWB2Rs6nX9HeomLlSnbA5zu6KWEONKu9JrcBUB46exwTE8IjS9yoeeoOvg3CWsgiBb81rt7Dxaq03orgpmdPMIv/XSmsSgEXc1gf5WPiZv2YQwci/V88kA5dsp1M96401lYONHq1clhnTQeZ4BnDb2U7BukGd3Y73BIeQUa/DJNaQ9D+AVMv8w8lvygaQ9JaUZdAVwXcb+uyZ1lWyO5EZb6vv5ydgycEpgGxUTE65tBgHzNzQIBQkIb3eO0IfPCTQU7x4ShtC45trzavgK2yu1b/lrB+tOHBhZ6WLTeyUZ8NbAUxLeUxr5yxUCHYwtqLewGg79164GglMHQFISrIPBPhJdicuHujFhjCp4SilkeZddNYzgz8LPvg9awILBr/NQW1bVpY08Y3fkQbBedakEG8fw5/ZagZargzp3Ywju9aaPv5zluK9Xpltb9k3/1Vik7bdcGO9MAnREXwhLcK5ahpWADG0cM5A8NCgt1BH6isKyurkKMHX4jxG7o1HgN3lFIm9MhZe83QlLrMyuKxVrWOZ1IygV8XYK1fYfS7qMKIzG6hHDVA2/j3RKjiUwV+3RNolfr5oW8SUgtuFsLqiN1SlTzC2bQNh50mqIBwOzOAiXfOdSOOn0S6demK1sOT7R1AlnIJ87/uRyQMXa3cXSkYyWDge+Wp7Y4wzvEfqSc4+",
+      "merge": {
+        "winner": "{\"v\":3,\"type\":\"document\",\"name\":\"Dowód osobisty\",\"note\":\"zwycięzca\",\"fields\":{\"kind\":\"id_card\",\"number\":\"ABC123456\",\"fullName\":\"Jan Kowalski\",\"issueDate\":\"2021-01-02\",\"expiryDate\":\"2031-01-01\",\"issuer\":\"Prezydent Miasta\"},\"custom\":[],\"attachments\":[{\"id\":\"7c9e6679-7425-40de-944b-e07fc1f90402\",\"name\":\"skan dowodu.jpg\",\"mime\":\"image/jpeg\",\"size\":263144,\"chunks\":2,\"sha256\":\"33561cc732523e3be9cd824c214391fba24f2d0a3c122cdab5e7d833cb164a9f\",\"key\":\"QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl8=\"}],\"hlc\":{\"ms\":1793404800500,\"c\":0,\"d\":\"device-a\"}}",
+        "loser": "{\"v\":3,\"type\":\"document\",\"name\":\"Dowód\",\"note\":\"przegrany\",\"fields\":{\"kind\":\"id_card\",\"number\":\"ABC123456\",\"fullName\":\"Jan Kowalski\",\"issueDate\":\"2021-01-02\",\"expiryDate\":\"2031-01-01\",\"issuer\":\"Prezydent Miasta\"},\"custom\":[],\"attachments\":[{\"id\":\"7c9e6679-7425-40de-944b-e07fc1f90401\",\"name\":\"notatka żółć.txt\",\"mime\":\"text/plain\",\"size\":5,\"chunks\":1,\"sha256\":\"185f8db32271fe25f561a6fc938b2e264306ec304eda518007d1764826381969\",\"key\":\"ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8=\"},{\"id\":\"7c9e6679-7425-40de-944b-e07fc1f90402\",\"name\":\"skan dowodu.jpg\",\"mime\":\"image/jpeg\",\"size\":263144,\"chunks\":2,\"sha256\":\"33561cc732523e3be9cd824c214391fba24f2d0a3c122cdab5e7d833cb164a9f\",\"key\":\"QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl8=\"}],\"hlc\":{\"ms\":1793404800400,\"c\":3,\"d\":\"device-b\"}}",
+        "hlc": {
+          "ms": 1793404800600,
+          "c": 0,
+          "d": "device-c"
+        }
+      }
+    }
+  ],
+  "rejected": [
+    {
+      "description": "empty list",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "extra descriptor key",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\",\"extra\":1}],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "missing key",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "size 0",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":0,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"}],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "size 10485761",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10485761,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"}],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "size 1.5",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":1.5,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"}],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "chunks not ceil(size / CHUNK)",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":262145,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"}],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "empty name",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"name\":\"\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"}],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "name of 256 characters",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"name\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"}],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "name with slash",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"name\":\"a/b\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"}],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "name with backslash",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"name\":\"a\\\\b\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"}],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "name with U+0000",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"name\":\"a\\u0000\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"}],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "name with U+0085",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"name\":\"a\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"}],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "mime of 128 characters",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"name\":\"a.txt\",\"mime\":\"mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"}],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "sha256 of 63 characters",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"}],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "sha256 uppercase",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"}],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "key of 31 bytes",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==\"}],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "key not canonical Base64",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwd=\"}],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "id uppercase",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[{\"id\":\"0000000A-0000-4000-8000-00000000000B\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"}],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "id not UUID v4",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[{\"id\":\"00000000-0000-1000-8000-000000000001\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"}],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "duplicate id",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000001\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"}],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "41 descriptors",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000002\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000003\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000004\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000005\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000006\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000007\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000008\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000009\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000010\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000011\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000012\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000013\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000014\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000015\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000016\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000017\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000018\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000019\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000020\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000021\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000022\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000023\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000024\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000025\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000026\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000027\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000028\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000029\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000030\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000031\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000032\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000033\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000034\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000035\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000036\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000037\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000038\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000039\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000040\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000041\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"}],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "error": "Invalid entry payload"
+    }
+  ],
+  "merge": [
+    {
+      "description": "winner's list, then the loser's missing ids in the loser's order",
+      "winner": [
+        {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "name": "f1.txt",
+          "mime": "text/plain",
+          "size": 10,
+          "chunks": 1,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000002",
+          "name": "f2.txt",
+          "mime": "text/plain",
+          "size": 10,
+          "chunks": 1,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+        }
+      ],
+      "loser": [
+        {
+          "id": "00000000-0000-4000-8000-000000000002",
+          "name": "f2.txt",
+          "mime": "text/plain",
+          "size": 10,
+          "chunks": 1,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000003",
+          "name": "f3.txt",
+          "mime": "text/plain",
+          "size": 10,
+          "chunks": 1,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+        }
+      ],
+      "expected": [
+        {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "name": "f1.txt",
+          "mime": "text/plain",
+          "size": 10,
+          "chunks": 1,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000002",
+          "name": "f2.txt",
+          "mime": "text/plain",
+          "size": 10,
+          "chunks": 1,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000003",
+          "name": "f3.txt",
+          "mime": "text/plain",
+          "size": 10,
+          "chunks": 1,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+        }
+      ]
+    },
+    {
+      "description": "missing winner list counts as empty",
+      "winner": null,
+      "loser": [
+        {
+          "id": "00000000-0000-4000-8000-000000000003",
+          "name": "f3.txt",
+          "mime": "text/plain",
+          "size": 10,
+          "chunks": 1,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+        }
+      ],
+      "expected": [
+        {
+          "id": "00000000-0000-4000-8000-000000000003",
+          "name": "f3.txt",
+          "mime": "text/plain",
+          "size": 10,
+          "chunks": 1,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+        }
+      ]
+    },
+    {
+      "description": "same id on both sides: the winner's descriptor is kept",
+      "winner": [
+        {
+          "id": "00000000-0000-4000-8000-000000000002",
+          "name": "renamed.txt",
+          "mime": "text/plain",
+          "size": 10,
+          "chunks": 1,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+        }
+      ],
+      "loser": [
+        {
+          "id": "00000000-0000-4000-8000-000000000002",
+          "name": "f2.txt",
+          "mime": "text/plain",
+          "size": 10,
+          "chunks": 1,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "name": "f1.txt",
+          "mime": "text/plain",
+          "size": 10,
+          "chunks": 1,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+        }
+      ],
+      "expected": [
+        {
+          "id": "00000000-0000-4000-8000-000000000002",
+          "name": "renamed.txt",
+          "mime": "text/plain",
+          "size": 10,
+          "chunks": 1,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "name": "f1.txt",
+          "mime": "text/plain",
+          "size": 10,
+          "chunks": 1,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+        }
+      ]
+    }
+  ],
+  "host": {
+    "epoch": "epoch-1",
+    "now": 1793404800000,
+    "steps": [
+      {
+        "description": "status of unknown ids",
+        "request": {
+          "op": "status",
+          "epoch": "epoch-1",
+          "ids": [
+            "123e4567-e89b-42d3-a456-426614174000",
+            "223e4567-e89b-42d3-a456-426614174000"
+          ]
+        },
+        "status": 200,
+        "body": {
+          "files": [
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 0,
+              "have": [],
+              "complete": false
+            },
+            {
+              "id": "223e4567-e89b-42d3-a456-426614174000",
+              "chunks": 0,
+              "have": [],
+              "complete": false
+            }
+          ]
+        }
+      },
+      {
+        "description": "put chunk 0 of 2",
+        "request": {
+          "op": "put",
+          "epoch": "epoch-1",
+          "id": "123e4567-e89b-42d3-a456-426614174000",
+          "index": 0,
+          "chunks": 2,
+          "blob": "AAAA"
+        },
+        "status": 200,
+        "body": {
+          "have": 1
+        }
+      },
+      {
+        "description": "status of a partial file",
+        "request": {
+          "op": "status",
+          "epoch": "epoch-1",
+          "ids": [
+            "123e4567-e89b-42d3-a456-426614174000",
+            "223e4567-e89b-42d3-a456-426614174000"
+          ]
+        },
+        "status": 200,
+        "body": {
+          "files": [
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0
+              ],
+              "complete": false
+            },
+            {
+              "id": "223e4567-e89b-42d3-a456-426614174000",
+              "chunks": 0,
+              "have": [],
+              "complete": false
+            }
+          ]
+        }
+      },
+      {
+        "description": "put the same chunk again (no change)",
+        "request": {
+          "op": "put",
+          "epoch": "epoch-1",
+          "id": "123e4567-e89b-42d3-a456-426614174000",
+          "index": 0,
+          "chunks": 2,
+          "blob": "AAAA"
+        },
+        "status": 200,
+        "body": {
+          "have": 1
+        }
+      },
+      {
+        "description": "put a different blob for a stored chunk",
+        "request": {
+          "op": "put",
+          "epoch": "epoch-1",
+          "id": "123e4567-e89b-42d3-a456-426614174000",
+          "index": 0,
+          "chunks": 2,
+          "blob": "BBBB"
+        },
+        "status": 409,
+        "body": {
+          "error": "chunk differs"
+        }
+      },
+      {
+        "description": "put with another chunk count",
+        "request": {
+          "op": "put",
+          "epoch": "epoch-1",
+          "id": "123e4567-e89b-42d3-a456-426614174000",
+          "index": 1,
+          "chunks": 3,
+          "blob": "CCCC"
+        },
+        "status": 400,
+        "body": {
+          "error": "chunk count mismatch"
+        }
+      },
+      {
+        "description": "put chunk 1 of 2",
+        "request": {
+          "op": "put",
+          "epoch": "epoch-1",
+          "id": "123e4567-e89b-42d3-a456-426614174000",
+          "index": 1,
+          "chunks": 2,
+          "blob": "BBBB"
+        },
+        "status": 200,
+        "body": {
+          "have": 2
+        }
+      },
+      {
+        "description": "status of a complete file",
+        "request": {
+          "op": "status",
+          "epoch": "epoch-1",
+          "ids": [
+            "123e4567-e89b-42d3-a456-426614174000"
+          ]
+        },
+        "status": 200,
+        "body": {
+          "files": [
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            }
+          ]
+        }
+      },
+      {
+        "description": "get a stored chunk",
+        "request": {
+          "op": "get",
+          "epoch": "epoch-1",
+          "id": "123e4567-e89b-42d3-a456-426614174000",
+          "index": 0
+        },
+        "status": 200,
+        "body": {
+          "chunks": 2,
+          "blob": "AAAA"
+        }
+      },
+      {
+        "description": "get a chunk of an unknown file",
+        "request": {
+          "op": "get",
+          "epoch": "epoch-1",
+          "id": "223e4567-e89b-42d3-a456-426614174000",
+          "index": 0
+        },
+        "status": 404,
+        "body": {
+          "error": "chunk not found"
+        }
+      },
+      {
+        "description": "get an index beyond the file's chunk count",
+        "request": {
+          "op": "get",
+          "epoch": "epoch-1",
+          "id": "123e4567-e89b-42d3-a456-426614174000",
+          "index": 2
+        },
+        "status": 404,
+        "body": {
+          "error": "chunk not found"
+        }
+      },
+      {
+        "description": "status with another epoch",
+        "request": {
+          "op": "status",
+          "epoch": "other",
+          "ids": [
+            "123e4567-e89b-42d3-a456-426614174000"
+          ]
+        },
+        "status": 200,
+        "body": {
+          "epoch": "epoch-1"
+        }
+      },
+      {
+        "description": "put with another epoch (nothing stored)",
+        "request": {
+          "op": "put",
+          "epoch": "other",
+          "id": "323e4567-e89b-42d3-a456-426614174000",
+          "index": 0,
+          "chunks": 1,
+          "blob": "AAAA"
+        },
+        "status": 200,
+        "body": {
+          "epoch": "epoch-1"
+        }
+      },
+      {
+        "description": "get with another epoch",
+        "request": {
+          "op": "get",
+          "epoch": "other",
+          "id": "123e4567-e89b-42d3-a456-426614174000",
+          "index": 0
+        },
+        "status": 200,
+        "body": {
+          "epoch": "epoch-1"
+        }
+      },
+      {
+        "description": "the put with another epoch stored nothing",
+        "request": {
+          "op": "status",
+          "epoch": "epoch-1",
+          "ids": [
+            "323e4567-e89b-42d3-a456-426614174000"
+          ]
+        },
+        "status": 200,
+        "body": {
+          "files": [
+            {
+              "id": "323e4567-e89b-42d3-a456-426614174000",
+              "chunks": 0,
+              "have": [],
+              "complete": false
+            }
+          ]
+        }
+      },
+      {
+        "description": "malformed: request is null",
+        "request": null,
+        "status": 400,
+        "body": {
+          "error": "malformed file request"
+        }
+      },
+      {
+        "description": "malformed: request is a string",
+        "request": "x",
+        "status": 400,
+        "body": {
+          "error": "malformed file request"
+        }
+      },
+      {
+        "description": "malformed: unknown op",
+        "request": {
+          "op": "delete",
+          "epoch": "epoch-1",
+          "id": "123e4567-e89b-42d3-a456-426614174000",
+          "index": 0,
+          "chunks": 2,
+          "blob": "AAAA"
+        },
+        "status": 400,
+        "body": {
+          "error": "malformed file request"
+        }
+      },
+      {
+        "description": "malformed: epoch is a number",
+        "request": {
+          "op": "put",
+          "epoch": 1,
+          "id": "123e4567-e89b-42d3-a456-426614174000",
+          "index": 0,
+          "chunks": 2,
+          "blob": "AAAA"
+        },
+        "status": 400,
+        "body": {
+          "error": "malformed file request"
+        }
+      },
+      {
+        "description": "malformed: id not a UUID",
+        "request": {
+          "op": "put",
+          "epoch": "epoch-1",
+          "id": "not-a-uuid",
+          "index": 0,
+          "chunks": 2,
+          "blob": "AAAA"
+        },
+        "status": 400,
+        "body": {
+          "error": "malformed file request"
+        }
+      },
+      {
+        "description": "malformed: id uppercase",
+        "request": {
+          "op": "put",
+          "epoch": "epoch-1",
+          "id": "123E4567-E89B-42D3-A456-426614174000",
+          "index": 0,
+          "chunks": 2,
+          "blob": "AAAA"
+        },
+        "status": 400,
+        "body": {
+          "error": "malformed file request"
+        }
+      },
+      {
+        "description": "malformed: index -1",
+        "request": {
+          "op": "put",
+          "epoch": "epoch-1",
+          "id": "123e4567-e89b-42d3-a456-426614174000",
+          "index": -1,
+          "chunks": 2,
+          "blob": "AAAA"
+        },
+        "status": 400,
+        "body": {
+          "error": "malformed file request"
+        }
+      },
+      {
+        "description": "malformed: index equal to chunks",
+        "request": {
+          "op": "put",
+          "epoch": "epoch-1",
+          "id": "123e4567-e89b-42d3-a456-426614174000",
+          "index": 2,
+          "chunks": 2,
+          "blob": "AAAA"
+        },
+        "status": 400,
+        "body": {
+          "error": "malformed file request"
+        }
+      },
+      {
+        "description": "malformed: index 0.5",
+        "request": {
+          "op": "put",
+          "epoch": "epoch-1",
+          "id": "123e4567-e89b-42d3-a456-426614174000",
+          "index": 0.5,
+          "chunks": 2,
+          "blob": "AAAA"
+        },
+        "status": 400,
+        "body": {
+          "error": "malformed file request"
+        }
+      },
+      {
+        "description": "malformed: chunks 0",
+        "request": {
+          "op": "put",
+          "epoch": "epoch-1",
+          "id": "123e4567-e89b-42d3-a456-426614174000",
+          "index": 0,
+          "chunks": 0,
+          "blob": "AAAA"
+        },
+        "status": 400,
+        "body": {
+          "error": "malformed file request"
+        }
+      },
+      {
+        "description": "malformed: chunks 41",
+        "request": {
+          "op": "put",
+          "epoch": "epoch-1",
+          "id": "123e4567-e89b-42d3-a456-426614174000",
+          "index": 0,
+          "chunks": 41,
+          "blob": "AAAA"
+        },
+        "status": 400,
+        "body": {
+          "error": "malformed file request"
+        }
+      },
+      {
+        "description": "malformed: blob longer than MAX_FILE_BLOB_LENGTH",
+        "request": {
+          "op": "put",
+          "epoch": "epoch-1",
+          "id": "423e4567-e89b-42d3-a456-426614174000",
+          "index": 0,
+          "chunks": 1,
+          "blob": ""
+        },
+        "expand": {
+          "field": "blob",
+          "repeat": "A",
+          "count": 349565
+        },
+        "status": 400,
+        "body": {
+          "error": "malformed file request"
+        }
+      },
+      {
+        "description": "malformed: blob is a number",
+        "request": {
+          "op": "put",
+          "epoch": "epoch-1",
+          "id": "123e4567-e89b-42d3-a456-426614174000",
+          "index": 0,
+          "chunks": 2,
+          "blob": 5
+        },
+        "status": 400,
+        "body": {
+          "error": "malformed file request"
+        }
+      },
+      {
+        "description": "malformed: get with a bad id",
+        "request": {
+          "op": "get",
+          "epoch": "epoch-1",
+          "id": "x",
+          "index": 0
+        },
+        "status": 400,
+        "body": {
+          "error": "malformed file request"
+        }
+      },
+      {
+        "description": "malformed: get without index",
+        "request": {
+          "op": "get",
+          "epoch": "epoch-1",
+          "id": "123e4567-e89b-42d3-a456-426614174000"
+        },
+        "status": 400,
+        "body": {
+          "error": "malformed file request"
+        }
+      },
+      {
+        "description": "malformed: get index 40",
+        "request": {
+          "op": "get",
+          "epoch": "epoch-1",
+          "id": "123e4567-e89b-42d3-a456-426614174000",
+          "index": 40
+        },
+        "status": 400,
+        "body": {
+          "error": "malformed file request"
+        }
+      },
+      {
+        "description": "malformed: status with 501 ids",
+        "request": {
+          "op": "status",
+          "epoch": "epoch-1",
+          "ids": []
+        },
+        "expand": {
+          "field": "ids",
+          "repeat": "123e4567-e89b-42d3-a456-426614174000",
+          "count": 501
+        },
+        "status": 400,
+        "body": {
+          "error": "malformed file request"
+        }
+      },
+      {
+        "description": "malformed: status with a bad id",
+        "request": {
+          "op": "status",
+          "epoch": "epoch-1",
+          "ids": [
+            "123e4567-e89b-42d3-a456-426614174000",
+            "nope"
+          ]
+        },
+        "status": 400,
+        "body": {
+          "error": "malformed file request"
+        }
+      },
+      {
+        "description": "malformed: status ids not a list",
+        "request": {
+          "op": "status",
+          "epoch": "epoch-1",
+          "ids": "x"
+        },
+        "status": 400,
+        "body": {
+          "error": "malformed file request"
+        }
+      },
+      {
+        "description": "status with 500 ids (the limit)",
+        "request": {
+          "op": "status",
+          "epoch": "epoch-1",
+          "ids": []
+        },
+        "expand": {
+          "field": "ids",
+          "repeat": "123e4567-e89b-42d3-a456-426614174000",
+          "count": 500
+        },
+        "status": 200,
+        "body": {
+          "files": [
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            }
+          ]
+        }
+      },
+      {
+        "description": "put a blob of exactly MAX_FILE_BLOB_LENGTH",
+        "request": {
+          "op": "put",
+          "epoch": "epoch-1",
+          "id": "423e4567-e89b-42d3-a456-426614174000",
+          "index": 0,
+          "chunks": 1,
+          "blob": ""
+        },
+        "expand": {
+          "field": "blob",
+          "repeat": "A",
+          "count": 349564
+        },
+        "status": 200,
+        "body": {
+          "have": 1
+        }
+      }
+    ],
+    "storage": {
+      "description": "store capacity 10 blob characters",
+      "capacity": 10,
+      "steps": [
+        {
+          "description": "put 8 characters",
+          "request": {
+            "op": "put",
+            "epoch": "epoch-1",
+            "id": "123e4567-e89b-42d3-a456-426614174000",
+            "index": 0,
+            "chunks": 2,
+            "blob": "AAAAAAAA"
+          },
+          "status": 200,
+          "body": {
+            "have": 1
+          }
+        },
+        {
+          "description": "put 3 more characters (11 > 10): 507, nothing stored",
+          "request": {
+            "op": "put",
+            "epoch": "epoch-1",
+            "id": "123e4567-e89b-42d3-a456-426614174000",
+            "index": 1,
+            "chunks": 2,
+            "blob": "BBB"
+          },
+          "status": 507,
+          "body": {
+            "error": "insufficient storage"
+          }
+        },
+        {
+          "description": "the 507 put stored nothing",
+          "request": {
+            "op": "status",
+            "epoch": "epoch-1",
+            "ids": [
+              "123e4567-e89b-42d3-a456-426614174000"
+            ]
+          },
+          "status": 200,
+          "body": {
+            "files": [
+              {
+                "id": "123e4567-e89b-42d3-a456-426614174000",
+                "chunks": 2,
+                "have": [
+                  0
+                ],
+                "complete": false
+              }
+            ]
+          }
+        },
+        {
+          "description": "re-put an identical chunk needs no space",
+          "request": {
+            "op": "put",
+            "epoch": "epoch-1",
+            "id": "123e4567-e89b-42d3-a456-426614174000",
+            "index": 0,
+            "chunks": 2,
+            "blob": "AAAAAAAA"
+          },
+          "status": 200,
+          "body": {
+            "have": 1
+          }
+        },
+        {
+          "description": "put 2 characters (exactly fills the store)",
+          "request": {
+            "op": "put",
+            "epoch": "epoch-1",
+            "id": "123e4567-e89b-42d3-a456-426614174000",
+            "index": 1,
+            "chunks": 2,
+            "blob": "BB"
+          },
+          "status": 200,
+          "body": {
+            "have": 2
+          }
+        }
+      ]
+    },
+    "orphan": {
+      "description": "unused files whose first chunk is older than ORPHAN_FILE_AGE_MS (strictly)",
+      "files": [
+        {
+          "id": "123e4567-e89b-42d3-a456-426614174000",
+          "createdAt": 1793404800000,
+          "used": false
+        },
+        {
+          "id": "223e4567-e89b-42d3-a456-426614174000",
+          "createdAt": 1793404800000,
+          "used": true
+        },
+        {
+          "id": "323e4567-e89b-42d3-a456-426614174000",
+          "createdAt": 1793404800002,
+          "used": false
+        }
+      ],
+      "cases": [
+        {
+          "now": 1793491200000,
+          "expected": []
+        },
+        {
+          "now": 1793491200001,
+          "expected": [
+            "123e4567-e89b-42d3-a456-426614174000"
+          ]
+        },
+        {
+          "now": 1793491200003,
+          "expected": [
+            "123e4567-e89b-42d3-a456-426614174000",
+            "323e4567-e89b-42d3-a456-426614174000"
+          ]
+        }
+      ]
+    }
+  }
+}
