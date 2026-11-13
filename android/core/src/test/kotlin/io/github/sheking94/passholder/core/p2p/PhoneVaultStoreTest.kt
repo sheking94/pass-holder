@@ -593,6 +593,48 @@ class PhoneVaultStoreTest {
     }
 
     @Test
+    fun discardFilesDeletesTheGivenFilesRegardlessOfAge() {
+        val store = newStore()
+        store.createVault("pw")
+        val a = store.addFile("a".toByteArray(), "a.txt", "")
+        val b = store.addFile("b".toByteArray(), "b.txt", "")
+        assertEquals(1, store.discardFiles(listOf(a.id)))
+        assertFalse(store.isFileComplete(a))
+        assertTrue(store.isFileComplete(b))
+    }
+
+    @Test
+    fun discardFilesKeepsFilesUsedByAnEntry() {
+        val store = newStore()
+        store.createVault("pw")
+        val a = store.addFile("a".toByteArray(), "a.txt", "")
+        store.upsertContent("e1", withFile("A", a))
+        assertEquals(0, store.discardFiles(listOf(a.id)))
+        assertTrue(store.isFileComplete(a))
+    }
+
+    @Test
+    fun discardFilesIgnoresUnknownIds() {
+        val store = newStore()
+        store.createVault("pw")
+        assertEquals(0, store.discardFiles(listOf("nie-ma")))
+    }
+
+    @Test
+    fun discardFilesDoesNothingWhileSomeRecordIsUnreadable() {
+        val store = newStore()
+        store.createVault("pw")
+        val a = store.addFile("a".toByteArray(), "a.txt", "")
+        val http = serve(store)
+        val pair = TestP2pClient.pair(http, store.offerPairing().code, extIdentity)
+        val foreign = blob(VaultCrypto.newVaultKey(), "x", "Obcy")
+        clientFor(http, pair).syncResponse(P2pSyncRequest(pair.phoneVaultInfo!!.epoch, 0, listOf(ChangeRequest("x", 0, false, foreign))))
+        assertEquals(listOf("x"), store.unreadableIds())
+        assertEquals(0, store.discardFiles(listOf(a.id)))
+        assertTrue(store.isFileComplete(a))
+    }
+
+    @Test
     fun pruneRunsAfterUnlockAndAfterEntryWrites() {
         val store = newStore()
         store.createVault("pw")
@@ -694,5 +736,6 @@ class PhoneVaultStoreTest {
         assertEquals(locked, assertThrows<IllegalStateException> { store.readFile(a) }.message)
         assertEquals(locked, assertThrows<IllegalStateException> { store.isFileComplete(a) }.message)
         assertEquals(locked, assertThrows<IllegalStateException> { store.pruneFiles() }.message)
+        assertEquals(locked, assertThrows<IllegalStateException> { store.discardFiles(listOf(a.id)) }.message)
     }
 }
