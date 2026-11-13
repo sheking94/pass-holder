@@ -93,3 +93,14 @@ body.panel main { padding: 10px 12px; }
 .save-prompt .status { margin-top: 6px; min-height: 0; }
 h2 { font-size: 13px; margin: 14px 0 6px; }
 ul.never { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+/* „Załączniki”: one row per file (name, size and state, „Pobierz”, „Usuń”). */
+ul.attachments { list-style: none; margin: 0; padding: 0; }
+ul.attachments li { display: flex; gap: 6px; align-items: center; padding: 4px 0; }
+ul.attachments li + li { border-top: 1px solid var(--line); }
+ul.attachments li > .grow { flex: 1; min-width: 0; }
+ul.attachments .name, ul.attachments .user { display: block; }
+ul.attachments:not(:empty) + button.small, ul.attachments:not(:empty) + input + button.small { margin-top: 4px; }
+.name .clip { font-weight: normal; color: var(--muted); }
+/* Inline question (instead of window.confirm, which blocks the extension). */
+.confirm-box { margin-top: 8px; padding: 8px; border: 1px solid var(--line); border-radius: 6px; }
+.confirm-box .actions { margin-top: 8px; }

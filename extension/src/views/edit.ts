@@ -1,8 +1,9 @@
 import type { p2p } from "@passholder/core";
 import { TYPE_INFO, emptyContent, tidyContent, validateContent } from "../entry-types.ts";
 import { busy, confirmButton, h, show, statusLine } from "../ui/dom.ts";
-import { openInTabButton } from "../ui/page.ts";
+import { openEditTab, openInTabButton } from "../ui/page.ts";
 import { store } from "../ui/state.ts";
+import { attachmentsEditor } from "./forms/attachments.ts";
 import { customFieldsEditor } from "./forms/custom-fields.ts";
 import { cardForm } from "./forms/card.ts";
 import { contactForm } from "./forms/contact.ts";
@@ -40,20 +41,24 @@ export async function editView(type: p2p.EntryType, id?: string): Promise<void> 
   const note = h("textarea", { rows: type === "note" ? 8 : 3 });
   note.value = base.note;
   const section = await (SECTIONS[type] as Section<p2p.EntryType>)(base.fields, status);
+  const files = await attachmentsEditor(base.attachments ?? [], status, () => void openEditTab(type, original && id));
   const custom = customFieldsEditor(base.custom, status);
 
   const save = () =>
     busy(status, "Zapisuję…", async () => {
+      const { attachments: _, ...rest } = base;
+      const { attachments, added } = files.read();
       const content = tidyContent({
-        ...base,
+        ...rest,
         name: name.value,
         note: note.value,
         custom: custom.read(),
         fields: section.read(),
+        ...(attachments.length > 0 ? { attachments } : {}),
       } as p2p.EntryContentV3);
       const error = validateContent(content, original);
       if (error) throw new Error(error);
-      await store.putEntry(id ?? crypto.randomUUID(), content);
+      await store.putEntry(id ?? crypto.randomUUID(), content, added);
       listView(SAVED, false, type);
     });
 
@@ -72,6 +77,7 @@ export async function editView(type: p2p.EntryType, id?: string): Promise<void> 
     ...section.nodes,
     h("label", {}, type === "note" ? "Treść" : "Notatka"),
     note,
+    files.node,
     custom.node,
     h(
       "div",

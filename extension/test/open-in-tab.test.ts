@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { openInTab, type TabApi } from "../src/open-in-tab.ts";
-import { isInTab, isMainTab, pageMode } from "../src/page-mode.ts";
+import { editQuery, editTarget, isInTab, isMainTab, pageMode } from "../src/page-mode.ts";
 
 const PAGE = "chrome-extension://abc/popup.html";
 
@@ -22,15 +22,26 @@ describe("pageMode", () => {
     expect(pageMode("?setup")).toBe("setup");
     expect(pageMode("?addresses")).toBe("addresses");
     expect(pageMode("?transfer")).toBe("transfer");
+    expect(pageMode("?edit&type=document&id=abc")).toBe("edit");
+  });
+
+  it("edit mode: the query names the type and, for a saved entry, its id", () => {
+    expect(editQuery("document", "abc-1")).toBe("?edit&type=document&id=abc-1");
+    expect(editQuery("login")).toBe("?edit&type=login");
+    expect(editTarget("?edit&type=document&id=abc-1")).toEqual({ type: "document", id: "abc-1" });
+    expect(editTarget("?edit&type=login")).toEqual({ type: "login" });
+    expect(editTarget("?edit&type=unknown")).toBeUndefined();
+    expect(editTarget("?edit")).toBeUndefined();
   });
 
   it("counts every tab as a tab, also the CSV one, but only tab and setup as the main tab", () => {
     expect(isInTab("popup")).toBe(false);
-    for (const mode of ["tab", "setup", "addresses", "transfer"] as const) expect(isInTab(mode)).toBe(true);
+    for (const mode of ["tab", "setup", "addresses", "transfer", "edit"] as const) expect(isInTab(mode)).toBe(true);
     expect(isMainTab("tab")).toBe(true);
     expect(isMainTab("setup")).toBe(true);
     expect(isMainTab("addresses")).toBe(false);
     expect(isMainTab("transfer")).toBe(false);
+    expect(isMainTab("edit")).toBe(false);
   });
 });
 

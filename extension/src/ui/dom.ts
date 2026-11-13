@@ -37,7 +37,8 @@ export function statusLine() {
 
 /** Runs an async action with the buttons disabled and errors shown in the status line. */
 export async function busy(status: HTMLElement, message: string, action: () => Promise<void>) {
-  const buttons = [...app.querySelectorAll("button")];
+  // Buttons disabled before (e.g. „Pobierz” of a file that is not here) stay disabled afterwards.
+  const buttons = [...app.querySelectorAll("button")].filter((b) => !b.disabled);
   buttons.forEach((b) => (b.disabled = true));
   setStatus(status, message);
   try {
@@ -140,4 +141,23 @@ export function confirmButton(
     },
   }, label);
   return button;
+}
+
+/**
+ * An inline question box (window.confirm would block the extension): the text, then confirmLabel and „Anuluj”.
+ * Either button removes the box; confirmLabel then runs onConfirm.
+ */
+export function confirmBox(text: string, confirmLabel: string, onConfirm: () => void): HTMLElement {
+  const box: HTMLElement = h(
+    "div",
+    { class: "confirm-box", role: "alertdialog" },
+    h("p", {}, text),
+    h(
+      "div",
+      { class: "actions" },
+      h("button", { type: "button", class: "primary", onclick: () => { box.remove(); onConfirm(); } }, confirmLabel),
+      h("button", { type: "button", onclick: () => box.remove() }, "Anuluj"),
+    ),
+  );
+  return box;
 }

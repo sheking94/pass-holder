@@ -2,6 +2,7 @@ import { transfer } from "@passholder/core";
 import { importSummary } from "../import-summary.ts";
 import { entriesNoun } from "../plural.ts";
 import { busy, h, setStatus, show, statusLine } from "../ui/dom.ts";
+import { downloadFile } from "../ui/download.ts";
 import { showInTab } from "../ui/page.ts";
 import { store } from "../ui/state.ts";
 import { listView } from "./list.ts";
@@ -9,14 +10,6 @@ import { listView } from "./list.ts";
 /** Chrome closes the toolbar popup when the file chooser opens, so choosing a file to import only works in a tab. */
 export function openTransfer() {
   return showInTab("transfer", transferView);
-}
-
-/** Lets the browser save text as a file in the downloads folder (or ask where, per Chrome settings). */
-function downloadText(fileName: string, text: string, mime: string) {
-  const url = URL.createObjectURL(new Blob([text], { type: mime }));
-  const link = h("a", { href: url, download: fileName });
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 const FORMATS: { format: transfer.TransferFormat; label: string; ext: string; mime: string; hint: boolean }[] = [
@@ -39,7 +32,7 @@ function exportSection(status: HTMLElement) {
       const chosen = FORMATS.find((_, i) => radios[i]!.checked)!;
       const entries = store.allContents();
       const day = new Date().toISOString().slice(0, 10);
-      downloadText(`${chosen.format}-${day}.${chosen.ext}`, transfer.exportFile(chosen.format, entries), chosen.mime);
+      downloadFile(`${chosen.format}-${day}.${chosen.ext}`, transfer.exportFile(chosen.format, entries), chosen.mime);
       setStatus(status, `Wyeksportowano ${entriesNoun(entries.length)}. Usuń plik, gdy nie będzie już potrzebny.`);
     } catch (error) {
       setStatus(status, error instanceof Error ? error.message : String(error), true);

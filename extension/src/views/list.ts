@@ -1,7 +1,7 @@
 import { autofill, type p2p } from "@passholder/core";
 import { ENTRY_TYPES, TYPE_INFO, entrySummary, matchesQuery } from "../entry-types.ts";
 import { UNSUPPORTED_PAGE } from "../autofill/fill-tab.ts";
-import type { StoredEntry } from "../vault-store.ts";
+import type { FilesOutcome, StoredEntry } from "../vault-store.ts";
 import { copySecret, copyText } from "../ui/copy.ts";
 import { busy, h, setStatus, show, statusLine } from "../ui/dom.ts";
 import { activeTab, requestFill } from "../ui/active-tab.ts";
@@ -18,6 +18,19 @@ import { openTransfer } from "./transfer.ts";
 export function skippedNote(skipped: readonly string[]): string {
   if (skipped.length === 0) return "";
   return ` Pominięto adresy bez zgody Chrome: ${skipped.join(", ")}. Zgodę dasz w „Adresy telefonu” (Zapisz).`;
+}
+
+/**
+ * Sentences about the file phase of a sync ("" when nothing happened); error is true when it failed or found
+ * corrupted files, so the status line shows as an error.
+ */
+export function filesNote(f: FilesOutcome): { text: string; error: boolean } {
+  let text = "";
+  if (f.uploaded + f.downloaded > 0) text += ` Pliki: wysłano ${f.uploaded}, pobrano ${f.downloaded}.`;
+  if (f.pending > 0) text += ` Nie wszystkie pliki zsynchronizowane (${f.pending} czeka).`;
+  if (f.error) text += ` Nie wszystkie pliki zsynchronizowane: ${f.error}.`;
+  if (f.corrupted.length > 0) text += ` Uszkodzone pliki: ${f.corrupted.join(", ")}.`;
+  return { text, error: Boolean(f.error) || f.corrupted.length > 0 };
 }
 
 /** The tab the list shows when listView() is called without a type. */
@@ -41,6 +54,7 @@ function fillButton(e: StoredEntry, status: HTMLElement) {
 /** One row: the whole entry opens on click; a login also gets its copy buttons (unless copyable is false, as in the matches section), a card or contact „Wypełnij” (popup only). */
 function entryRow(e: StoredEntry, status: HTMLElement, fillable = !IN_TAB && (e.data.type === "card" || e.data.type === "contact"), copyable = true) {
   const summary = entrySummary(e.data);
+  const clips = e.data.attachments?.length ?? 0;
   const open = h(
     "button",
     { class: "entry-open grow", title: `Otwórz: ${e.data.name}`, onclick: () => editView(e.data.type, e.id) },
@@ -48,7 +62,7 @@ function entryRow(e: StoredEntry, status: HTMLElement, fillable = !IN_TAB && (e.
     h(
       "span",
       { class: "text" },
-      h("span", { class: "name" }, e.data.name, e.dirty ? " •" : ""),
+      h("span", { class: "name" }, e.data.name, clips > 0 && h("span", { class: "clip", title: `Załączniki: ${clips}` }, ` 📎 ${clips}`), e.dirty ? " •" : ""),
       h("span", { class: "user", title: summary }, summary),
     ),
   );
@@ -139,10 +153,11 @@ export function listView(message = "", isError = false, type?: p2p.EntryType) {
       h("button", {
         onclick: () =>
           busy(status, "Synchronizuję…", async () => {
-            const { skipped } = await store.sync();
+            const result = await store.sync((done, total) => setStatus(status, `Pliki: ${done} z ${total}`));
             renderList();
             void renderMatches();
-            setStatus(status, `Zsynchronizowano z telefonem ${new Date().toLocaleTimeString("pl")}.` + skippedNote(skipped));
+            const note = filesNote(result.files);
+            setStatus(status, `Zsynchronizowano z telefonem ${new Date().toLocaleTimeString("pl")}.` + skippedNote(result.skipped) + note.text, note.error);
           }),
       }, "Synchronizuj"),
       h("button", { title: "Logowanie PIN-em", onclick: () => void pinSettingsView() }, "PIN"),

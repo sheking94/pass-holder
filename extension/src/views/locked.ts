@@ -1,3 +1,4 @@
+import { editTarget } from "../page-mode.ts";
 import { MAX_PIN_ATTEMPTS } from "../pin-lock.ts";
 import type { PinStatus } from "../pin-store.ts";
 import { busy, confirmButton, form, h, passwordField, pinInput, setStatus, show, statusLine } from "../ui/dom.ts";
@@ -6,6 +7,7 @@ import { activeTab } from "../ui/active-tab.ts";
 import { MODE, openInTabButton } from "../ui/page.ts";
 import { store } from "../ui/state.ts";
 import { showConnect } from "./connect.ts";
+import { editView } from "./edit.ts";
 import { listView } from "./list.ts";
 import { saveQuestionView } from "./save-question.ts";
 import { transferView } from "./transfer.ts";
@@ -20,9 +22,19 @@ export async function showLocked(message = "") {
   else lockedView(message);
 }
 
-/** What this page shows once unlocked: the transfer tab stays on import and export, everything else shows the list. */
+/**
+ * What this page shows once unlocked: the transfer tab stays on import and export, the edit tab shows its
+ * entry's form (a new one when the entry is gone), everything else shows the list.
+ */
 export async function showUnlocked(message = "") {
   if (MODE === "transfer") return transferView();
+  if (MODE === "edit") {
+    const target = editTarget(location.search);
+    if (target) {
+      const exists = target.id !== undefined && store.getEntry(target.id)?.data.type === target.type;
+      return editView(target.type, exists ? target.id : undefined);
+    }
+  }
   const info = await pendingSaveInfo();
   if (info) saveQuestionView(info);
   else listView(message);
