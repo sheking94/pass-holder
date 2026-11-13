@@ -62,6 +62,7 @@ interface Vectors {
     id: string;
     nonce: string;
     payload: string;
+    canonicalPayload?: string;
     parsed: unknown;
     blob: string;
     merge?: { winner: string; loser: string; hlc: Hlc };
@@ -149,13 +150,13 @@ describe("test-vectors/files/files.json", () => {
     it(`entry: ${e.description}`, async () => {
       const data = parseEntryData(JSON.parse(e.payload));
       expect(data).toEqual(e.parsed);
-      expect(serializeEntryData(data)).toBe(e.payload);
+      expect(serializeEntryData(data)).toBe(e.canonicalPayload ?? e.payload);
       expect(await seal(fromHex(e.vaultKey), utf8(e.payload), entryAadV2(e.id), fromHex(e.nonce))).toBe(e.blob);
       if (e.merge) {
         const winner = parseEntryData(JSON.parse(e.merge.winner));
         const loser = parseEntryData(JSON.parse(e.merge.loser));
         const merged = { ...winner, attachments: mergeAttachments(winner.attachments, loser.attachments), hlc: e.merge.hlc };
-        expect(serializeEntryData(merged)).toBe(e.payload);
+        expect(serializeEntryData(merged)).toBe(e.canonicalPayload ?? e.payload);
       }
     });
   }

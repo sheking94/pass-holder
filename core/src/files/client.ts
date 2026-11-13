@@ -241,7 +241,8 @@ async function download(
 /**
  * File phase after an entry sync: uploads complete local files the phone (of the vault's epoch) does not have yet,
  * then downloads used files that are complete on the phone but not here. No retries: a transport error is thrown
- * after whatever was already stored, and the next run resumes from the missing chunks.
+ * after whatever was already stored, and the next run resumes from the missing chunks. A per-file refusal during
+ * upload (host status 409 or 400) only counts the file as pending.
  */
 export async function syncFiles(
   vault: LocalVaultV2,
@@ -283,7 +284,15 @@ export async function syncFiles(
   const total = uploads.length + downloads.length;
   let done = 0;
   for (const { a, phoneHas } of uploads) {
-    if ((await upload(files, send, epoch, a, phoneHas)) === "done") result.uploaded++;
+    let outcome: "done" | "pending";
+    try {
+      outcome = await upload(files, send, epoch, a, phoneHas);
+    } catch (e) {
+      // The phone refused this file (chunk differs / chunk count mismatch): leave it for later, go on with the rest.
+      if (!(e instanceof P2pHostError && (e.status === 409 || e.status === 400))) throw e;
+      outcome = "pending";
+    }
+    if (outcome === "done") result.uploaded++;
     else result.pending++;
     onProgress?.(++done, total);
   }

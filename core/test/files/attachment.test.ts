@@ -16,7 +16,6 @@ const att = (n = 1, over: Partial<Attachment> = {}): Attachment => ({
 });
 const entry = (attachments?: unknown): EntryDataV3 =>
   ({ ...emptyLogin("n"), v: 3, hlc, ...(attachments === undefined ? {} : { attachments }) }) as EntryDataV3;
-const payload = (attachments: unknown) => ({ ...JSON.parse(serializeEntryData(entry())), attachments });
 // Key order matters: attachments sits between custom and hlc.
 const withAtt = (attachments: unknown) => {
   const { hlc: h, ...rest } = JSON.parse(serializeEntryData(entry()));
@@ -35,7 +34,7 @@ describe("attachment serialization", () => {
   });
   it("omits the key when absent or undefined", () => {
     expect(serializeEntryData(entry())).not.toContain("attachments");
-    expect(serializeEntryData(entry(undefined))).toBe(serializeEntryData({ ...entry(), attachments: undefined }));
+    expect(serializeEntryData(entry(undefined))).toBe(serializeEntryData(entry()));
   });
 });
 

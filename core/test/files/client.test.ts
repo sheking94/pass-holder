@@ -26,6 +26,7 @@ import {
   generateKeyPair,
   HlcClock,
   P2pHost,
+  P2pHostError,
   PHONE_UPDATE_REQUIRED,
   upsertEntryV2,
   type FetchJson,
@@ -333,6 +334,39 @@ describe("syncFiles: what gets asked", () => {
     const status = a.ops.filter((r): r is Extract<P2pFileRequest, { op: "status" }> => r.op === "status");
     expect(status.map((r) => r.ids.length)).toEqual([500, 1]);
     expect(status.flatMap((r) => r.ids)).toEqual(ids);
+  });
+});
+
+describe("syncFiles: files the phone refuses", () => {
+  it("counts a 400 or 409 on one file as pending and uploads the others", async () => {
+    const p = phone();
+    const mismatch = await encryptFile(sample(20, 1), { name: "m.txt", mime: "text/plain" });
+    const differs = await encryptFile(sample(20, 2), { name: "d.txt", mime: "text/plain" });
+    const good = await encryptFile(sample(20, 3), { name: "g.txt", mime: "text/plain" });
+    const files = new MemoryLocalFileStore();
+    for (const f of [mismatch, differs, good]) await storeEncryptedFile(files, f);
+    // The phone holds only chunk 1 of a 2-chunk file under this id: our 1-chunk put gets 400 "chunk count mismatch".
+    p.files!.put(mismatch.attachment.id, 1, 2, "AAAA", 0);
+    const vault = vaultWith(p.epoch, [mismatch.attachment, differs.attachment, good.attachment]);
+    const a = p.plugin("a");
+    // A stale status can lead to 409 "chunk differs"; simulate it for the second file.
+    const send: P2pFileTransport = (r) =>
+      r.op === "put" && r.id === differs.attachment.id ? Promise.reject(new P2pHostError(409, "chunk differs")) : a.send(r);
+    expect(await syncFiles(vault, files, send)).toEqual({ uploaded: 1, downloaded: 0, pending: 2, corrupted: [] });
+    expect(p.files!.have(good.attachment.id)).toEqual([0]);
+    expect((await files.state(good.attachment.id))!.uploadedEpoch).toBe(p.epoch);
+    expect((await files.state(mismatch.attachment.id))!.uploadedEpoch).toBeNull();
+  });
+
+  it("still throws other host errors", async () => {
+    const p = phone();
+    const f = await encryptFile(sample(20), { name: "a.txt", mime: "text/plain" });
+    const files = new MemoryLocalFileStore();
+    await storeEncryptedFile(files, f);
+    const vault = vaultWith(p.epoch, [f.attachment]);
+    const a = p.plugin("a");
+    const send: P2pFileTransport = (r) => (r.op === "put" ? Promise.reject(new P2pHostError(507, "insufficient storage")) : a.send(r));
+    await expect(syncFiles(vault, files, send)).rejects.toThrow("507");
   });
 });
 

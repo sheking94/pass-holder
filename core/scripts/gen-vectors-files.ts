@@ -77,18 +77,29 @@ const docEntry = (name: string, note: string, attachments: Attachment[], h: Hlc)
     hlc: h,
   } as EntryDataV3);
 
-async function entry(n: number, description: string, data: EntryDataV3, merge?: { winner: string; loser: string; hlc: Hlc }) {
+// Entries 1-2 use nonceOf(n); the accepted-descriptor entries use nonces with a 0xee prefix, so no nonce repeats.
+const extraNonce = (n: number) => `ee${n.toString(16).padStart(2, "0")}${"00".repeat(10)}`;
+// `rawPayload` replaces the stored text (e.g. a number written as 1.0); `payload` is then the raw text and
+// `canonicalPayload` what serializeEntryData gives for the parsed value.
+async function entry(
+  n: number, description: string, data: EntryDataV3, merge?: { winner: string; loser: string; hlc: Hlc },
+  opts: { nonce?: string; rawPayload?: string } = {},
+) {
   const id = entryId(n);
-  const payload = serializeEntryData(data);
-  if (serializeEntryData(parseEntryData(JSON.parse(payload))) !== payload) throw new Error(`parse mismatch: ${description}`);
+  const nonce = opts.nonce ?? nonceOf(n);
+  const canonical = serializeEntryData(data);
+  const payload = opts.rawPayload ?? canonical;
+  if (serializeEntryData(parseEntryData(JSON.parse(payload))) !== canonical) throw new Error(`parse mismatch: ${description}`);
+  if (JSON.stringify(parseEntryData(JSON.parse(payload))) !== JSON.stringify(data)) throw new Error(`parsed mismatch: ${description}`);
   return {
     description,
     vaultKey,
     id,
-    nonce: nonceOf(n),
+    nonce,
     payload,
+    ...(opts.rawPayload !== undefined ? { canonicalPayload: canonical } : {}),
     parsed: data,
-    blob: await seal(fromHex(vaultKey), utf8(payload), entryAadV2(id), fromHex(nonceOf(n))),
+    blob: await seal(fromHex(vaultKey), utf8(payload), entryAadV2(id), fromHex(nonce)),
     ...(merge ? { merge } : {}),
   };
 }
@@ -99,17 +110,6 @@ const winner = docEntry("Dowód osobisty", "zwycięzca", [big], hlc(179340480050
 const loser = docEntry("Dowód", "przegrany", [small, big], hlc(1793404800400, 3, "device-b"));
 const mergeHlc = hlc(1793404800600, 0, "device-c");
 const merged = canon({ ...winner, attachments: mergeAttachments(winner.attachments, loser.attachments), hlc: mergeHlc });
-
-const entries = [
-  await entry(1, "document with two attachments", docEntry("Dowód osobisty", "przód i tył", [small, big], hlc(1793404800000, 1, "device-a"))),
-  await entry(2, "entry after an attachment merge (winner's list, then the loser's missing ids)", merged, {
-    winner: serializeEntryData(winner),
-    loser: serializeEntryData(loser),
-    hlc: mergeHlc,
-  }),
-];
-
-// --- rejected descriptors (every case of test/files/attachment.test.ts) ---
 
 const INVALID_ENTRY = "Invalid entry payload";
 const KEY = toBase64(new Uint8Array(32).fill(7));
@@ -124,6 +124,26 @@ const withAtt = (attachments: unknown) => {
   const { hlc: h, ...rest } = base;
   return JSON.stringify({ ...rest, attachments, hlc: h });
 };
+const withAttData = (attachments: Attachment[]) => canon({ ...base, attachments } as EntryDataV3);
+const entries = [
+  await entry(1, "document with two attachments", docEntry("Dowód osobisty", "przód i tył", [small, big], hlc(1793404800000, 1, "device-a"))),
+  await entry(2, "entry after an attachment merge (winner's list, then the loser's missing ids)", merged, {
+    winner: serializeEntryData(winner),
+    loser: serializeEntryData(loser),
+    hlc: mergeHlc,
+  }),
+  await entry(3, "40 descriptors (MAX_ATTACHMENTS_PARSED)", withAttData(Array.from({ length: 40 }, (_, i) => att(i + 1))), undefined, { nonce: extraNonce(3) }),
+  await entry(4, "name of exactly 255 UTF-16 units containing a surrogate pair (U+1F600)", withAttData([att(1, { name: "\u{1F600}" + "a".repeat(253) })]), undefined, { nonce: extraNonce(4) }),
+  await entry(5, "empty mime and a mime of 127 characters", withAttData([att(1, { mime: "" }), att(2, { mime: "m".repeat(127) })]), undefined, { nonce: extraNonce(5) }),
+  await entry(6, "name containing U+00A0 (not a forbidden character)", withAttData([att(1, { name: "a\u00a0b.txt" })]), undefined, { nonce: extraNonce(6) }),
+  await entry(7, "size 10485760 (MAX_FILE_SIZE) with chunks 40", withAttData([att(1, { size: 10485760, chunks: 40 })]), undefined, { nonce: extraNonce(7) }),
+  await entry(8, 'size written as 1.0 in the payload text: accepted as the integer 1 (payload is the raw text, canonicalPayload the canonical form)',
+    withAttData([att(1, { size: 1, chunks: 1 })]), undefined,
+    { nonce: extraNonce(8), rawPayload: serializeEntryData(withAttData([att(1, { size: 1, chunks: 1 })])).replace('"size":1,', '"size":1.0,') }),
+];
+
+// --- rejected descriptors (every case of test/files/attachment.test.ts) ---
+
 const { key: _noKey, ...noKey } = att();
 // Same 32 bytes as KEY, but the unused low bits of the last Base64 digit are set.
 const nonCanonicalKey = KEY.slice(0, -2) + String.fromCharCode(KEY.charCodeAt(KEY.length - 2) + 1) + "=";
@@ -151,6 +171,17 @@ const rejectedCases: [string, unknown][] = [
   ["id not UUID v4", [att(1, { id: "00000000-0000-1000-8000-000000000001" })]],
   ["duplicate id", [att(1), att(1)]],
   ["41 descriptors", Array.from({ length: 41 }, (_, i) => att(i + 1))],
+  ["mime with a control character", [att(1, { mime: "text/\nplain" })]],
+  ["name with U+007F", [att(1, { name: "a\u007f" })]],
+  ["name with U+009F", [att(1, { name: "a\u009f" })]],
+  ["attachments is null", null],
+  ["attachments is an empty object", {}],
+  ["attachments is a string", "x"],
+  ["descriptor is a string", ["x"]],
+  ["descriptor is null", [null]],
+  ["descriptor is an array", [[]]],
+  ["size is a string", [att(1, { size: "10" as unknown as number })]],
+  ["chunks is a string", [att(1, { chunks: "1" as unknown as number })]],
 ];
 
 const rejected = rejectedCases.map(([description, attachments]) => {
@@ -208,12 +239,16 @@ const hostSteps = steps(new MemoryFileStore(), [
   ["put the same chunk again (no change)", put(A, 0, 2, "AAAA")],
   ["put a different blob for a stored chunk", put(A, 0, 2, "BBBB")],
   ["put with another chunk count", put(A, 1, 3, "CCCC")],
+  ["put with another chunk count and a different blob for a stored chunk: 400 takes precedence over 409", put(A, 0, 3, "ZZZZ")],
   ["put chunk 1 of 2", put(A, 1, 2, "BBBB")],
   ["status of a complete file", status([A])],
+  ["status answers a duplicate id once per occurrence", status([A, B, A])],
   ["get a stored chunk", get(A, 0)],
   ["get a chunk of an unknown file", get(B, 0)],
   ["get an index beyond the file's chunk count", get(A, 2)],
   ["status with another epoch", status([A], "other")],
+  ["malformed request with another epoch: 400 (validation before the epoch check)", { ...put(A, -1, 2, "AAAA"), epoch: "other" }],
+  ["malformed unknown op with another epoch: 400", { op: "delete", epoch: "other" }],
   ["put with another epoch (nothing stored)", put(C, 0, 1, "AAAA", "other")],
   ["get with another epoch", get(A, 0, "other")],
   ["the put with another epoch stored nothing", status([C])],
@@ -275,7 +310,14 @@ const out = {
     "id, name, mime, size, chunks, sha256, key). A merged entry is {...winner, attachments: mergeAttachments(winner, loser), hlc: merge.hlc}. " +
     "Host steps run in order against one fresh store with the given epoch and now; storage steps use a separate store of the given capacity " +
     "(sum of stored blob lengths). A step with expand has its request field replaced before sending: ids = count copies of repeat, blob = repeat " +
-    "repeated count times. Orphan: each file is one chunk stored at createdAt; expected ids are sorted (order is not significant).",
+    "repeated count times. Orphan: each file is one chunk stored at createdAt; expected ids are sorted (order is not significant). " +
+    "The host request is the decoded JSON value passed as-is (it may be null, a string or any non-object, which gives 400). Validation comes " +
+    "first (400, even with another epoch), then the epoch check (200 {epoch}), then the operation; on put, 400 chunk count mismatch is " +
+    "checked before 409 chunk differs. The main host store has unlimited capacity; only the storage steps use a limited one. status answers " +
+    "a duplicated id once per occurrence. TS JSON parsing accepts 1.0 as the number 1, so Kotlin must treat 1.0 as the integer 1 for size, " +
+    "chunks and index (entry 8 has size written as 1.0 in its raw payload; canonicalPayload is the re-serialized form). A descriptor's sha256 " +
+    "is the SHA-256 of the plaintext file (before chunking and encryption). The entry AAD is passholder/v2/entry/<id>, as in v3.json. " +
+    "Name and mime lengths count UTF-16 units; a name may contain U+00A0 but no C0 controls, U+007F-U+009F, / or \\.",
   limits: {
     MAX_FILE_SIZE,
     FILE_CHUNK_SIZE,

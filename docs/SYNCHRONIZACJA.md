@@ -231,7 +231,7 @@ operacja (host referencyjny `processP2pFile` w `core/src/files/host-files.ts`):
 | `put` | `{op, epoch, id, index, chunks, blob}` | `{have}` (liczba zapisanych kawałków) |
 | `get` | `{op, epoch, id, index}` | `{chunks, blob}` |
 
-- **Inna epoka** (każda operacja): 200 `{epoch}` z epoką telefonu, nic nie zapisane.
+- **Inna epoka** (każda operacja poprawnego żądania; zniekształcone dostaje najpierw 400): 200 `{epoch}` z epoką telefonu, nic nie zapisane.
 - **400 `malformed file request`:** zły `op`, `epoch` nie tekstem, `id` nie jest UUID v4 małymi literami,
   `put`: `0 ≤ index < chunks ≤ 40` (liczby całkowite), `blob` tekstem ≤ 349564 znaków; `get`: `0 ≤ index ≤ 39`;
   `status`: `ids` listą ≤ 500 poprawnych `id`.
@@ -379,8 +379,9 @@ druga dostaje 500. „Przerwij odtwarzanie” kasuje wszystko.
 - **Cofnięcie telefonu wykrywane częściowo** (tylko gdy `currentRevision` spadnie). Dlatego kopie zapasowe
   telefonu są wyłączone.
 - **Pliki:** do 10 MiB i 40 kawałków po 256 KiB, najwyżej 20 na wpis przy dodawaniu (40 po łączeniu).
-  Bez limitu łącznego, tylko wolne miejsce (507). Telefon nie widzi, które pliki są używane, więc plik
-  osierocony zostaje do 24 h. Eksport PassHolder JSON pomija pliki. Ekrany i magazyny plików (wtyczka, telefon)
+  Bez limitu łącznego, tylko wolne miejsce (507). Telefon nie widzi, które pliki są używane (wie to
+  dopiero przy odblokowanym sejfie), więc plik osierocony zostaje co najmniej 24 h od pierwszego kawałka, a
+  faktycznie do pierwszego sprzątania przy odblokowanym sejfie. Eksport PassHolder JSON pomija pliki. Ekrany i magazyny plików (wtyczka, telefon)
   to kroki 2–4 planu, na razie jest tylko rdzeń TS.
 - **Własne CPace i Noise** w dwóch językach: wektory testowe zmniejszają ryzyko, ale to nie audyt.
 - **ristretto255 w Kotlinie bez stałego czasu** (`BigInteger`). Akceptowane tylko dla jednorazowego CPace

@@ -593,7 +593,7 @@ describe("p2p sync: attachment merge on conflict", () => {
       expect(fileIds(v)).toEqual([uuid(1), uuid(2)]);
       expect(v.entries.get("1")).toMatchObject({ dirty: false, data: { name: "From A" } });
     }
-    expect(a.entries.get("1")!.data.hlc).not.toEqual(before);
+    expect(compareHlc(a.entries.get("1")!.data.hlc, before)).toBeGreaterThan(0);
   });
 
   it("a tombstone with a later HLC deletes the entry with its files", async () => {

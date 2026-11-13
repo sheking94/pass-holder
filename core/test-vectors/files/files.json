@@ -2,7 +2,7 @@
   "format": "passholder-test-vectors",
   "name": "files",
   "version": 1,
-  "notes": "Chunk i of n: blob = seal(fileKey, plaintext[i*CHUNK, (i+1)*CHUNK), aad = passholder/v3/file/<id>/<i>/<n>), same blob format as entries (Base64(0x01 || nonce(12) || ciphertext || tag(16)), AES-256-GCM). Keys and nonces are hex. blobSha256 is the SHA-256 (hex) of the UTF-8 bytes of each Base64 blob string, not of the decoded bytes. A file with contentRule has no content: generate size bytes with byte[i] = (i * 31 + 7) & 0xff. Entry payloads are compact JSON in canonical key order (attachments between custom and hlc, descriptor keys id, name, mime, size, chunks, sha256, key). A merged entry is {...winner, attachments: mergeAttachments(winner, loser), hlc: merge.hlc}. Host steps run in order against one fresh store with the given epoch and now; storage steps use a separate store of the given capacity (sum of stored blob lengths). A step with expand has its request field replaced before sending: ids = count copies of repeat, blob = repeat repeated count times. Orphan: each file is one chunk stored at createdAt; expected ids are sorted (order is not significant).",
+  "notes": "Chunk i of n: blob = seal(fileKey, plaintext[i*CHUNK, (i+1)*CHUNK), aad = passholder/v3/file/<id>/<i>/<n>), same blob format as entries (Base64(0x01 || nonce(12) || ciphertext || tag(16)), AES-256-GCM). Keys and nonces are hex. blobSha256 is the SHA-256 (hex) of the UTF-8 bytes of each Base64 blob string, not of the decoded bytes. A file with contentRule has no content: generate size bytes with byte[i] = (i * 31 + 7) & 0xff. Entry payloads are compact JSON in canonical key order (attachments between custom and hlc, descriptor keys id, name, mime, size, chunks, sha256, key). A merged entry is {...winner, attachments: mergeAttachments(winner, loser), hlc: merge.hlc}. Host steps run in order against one fresh store with the given epoch and now; storage steps use a separate store of the given capacity (sum of stored blob lengths). A step with expand has its request field replaced before sending: ids = count copies of repeat, blob = repeat repeated count times. Orphan: each file is one chunk stored at createdAt; expected ids are sorted (order is not significant). The host request is the decoded JSON value passed as-is (it may be null, a string or any non-object, which gives 400). Validation comes first (400, even with another epoch), then the epoch check (200 {epoch}), then the operation; on put, 400 chunk count mismatch is checked before 409 chunk differs. The main host store has unlimited capacity; only the storage steps use a limited one. status answers a duplicated id once per occurrence. TS JSON parsing accepts 1.0 as the number 1, so Kotlin must treat 1.0 as the integer 1 for size, chunks and index (entry 8 has size written as 1.0 in its raw payload; canonicalPayload is the re-serialized form). A descriptor's sha256 is the SHA-256 of the plaintext file (before chunking and encryption). The entry AAD is passholder/v2/entry/<id>, as in v3.json. Name and mime lengths count UTF-16 units; a name may contain U+00A0 but no C0 controls, U+007F-U+009F, / or \\.",
   "limits": {
     "MAX_FILE_SIZE": 10485760,
     "FILE_CHUNK_SIZE": 262144,
@@ -181,6 +181,595 @@
           "d": "device-c"
         }
       }
+    },
+    {
+      "description": "40 descriptors (MAX_ATTACHMENTS_PARSED)",
+      "vaultKey": "5f9d1c3a7b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7",
+      "id": "3f2a8c1e-6b4d-4e9a-9c7f-1a2b3c4d5f03",
+      "nonce": "ee0300000000000000000000",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000002\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000003\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000004\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000005\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000006\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000007\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000008\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000009\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000010\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000011\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000012\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000013\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000014\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000015\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000016\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000017\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000018\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000019\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000020\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000021\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000022\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000023\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000024\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000025\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000026\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000027\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000028\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000029\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000030\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000031\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000032\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000033\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000034\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000035\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000036\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000037\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000038\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000039\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000040\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"}],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "parsed": {
+        "v": 3,
+        "type": "login",
+        "name": "n",
+        "note": "",
+        "fields": {
+          "username": "",
+          "password": "",
+          "totp": "",
+          "urls": [],
+          "androidApps": []
+        },
+        "custom": [],
+        "attachments": [
+          {
+            "id": "00000000-0000-4000-8000-000000000001",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000002",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000003",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000004",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000005",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000006",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000007",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000008",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000009",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000010",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000011",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000012",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000013",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000014",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000015",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000016",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000017",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000018",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000019",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000020",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000021",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000022",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000023",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000024",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000025",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000026",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000027",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000028",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000029",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000030",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000031",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000032",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000033",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000034",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000035",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000036",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000037",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000038",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000039",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000040",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          }
+        ],
+        "hlc": {
+          "ms": 5,
+          "c": 1,
+          "d": "dev"
+        }
+      },
+      "blob": "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"
+    },
+    {
+      "description": "name of exactly 255 UTF-16 units containing a surrogate pair (U+1F600)",
+      "vaultKey": "5f9d1c3a7b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7",
+      "id": "3f2a8c1e-6b4d-4e9a-9c7f-1a2b3c4d5f04",
+      "nonce": "ee0400000000000000000000",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"name\":\"😀aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"}],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "parsed": {
+        "v": 3,
+        "type": "login",
+        "name": "n",
+        "note": "",
+        "fields": {
+          "username": "",
+          "password": "",
+          "totp": "",
+          "urls": [],
+          "androidApps": []
+        },
+        "custom": [],
+        "attachments": [
+          {
+            "id": "00000000-0000-4000-8000-000000000001",
+            "name": "😀aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          }
+        ],
+        "hlc": {
+          "ms": 5,
+          "c": 1,
+          "d": "dev"
+        }
+      },
+      "blob": "Ae4EAAAAAAAAAAAAAPxelUPlMnTLASFwCoWivB9DQ8oiT27FaVDgz5ldv1k3ZTXnk0O8ED63n+pgir6e6SFieiTiRXVYNo6BEVjUlE+vEcXrCF/H0jOVS5euRkGo3qMSL1RKDPRGW6us5qU8gFxllbBTGuLV6pwJUME6H1NfqmlCD2HA6qzTfq8RshHTZfICJttCtFD8vgpWPLQbeBAQNAhrRDbgVxctMQ5Z9aLlUqasKssjz2vp/otbanTTdkbfHJaH7YjsH7mhEG6/tcoiJ60fqQM6hmLg+L/PmMPM/79u8lYKKh0Qz2t7XVKRFAwJz/2mwc8JJJwFI5/r15+haXgsnuXWNzhAmWXch9Wkwi+h0CZwUNxsEd1wiXtA/gJ3B+0VlxegDoASWzyfqJ6fY85g9wmR4/UJFZmuGVRQCsAFFAERUEhrPHXOND2FmWKT1azapE33V87PnyngcQDbFBX9ZQ/l7xogWlZ6tKf4uNiVUqDhM7WstgcOtcl8Jg1LjEeG5cGHg87OSzU2mA3TD9Yy+GcL7fIU3bD2C3BS629vC5/SXzHVBkmUmapuAvaTmi0pvWY12jrnfygsDhuObnSk6+/y7ykC9qZIdVugKaJWLILnXHToiAHp/F+9c79hV4HhcU9hsLuTd0HIZp5MXDHd1Aw9rBjbPSXFThozflaQIRA/eKa+Ms9NMQyqCN4p68LXwBxacOvaxv5jMS+hAOgSa7+mFjey6KNRiy5DFpS3Cxq0GNQsdizGUlMrs1MVPZIuG4cZr10ZyJfBwfffpgEDKai1Q1kTI7lImBQQp+MftQjPyGcD2HSYit4nh9sQQkW4Wzt/dLKbACfp38agT/OtdG/GuziC4aEG45+zo6QdDlsWani3cD1QP6uUvwT9NvRLXBuRMJ2e43US1SSDpphr"
+    },
+    {
+      "description": "empty mime and a mime of 127 characters",
+      "vaultKey": "5f9d1c3a7b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7",
+      "id": "3f2a8c1e-6b4d-4e9a-9c7f-1a2b3c4d5f05",
+      "nonce": "ee0500000000000000000000",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"name\":\"a.txt\",\"mime\":\"\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000002\",\"name\":\"a.txt\",\"mime\":\"mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"}],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "parsed": {
+        "v": 3,
+        "type": "login",
+        "name": "n",
+        "note": "",
+        "fields": {
+          "username": "",
+          "password": "",
+          "totp": "",
+          "urls": [],
+          "androidApps": []
+        },
+        "custom": [],
+        "attachments": [
+          {
+            "id": "00000000-0000-4000-8000-000000000001",
+            "name": "a.txt",
+            "mime": "",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000002",
+            "name": "a.txt",
+            "mime": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          }
+        ],
+        "hlc": {
+          "ms": 5,
+          "c": 1,
+          "d": "dev"
+        }
+      },
+      "blob": "Ae4FAAAAAAAAAAAAADTJhOBOe+msBKyRiAmcZE+grzkpBQd8w136XiizS9eAc9CQp0UpEHS0QDxA57ZOF/RNiAmI96t37CFOGL9012zb3YbO0CTgkiVnCE+jQkwm3v65jE8hmIXDolQ9XUP63DOCnczpWqOvhvebY3J460Oq4MjH+ErmYYQHqkNeEamK7pbS1HqlhkieTxj++KiUZpLNh7pdvgODV9najz/twORUOKQ/ZHKBotS65Y15vcVJi6LNADFfvILm9SO1GeOsinjXhoeFvemd3SUoETN/8Ail1dd/XK+gacb6dvrTYKDLJPIiOBzJIBtReUwt+5DMY/koyGvnxktz7hEamYnQpFCC3KQdcx/Y0JJvRGSQ+sEZXVTjLYjT8wsYn6vLfhRLvqU5Khlj3VL3eC8EdH+t7VRYKe+R/3gT1HYDbIyQ6XWB6+FNnlDwtVEo8s4nNjiUTp598PfZnpSVTpLiPM1qM7ZGkbOQE7IMRmAeZXENmCa3VdvWx+kR00GIzTo3rkMsg1eBFmJXPyaIA3Yq5BqqT/94dynygwcqvuTksMXTTsysJ/kmDrUdJJs6E0523PT9hBD1NNE8gS9KJwfblw3f1PoPMAleB3GU5R2vy8XioJlTNG9ESKJzEWvqECmtudcCZsgihGlRso8JHyHeVZNiT6BmPNeouXSUc81wR0Q0q5IN8etJgKviJR2wl7QwFlMbl9LvGZl0eS9dB7NaBNFxeXXZ5ktmk77f2Wzd0GydyH0JOmA238nHJfaTOgdO2Aw69+STPWLhaw6JNFTEIdCH371p3LZo6gDcd6tF1UJLQ1DBrWUSzfjsFnJaSqvcd4Any8U5Qp6PWromsAaVqqRCe8oBd/0qMJwoAaqrPJ+Wl9krp4YkR485e680vl0KXpPr9Zn3sagXZ6mtyu0c3ibwUGmPY9fn9wXLFV4/Ltv2hMte/NWCd/gcDZ777DDG6eyv1g+Xaoo+nRedjyJD8XE3fh25kG+VShwqDW/HbIHMWyS2ResoxlDil552kuM="
+    },
+    {
+      "description": "name containing U+00A0 (not a forbidden character)",
+      "vaultKey": "5f9d1c3a7b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7",
+      "id": "3f2a8c1e-6b4d-4e9a-9c7f-1a2b3c4d5f06",
+      "nonce": "ee0600000000000000000000",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"name\":\"a b.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"}],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "parsed": {
+        "v": 3,
+        "type": "login",
+        "name": "n",
+        "note": "",
+        "fields": {
+          "username": "",
+          "password": "",
+          "totp": "",
+          "urls": [],
+          "androidApps": []
+        },
+        "custom": [],
+        "attachments": [
+          {
+            "id": "00000000-0000-4000-8000-000000000001",
+            "name": "a b.txt",
+            "mime": "text/plain",
+            "size": 10,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          }
+        ],
+        "hlc": {
+          "ms": 5,
+          "c": 1,
+          "d": "dev"
+        }
+      },
+      "blob": "Ae4GAAAAAAAAAAAAAGhZGtJc9Em0upBlPtYXnc3ZrrhGmQ+QXfd4MSxkF9aKvjm6ntjN71sy/ObomDaez+2Z8trz241gyUjTD+pGSiBTxAWYzJzagAwSpBn140NqRA5DmScC5ARAdFh3MTcFETjt9bE+SXHS3hxb4QtSE+DfNd6SCXvz/7kfHwCKcOG7/+ESKxLZvQq8KZU/2CXk4G/YEEPvCeG9ESmrRsRGKurfj/TCWUvlwNzkNpEBYiOrKgLbV6aD549q5d9AvydjvQxaqY0HCnu5FjYQ8DUsjj2JIJo3WghAuWKGJeeq/Z4TClzOZMvEb3rvbGHWbR639ZT1giQygNQn/tvUcR24iGfd18jjV6RHt/ntCRPwanMdsctGPBTnWcd1uTKNvqV6/uJIP6hbx4noRmRutSI+YkFazTBabT+MmhVtth2eQ/rsKonQIYO5uNBsfEXINTG3cuXfM/slI+kVCaqwSrSqw/nXzhp7FnboXxhwmCG4K4ICIh7dLlD3dvjuGeW3NfUuYWq7w9sN9638vPk+7rV+Z+lUHkyzhu+D9fy3b6QAWWINMK2f2+bmCmCKSCrI"
+    },
+    {
+      "description": "size 10485760 (MAX_FILE_SIZE) with chunks 40",
+      "vaultKey": "5f9d1c3a7b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7",
+      "id": "3f2a8c1e-6b4d-4e9a-9c7f-1a2b3c4d5f07",
+      "nonce": "ee0700000000000000000000",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10485760,\"chunks\":40,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"}],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "parsed": {
+        "v": 3,
+        "type": "login",
+        "name": "n",
+        "note": "",
+        "fields": {
+          "username": "",
+          "password": "",
+          "totp": "",
+          "urls": [],
+          "androidApps": []
+        },
+        "custom": [],
+        "attachments": [
+          {
+            "id": "00000000-0000-4000-8000-000000000001",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 10485760,
+            "chunks": 40,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          }
+        ],
+        "hlc": {
+          "ms": 5,
+          "c": 1,
+          "d": "dev"
+        }
+      },
+      "blob": "Ae4HAAAAAAAAAAAAAIsiryvO/LMnquY1bIUMZRUtl5jH9dGtFOXD+0j4n5TuSELclYedcIpfmJqaokQp/NWTku6i1Xt4k1v4Ii447xgBEp23LWmN25o4PHc/xZIzwv69+lATw74jBoYw3k7sCZgoYjlj9OoHS0GqQBftURIfJGzvrcgtGVK/G7t0uZqc14yCeb6IgsBf45BLDUwquhG+lfFcv7i4JHgJNl3zvzmV8O/elXCTZunM02DMue4nDz90ZPGqyQCrNVgCbNlxnAYfC4dgnkavSBYPynAAZhhH8X7gPfn7mw6Qegf6ebAtUXAurf0DO1P5llh8Ij3vPIBpVKbuBtYoareV41dD8YazR05bNeGTRjbYe2yfz+YdxlO8seDitm9PZzCQTYeknNF+0T8eh69VqIznbdgDsB6phWSEI7Y2tkN6vDSkbl7utkHaz8qWLoYUxK4sa9w7u7fq2GlBfl36ZF1mgnc1hQhrFLTYQq38Keo1gQLXDXtrSSzW7xRi0jKVdesvdeN9OfGcrKESpSMiMUJpadKvQ4YQT+b9ofcB1s8E7W3sdEMPoEnq0VCvwNX2Suv9Z9k4pw=="
+    },
+    {
+      "description": "size written as 1.0 in the payload text: accepted as the integer 1 (payload is the raw text, canonicalPayload the canonical form)",
+      "vaultKey": "5f9d1c3a7b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7",
+      "id": "3f2a8c1e-6b4d-4e9a-9c7f-1a2b3c4d5f08",
+      "nonce": "ee0800000000000000000000",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":1.0,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"}],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "canonicalPayload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":1,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"}],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "parsed": {
+        "v": 3,
+        "type": "login",
+        "name": "n",
+        "note": "",
+        "fields": {
+          "username": "",
+          "password": "",
+          "totp": "",
+          "urls": [],
+          "androidApps": []
+        },
+        "custom": [],
+        "attachments": [
+          {
+            "id": "00000000-0000-4000-8000-000000000001",
+            "name": "a.txt",
+            "mime": "text/plain",
+            "size": 1,
+            "chunks": 1,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
+          }
+        ],
+        "hlc": {
+          "ms": 5,
+          "c": 1,
+          "d": "dev"
+        }
+      },
+      "blob": "Ae4IAAAAAAAAAAAAAN0HF/DhUT3r0GSYGSTM/jA/NmrxKXAgAo4HsYRtPaRYHVz1wd0dbKeXsYC+tL7ysliwxNttD0EOSCvEMLRay/GWKx5Way14wEJGu3Iv1USCH9b09zHw4XOpJshvNrRyXp9tl+cV223mWVaNEqnuYJnvckJ6EEZBPtOTz1uTgmfx9EU7HSnGa7G7UkGRztDwtCVbBTd6/P3RfIYK5PmbinkOM/RZrMnuWmzRiJpKwMaZPKVtITqogySbE0VBnJ7wzLavVj1q9FSdI8XEV6FS/2dpCzEfReH9om/bQ6w+FZ/tHJd06hAgCVab2axzClRxU9+O4BihJ4OplswZCYM7Uc349nWxcl9ynJQzJyDOBc+awV+Sb4KLS6hJ/FjKQLEukhCDpHrXkeQay6tlQFlQnKmKZ8mfRJPlojCbCgDr3wygtsPgoSBce4YfL78w1NKop6eqa4yBV7zcGbK5MKREKX3CdcUX+6Gbmm+rt6dalsMqKnVhOVTwSk/wPTSwRJVCZkSpG73vGv2EDN6HeqDDhsxbUr5d+2ITgBq8R8HpweIW1G/xXml+SC0NzQ=="
     }
   ],
   "rejected": [
@@ -292,6 +881,61 @@
     {
       "description": "41 descriptors",
       "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000002\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000003\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000004\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000005\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000006\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000007\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000008\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000009\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000010\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000011\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000012\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000013\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000014\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000015\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000016\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000017\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000018\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000019\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000020\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000021\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000022\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000023\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000024\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000025\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000026\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000027\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000028\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000029\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000030\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000031\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000032\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000033\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000034\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000035\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000036\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000037\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000038\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000039\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000040\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"},{\"id\":\"00000000-0000-4000-8000-000000000041\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"}],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "mime with a control character",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"name\":\"a.txt\",\"mime\":\"text/\\nplain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"}],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "name with U+007F",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"name\":\"a\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"}],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "name with U+009F",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"name\":\"a\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"}],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "attachments is null",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":null,\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "attachments is an empty object",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":{},\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "attachments is a string",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":\"x\",\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "descriptor is a string",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[\"x\"],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "descriptor is null",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[null],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "descriptor is an array",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[[]],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "size is a string",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":\"10\",\"chunks\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"}],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
+      "error": "Invalid entry payload"
+    },
+    {
+      "description": "chunks is a string",
+      "payload": "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\",\"urls\":[],\"androidApps\":[]},\"custom\":[],\"attachments\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"name\":\"a.txt\",\"mime\":\"text/plain\",\"size\":10,\"chunks\":\"1\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"}],\"hlc\":{\"ms\":5,\"c\":1,\"d\":\"dev\"}}",
       "error": "Invalid entry payload"
     }
   ],
@@ -572,6 +1216,21 @@
         }
       },
       {
+        "description": "put with another chunk count and a different blob for a stored chunk: 400 takes precedence over 409",
+        "request": {
+          "op": "put",
+          "epoch": "epoch-1",
+          "id": "123e4567-e89b-42d3-a456-426614174000",
+          "index": 0,
+          "chunks": 3,
+          "blob": "ZZZZ"
+        },
+        "status": 400,
+        "body": {
+          "error": "chunk count mismatch"
+        }
+      },
+      {
         "description": "put chunk 1 of 2",
         "request": {
           "op": "put",
@@ -598,6 +1257,47 @@
         "status": 200,
         "body": {
           "files": [
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            }
+          ]
+        }
+      },
+      {
+        "description": "status answers a duplicate id once per occurrence",
+        "request": {
+          "op": "status",
+          "epoch": "epoch-1",
+          "ids": [
+            "123e4567-e89b-42d3-a456-426614174000",
+            "223e4567-e89b-42d3-a456-426614174000",
+            "123e4567-e89b-42d3-a456-426614174000"
+          ]
+        },
+        "status": 200,
+        "body": {
+          "files": [
+            {
+              "id": "123e4567-e89b-42d3-a456-426614174000",
+              "chunks": 2,
+              "have": [
+                0,
+                1
+              ],
+              "complete": true
+            },
+            {
+              "id": "223e4567-e89b-42d3-a456-426614174000",
+              "chunks": 0,
+              "have": [],
+              "complete": false
+            },
             {
               "id": "123e4567-e89b-42d3-a456-426614174000",
               "chunks": 2,
@@ -662,6 +1362,32 @@
         "status": 200,
         "body": {
           "epoch": "epoch-1"
+        }
+      },
+      {
+        "description": "malformed request with another epoch: 400 (validation before the epoch check)",
+        "request": {
+          "op": "put",
+          "epoch": "other",
+          "id": "123e4567-e89b-42d3-a456-426614174000",
+          "index": -1,
+          "chunks": 2,
+          "blob": "AAAA"
+        },
+        "status": 400,
+        "body": {
+          "error": "malformed file request"
+        }
+      },
+      {
+        "description": "malformed unknown op with another epoch: 400",
+        "request": {
+          "op": "delete",
+          "epoch": "other"
+        },
+        "status": 400,
+        "body": {
+          "error": "malformed file request"
         }
       },
       {

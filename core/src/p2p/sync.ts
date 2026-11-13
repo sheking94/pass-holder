@@ -165,7 +165,8 @@ function addAddresses(vault: LocalVaultV2, addresses: string[]): void {
 
 /**
  * Applies the phone's answer (same epoch). Conflicts are resolved by HLC: a dirty local change wins only when
- * its HLC is greater. Returns true when a local change won a conflict and must be pushed again.
+ * its HLC is greater. Returns true when something local must be pushed again: a local change won a conflict, or
+ * the attachment lists were merged and the merged entry was saved as a new local change (even if the remote won).
  */
 async function applyResponse(
   vault: LocalVaultV2,
@@ -225,17 +226,19 @@ function mergeEntryAttachments(winner: EntryDataV3, loser: EntryDataV3, clock: H
   const merged = mergeAttachments(winner.attachments, loser.attachments);
   // The merge only appends, so an unchanged length means an unchanged id sequence.
   if (merged.length === (winner.attachments?.length ?? 0) || merged.length > MAX_ATTACHMENTS_PARSED) return undefined;
-  // Measured with the real HLC; a tick spent on a rejected merge only moves the clock forward.
-  const data: EntryDataV3 = { ...winner, attachments: merged, hlc: clock.tick() };
-  return entryBlobLength(data) > MAX_ENTRY_BLOB_LENGTH ? undefined : data;
+  // Measure with a throwaway tick; the real clock moves only when the merge is accepted.
+  const probe: EntryDataV3 = { ...winner, attachments: merged, hlc: clock.clone().tick() };
+  if (entryBlobLength(probe) > MAX_ENTRY_BLOB_LENGTH) return undefined;
+  return { ...probe, hlc: clock.tick() };
 }
 
 export type P2pTransport = (request: P2pSyncRequest) => Promise<P2pSyncResponse>;
 
 /**
- * Full sync with the phone: push local changes, pull remote ones, repeat while local changes win conflicts.
+ * Full sync with the phone: push local changes, pull remote ones, repeat while something local must be pushed
+ * again (a local change won a conflict, or merged attachment lists were saved as a new local change).
  * Changes go out at most MAX_CHANGES_PER_REQUEST (and MAX_BLOB_BYTES_PER_ROUND blob characters) per request and
- * come back in pages (`more`); those extra rounds, including rounds where local changes won conflicts but the
+ * come back in pages (`more`); those extra rounds, including rounds that need a resync but the
  * answer was cut, do not use the maxRounds conflict budget, but all rounds together are capped at MAX_SYNC_ROUNDS.
  * An epoch change (including learning the first epoch) restarts the loop with a fresh round budget, once.
  * A phone whose revision went backwards within the same epoch is treated the same way.
@@ -262,10 +265,10 @@ export async function syncVaultV2(
       resyncs = 0;
       continue;
     }
-    const localWon = await applyResponse(vault, clock, response, sent, vaultKey);
+    const needsResync = await applyResponse(vault, clock, response, sent, vaultKey);
     // A round whose answer was cut (more) resolves at least one record, so it is paging, not a conflict ping-pong.
-    if (localWon && !response.more && ++resyncs >= maxRounds) throw new Error("Sync did not settle, try again");
-    if (!localWon && !capped && !response.more) return;
+    if (needsResync && !response.more && ++resyncs >= maxRounds) throw new Error("Sync did not settle, try again");
+    if (!needsResync && !capped && !response.more) return;
   }
   throw new Error("Sync exceeded the round limit");
 }

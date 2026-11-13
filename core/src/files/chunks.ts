@@ -21,7 +21,11 @@ export async function sha256Hex(bytes: Uint8Array): Promise<string> {
   return toHex(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes as BufferSource)));
 }
 
-/** `fixed` (id, key, one nonce per chunk) exists only for test vectors; normally everything is random. */
+/**
+ * `fixed` (id, key, one nonce per chunk) exists ONLY for test vectors; normally everything is random.
+ * WARNING: never pass it in production code. Reusing a nonce with the same key breaks AES-GCM
+ * (confidentiality and authenticity are lost).
+ */
 export async function encryptFile(
   bytes: Uint8Array,
   meta: { name: string; mime: string },
