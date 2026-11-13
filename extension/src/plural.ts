@@ -10,3 +10,8 @@ export function plural(n: number, one: string, few: string, many: string): strin
 export function entriesNoun(n: number): string {
   return `${n} ${plural(n, "wpis", "wpisy", "wpisów")}`;
 }
+
+/** "1 plik", "3 pliki", "5 plików". */
+export function filesNoun(n: number): string {
+  return `${n} ${plural(n, "plik", "pliki", "plików")}`;
+}

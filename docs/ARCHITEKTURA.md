@@ -60,7 +60,13 @@ Budowanie: `extension/build.mjs` (esbuild) kopiuje `static/` i skleja sześć pu
 
 `popup.html` działa w okienku przy ikonie i w zwykłej karcie. Okienko zamyka się, gdy traci fokus (okno zgody
 Chrome, wybór pliku), dlatego parowanie, adresy i import/eksport pokazują się w karcie. Tryb strony odczytuje
-`page-mode.ts` z adresu: `popup`, `tab`, `setup`, `addresses`, `transfer`.
+`page-mode.ts` z adresu: `popup`, `tab`, `setup`, `addresses`, `transfer`, `edit` (`?edit&type=&id=`, formularz wpisu w karcie, bo wybór pliku zamyka okienko).
+
+**Pliki w sejfie.** Zaszyfrowane kawałki plików leżą w IndexedDB `passholder-files` (magazyny `files` i `chunks`;
+`src/files/idb-file-store.ts`), wspólnej dla wszystkich stron wtyczki, a nie w `chrome.storage` (limity rozmiaru).
+Manifest ma uprawnienie `unlimitedStorage`, bo sejf może mieć setki MB plików. Magazyn jest za interfejsem
+`LocalFileStore` z rdzenia; `VaultStore` dostaje go w konstruktorze (w testach `MemoryLocalFileStore`, IndexedDB testowany
+osobno przez `fake-indexeddb`). Treść jawna nigdy nie jest zapisywana: odszyfrowanie dopiero w „Pobierz”.
 
 | Plik | Co robi |
 |---|---|
@@ -72,7 +78,7 @@ Chrome, wybór pliku), dlatego parowanie, adresy i import/eksport pokazują się
 | `src/phone-urls.ts` | adresy telefonu: `normalizePhoneUrl` (tylko IPv4), `learnedPhoneUrls`, `pickPhone` (wybór działającego adresu, ping 4 s) |
 | `src/auto-lock.ts` | blokada po 15 minutach: `watchIdle` na stronie i alarm w service workerze |
 | `src/pin-lock.ts`, `src/pin-store.ts` | PIN: kryptografia (`createPinLock`, `openPinLock`) i przechowywanie z licznikiem prób |
-| `src/import-summary.ts`, `src/plural.ts` | polskie podsumowanie importu (dodano, duplikaty, pominięte) i odmiana „wpis/wpisy/wpisów” |
+| `src/import-summary.ts`, `src/plural.ts` | polskie podsumowanie importu (dodano, duplikaty, pominięte) i odmiana „wpis/wpisy/wpisów” oraz „plik/pliki/plików” (`filesNoun`) |
 | `src/clipboard.ts`, `src/background.ts`, `src/offscreen.ts` | czyszczenie schowka po minucie (alarm + dokument offscreen); `background.ts` obsługuje też autouzupełnianie (komunikat `fill`, polecenie `fill-login`) |
 | `src/autofill/fill-tab.ts` | `fillTab` (sprawdza sejf, wpis, adres karty, https, `matchLogins`; wstrzykuje skrypt), `onFillCommand` (skrót), `chromeTabApi` (`tabs.get`, `scripting.executeScript`, przypięty origin) |
 | `src/autofill/fill-page.ts`, `src/autofill-content.ts` | `fillPage` w stronie: pola, widoczność, ramki tego samego origin, wpisanie wartości; `autofill-content.ts` wystawia `globalThis.passholderFill` |
@@ -88,6 +94,8 @@ Chrome, wybór pliku), dlatego parowanie, adresy i import/eksport pokazują się
 | `src/ui/list-editor.ts` | `listEditor`: lista z „+ Dodaj” i „Usuń” (adresy, aplikacje, telefony, własne pola) |
 | `src/ui/page.ts` | `MODE`, `IN_TAB`, `showInTab(tryb, widok)`, `openInTabButton` |
 | `src/ui/phone-url-fields.ts` | pola adresów telefonu (`phoneUrlFields`), wzorzec zgody, prośby o zgodę Chrome |
+| `src/files/idb-file-store.ts`, `src/files/format-size.ts` | `IdbFileStore` (IndexedDB `passholder-files`: opisy plików i kawałki, zapis kawałek po kawałku, `uploadedEpoch`); `formatSize` („N KB”, „4,6 MB”) |
+| `src/views/forms/attachments.ts`, `src/ui/download.ts` | sekcja „Pliki” formularza (dodawanie, limity, ostrzeżenia, pobieranie) i zapis pliku przez `Blob` |
 | `src/ui/state.ts` | jeden `VaultStore` strony, wspólny dla widoków |
 | `src/views/*.ts` | ekrany: `connect` (parowanie), `locked`, `list` (zakładki typów), `edit` (formularz wpisu), `addresses`, `pin-settings`, `transfer` |
 | `src/views/forms/*.ts` | części formularza: `login` (z `generator`), `contact`, `card`, `document`, `note`, `custom-fields` (własne pola) |
@@ -255,6 +263,8 @@ Wtyczka: [Synchronizuj]
       odszyfruj i sprawdź rekordy (parseEntryData: v3 albo v2 jako login), konflikty po HLC,
       zapisz sejf, dopisz nowe adresy
       more albo lokalny wpis wygrał → kolejna runda
+      potem faza plików: syncFiles (POST /p2p/v2/file: status, put, get) z IndexedDB, uszkodzone pomijane,
+      błąd tej fazy nie cofa wpisów; na końcu sprzątanie nieużywanych plików
 ```
 
 ## Przepływ v2 → v3 (format wpisu)

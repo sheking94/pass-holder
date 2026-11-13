@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { entriesNoun, plural } from "../src/plural.ts";
+import { entriesNoun, filesNoun, plural } from "../src/plural.ts";
 
 describe("plural", () => {
   const w = (n: number) => plural(n, "wpis", "wpisy", "wpisów");
@@ -10,5 +10,8 @@ describe("plural", () => {
   });
   it("entriesNoun", () => {
     expect(entriesNoun(3)).toBe("3 wpisy");
+  });
+  it("filesNoun", () => {
+    expect([1, 3, 5].map(filesNoun)).toEqual(["1 plik", "3 pliki", "5 plików"]);
   });
 });
