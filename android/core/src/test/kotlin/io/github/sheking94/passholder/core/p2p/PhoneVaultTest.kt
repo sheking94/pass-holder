@@ -375,4 +375,18 @@ class PhoneVaultTest {
         v.upsertContent("z", content("Z"))
         assertEquals(1L, store.get("z")!!.revision)
     }
+
+    @Test
+    fun editsKeepAttachments() {
+        val att = io.github.sheking94.passholder.core.files.Attachment(
+            "00000000-0000-4000-8000-000000000001", "a.txt", "text/plain", 10, 1,
+            "a".repeat(64), "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=",
+        )
+        val v = vault()
+        v.upsertContent("a", EntryContentV3("A", "", LoginFields("u", "p"), emptyList(), listOf(att)))
+        v.upsert("a", cred("B"))
+        assertEquals(listOf(att), readEntry("a").content.attachments)
+        v.upsertContent("a", readEntry("a").content.copy(name = "x"))
+        assertEquals(listOf(att), readEntry("a").content.attachments)
+    }
 }
