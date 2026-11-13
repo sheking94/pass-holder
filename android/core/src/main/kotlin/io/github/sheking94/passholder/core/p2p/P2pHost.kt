@@ -1,6 +1,8 @@
 package io.github.sheking94.passholder.core.p2p
 
 import io.github.sheking94.passholder.core.Encoding
+import io.github.sheking94.passholder.core.files.FileHost
+import io.github.sheking94.passholder.core.files.FileStore
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -23,7 +25,8 @@ private class Session(
 )
 
 /**
- * Phone side of P2P sync (port of host.ts): Noise KK handshake, then exactly one encrypted sync request per session.
+ * Phone side of P2P sync (port of host.ts): Noise KK handshake, then exactly one encrypted request per session,
+ * either a sync (`/p2p/v2/sync`) or a file request (`/p2p/v2/file`, only with [files]).
  * handle() may be called from many threads; each session's ciphers serve one request only.
  */
 class P2pHost(
@@ -37,6 +40,8 @@ class P2pHost(
     private val onSynced: (deviceId: String) -> Unit = {},
     /** Gets the cause of every 500 answer and of a failed [onSynced]; e.g. to log it. */
     private val onError: (Throwable) -> Unit = {},
+    /** Encrypted file chunks; without it `/p2p/v2/file` answers 404 like an unknown path. */
+    private val files: FileStore? = null,
 ) {
     companion object {
         const val MAX_BODY_BYTES = 1024 * 1024
@@ -57,6 +62,7 @@ class P2pHost(
         return when (path) {
             "/p2p/v2/handshake" -> handshake(body)
             "/p2p/v2/sync" -> sync(body)
+            "/p2p/v2/file" -> if (files != null) file(files, body) else fail(404, "not found")
             // The v1 sync protocol is gone; tell old clients to update instead of pretending the path is unknown.
             "/p2p/v1/handshake", "/p2p/v1/sync" -> fail(410, "update required")
             else -> fail(404, "not found")
@@ -121,7 +127,11 @@ class P2pHost(
         )
     }
 
-    private fun sync(body: ByteArray): HostReply {
+    /**
+     * The steps shared by sync and file requests: body, one-time session, device still paired, decrypting the frames.
+     * Then [process] gets the session and the decrypted request.
+     */
+    private fun withSession(body: ByteArray, process: (Session, JsonElement) -> HostReply): HostReply {
         val obj = parseObject(body) ?: return fail(400, "malformed request")
         val sessionId = obj["session"].text()
         val frameArray = obj["frames"] as? JsonArray
@@ -144,14 +154,23 @@ class P2pHost(
         } catch (_: IllegalArgumentException) {
             return fail(400, "cannot decrypt request")
         }
-        synchronized(store) { HostSync.validate(store, epoch, request) }?.let { return fail(400, it) }
+        return process(session, request)
+    }
+
+    /** A 200 answer: [json] encrypted in frames with the session's send cipher. */
+    private fun encrypted(session: Session, json: String): HostReply {
+        val encrypted = Frames.encrypt(session.send, json)
+        return HostReply(200, buildJsonObject { put("frames", JsonArray(encrypted.map { JsonPrimitive(it) })) }.toString())
+    }
+
+    private fun sync(body: ByteArray): HostReply = withSession(body) { session, request ->
+        synchronized(store) { HostSync.validate(store, epoch, request) }?.let { return@withSession fail(400, it) }
         val reply = try {
             val response = HostSync.process(store, epoch, addresses(), request)
-            val encrypted = Frames.encrypt(session.send, P2pJson.json.encodeToString(P2pSyncResponse.serializer(), response))
-            HostReply(200, buildJsonObject { put("frames", JsonArray(encrypted.map { JsonPrimitive(it) })) }.toString())
+            encrypted(session, P2pJson.json.encodeToString(P2pSyncResponse.serializer(), response))
         } catch (e: Exception) {
             reportError(onError, e)
-            return fail(500, "internal error")
+            return@withSession fail(500, "internal error")
         }
         try {
             onSynced(session.deviceId)
@@ -159,6 +178,17 @@ class P2pHost(
             // Only bookkeeping (last sync time); the changes are already stored.
             reportError(onError, e)
         }
-        return reply
+        reply
+    }
+
+    /** A 200 file answer goes out encrypted, any other status in plaintext (like host.ts). */
+    private fun file(files: FileStore, body: ByteArray): HostReply = withSession(body) { session, request ->
+        try {
+            val reply = FileHost.process(files, epoch, request, now())
+            if (reply.status == 200) encrypted(session, reply.body.toString()) else HostReply(reply.status, reply.body.toString())
+        } catch (e: Exception) {
+            reportError(onError, e)
+            fail(500, "internal error")
+        }
     }
 }
