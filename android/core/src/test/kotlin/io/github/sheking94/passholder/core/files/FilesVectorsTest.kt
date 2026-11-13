@@ -11,6 +11,7 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.DynamicTest
@@ -86,6 +87,30 @@ class FilesVectorsTest {
         DynamicTest.dynamicTest("merge: ${m.str("description")}") {
             fun list(k: String) = (m.jsonObject[k] as? JsonArray)?.map(::attachmentOf) ?: emptyList() // missing list counts as empty
             assertEquals(list("expected"), Attachments.merge(list("winner"), list("loser")))
+        }
+    }
+
+    @TestFactory
+    fun files() = FilesVectors.section("files").map { f ->
+        DynamicTest.dynamicTest("file: ${f.str("description")}") {
+            val size = f.int("size").toInt()
+            val bytes = f.jsonObject["content"]?.let { Encoding.fromHex(it.jsonPrimitive.content) }
+                ?: ByteArray(size) { i -> ((i * 31 + 7) and 0xff).toByte() }
+            val nonces = f.jsonObject.getValue("nonces").jsonArray.map { Encoding.fromHex(it.jsonPrimitive.content) }
+            val a = attachmentOf(f.jsonObject.getValue("attachment"))
+            val enc = FileChunks.encryptFixed(
+                bytes, f.str("name"), f.str("mime"), f.str("id"), Encoding.fromHex(f.str("key")), nonces,
+            )
+            assertEquals(a, enc.attachment)
+            val aads = f.jsonObject.getValue("aads").jsonArray.map { it.jsonPrimitive.content }
+            assertEquals(aads, enc.blobs.indices.map { FileChunks.aad(a.id, it, a.chunks) })
+            val hashes = f.jsonObject.getValue("blobSha256").jsonArray.map { it.jsonPrimitive.content }
+            assertEquals(hashes, enc.blobs.map { FileChunks.sha256Hex(it.toByteArray(Charsets.UTF_8)) })
+            assertEquals(f.str("lastBlob"), enc.blobs.last())
+            f.jsonObject["blobs"]?.let { b ->
+                assertEquals(b.jsonArray.map { it.jsonPrimitive.content }, enc.blobs)
+            }
+            assertArrayEquals(bytes, FileChunks.decrypt(a, enc.blobs))
         }
     }
 }
