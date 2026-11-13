@@ -54,8 +54,8 @@ katalogu pakietu.
 |---|---|---|---|
 | `core` | 34 | 603 | w tym `core/test/p2p/`, `core/test/files/`, `core/test/autofill/` i `core/test/save/` |
 | `extension` | 33 | 361 | w tym widoki w happy-dom (`extension/test/ui/`), `extension/test/autofill/` i `extension/test/save/`; `background.ts` bez testów (logika w `fill-tab.ts` i `save/candidates.ts`) |
-| `android/core` | 46 | 728 | 5 pomijane bez `PASSHOLDER_INTEROP_TEST=1`; w tym `autofill/` (wektory `core/test-vectors/autofill/`) i `save/` (wektory `core/test-vectors/save/`) |
-| `android/app` | 32 | 162 | Robolectric, zrzuty ekranów; w tym `autofill/`, ekrany autouzupełniania i zapis po odblokowaniu |
+| `android/core` | 47 | 732 | 5 pomijane bez `PASSHOLDER_INTEROP_TEST=1`; w tym `autofill/` (wektory `core/test-vectors/autofill/`) i `save/` (wektory `core/test-vectors/save/`) |
+| `android/app` | 36 | 190 | Robolectric, zrzuty ekranów; w tym `autofill/`, ekrany autouzupełniania, zapis po odblokowaniu i załączniki (16 klas, po jednym teście) |
 
 ## Co testują pliki
 
@@ -168,6 +168,7 @@ Playwright z Chromium nie jest zależnością repozytorium: w kontenerze w chmur
 | `CommonTest`, `CsvTest`, `JsonTextTest`, `SortVectorTest`, `PassHolderJsonTest`, `BitwardenJsonTest`, `NordPassCsvTest`, `TransferTest` | pakiet `transfer`: wektory z `core/test-vectors/transfer/`, przypadki z testów TS, kolejność sortowania, brzegi JSON/CSV |
 | `FileSyncStoreTest`, `PhoneVaultTest`, `PhoneVaultStoreTest` (dodatki) | `putAll` (jeden dopis, obcięty fragment), `importContents` (duplikaty, za duży wpis, rewizje, HLC), atomowość |
 | `ImportSummaryTest`, `TransferFilesTest`, `TransferScreenTest`, `FilePickerLockTest` (app) | podsumowanie, limit 10 MiB i UTF-8, ekran importu i eksportu (zgoda, ponowny import), okno wyboru pliku 60 s |
+| `AttachmentFilesTest`, `FileSizeTest`, `AttachmentsScreenTest`, `AttachmentsListExportScreenTest` (app); `PhoneVaultStoreTest` (`discardFiles`) | wybór i zapis pliku (limity, kolejność sprawdzeń, nazwa `plik`, błędy dostawcy, `CreateDocumentOf`), `formatSize`, `skippedFilesPhrase`; ekran: dodanie, Anuluj/Wstecz/Usuń wpis kasują plik, ten sam plik dwa razy, limity, zablokowany sejf, „Pobierz” (ostrzeżenie, bajty), „czeka na synchronizację”, „Plik jest uszkodzony”, zmiana nazwy/hasła zachowuje pliki; „📎 N” na liście i dopisek o eksporcie (tylko gdy są pliki); `discardFiles` pomija plik używany przez wpis |
 | `BackupRulesTest`, `ClearClipboardWorkerTest` (app) | brak kopii zapasowych, czyszczenie schowka |
 | `autofill/FieldsVectorsTest`, `ValuesVectorsTest`, `MatchVectorsTest` | port autouzupełniania: te same wektory `{fields,values,match}.json` co TypeScript, `app.json` (`matchApp`: pakiet, zaufana przeglądarka, WebView obcej aplikacji z domeną banku) |
 | `autofill/PlannerTest` | grupa formularza, samo pole e-mail → loginy, rejestracja → nic, pomijanie wpisów bez wartości, karta tylko na `https`, indeks opcji listy, limit 10, opisy |
@@ -179,7 +180,7 @@ Playwright z Chromium nie jest zależnością repozytorium: w kontenerze w chmur
 
 Zrzuty ekranów telefonu (`android/app/screenshots/`, przepisywane przy każdym przebiegu testów): 30 Ustawienia,
 31-35 zakładki (Loginy, Karty, Kontakty, Notatki, Dokumenty), 36 formularz loginu, 37 pole ukryte pokazane,
-38-41 formularze notatki, kontaktu, karty i dokumentu, 42 wybór aplikacji, 50 Import i eksport (`50-import-eksport.png`), 51 odblokowanie z autouzupełniania,
+38-41 formularze notatki, kontaktu, karty i dokumentu, 42 wybór aplikacji, 43 sekcja „Załączniki” w formularzu (`43-zalaczniki.png`), 44 ostrzeżenie przed „Pobierz” (`44-pobierz-ostrzezenie.png`), 50 Import i eksport (`50-import-eksport.png`), 51 odblokowanie z autouzupełniania,
 52 wiersz „Autouzupełnianie” w Ustawieniach, 62 przełącznik „Pytaj o zapis haseł” (`62-ustawienia-zapis.png`), 63 podgląd zapisu (`63-podglad-zapisu.png`). Zmieniły się też 03-08, 12-14, 18, 19 i 28.
 
 ## Znaleziony błąd: walidacja KDF
@@ -354,22 +355,27 @@ na następnym: wpis ma pusty login, który można uzupełnić w podglądzie (od 
 aplikacji (np. po powrocie do niej) lista pokazuje nowy wpis albo nowe hasło. Zapisz wynik, model telefonu, wersję
 Androida i Chrome.
 
-**T22. Pliki w sejfie, część wtyczkowa (część telefonu po kroku 4; dziś telefon ma tylko host plików).** Wtyczka
-sparowana z telefonem w trybie „Synchronizacja”, sejf z kilkoma wpisami. (1) Otwórz wpis w karcie → „+ Dodaj plik” →
-zdjęcie ok. 5 MB → wiersz z nazwą i „4,8 MB” → „Zapisz”; lista pokazuje „📎 1”. (2) W okienku „+ Dodaj plik”
-pokazuje ostrzeżenie „Formularz otworzy się w karcie…”; „Otwórz w karcie” otwiera ten sam wpis. (3) „Synchronizuj”:
-„Pliki: 0 z 1”, „Pliki: 1 z 1”, potem „wysłano 1”. (4) Druga przeglądarka (albo telefon po kroku 4) sparowana z tym sejfem →
-„Synchronizuj”: „pobrano 1”; „Pobierz” pokazuje ostrzeżenie, a po nim zapisuje plik o tej samej treści (porównaj sumę
-kontrolną). (5) Usuń załącznik („Usuń”, „Zapisz”) → „Synchronizuj” na obu: znika z wpisu; na telefonie plik
-znika najpóźniej po 24 h. (6) Przerwanie: zamknij kartę w trakcie „Pliki: …” przy kilku dużych plikach, otwórz
-ponownie → „Synchronizuj” dokańcza. (7) Eksport: **Plik** → ekran eksportu mówi „N plików nie zostanie
-wyeksportowanych…”, a plik PassHolder JSON nie ma `attachments`. Zapisz wynik i wersję Chrome.
+**T22. Pliki w sejfie (wtyczka i telefon).** Wtyczka sparowana z telefonem w trybie „Synchronizacja”, sejf z kilkoma
+wpisami. (1) Na telefonie: wpis → „+ Dodaj plik” → zdjęcie ok. 5 MB → wiersz „4,8 MB”, „nowy – zapisz wpis” → „Zapisz”;
+lista pokazuje „📎 1”. „Anuluj” po dodaniu drugiego pliku nie zostawia go (po ponownym otwarciu wpisu go nie ma).
+(2) Wtyczka, wpis w karcie → „+ Dodaj plik” → zdjęcie ok. 5 MB → „Zapisz”; lista pokazuje „📎 1”. W okienku „+ Dodaj
+plik” pokazuje ostrzeżenie „Formularz otworzy się w karcie…”; „Otwórz w karcie” otwiera ten sam wpis.
+(3) „Synchronizuj” we wtyczce: „Pliki: 0 z 1”, „Pliki: 1 z 1”, potem „wysłano 1”. Na telefonie (po zakończonej synchronizacji)
+„Pobierz” przy pliku z wtyczki działa (gdy synchronizację przerwano w trakcie „Pliki: …”, plik jest „czeka na
+synchronizację”, a „Pobierz” nieaktywne): ostrzeżenie, systemowe okno
+zapisu, „Zapisano plik …”; porównaj sumę kontrolną z oryginałem. (4) Plik dodany na telefonie: „Synchronizuj” we
+wtyczce → „pobrano 1”; „Pobierz” pokazuje ostrzeżenie i zapisuje plik o tej samej sumie. (5) Usuń załącznik („Usuń”,
+„Zapisz”) → „Synchronizuj” na obu: znika z wpisu; na telefonie plik znika najpóźniej po 24 h. (6) Przerwanie: zamknij
+kartę w trakcie „Pliki: …” przy kilku dużych plikach, otwórz ponownie → „Synchronizuj” dokańcza. (7) Eksport: na obu
+ekran eksportu mówi „N plików nie zostanie wyeksportowanych (eksport z plikami będzie w kolejnej wersji).”, a plik
+PassHolder JSON nie ma `attachments`. Zapisz wynik, wersję Chrome, model telefonu i wersję Androida.
 
 ## Czego brakuje
 
 - Testów `offscreen.ts` i `clipboard.ts` (API Chrome). Widoki są testowane w happy-dom, w prawdziwym Chromium
   tylko zrzutami ekranów (bez asercji na wyglądzie poza szerokością i zakryciem pól).
 - Testów automatycznych prośby o zgodę Chrome, Private Network Access i Tailscale (T4, T7 ręcznie).
+- Plików na prawdziwym telefonie: systemowy wybór i zapis (`OpenDocument`, `CreateDocument` z prawdziwym dostawcą, np. Dysk Google), duże pliki i brak miejsca (T22 ręcznie).
 - Testów na prawdziwym telefonie (Keystore, `BiometricPrompt`, port 8787) i wydajności Argon2id.
 - Pytania o zapis w prawdziwym Chrome: zgoda na dostęp do stron, `openPopup`, rejestracja skryptu, panel w prawdziwych stronach (T20 ręcznie).
 - Autouzupełniania z prawdziwym systemem: `readRequest` (prawdziwy `AssistStructure`), wpisanie wartości przez

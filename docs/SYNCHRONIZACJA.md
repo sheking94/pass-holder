@@ -280,7 +280,7 @@ operacja; przy `put` 400 `chunk count mismatch` przed 409).
 - **Zmiana epoki** (nowy sejf, odtwarzanie od zera, rozłączenie) kasuje cały `p2p/files/`; „Odtwórz z wtyczki”
   po zakończeniu nie zmienia epoki, więc pliki wysłane w trakcie zostają.
 - Plik dodany na telefonie (`PhoneVaultStore.addFile`) trafia od razu do magazynu jako kompletny; wpis zapisuje ekran
-  „Zapisz”, a 24 h chroni plik przed sprzątaniem do tego czasu. Ekrany plików telefonu i ręczny test **T22** dochodzą w krokach 3–4.
+  „Zapisz”, a 24 h chroni plik przed sprzątaniem do tego czasu. Ekrany plików telefonu: `AttachmentsEditor`; test ręczny **T22**.
 
 ## 6. Telefon
 
@@ -426,8 +426,8 @@ druga dostaje 500. „Przerwij odtwarzanie” kasuje wszystko.
 - **Pliki:** do 10 MiB i 40 kawałków po 256 KiB, najwyżej 20 na wpis przy dodawaniu (40 po łączeniu).
   Bez limitu łącznego, tylko wolne miejsce (507). Telefon nie widzi, które pliki są używane (wie to
   dopiero przy odblokowanym sejfie), więc plik osierocony zostaje co najmniej 24 h od pierwszego kawałka, a
-  faktycznie do pierwszego sprzątania przy odblokowanym sejfie. Eksport PassHolder JSON pomija pliki (ekran eksportu we wtyczce mówi, ile ich pominie). Ekrany telefonu to krok 4 planu;
-  wtyczka ma już pliki (punkt 7.5). Wtyczka trzyma kawałki w IndexedDB bez limitu (`unlimitedStorage`).
+  faktycznie do pierwszego sprzątania przy odblokowanym sejfie. Eksport PassHolder JSON pomija pliki (ekran eksportu we wtyczce mówi, ile ich pominie). Telefon ma ekrany plików (dodaj, „Pobierz”, „📎 N”);
+  eksport z plikami to kolejna wersja. Wtyczka trzyma kawałki w IndexedDB bez limitu (`unlimitedStorage`).
 - **Własne CPace i Noise** w dwóch językach: wektory testowe zmniejszają ryzyko, ale to nie audyt.
 - **ristretto255 w Kotlinie bez stałego czasu** (`BigInteger`). Akceptowane tylko dla jednorazowego CPace
   (skalar i kod są jednorazowe); klucze długoterminowe liczy X25519 z Bouncy Castle. Klasy nie wolno używać

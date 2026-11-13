@@ -44,6 +44,14 @@ typów; reguły (opis wiersza, pola wrażliwe, formaty, zapis) są wspólne, ró
   - **Limity** (z rdzenia, `MAX_FILE_SIZE`, `MAX_ATTACHMENTS_PER_ENTRY`): plik do 10 MB, najwyżej 20 we wpisie.
     Błędy: „Plik jest za duży (limit 10 MB)”, „Najwyżej 20 plików we wpisie”, „Plik jest pusty”,
     „Nieprawidłowa nazwa pliku”. Rozmiar na ekranie: „N KB” poniżej 1 MiB, wyżej „4,6 MB”.
+  - **Telefon** (ta sama sekcja w formularzu każdego typu): plik z systemowego wyboru trafia od razu na dysk,
+    zaszyfrowany, więc „Anuluj”, Wstecz i „Usuń wpis” kasują go od razu, a „Zapisz” kasuje te usunięte z formularza
+    (rdzeń pomija plik używany przez żywy wpis). Wybór i zapis pliku mają okno 60 s bez blokady sejfu; sejf zablokowany w
+    trakcie wyboru → plik nie jest czytany. Telefon niczego nie pobiera, więc stany są trzy: gotowy, „czeka na
+    synchronizację” (wtyczka jeszcze nie wysłała, „Pobierz” nieaktywne) i „nowy – zapisz wpis”. „Pobierz”: ostrzeżenie,
+    systemowe okno zapisu, komunikat „Zapisano plik <nazwa>.”; błędy „Plik jest uszkodzony”, „Nie udało się odczytać
+    pliku z sejfu.”, „Nie udało się zapisać pliku. Jeśli plik powstał, usuń go.”. Lista pokazuje przy nazwie „📎 N”.
+    Ekran eksportu mówi, ile plików pominie (jak we wtyczce).
   - **Okienko i karta:** okienko zamyka się przy wyborze pliku, więc „+ Dodaj plik” w okienku najpierw pyta: „Formularz
     otworzy się w karcie. Niezapisane zmiany z tego okna przepadną – najpierw zapisz wpis, jeśli coś zmieniłeś.”
     („Otwórz w karcie” / „Anuluj”) i otwiera ten sam formularz w karcie (`?edit&type=<typ>&id=<id>`).

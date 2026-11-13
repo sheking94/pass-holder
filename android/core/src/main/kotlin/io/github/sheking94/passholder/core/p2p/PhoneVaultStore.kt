@@ -416,6 +416,29 @@ class PhoneVaultStore(
         }
     }
 
+    /**
+     * Deletes the files with the given [ids] at once (the UI uses it for files added to an entry that was not
+     * saved), skipping any id a live entry uses. There is no age guard: callers must pass only ids of files they
+     * just added and never saved in an entry; returns how many were deleted. Does nothing (0) while some record
+     * cannot be read: it might use any file.
+     */
+    fun discardFiles(ids: Collection<String>): Int {
+        val (used, store) = synchronized(this) {
+            val vault = requireSession().vault
+            val fs = openFiles()
+            if (vault.unreadableIds().isNotEmpty()) return 0
+            vault.entries().flatMap { e -> e.content.attachments.map { it.id } }.toSet() to fs
+        }
+        return synchronized(store) {
+            // A reset since the entries were listed: the old files are gone already.
+            if (store.closed) return 0
+            val present = store.ids()
+            val doomed = ids.toSet().filter { it !in used && it in present }
+            doomed.forEach(store::delete)
+            doomed.size
+        }
+    }
+
     /** [pruneFiles] after unlocking or an entry write: a failure must not fail that, it only goes to [onError]. */
     private fun pruneQuietly() {
         try {
