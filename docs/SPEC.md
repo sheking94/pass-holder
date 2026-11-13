@@ -138,6 +138,8 @@ AAD z `id` wiąże szyfrogram z wpisem, więc host nie może podmienić treści 
   [SYNCHRONIZACJA.md](SYNCHRONIZACJA.md#53-pliki-p2pv2file).
 - Wektory: `core/test-vectors/files/files.json` (pliki 5 B i 262144 + 1000 B, wpis z plikami i po łączeniu,
   22 odrzucane opisy, łączenie list, odpowiedzi hosta, sprzątanie); odtwarza je `npm run gen-vectors-files -w core`.
+- Kotlin: pakiet `core/files/` w `android/core` (`Attachment`, `FileChunks`, `FileHost`, magazyny) liczy opisy, kawałki i
+  odpowiedzi hosta 1:1 z tych wektorów (`FilesVectorsTest`). Telefon jest tylko hostem: klienta (`syncFiles`) ma wyłącznie wtyczka.
 
 ## 5. Synchronizacja
 
