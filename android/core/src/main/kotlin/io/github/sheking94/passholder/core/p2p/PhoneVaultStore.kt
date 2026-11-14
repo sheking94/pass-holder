@@ -235,6 +235,43 @@ class PhoneVaultStore(
         }
     }
 
+    // ---- Changing the master password ----
+
+    /**
+     * Wraps the same vault key with [newPassword] under a new salt (security review I1, variant "a"): entries,
+     * epoch and identity stay, the vault key is not rotated. Every paired device is removed and a pending pairing
+     * code dropped, so each extension must pair again and learns the new wrapping only with the new password.
+     * Needs an unlocked vault; [oldPassword] is checked again (IllegalArgumentException "Złe hasło główne").
+     * The caller checks [newPassword] against its strength rules first.
+     */
+    @Synchronized
+    fun changeMasterPassword(oldPassword: String, newPassword: String) {
+        val current = requireSession()
+        val s = requireVault()
+        require(oldPassword != newPassword) { "Nowe hasło musi być inne niż obecne" }
+        val checked = unwrap(oldPassword, s.kdf!!, s.wrappedVaultKey!!)
+        try {
+            if (!MessageDigest.isEqual(checked, current.vaultKey)) throw IllegalArgumentException("Złe hasło główne")
+        } finally {
+            checked.fill(0)
+        }
+        val kdf = Kdf.newParams()
+        val keys = Kdf.deriveKeys(newPassword, kdf)
+        val wrapped = try {
+            VaultCrypto.wrapVaultKey(keys.encKey, current.vaultKey)
+        } finally {
+            keys.encKey.fill(0)
+            keys.authKey.fill(0)
+        }
+        pairing.cancel()
+        synchronized(stateLock) {
+            val latest = state
+            check(latest != null && latest.epoch == s.epoch && latest.keyCheck == s.keyCheck) { "Sejf zmienił się w trakcie, spróbuj jeszcze raz" }
+            saveState(latest.copy(kdf = kdf, wrappedVaultKey = wrapped, devices = emptyList()))
+        }
+        touch()
+    }
+
     // ---- Locking ----
 
     /** Works offline: everything is on disk. */

@@ -24,6 +24,7 @@ fun PassHolderUi(viewModel: AppViewModel) {
                     Screen.List -> ListScreen(state, viewModel)
                     is Screen.Edit -> EditScreen(screen.id, screen.type, state, viewModel)
                     Screen.Settings -> SettingsScreen(state, viewModel)
+                    Screen.ChangePassword -> ChangePasswordScreen(state, viewModel)
                     Screen.Transfer -> TransferScreen(state, viewModel)
                     Screen.Sync -> SyncScreen(state, viewModel)
                     Screen.Devices -> DevicesScreen(state, viewModel)

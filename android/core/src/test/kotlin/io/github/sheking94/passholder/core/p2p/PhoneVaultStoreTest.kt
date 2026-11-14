@@ -146,6 +146,51 @@ class PhoneVaultStoreTest {
     }
 
     @Test
+    fun changeMasterPasswordRewrapsTheSameKeyAndForgetsDevices() {
+        val store = newStore()
+        store.createVault("stare hasło")
+        store.upsert("e1", Credentials("Bank", "jan", "tajne"))
+        val keyBefore = store.exportUnlockKeys()
+        val http = serve(store)
+        val pair = TestP2pClient.pair(http, store.offerPairing().code, extIdentity)
+        val oldInfo = pair.phoneVaultInfo!!
+        store.offerPairing()
+
+        assertEquals("Złe hasło główne", assertThrows<IllegalArgumentException> { store.changeMasterPassword("złe", "nowe hasło") }.message)
+        assertThrows<IllegalArgumentException> { store.changeMasterPassword("stare hasło", "stare hasło") }
+        assertEquals(1, store.devices().size)
+
+        store.changeMasterPassword("stare hasło", "nowe hasło")
+        assertTrue(store.isUnlocked)
+        assertEquals(emptyList<StoredDevice>(), store.devices())
+        assertEquals(403, clientFor(http, pair).handshakeReply().status)
+        assertNull(store.currentOffer())
+
+        // Same vault key and entries; only the new password opens it, and it survives a restart.
+        val reopened = newStore()
+        assertEquals("Złe hasło główne", assertThrows<IllegalArgumentException> { reopened.unlock("stare hasło") }.message)
+        reopened.unlock("nowe hasło")
+        assertArrayEquals(keyBefore, reopened.exportUnlockKeys())
+        assertEquals(listOf("Bank"), reopened.entries().map { it.credentials.name })
+
+        // Pairing again hands out the new wrapping (new salt) under the same epoch.
+        val again = TestP2pClient.pair(serve(reopened), reopened.offerPairing().code, extIdentity).phoneVaultInfo!!
+        assertEquals(oldInfo.epoch, again.epoch)
+        assertNotEquals(oldInfo.kdf.salt, again.kdf.salt)
+        val unwrapped = Kdf.deriveKeys("nowe hasło", again.kdf).let { VaultCrypto.unwrapVaultKey(it.encKey, again.wrappedVaultKey) }
+        assertArrayEquals(keyBefore, unwrapped)
+    }
+
+    @Test
+    fun changeMasterPasswordNeedsAnUnlockedVault() {
+        val store = newStore()
+        assertThrows<IllegalStateException> { store.changeMasterPassword("a", "b") }
+        store.createVault("pw")
+        store.lock()
+        assertThrows<IllegalStateException> { store.changeMasterPassword("pw", "nowe") }
+    }
+
+    @Test
     fun pairingAgainWithTheSameDeviceReplacesIt() {
         val store = newStore()
         store.createVault("pw")

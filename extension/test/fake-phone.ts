@@ -222,6 +222,13 @@ export class FakePhone {
   }
 
   /** The vault key as the phone would unwrap it with password (for checks after a restore). */
+  /** "Zmień hasło główne" on the phone: the same vault key under a new salt; every paired browser is forgotten. */
+  async changePassword(newPassword: string): Promise<void> {
+    this.kdf = TEST_KDF();
+    this.wrappedVaultKey = await wrapVaultKey((await deriveKeys(newPassword, this.kdf)).encKey, this.vaultKey!);
+    this.devices.splice(0, this.devices.length);
+  }
+
   async unwrap(password = PASSWORD): Promise<Uint8Array> {
     return unwrapVaultKey((await deriveKeys(password, this.kdf!)).encKey, this.wrappedVaultKey!);
   }

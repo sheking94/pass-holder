@@ -29,7 +29,7 @@ import io.github.sheking94.passholder.app.BiometricAvailability
 import io.github.sheking94.passholder.app.PassHolderApp
 import io.github.sheking94.passholder.app.UiState
 
-/** "Ustawienia": fingerprint unlock, the lock delay, autofill and the save prompt. "Wróć" and the system back go to the list. */
+/** "Ustawienia": fingerprint unlock, the lock delay, autofill, the save prompt and "Zmień hasło główne". "Wróć" and the system back go to the list. */
 @Composable
 fun SettingsScreen(state: UiState, vm: AppViewModel) {
     BackHandler(onBack = vm::backToList)
@@ -39,6 +39,7 @@ fun SettingsScreen(state: UiState, vm: AppViewModel) {
         LockDelaySetting(state, vm)
         AutofillSetting()
         AskToSaveSetting(state, vm)
+        OutlinedButton(onClick = vm::openChangePassword, enabled = !state.busy) { Text("Zmień hasło główne") }
         OutlinedButton(onClick = vm::backToList) { Text("Wróć") }
         StatusLine(state.status, state.busy)
     }

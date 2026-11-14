@@ -50,6 +50,10 @@ sealed interface Screen {
     data object Settings : Screen {
         override val showsVault get() = true
     }
+    /** "Zmień hasło główne", opened from Ustawienia. */
+    data object ChangePassword : Screen {
+        override val showsVault get() = true
+    }
     /** "Import i eksport": files of PassHolder, Bitwarden and NordPass. */
     data object Transfer : Screen {
         override val showsVault get() = true
@@ -285,6 +289,34 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         null
     } catch (e: Exception) {
         e
+    }
+
+    // --- Master password -------------------------------------------------------------------------
+
+    fun openChangePassword() = _state.update { it.copy(screen = Screen.ChangePassword, status = null) }
+
+    /**
+     * "Zmień hasło": the same vault key wrapped with [newPassword] (security review I1). The phone forgets every
+     * paired extension, so each one pairs again with the new password, and fingerprint unlock is turned off.
+     */
+    fun changeMasterPassword(oldPassword: String, newPassword: String, repeat: String) {
+        if (oldPassword.isEmpty()) return fail("Podaj obecne hasło główne")
+        MasterPasswordRules.problem(newPassword)?.let { return fail(it) }
+        if (newPassword != repeat) return fail("Hasła się różnią")
+        if (newPassword == oldPassword) return fail("Nowe hasło musi być inne niż obecne")
+        launchVaultOperation("Liczę klucze z nowego hasła… (to celowo trwa kilka sekund)") {
+            sync.stop(null)
+            store.changeMasterPassword(oldPassword, newPassword)
+            val hadFingerprint = biometrics.enabled.value
+            val fingerprintError = forgetFingerprint()
+            sync.refreshDevices()
+            val text = buildString {
+                append("Zmieniono hasło główne. Sparuj ponownie każdą wtyczkę i wpisz w niej nowe hasło.")
+                if (hadFingerprint) append(" Odblokowanie odciskiem palca wyłączono, możesz je włączyć ponownie.")
+                fingerprintError?.let { append(" Nie udało się usunąć klucza odcisku palca: ${it.message ?: it.javaClass.simpleName}") }
+            }
+            _state.update { it.copy(screen = Screen.Settings, status = Status(text, isError = fingerprintError != null)) }
+        }
     }
 
     // --- Fingerprint ------------------------------------------------------------------------------

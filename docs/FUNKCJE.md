@@ -122,6 +122,7 @@ PIN to skrót zamiast hasła głównego, **tylko w tej jednej przeglądarce**. H
 - **„Pamiętaj PIN po zamknięciu przeglądarki”** zapisuje go na dysku (`chrome.storage.local`). Ten tryb
   wymaga **długiego PIN-u**: co najmniej 8 znaków i nie same cyfry. Stary krótki PIN zapisany na dysku jest
   po udanym odblokowaniu przenoszony do pamięci.
+- Ponowne parowanie po zmianie hasła głównego na telefonie wyłącza PIN ([Zmiana hasła głównego](#zmiana-hasła-głównego)).
 
 **Kryptografia** (`extension/src/pin-lock.ts`):
 
@@ -284,7 +285,7 @@ uprawnienia `tabs` (Chrome 116+), `chrome.tabs.update` + `chrome.windows.update`
   domyślnie **60 s** po wyjściu. Przełącznik **„Blokuj dopiero po 60 s poza aplikacją”** wyłącza
   opóźnienie. Obrót ekranu nie blokuje.
 - **Wyłączenie ekranu blokuje od razu**, także z opóźnieniem 60 s (przegląd bezpieczeństwa N1).
-- „Usuń sejf z telefonu” wyłącza też odcisk.
+- „Usuń sejf z telefonu” i „Zmień hasło główne” wyłączają też odcisk.
 
 Zrzuty (z testów): `android/app/screenshots/13-odcisk-wylaczony.png` … `19-opoznienie-wylaczone.png`.
 
@@ -349,6 +350,28 @@ Kod (`android/app/.../app/`): `BiometricUnlock.kt` (Keystore, zapis, okno system
 **Nie sprawdzono na prawdziwym telefonie** w testach automatycznych (Robolectric nie ma Keystore ani
 czytnika). Do ręcznego sprawdzenia: włączenie, odblokowanie, Home i powrót przed i po 60 s, wyłączenie
 ekranu, obrót, dodanie nowego odcisku.
+
+## Zmiana hasła głównego
+
+Tylko na telefonie: **Ustawienia → „Zmień hasło główne”** (przegląd bezpieczeństwa I1, wariant „a”).
+
+- Pola: obecne hasło, nowe, powtórz. Nowe musi spełniać te same reguły co przy zakładaniu sejfu (`MasterPasswordRules`) i
+  różnić się od obecnego. Obecne hasło jest sprawdzane jeszcze raz, choć sejf jest odblokowany.
+- Telefon liczy nowy klucz z hasła (nowy salt, kilka sekund) i zawija nim **ten sam** klucz sejfu. Wpisy i pliki zostają.
+- Potem telefon **zapomina wszystkie sparowane wtyczki** i anuluje kod parowania. Wtyczka przy synchronizacji dostaje
+  „Telefon nie zna tej przeglądarki…”. We wtyczce: „Adresy telefonu” → „Sparuj z innym telefonem / odtwórz telefon”,
+  kod z telefonu i **nowe** hasło. Wtyczka zapisuje nową kopię klucza, więc stare hasło przestaje ją otwierać. Wpisy
+  niezsynchronizowane przed zmianą zostają i wysyłają się przy tym parowaniu.
+- **Odcisk palca** na telefonie i **PIN** we wtyczce są wyłączane (telefon od razu, wtyczka przy ponownym parowaniu). Oba
+  przechowują klucz sejfu, nie hasło, więc technicznie by działały; wyłączenie jest po to, żeby „zmiana hasła” znaczyła
+  „wszystko od nowa”. Włącza się je jak wcześniej.
+- Stare hasło nadal otwiera wtyczkę, dopóki nie zostanie sparowana ponownie (jej plik ma starą kopię klucza).
+  Ograniczenie wariantu: klucz sejfu się nie zmienia, więc stare hasło razem ze starą kopią pliku nadal go odsłania
+  ([SPEC.md](SPEC.md) §2).
+
+Kod: `android/core/.../p2p/PhoneVaultStore.kt` (`changeMasterPassword`), `android/app/.../AppViewModel.kt`
+(`changeMasterPassword`), `ui/ChangePasswordScreen.kt`, `ui/SettingsScreen.kt`; wtyczka `extension/src/vault-store.ts`
+(`repair`, `opensStaticKey`). Zrzuty: `android/app/screenshots/64-zmiana-hasla.png`, `65-haslo-zmienione.png`.
 
 ## Czyszczenie schowka
 

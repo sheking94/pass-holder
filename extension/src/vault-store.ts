@@ -29,6 +29,9 @@ const STATIC_KEY_AAD = "passholder/v2/ext-static-key";
 const LOCKED = "Sejf jest zablokowany";
 const NOT_PAIRED = "Ta przeglądarka nie jest sparowana z telefonem";
 const WRONG_PASSWORD = "Złe hasło główne";
+/** repair(): the password opens this browser's copy but not the phone's (a new master password, or another vault). */
+const PHONE_HAS_OTHER_PASSWORD =
+  "To hasło nie otwiera sejfu na telefonie. Jeśli hasło główne zmieniono na telefonie, wpisz nowe hasło i nowy kod.";
 const NO_PENDING_PAIRING = "Najpierw sparuj przeglądarkę z telefonem (kod z ekranu Synchronizacja).";
 const NO_ALLOWED_ADDRESS =
   "Brak zgody Chrome na łączenie z żadnym adresem telefonu. Otwórz „Adresy telefonu” i zapisz adresy, a Chrome zapyta o zgodę.";
@@ -746,35 +749,55 @@ export class VaultStore {
   }
 
   /**
-   * Pairs this browser (same deviceId and static key) with a phone again, e.g. a new or reinstalled one.
+   * Pairs this browser (same deviceId and static key) with a phone again, e.g. a new or reinstalled one, or the
+   * same phone after "Zmień hasło główne" (it forgets every paired browser).
    * A phone waiting for "Odtwórz z wtyczki" gets this browser's vault ("restored"). A phone with a vault
    * ("paired") must hold the same vault key: otherwise nothing changes here and otherVaultMessage is thrown.
-   * The master password is checked first, so a typo does not spend the phone's code.
+   * The password may be the one this browser knows, or the phone's new one: then the phone's copy of the vault
+   * key must open this browser's sealed static key (same vault). Whenever the wrapping changes, the PIN is
+   * turned off, so a password change on the phone also asks for a new PIN here.
+   * The password this browser knows is checked first, so a typo does not spend the phone's code; a new password
+   * can only be checked against the phone's copy, after the code was used.
    */
   async repair(urls: string | readonly string[], code: string, masterPassword: string): Promise<RepairResult> {
     const account = await this.requireAccount();
     const typed = typeof urls === "string" ? [phoneUrl(urls)] : toUrlList(urls);
-    const vaultKey = await unwrapWithPassword(masterPassword, account.kdf, account.wrappedVaultKey);
-    const vault = await this.loadVault(vaultKey);
+    const knownKey = await unwrapWithPassword(masterPassword, account.kdf, account.wrappedVaultKey).catch(() => undefined);
+    const knownVault = knownKey ? await this.loadVault(knownKey) : undefined;
     const identity: p2p.DeviceIdentity = { deviceId: account.deviceId, name: account.deviceName, staticPublicKey: account.staticPublicKey };
-    const restore: p2p.VaultInfo = {
-      // The phone ignores epoch and addresses of a restore, but they must be well formed.
-      epoch: vault.epoch ?? toBase64(randomBytes(16)),
-      kdf: account.kdf,
-      wrappedVaultKey: account.wrappedVaultKey,
-      addresses: [],
-    };
     const { url: baseUrl, client } = await pickPhone(typed, this.makeClient);
+    let restore: p2p.VaultInfo | undefined;
+    if (knownVault) {
+      restore = {
+        // The phone ignores epoch and addresses of a restore, but they must be well formed.
+        epoch: knownVault.epoch ?? toBase64(randomBytes(16)),
+        kdf: account.kdf,
+        wrappedVaultKey: account.wrappedVaultKey,
+        addresses: [],
+      };
+    } else if ((await talkToPhone(() => p2p.phoneHello(baseUrl, client.post))).mode === "restore") {
+      // Only this browser's vault can restore the phone, and the password does not open it.
+      throw new Error(WRONG_PASSWORD);
+    }
     // In pair mode pairWithPhone does not send `restore`: the phone keeps its own vault.
     const res = await talkToPhone(() => p2p.pairWithPhone({ baseUrl, code, identity, post: client.post, restore }));
+    if (res.mode === "restore" && !knownVault) throw new Error(WRONG_PASSWORD);
 
     let { kdf, wrappedVaultKey } = account;
+    let vaultKey = knownKey;
+    let vault = knownVault;
     if (res.mode === "pair") {
       const phoneKey = await unwrapWithPassword(masterPassword, res.vaultInfo.kdf, res.vaultInfo.wrappedVaultKey).catch(() => undefined);
-      if (!phoneKey || !sameBytes(phoneKey, vaultKey)) throw new Error(otherVaultMessage(account.deviceName));
-      // Same vault key, perhaps wrapped anew (e.g. the phone changed the KDF): the phone's copy is current.
+      if (!phoneKey) throw new Error(knownKey ? PHONE_HAS_OTHER_PASSWORD : WRONG_PASSWORD);
+      if (knownKey ? !sameBytes(phoneKey, knownKey) : !(await this.opensStaticKey(phoneKey, account))) {
+        throw new Error(otherVaultMessage(account.deviceName));
+      }
+      // Same vault key, perhaps wrapped anew (a new master password on the phone): the phone's copy is current.
       ({ kdf, wrappedVaultKey } = res.vaultInfo);
+      vaultKey = phoneKey;
+      vault ??= await this.loadVault(phoneKey);
     }
+    if (!vaultKey || !vault) throw new Error(WRONG_PASSWORD);
     p2p.applyVaultInfo(vault, res.vaultInfo);
     const updated: Account = {
       ...account,
@@ -784,11 +807,22 @@ export class VaultStore {
       kdf,
       wrappedVaultKey,
     };
+    if (wrappedVaultKey !== account.wrappedVaultKey) await this.disablePin();
     await this.saveAccount(updated);
     await this.startSession(vaultKey, vault, updated);
     const mode = res.mode === "pair" ? "paired" : "restored";
     const { skipped, files: filesOutcome } = await this.firstSync(mode);
     return { mode, skipped, files: filesOutcome };
+  }
+
+  /** [vaultKey] opens this browser's sealed static key, so it is the key of this browser's vault. */
+  private async opensStaticKey(vaultKey: Uint8Array, account: Account): Promise<boolean> {
+    try {
+      await open(vaultKey, account.sealedStaticKey, STATIC_KEY_AAD);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /** Works offline: the wrapped vault key and the encrypted vault are on disk. */

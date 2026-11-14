@@ -53,9 +53,9 @@ katalogu pakietu.
 | Pakiet | Pliki | Testy | Uwagi |
 |---|---|---|---|
 | `core` | 36 | 637 | w tym `core/test/p2p/`, `core/test/files/`, `core/test/autofill/` i `core/test/save/` |
-| `extension` | 34 | 385 | w tym widoki w happy-dom (`extension/test/ui/`), `extension/test/autofill/` i `extension/test/save/`; `background.ts` bez testów (logika w `fill-tab.ts` i `save/candidates.ts`) |
-| `android/core` | 49 | 762 | 5 pomijane bez `PASSHOLDER_INTEROP_TEST=1`; w tym `autofill/` (wektory `core/test-vectors/autofill/`) i `save/` (wektory `core/test-vectors/save/`) |
-| `android/app` | 39 | 210 | Robolectric, zrzuty ekranów; w tym `autofill/`, ekrany autouzupełniania, zapis po odblokowaniu i załączniki (16 klas, po jednym teście), eksport i import ZIP (`TransferZip*`) |
+| `extension` | 34 | 389 | w tym widoki w happy-dom (`extension/test/ui/`), `extension/test/autofill/` i `extension/test/save/`; `background.ts` bez testów (logika w `fill-tab.ts` i `save/candidates.ts`) |
+| `android/core` | 49 | 768 | 5 pomijane bez `PASSHOLDER_INTEROP_TEST=1`; w tym `autofill/` (wektory `core/test-vectors/autofill/`) i `save/` (wektory `core/test-vectors/save/`) |
+| `android/app` | 39 | 211 | Robolectric, zrzuty ekranów; w tym `autofill/`, ekrany autouzupełniania, zapis po odblokowaniu i załączniki (16 klas, po jednym teście), eksport i import ZIP (`TransferZip*`) |
 
 ## Co testują pliki
 
@@ -112,7 +112,7 @@ wartości losowe mają stałe klucze i nonce.
 
 | Plik | Co sprawdza |
 |---|---|
-| `vault-store.test.ts`, `pairing-flow.test.ts` | wpisy v3 (zachowanie pól loginu, odmowa nadpisania innego typu, stary sejf v2, za duży wpis), parowanie, złe hasło po zamknięciu okienka, wygaśnięcie po 10 min, inny sejf, odtwarzanie, kilka adresów, brak zgody Chrome, odłączanie |
+| `vault-store.test.ts`, `pairing-flow.test.ts` | wpisy v3 (zachowanie pól loginu, odmowa nadpisania innego typu, stary sejf v2, za duży wpis), parowanie, złe hasło po zamknięciu okienka, wygaśnięcie po 10 min, inny sejf, odtwarzanie, kilka adresów, brak zgody Chrome, odłączanie; po zmianie hasła na telefonie: ponowne parowanie nowym hasłem (PIN wyłączony, stare hasło nie otwiera), stare hasło → komunikat o nowym haśle, nowe hasło innego sejfu → „To inny sejf”, telefon w `restore` nie traci kodu przy złym haśle |
 | `edge-cases.test.ts` | konflikty HLC, zablokowany sejf, słaby KDF od telefonu, telefon, który zapomniał przeglądarkę, limit 30 s |
 | `phone-urls.test.ts` | adresy IPv4, zera wiodące, porty, `pickPhone` (4 s) |
 | `pin.test.ts` | PIN: kształt, 5 prób, licznik przed sprawdzeniem, długi PIN na dysku |
@@ -156,11 +156,11 @@ Playwright z Chromium nie jest zależnością repozytorium: w kontenerze w chmur
 | `CryptoTest`, `GeneratorTest`, `VectorsTest`, `KdfBoundsTest` | szyfrowanie, generator, `v1.json`, granice KDF i NFC |
 | `p2p/P2pVectorsTest`, `P2pVectorsV3Test`, `Ristretto255Test`, `CpaceTest`, `NoiseTest`, `PairingTest`, `HlcTest`, `P2pJsonTest`, `EntryV3Test`, `FramesTest` | te same wektory bit w bit, `safeLong`, ramki |
 | `HostSyncTest`, `P2pHostTest`, `PhoneVaultTest` | rewizje, stronicowanie (500 zmian i 512 KiB), cięcie konfliktów, 410 dla starych ścieżek, odmowa nadpisania wpisu innego typu, cofnięty telefon, kody HTTP, sesje (60 s, 32), wiele wątków |
-| `SyncHttpServerTest`, `FileSyncStoreTest`, `HostStateTest`, `PairingHostTest`, `PhoneRouterTest`, `LocalAddressesTest`, `PhoneVaultStoreTest` | serwer HTTP i limity, `Host`, trwała baza, parowanie po HTTP, sejf telefonu |
+| `SyncHttpServerTest`, `FileSyncStoreTest`, `HostStateTest`, `PairingHostTest`, `PhoneRouterTest`, `LocalAddressesTest`, `PhoneVaultStoreTest` | serwer HTTP i limity, `Host`, trwała baza, parowanie po HTTP, sejf telefonu; `changeMasterPassword` (ten sam klucz, nowy salt, urządzenia i kod parowania usunięte, 403 dla starej wtyczki, wymaga odblokowania) |
 | `files/AttachmentTest`, `FileChunksTest`, `FilesVectorsTest`, `FileHostTest`, `DiskFileStoreTest` | załączniki we wpisie v3, szyfrowanie kawałkami, wektory `files/files.json` 1:1, `/p2p/v2/file` (400/404/409/507), magazyn na dysku (kawałek `.tmp` po przerwaniu, wątki, 507 przy < 50 MB) |
 | `P2pInteropTest`, `PhoneInteropTest` (opcjonalne) | prawdziwy klient wtyczki w Node przeciw hostowi w Kotlinie: wpisy w obie strony, 1300/1200 wpisów, odtworzenie, plik 3 kawałki w górę i plik z telefonu w dół (`syncFiles`, ten sam SHA-256) |
 | `ScreenTests`, `SyncScreenTests`, `SyncControllerTest`, `CorruptHostStateTest` (app) | ekrany, tryb Synchronizacja, odświeżenie po synchronizacji, uszkodzony stan |
-| `BiometricScreenTests` (app) | odcisk palca, blokada po wyjściu, opóźnienie 60 s (zegar Robolectric) |
+| `BiometricScreenTests` (app) | odcisk palca, blokada po wyjściu, opóźnienie 60 s (zegar Robolectric); `ChangeMasterPasswordTest`: zmiana hasła głównego (reguły, złe obecne hasło, odcisk wyłączony, urządzenia zapomniane, ten sam klucz, odblokowanie nowym hasłem) |
 | `EntryTypesTest` (app) | opisy wierszy, wyszukiwanie, `tidy`, walidacja (te same reguły co `entry-types.ts`) |
 | `ListTabsScreenTest`, `SettingsScreenTests` (app) | pięć zakładek, wyszukiwanie czyszczone przy zmianie zakładki, „+ Dodaj” typu zakładki, górny pasek i Ustawienia |
 | `EditLoginScreenTest`, `EditNoteScreenTest`, `EditContactScreenTest`, `EditCardScreenTest`, `EditDocumentScreenTest` (app) | formularze: pola wrażliwe i kopiowanie, listy, własne pola, formaty tylko zmienionych pól, „Ten wpis ma inny typ” |
@@ -389,6 +389,15 @@ palcem: działa. Zablokuj telefon, odblokuj go, otwórz PassHolder: odcisk dzia�
 na czystej instalacji z `password2026`: „Hasło główne składa się z popularnych fragmentów haseł”. (4) **Schowek (N6):**
 skopiuj hasło, po minucie schowek pusty. (5) **CSV (N2):** Plik → pod „NordPass CSV” ostrzeżenie o Excelu i LibreOffice,
 także we wtyczce. Zapisz wynik i model telefonu (czy ma StrongBox, nie da się tego łatwo sprawdzić: ważne, że odcisk działa).
+
+**T25. Zmiana hasła głównego (telefon i wtyczka).** Wtyczka sparowana, na telefonie włączony odcisk, we wtyczce PIN.
+(1) Wtyczka: dodaj wpis, nie synchronizuj. (2) Telefon: Ustawienia → „Zmień hasło główne”; złe obecne hasło → „Złe hasło
+główne”; nowe `password2027` → komunikat o popularnych fragmentach; poprawne nowe → „Zmieniono hasło główne…”, przełącznik
+odcisku wyłączony, „Urządzenia” puste. (3) Zablokuj telefon: stare hasło odrzucone, nowe działa. (4) Wtyczka:
+„Synchronizuj” → „Telefon nie zna tej przeglądarki…”. Stare hasło nadal ją odblokowuje. (5) Telefon: Synchronizacja →
+„Dodaj wtyczkę”. Wtyczka: „Adresy telefonu” → „Sparuj z innym telefonem / odtwórz telefon”, kod, **stare** hasło → „To
+hasło nie otwiera sejfu na telefonie…”; nowy kod i nowe hasło → sparowano, wpis z kroku 1 jest na telefonie. (6) Wtyczka:
+PIN wyłączony; zablokuj: stare hasło odrzucone, nowe działa. Zapisz wynik, wersję Chrome i model telefonu.
 
 ## Zależności (przegląd bezpieczeństwa I5)
 
