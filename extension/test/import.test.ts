@@ -153,3 +153,33 @@ describe("importSummary for JSON formats", () => {
     expect(text).toContain("Pominięto 1 wpis: wpis 2: zły typ.");
   });
 });
+
+describe("importSummary with files", () => {
+  const nothing = { added: 0, duplicates: 0, tooLarge: 0 };
+  const done = "Usuń plik z dysku, zawiera hasła jawnym tekstem.";
+
+  it("says how many files were added, before the closing sentence", () => {
+    const text = importSummary({ entries: [], skipped: [] }, { added: 1, duplicates: 0, tooLarge: 0 }, "passholder", { added: 3, skipped: [] });
+    expect(text).toBe(`Dodano 1 wpis (lokalnie, zsynchronizuj, żeby trafiły na telefon). Dodano 3 pliki. ${done}`);
+  });
+
+  it("says nothing about files when none were added or skipped", () => {
+    expect(importSummary({ entries: [], skipped: [] }, nothing, "passholder", { added: 0, skipped: [] })).toBe(
+      `Dodano 0 wpisów (lokalnie, zsynchronizuj, żeby trafiły na telefon). ${done}`,
+    );
+  });
+
+  it("lists up to five skipped files with their reasons", () => {
+    const skipped = [1, 2, 3, 4, 5, 6].map((n) => ({ at: `wpis ${n}, a${n}.pdf`, reason: "uszkodzony" }));
+    const text = importSummary({ entries: [], skipped: [] }, nothing, "passholder", { added: 1, skipped });
+    expect(text).toContain("Dodano 1 plik.");
+    expect(text).toContain(
+      "Pominięto 6 plików: wpis 1, a1.pdf: uszkodzony; wpis 2, a2.pdf: uszkodzony; wpis 3, a3.pdf: uszkodzony; wpis 4, a4.pdf: uszkodzony; wpis 5, a5.pdf: uszkodzony; …",
+    );
+    expect(text).not.toContain("a6.pdf");
+    expect(text.endsWith(done)).toBe(true);
+    const one = importSummary({ entries: [], skipped: [] }, nothing, "passholder", { added: 0, skipped: skipped.slice(0, 1) });
+    expect(one).toContain("Pominięto 1 plik: wpis 1, a1.pdf: uszkodzony.");
+    expect(one).not.toContain("Dodano 0 plików");
+  });
+});

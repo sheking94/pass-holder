@@ -15,3 +15,8 @@ export function entriesNoun(n: number): string {
 export function skippedFilesPhrase(n: number): string {
   return `${n} ${plural(n, "plik nie zostanie wyeksportowany", "pliki nie zostaną wyeksportowane", "plików nie zostanie wyeksportowanych")}`;
 }
+
+/** "1 plik", "3 pliki", "5 plików". */
+export function filesNoun(n: number): string {
+  return `${n} ${plural(n, "plik", "pliki", "plików")}`;
+}

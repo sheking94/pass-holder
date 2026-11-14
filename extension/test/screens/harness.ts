@@ -3,7 +3,8 @@
  * (chrome.* storage on Maps, a FakePhone behind a fake fetch), sample entries of every type with made-up
  * data, and window.__screens to switch views. The page must already hold <main id="app"> and popup.css.
  */
-import type { p2p } from "@passholder/core";
+import { concat, transfer, type p2p } from "@passholder/core";
+import * as files from "@passholder/core/files";
 import { PhoneClient } from "../../src/phone-client.ts";
 import { chromeStore, VaultStore } from "../../src/vault-store.ts";
 import { CODE, FakePhone, networkFetch, PASSWORD, PHONE_URL, type Network } from "../fake-phone.ts";
@@ -76,6 +77,49 @@ async function setup() {
   return {
     /** The import and export screen. */
     openTransfer: () => transferView(),
+    /**
+     * The export with PassHolder ZIP chosen, after an entry with a file was added (so the note about files left out
+     * of JSON and CSV shows too).
+     */
+    openZipExport: async () => {
+      const plain = new TextEncoder().encode("Przykładowa umowa (fikcyjna).");
+      const ef = await files.encryptFile(plain, { name: "umowa.pdf", mime: "application/pdf" });
+      await store.putEntry("z1", { ...base, type: "note", name: "Umowa najmu (przykład)", fields: {}, attachments: [ef.attachment] }, [ef]);
+      transferView();
+      const zip = [...document.querySelectorAll<HTMLInputElement>("input[name=format]")].find((r) => r.value === "passholder-zip")!;
+      zip.click();
+    },
+    /** The summary after importing a made-up archive: two entries, two files, one file missing from the archive. */
+    importZip: async () => {
+      transferView();
+      const bytes = new Map([["a", "Skan dowodu (fikcyjny)."], ["b", "Polisa (przykład)."], ["c", "Zdjęcie."]]);
+      const att = (id: string, name: string, mime: string) =>
+        ({ id, name, mime, size: new TextEncoder().encode(bytes.get(id)!).length, chunks: 1, sha256: "", key: "" }) as files.Attachment;
+      const archive = await transfer.exportPassHolderZip(
+        [
+          { ...base, type: "document", name: "Dowód (kopia z archiwum)", fields: { kind: "id_card", number: "ZZZ000000", fullName: "Jan Testowy", issueDate: "", expiryDate: "", issuer: "" }, attachments: [att("a", "dowód – skan.pdf", "application/pdf")] },
+          { ...base, type: "note", name: "Ubezpieczenie (przykład)", fields: {}, attachments: [att("b", "polisa.pdf", "application/pdf"), att("c", "zdjęcie.jpg", "image/jpeg")] },
+        ],
+        async (a) => new TextEncoder().encode(bytes.get(a.id)!),
+      );
+      // Leave the last file out of the archive (as a damaged copy would), so the summary lists a skipped file.
+      const { parsed } = await transfer.openPassHolderZip(concat(...archive.parts));
+      const zip = new transfer.ZipWriter();
+      const index = JSON.stringify({
+        format: "passholder",
+        version: 3,
+        entries: parsed.entries.map((e) => ({ ...e.content, attachments: e.files })),
+      });
+      await zip.add("passholder.json", new TextEncoder().encode(index));
+      const reader = await transfer.openPassHolderZip(concat(...archive.parts));
+      for (const f of parsed.entries.flatMap((e) => e.files).slice(0, 2)) await zip.add(f.path, await reader.readFile(f));
+      const input = document.querySelector<HTMLInputElement>("input[type=file]")!;
+      Object.defineProperty(input, "files", { configurable: true, value: [new File([concat(...zip.finish()) as BlobPart], "passholder.zip")] });
+      [...document.querySelectorAll("button")].find((b) => b.textContent === "Importuj")!.click();
+      for (let i = 0; i < 200 && !document.querySelector(".status")?.textContent?.startsWith("Dodano"); i++) {
+        await new Promise((r) => setTimeout(r, 50));
+      }
+    },
     /** The list on the tab of this type. */
     show: (type: p2p.EntryType) => listView("", false, type),
     /** The form of the first sample entry of this type. */
