@@ -6,7 +6,8 @@ export const ENTRY_TYPE_ORDER: readonly EntryType[] = ["login", "contact", "card
 /** An entry or row an importer did not take. `at` is ready to show, e.g. "wiersz 3" (CSV, header is row 1) or "wpis 2" (JSON, from 1). */
 export interface ImportSkip { at: string; reason: string }
 
-export interface ParsedImport { entries: EntryContentV3[]; skipped: ImportSkip[] }
+/** `files`: file descriptions left out (an archive index imported as plain JSON), shown like skipped files. */
+export interface ParsedImport { entries: EntryContentV3[]; skipped: ImportSkip[]; files?: ImportSkip[] }
 
 function trimmed(value: unknown): unknown {
   if (typeof value === "string") return value.trim();

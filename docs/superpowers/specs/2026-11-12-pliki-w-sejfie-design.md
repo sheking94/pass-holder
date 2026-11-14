@@ -178,8 +178,9 @@ Decyzja właściciela (2026-11-12): **eksport z plikami**, jako osobny, ostatni 
   więc przed eksportem to samo ostrzeżenie o ryzyku.
 - Import rozpoznaje ZIP po treści; pliki dostają nowe `id` i klucze, trafiają do magazynu i synchronizują
   się normalnie. Limit importu dla ZIP wyższy niż 10 MiB (wartość w planie kroku 5).
-- Do czasu kroku 5 eksport PassHolder JSON pomija pliki i mówi o tym („N plików nie zostanie
-  wyeksportowanych”). NordPass i Bitwarden bez plików na stałe.
+- Eksport PassHolder JSON pomija pliki i mówi o tym („N plików nie zostanie
+  wyeksportowanych w formatach JSON i CSV”). NordPass i Bitwarden bez plików na stałe.
+- **Status: zrobione** (krok 5), plan: `docs/superpowers/plans/2026-11-13-eksport-zip.md`, opis w FUNKCJE, SPEC (punkt 8), ARCHITEKTURA, TESTY (T23).
 
 ## 9. Kroki (1 krok = 1 wątek, jak dotąd)
 

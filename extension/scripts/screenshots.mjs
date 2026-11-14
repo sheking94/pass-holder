@@ -48,6 +48,8 @@ const SHOTS = [
   ["15-panel-aktualizuj.png", (s) => s.openPrompt("update")],
   ["16-panel-zablokowany.png", (s) => s.openPrompt(null, true)],
   ["17-ustawienia-zapisu.png", (s) => s.openSaveSettings()],
+  ["18-eksport-zip.png", (s) => s.openZipExport()],
+  ["19-import-zip.png", (s) => s.importZip()],
 ];
 // The save panel is an iframe of exactly 360 × 340: shot at that size, its content must fit without scrolling.
 const PANEL_SHOTS = new Set(["14-panel-zapisz.png", "15-panel-aktualizuj.png", "16-panel-zablokowany.png"]);

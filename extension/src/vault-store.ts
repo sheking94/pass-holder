@@ -527,6 +527,100 @@ export class VaultStore {
     return [...this.requireVault().entries.values()].flatMap((e) => storedView(e)?.data ?? []);
   }
 
+  /**
+   * A PassHolder ZIP of all live entries and their files. A file that is not complete here (waiting for sync) or
+   * cannot be decrypted is left out and counted in `missing`; locking meanwhile fails the export.
+   */
+  async exportArchive(): Promise<{ parts: Uint8Array[]; entries: number; files: number; missing: number }> {
+    const entries = this.allContents();
+    const { parts, files: written, missing } = await transfer.exportPassHolderZip(entries, async (a) => {
+      this.requireVault();
+      if ((await this.fileStatus(a)) !== "ready") return undefined;
+      try {
+        return await this.readFile(a);
+      } catch {
+        // Damaged here: the entry goes out without this file.
+        return undefined;
+      }
+    });
+    this.requireVault();
+    return { parts, entries: entries.length, files: written, missing };
+  }
+
+  /**
+   * Imports a PassHolder ZIP. Entries already in the vault (transfer.contentKey, files ignored) are skipped with their
+   * files; repeats within the archive are left to importContents. The files of the other entries are read, encrypted
+   * and stored under new ids; a file that cannot be read is skipped ("wpis N, nazwa") and its entry comes in
+   * without it. Any other failure (damaged archive, file store, the vault locking) imports nothing and removes the
+   * files stored so far. Afterwards the stored files no live entry uses (a repeat, a too large entry) are removed.
+   */
+  async importArchive(bytes: Uint8Array): Promise<{
+    parsed: transfer.ParsedArchive;
+    result: ImportResult;
+    filesAdded: number;
+    fileSkips: transfer.ImportSkip[];
+  }> {
+    const vault = this.requireVault();
+    const archive = await transfer.openPassHolderZip(bytes);
+    const { parsed } = archive;
+    const added: string[] = [];
+    let result: ImportResult;
+    const fileSkips: transfer.ImportSkip[] = [];
+    try {
+      // Only against the vault: importContents drops repeats within the archive, and it may refuse the first copy
+      // as too large, so a later copy must still bring its files (unused ones are removed below).
+      const known = new Set(this.allContents().map(transfer.contentKey));
+      const contents: p2p.EntryContentV3[] = [];
+      for (const e of parsed.entries) {
+        if (known.has(transfer.contentKey(e.content))) {
+          contents.push(e.content);
+          continue;
+        }
+        const attachments: files.Attachment[] = [];
+        for (const f of e.files) {
+          let plain: Uint8Array;
+          try {
+            plain = await archive.readFile(f);
+            if (plain.length !== f.size) {
+              plain.fill(0);
+              throw new Error("inny rozmiar niż w opisie");
+            }
+          } catch (error) {
+            fileSkips.push({ at: `wpis ${e.position}, ${f.name}`, reason: error instanceof Error ? error.message : String(error) });
+            continue;
+          }
+          let encrypted: files.EncryptedFile;
+          try {
+            encrypted = await files.encryptFile(plain, { name: f.name, mime: f.mime });
+          } finally {
+            // Only the encrypted chunks are kept.
+            plain.fill(0);
+          }
+          // Noted before storing, so a half-stored file is removed too.
+          added.push(encrypted.attachment.id);
+          await files.storeEncryptedFile(this.fileStore, encrypted);
+          // Storing takes a while: stop as soon as the vault locks.
+          this.requireKeys();
+          attachments.push(encrypted.attachment);
+        }
+        contents.push(attachments.length > 0 ? { ...e.content, attachments } : e.content);
+      }
+      this.requireKeys();
+      result = await this.importContents(contents);
+    } catch (error) {
+      // No entry refers to the new files: remove them, without letting a failed delete hide the error.
+      for (const id of added) await this.fileStore.delete(id).catch(() => undefined);
+      throw error;
+    }
+    // The entries are written: from here on only files no live entry uses may be removed (also if the vault has
+    // locked since: the vault object still holds the entries).
+    const used = files.usedAttachments(vault);
+    const filesAdded = added.filter((id) => used.has(id)).length;
+    // Best effort, like pruneUnusedFiles; the import itself succeeded. A leftover is removed on disconnect.
+    for (const id of added) if (!used.has(id)) await this.fileStore.delete(id).catch(() => undefined);
+    return { parsed, result, filesAdded, fileSkips };
+  }
+
   async delete(id: string): Promise<void> {
     const vault = this.requireVault();
     p2p.deleteEntryV2(vault, this.requireClock(), id);

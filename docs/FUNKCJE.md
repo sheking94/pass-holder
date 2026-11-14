@@ -61,7 +61,7 @@ typów; reguły (opis wiersza, pola wrażliwe, formaty, zapis) są wspólne, ró
   - **Stany:** „czeka na synchronizację” (pliku nie ma jeszcze lokalnie albo nie został wysłany), „Plik jest
     uszkodzony”; takiego pliku nie da się pobrać. Wiersz listy pokazuje „📎 N”.
   - Edycja loginu przez pytanie o zapis zachowuje załączniki. Synchronizacja plików: [SYNCHRONIZACJA.md](SYNCHRONIZACJA.md#75-pliki-we-wtyczce-vault-storets-filesidb-file-storets).
-- **Import i eksport obejmują wszystkie typy** ([Import i eksport](#import-i-eksport)); pliki wpisów nie są eksportowane.
+- **Import i eksport obejmują wszystkie typy** ([Import i eksport](#import-i-eksport)); pliki wpisów przenosi tylko PassHolder ZIP.
 - **Obie aplikacje trzeba zaktualizować razem.** Stara wtyczka dostaje od nowego telefonu 410 i pokazuje
   ogólny błąd synchronizacji; nowa wtyczka ze starym telefonem pokazuje „Zaktualizuj aplikację na telefonie”
   ([SYNCHRONIZACJA.md](SYNCHRONIZACJA.md#41-transport-noise-kk)).
@@ -158,18 +158,39 @@ Widoki: `views/locked.ts` (`pinLockedView`), `views/pin-settings.ts`.
 Wszystkie pięć typów wpisów, w trzech formatach. Lista → **Plik** otwiera kartę `?transfer` (okno wyboru pliku
 zamknęłoby okienko).
 
-- **Eksport:** wybierz format (PassHolder JSON, Bitwarden JSON, NordPass CSV), zaznacz „Rozumiem, plik będzie
-  zawierał hasła jawnym tekstem” → **Pobierz plik** (`<format>-RRRR-MM-DD.json` albo `.csv`). Wpisy posortowane po
+- **Eksport:** wybierz format (PassHolder JSON, **PassHolder ZIP (wpisy i pliki)**, Bitwarden JSON, NordPass CSV), zaznacz „Rozumiem, plik będzie
+  zawierał hasła jawnym tekstem” (dla ZIP ostrzeżenie mówi też o odszyfrowanych plikach) → **Pobierz plik**
+  (`<format>-RRRR-MM-DD.json`, `.csv` albo `.zip`; domyślnie nadal JSON). Wpisy posortowane po
   nazwie (`localeCompare` „pl”), przy równej nazwie w kolejności login, kontakt, karta, notatka, dokument.
-  **Załączniki wpisów nie są eksportowane:** gdy sejf je ma, ekran eksportu pisze np. „2 pliki nie zostaną
-  wyeksportowane (eksport z plikami będzie w kolejnej wersji).” (`transfer.countAttachments`; czasownik odmienia `skippedFilesPhrase`:
-  „1 plik nie zostanie wyeksportowany”, „5 plików nie zostanie wyeksportowanych”). Import też ich nie przenosi, a wpis różniący się tylko plikami jest duplikatem.
-- **Import:** wybierz plik → **Importuj**. Format rozpoznaje się z treści pliku (JSON z `"format":"passholder"` →
+  **JSON i CSV nie niosą plików:** gdy sejf je ma, ekran eksportu pisze np. „2 pliki nie zostaną
+  wyeksportowane w formatach JSON i CSV. Wybierz PassHolder ZIP, żeby je zabrać.” (`transfer.countAttachments`; czasownik odmienia
+  `skippedFilesPhrase`: „1 plik nie zostanie wyeksportowany”, „5 plików nie zostanie wyeksportowanych”).
+- **PassHolder ZIP:** `passholder.json` (pierwszy wpis archiwum) + odszyfrowane pliki `files/<n>-<nazwa>` (`<>:"|?*` w
+  nazwie → `_`; prawdziwa nazwa jest w indeksie). Eksport nie czeka na pliki: niekompletny (czeka na synchronizację)
+  albo uszkodzony jest pomijany, wpis wychodzi bez niego. Status: „Wyeksportowano 2 wpisy i 3 pliki.”, przy
+  pominiętych „Pominięto 1 plik, który czeka na synchronizację albo jest uszkodzony.”, na końcu „Usuń archiwum, gdy nie będzie już potrzebne.”
+- **Import:** wybierz plik → **Importuj**. Format rozpoznaje się z treści pliku (ZIP po pierwszych bajtach `PK\x03\x04`; JSON z `"format":"passholder"` →
   PassHolder; JSON z `items` → Bitwarden; plik niebędący JSON-em → NordPass CSV; inny JSON → błąd). Podsumowanie mówi, ile dodano, ile pominięto i dlaczego
-  (z numerem wpisu albo wiersza). Wpisy są zmianami lokalnymi (•); na telefon trafiają po **Synchronizuj**.
+  (z numerem wpisu albo wiersza), przy ZIP także „Dodano N plików.” i „Pominięto N plików: wpis 3, umowa.pdf: uszkodzony; …” (pierwsze 5).
+  Wpisy są zmianami lokalnymi (•); na telefon trafiają po **Synchronizuj**.
+- **Import ZIP – zasady:**
+  - Duplikaty jak dla JSON: wpis o tej samej treści (bez załączników) jest pomijany razem ze swoimi plikami, więc ponowny
+    import tego samego archiwum nic nie dubluje. Jeśli w sejfie jest ten sam wpis bez plików, pliki nie zostaną dołączone. Sprawdzany jest tylko sejf, nie powtórzenia w samym archiwum.
+  - Problem z jednym plikiem nie blokuje importu: wpis wchodzi bez tego pliku, plik trafia na listę pominiętych
+    („brak w archiwum”, „inny rozmiar niż w opisie”, „za duży”, „uszkodzony”; wpis wskazany jako „wpis N, <nazwa>”). Ta sama ścieżka powtórzona w indeksie → wpis pominięty.
+  - Problem z całym archiwum (uszkodzony ZIP, brak `passholder.json`, brak miejsca, blokada sejfu w trakcie) → nic nie
+    zostaje zaimportowane, dodane pliki są usuwane. Błędy: „Archiwum ZIP jest uszkodzone albo nieobsługiwane”
+    (ZIP64, szyfrowane, metoda inna niż 0/8, wiele dysków, obcięty albo niezgodny katalog centralny lub koniec archiwum,
+    powtórzone nazwy, zły CRC-32 samego `passholder.json`), „Plik jest za duży (limit 256 MiB)”. Zły CRC-32 pliku
+    z `files/` nie blokuje importu: ten plik jest pomijany jako „uszkodzony”.
+  - Telefon czyta archiwum strumieniowo (jeden plik naraz w pamięci, bez kopii na dysku), więc `passholder.json` musi być
+    pierwszy – tak zapisują obie strony; inaczej „Archiwum nie jest eksportem PassHolder”. Wtyczka czyta całość do pamięci i kolejność jej nie obchodzi.
+  - `passholder.json` wyjęty z ZIP i zaimportowany sam daje wpisy bez plików; podsumowanie: „Pominięto N plików: … importuj całe archiwum ZIP”.
+  - Format i limity: [SPEC.md](SPEC.md#8-import-i-eksport); działanie w kodzie: [ARCHITEKTURA.md](ARCHITEKTURA.md).
 
 | Format | Import | Eksport |
 |---|---|---|
+| PassHolder ZIP (`passholder.json` + `files/`) | wpisy z plikami; limit archiwum 256 MiB | wpisy z odszyfrowanymi plikami |
 | PassHolder JSON `{"format":"passholder","version":3,"entries":[…]}` | wszystko, bez strat; wpis ze złym typem albo nieznanym kluczem pominięty z numerem | wpisy `{type,name,note,fields,custom}` (bez `v`, `hlc`) |
 | Bitwarden JSON | typy 1–4; plik zaszyfrowany (`"encrypted": true`, także chroniony hasłem, bez `items`) → komunikat o zaszyfrowanym eksporcie, nic nie wchodzi | wszystkie typy |
 | NordPass CSV | typ z kolumny `type` (`password`, `note`, `credit_card`, `identity`), a bez niej po kolumnach | ze stratą: nadmiar do `note` |

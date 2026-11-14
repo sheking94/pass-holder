@@ -16,6 +16,7 @@ import io.github.sheking94.passholder.core.p2p.EntryTooLargeException
 import io.github.sheking94.passholder.core.p2p.EntryTypeMismatchException
 import io.github.sheking94.passholder.core.p2p.PairingOffer
 import io.github.sheking94.passholder.core.p2p.PhoneEntry
+import io.github.sheking94.passholder.core.transfer.PassHolderZip
 import io.github.sheking94.passholder.core.transfer.Transfer
 import io.github.sheking94.passholder.core.transfer.TransferFormat
 import kotlinx.coroutines.CancellationException
@@ -516,17 +517,26 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * The file chosen for "Importuj plik", or null when the picker was cancelled (nothing to say then). The format
-     * is recognised from the content; entries already in the vault with the same content are skipped.
+     * is recognised from the content: a ZIP (first 4 bytes) is read as a PassHolder ZIP, streamed with its files;
+     * anything else as text. Entries already in the vault with the same content are skipped.
      */
     fun importFrom(uri: Uri?) {
         endFilePick()
         // The vault may have locked while the picker was open: the file is not even read then.
         if (uri == null || !store.isUnlocked) return
         launchVaultOperation("Importuję…") {
-            val text = TransferFiles.readText(app.contentResolver, uri)
-            val (format, parsed) = Transfer.parseImportFile(text)
-            val result = store.importContents(parsed.entries)
-            showStatus(importSummary(parsed, result, format))
+            val resolver = app.contentResolver
+            val summary = if (TransferFiles.isZip(resolver, uri)) {
+                val (parsed, result) = TransferFiles.openArchive(resolver, uri).use { store.importArchive(it) }
+                importSummary(parsed, result.entries, TransferFormat.PASSHOLDER, ArchiveFiles(result.filesAdded, result.fileSkips))
+            } else {
+                val text = TransferFiles.readText(resolver, uri)
+                val (format, parsed) = Transfer.parseImportFile(text)
+                val result = store.importContents(parsed.entries)
+                // A bare passholder.json taken out of an archive: its files are listed as skipped.
+                importSummary(parsed, result, format, ArchiveFiles(0, parsed.files))
+            }
+            showStatus(summary)
             viewModelScope.launch { refresh() }
         }
     }
@@ -539,6 +549,41 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             TransferFiles.writeText(app.contentResolver, uri, Transfer.exportFile(format, store.allContents()))
             showStatus("Zapisano plik. Usuń go zaraz po użyciu, zawiera hasła jawnym tekstem.")
         }
+    }
+
+    /**
+     * The document created for "Zapisz plik" with PassHolder ZIP chosen, or null when the save dialog was cancelled.
+     * The entries and their decrypted files are streamed into it, one file in memory at a time; a file that is not
+     * complete on the phone (waiting for sync) or cannot be decrypted is left out and counted.
+     */
+    fun exportArchiveTo(uri: Uri?) {
+        endFilePick()
+        if (uri == null || !store.isUnlocked) return
+        launchVaultOperation("Przygotowuję archiwum…") {
+            val entries = store.allContents()
+            val out = TransferFiles.writeArchive(app.contentResolver, uri) { stream ->
+                PassHolderZip.export(entries, stream, ::readForExport)
+            }
+            showStatus(
+                listOfNotNull(
+                    if (out.files > 0) "Wyeksportowano ${entriesNoun(entries.size)} i ${filesNoun(out.files)}." else "Wyeksportowano ${entriesNoun(entries.size)}.",
+                    if (out.missing > 0) missingFilesSentence(out.missing) else null,
+                    "Usuń archiwum, gdy nie będzie już potrzebne.",
+                ).joinToString(" "),
+            )
+        }
+    }
+
+    /**
+     * A file's decrypted bytes for the archive, or null when it is not complete or cannot be read (counted as missing).
+     * The vault locking (IllegalStateException) is not a missing file: it ends the export.
+     */
+    private fun readForExport(a: Attachment): ByteArray? = try {
+        if (store.isFileComplete(a)) store.readFile(a) else null
+    } catch (_: IllegalArgumentException) {
+        null
+    } catch (_: IOException) {
+        null
     }
 
     // --- Sync mode and devices -----------------------------------------------------------------------

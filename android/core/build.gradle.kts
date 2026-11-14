@@ -29,6 +29,8 @@ tasks.test {
     useJUnitPlatform()
     // The shared test vectors live in the TypeScript core, one level above android/.
     systemProperty("passholder.repoRoot", rootDir.parentFile.absolutePath)
+    // Tests that write shared fixtures do so only with -Dpassholder.writeFixtures=true.
+    systemProperty("passholder.writeFixtures", System.getProperty("passholder.writeFixtures") ?: "")
     // Opt-in interop test with the TypeScript extension client: PASSHOLDER_INTEROP_TEST=1
     environment("PASSHOLDER_INTEROP_TEST", System.getenv("PASSHOLDER_INTEROP_TEST") ?: "")
     testLogging { events("passed", "skipped", "failed") }

@@ -15,3 +15,18 @@ export function entriesNoun(n: number): string {
 export function skippedFilesPhrase(n: number): string {
   return `${n} ${plural(n, "plik nie zostanie wyeksportowany", "pliki nie zostaną wyeksportowane", "plików nie zostanie wyeksportowanych")}`;
 }
+
+/** "1 plik", "3 pliki", "5 plików". */
+export function filesNoun(n: number): string {
+  return `${n} ${plural(n, "plik", "pliki", "plików")}`;
+}
+
+/** The export status sentence for files left out, with the relative clause agreeing: "Pominięto 1 plik, który czeka…". */
+export function missingFilesSentence(n: number): string {
+  return `Pominięto ${n} ${plural(
+    n,
+    "plik, który czeka na synchronizację albo jest uszkodzony",
+    "pliki, które czekają na synchronizację albo są uszkodzone",
+    "plików, które czekają na synchronizację albo są uszkodzone",
+  )}.`;
+}

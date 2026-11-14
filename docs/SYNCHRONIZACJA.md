@@ -426,7 +426,7 @@ druga dostaje 500. „Przerwij odtwarzanie” kasuje wszystko.
 - **Pliki:** do 10 MiB i 40 kawałków po 256 KiB, najwyżej 20 na wpis przy dodawaniu (40 po łączeniu).
   Bez limitu łącznego, tylko wolne miejsce (507). Telefon nie widzi, które pliki są używane (wie to
   dopiero przy odblokowanym sejfie), więc plik osierocony zostaje co najmniej 24 h od pierwszego kawałka, a
-  faktycznie do pierwszego sprzątania przy odblokowanym sejfie. Eksport PassHolder JSON pomija pliki (ekran eksportu we wtyczce mówi, ile ich pominie). Telefon ma ekrany plików (dodaj, „Pobierz”, „📎 N”);
+  faktycznie do pierwszego sprzątania przy odblokowanym sejfie. Eksport PassHolder JSON pomija pliki (ekran eksportu mówi, ile ich pominie); PassHolder ZIP je zabiera ([FUNKCJE.md](FUNKCJE.md#import-i-eksport)). Telefon ma ekrany plików (dodaj, „Pobierz”, „📎 N”);
   eksport z plikami to kolejna wersja. Wtyczka trzyma kawałki w IndexedDB bez limitu (`unlimitedStorage`).
 - **Własne CPace i Noise** w dwóch językach: wektory testowe zmniejszają ryzyko, ale to nie audyt.
 - **ristretto255 w Kotlinie bez stałego czasu** (`BigInteger`). Akceptowane tylko dla jednorazowego CPace
