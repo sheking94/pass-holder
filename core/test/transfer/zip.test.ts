@@ -97,6 +97,18 @@ describe("ZipWriter and reader", () => {
     expect(await readZipEntry(zip, index[2]!, MAX_FILE_SIZE)).toEqual(zeros);
   });
 
+  it("keeps its own copy of a stored entry, so the caller may zero its buffer", async () => {
+    const source = randomBytes(1000);
+    const original = source.slice();
+    const w = new ZipWriter();
+    await w.add("random.bin", source);
+    source.fill(0);
+    const zip = new Uint8Array(await new Blob(w.finish() as BlobPart[]).arrayBuffer());
+    const [entry] = readZipIndex(zip);
+    expect(entry!.method).toBe(0);
+    expect(await readZipEntry(zip, entry!, MAX_FILE_SIZE)).toEqual(original);
+  });
+
   it("keeps a UTF-8 name and marks it with flag bit 11", async () => {
     const zip = await build([["Zażółć ?.txt", utf8("treść")]]);
     const [entry] = readZipIndex(zip);

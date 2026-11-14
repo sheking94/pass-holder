@@ -193,6 +193,18 @@ describe("parseArchiveIndex", () => {
     expect(r.entries.map((e) => e.position)).toEqual([2, 3]);
   });
 
+  it("skips a later entry that describes a path already described", () => {
+    const other = { ...file, path: "files/2-b.txt" };
+    const r = parseArchiveIndex(index([
+      { ...bare(note), attachments: [file] },
+      { ...bare(login), attachments: [other, file] },
+      { ...bare(note), name: "Dwa razy", attachments: [other, other] },
+      { ...bare(note), name: "Drugi", attachments: [other] },
+    ]));
+    expect(r.skipped).toEqual([2, 3].map((n) => ({ at: `wpis ${n}`, reason: "zły format wpisu" })));
+    expect(r.entries.map((e) => [e.position, e.files.map((f) => f.path)])).toEqual([[1, [file.path]], [4, [other.path]]]);
+  });
+
   it("follows the PassHolder JSON rules for the rest", () => {
     expect(parseArchiveIndex(index([{ ...bare(note), name: " " }])).skipped).toEqual([{ at: "wpis 1", reason: "brak nazwy" }]);
     expect(() => parseArchiveIndex("{")).toThrow("To nie jest plik PassHolder w wersji 3");

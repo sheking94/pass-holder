@@ -68,6 +68,8 @@ export function parseArchiveIndex(text: string): ParsedArchive {
   if (version !== 3 || !Array.isArray(raw)) throw new Error(NOT_PASSHOLDER);
   const entries: ArchiveEntry[] = [];
   const skipped: ImportSkip[] = [];
+  // A path may be described once in the whole index, so one stored file cannot be imported many times.
+  const paths = new Set<string>();
   raw.forEach((item, i) => {
     try {
       let files: ArchivedFile[] = [];
@@ -78,8 +80,13 @@ export function parseArchiveIndex(text: string): ParsedArchive {
         body = rest;
       }
       const content = parseEntryContent(body);
+      const own = files.map((f) => f.path);
+      if (new Set(own).size !== own.length || own.some((p) => paths.has(p))) throw new Error();
       if (content.name.trim() === "") skipped.push({ at: `wpis ${i + 1}`, reason: "brak nazwy" });
-      else entries.push({ content, files, position: i + 1 });
+      else {
+        own.forEach((p) => paths.add(p));
+        entries.push({ content, files, position: i + 1 });
+      }
     } catch {
       skipped.push({ at: `wpis ${i + 1}`, reason: "zły format wpisu" });
     }

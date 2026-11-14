@@ -88,7 +88,8 @@ export class ZipWriter {
     const stored = deflated.length >= bytes.length;
     const entry: Pending = {
       name: new TextEncoder().encode(path), method: stored ? 0 : 8, crc: crc32(bytes), size: bytes.length,
-      data: stored ? bytes : deflated,
+      // A copy, so the caller may zero its plaintext as soon as add resolves.
+      data: stored ? bytes.slice() : deflated,
     };
     if (options.first) this.entries.unshift(entry);
     else this.entries.push(entry);
@@ -98,8 +99,14 @@ export class ZipWriter {
   finish(): Uint8Array[] {
     const parts: Uint8Array[] = [];
     const central: Uint8Array[] = [];
+    // Values the reader takes for ZIP64 markers (0xFFFF, 0xFFFFFFFF) are never written.
+    const tooLarge = (): never => {
+      throw new Error("ZIP too large");
+    };
+    if (this.entries.length >= 0xffff) tooLarge();
     let offset = 0;
     for (const e of this.entries) {
+      if (offset >= 0xffffffff || e.size >= 0xffffffff || e.data.length >= 0xffffffff) tooLarge();
       const local = new Uint8Array(30 + e.name.length);
       const lv = new DataView(local.buffer);
       lv.setUint32(0, LOCAL_SIG, true);
@@ -117,7 +124,7 @@ export class ZipWriter {
       offset += local.length + e.data.length;
     }
     const centralSize = central.reduce((n, c) => n + c.length, 0);
-    if (this.entries.length > 0xffff || offset + centralSize > 0xffffffff) throw new Error("ZIP too large");
+    if (offset >= 0xffffffff || centralSize >= 0xffffffff || offset + centralSize >= 0xffffffff) tooLarge();
     const end = new Uint8Array(22);
     const ev = new DataView(end.buffer);
     ev.setUint32(0, END_SIG, true);
