@@ -3,7 +3,9 @@ package io.github.sheking94.passholder.app
 import io.github.sheking94.passholder.core.transfer.TransferFormat
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.time.LocalDate
@@ -35,6 +37,75 @@ class TransferFilesTest {
         assertEquals("passholder-2026-11-09.json", TransferFiles.defaultFileName(TransferFormat.PASSHOLDER, day))
         assertEquals("passholder-2026-11-09.json", TransferFiles.defaultFileName(TransferFormat.BITWARDEN, day))
         assertEquals("passholder-2026-11-09.csv", TransferFiles.defaultFileName(TransferFormat.NORDPASS, day))
+        assertEquals("passholder-2026-11-09.zip", TransferFiles.defaultFileName(TransferFormat.PASSHOLDER, day, zip = true))
+    }
+
+    @Test
+    fun `a ZIP is recognised by its first four bytes`() {
+        assertTrue(TransferFiles.isZip { ByteArrayInputStream(byteArrayOf(0x50, 0x4B, 0x03, 0x04, 0x14, 0x00)) })
+        // Read in pieces, as a provider may hand them out.
+        val trickle = object : java.io.InputStream() {
+            private val bytes = byteArrayOf(0x50, 0x4B, 0x03, 0x04)
+            private var i = 0
+            override fun read() = if (i < bytes.size) bytes[i++].toInt() else -1
+            override fun read(b: ByteArray, off: Int, len: Int): Int = if (i < bytes.size) { b[off] = bytes[i++]; 1 } else -1
+        }
+        assertTrue(TransferFiles.isZip { trickle })
+        assertFalse(TransferFiles.isZip { ByteArrayInputStream("{\"format\":\"passholder\"}".toByteArray()) })
+        assertFalse(TransferFiles.isZip { ByteArrayInputStream(ByteArray(0)) })
+        assertFalse(TransferFiles.isZip { ByteArrayInputStream(byteArrayOf(0x50, 0x4B, 0x03)) })
+        // An empty archive (end record only) is not a PassHolder ZIP.
+        assertFalse(TransferFiles.isZip { ByteArrayInputStream(byteArrayOf(0x50, 0x4B, 0x05, 0x06)) })
+    }
+
+    @Test
+    fun `provider failures while checking for a ZIP are Polish`() {
+        for (failure in listOf<() -> java.io.InputStream?>(
+            { throw java.io.FileNotFoundException("open failed: ENOENT") },
+            { throw SecurityException("Permission Denial") },
+            { null },
+            { object : java.io.InputStream() { override fun read() = throw java.io.IOException("EIO") } },
+        )) {
+            val e = assertThrows(java.io.IOException::class.java) { TransferFiles.isZip(failure) }
+            assertEquals("Nie udało się odczytać pliku.", e.message)
+        }
+    }
+
+    @Test
+    fun `provider failures while streaming an archive are Polish`() {
+        for (failure in listOf<() -> java.io.InputStream?>(
+            { throw java.io.FileNotFoundException("open failed: ENOENT") },
+            { throw SecurityException("Permission Denial") },
+            { null },
+        )) {
+            val e = assertThrows(java.io.IOException::class.java) { TransferFiles.openArchive(failure) }
+            assertEquals("Nie udało się odczytać pliku.", e.message)
+        }
+        val broken = TransferFiles.openArchive { object : java.io.InputStream() { override fun read() = throw java.io.IOException("EIO") } }
+        assertEquals("Nie udało się odczytać pliku.", assertThrows(java.io.IOException::class.java) { broken.read(ByteArray(4)) }.message)
+        assertArrayEquals(byteArrayOf(1, 2), TransferFiles.openArchive { ByteArrayInputStream(byteArrayOf(1, 2)) }.readBytes())
+    }
+
+    @Test
+    fun `provider failures while writing an archive are Polish, the archive's own errors too`() {
+        val expected = "Nie udało się zapisać pliku. Jeśli plik powstał, usuń go, bo może zawierać hasła."
+        for (failure in listOf<() -> java.io.OutputStream?>(
+            { throw java.io.FileNotFoundException("open failed") },
+            { throw SecurityException("Permission Denial") },
+            { null },
+            { object : java.io.OutputStream() { override fun write(b: Int) = throw java.io.IOException("ENOSPC") } },
+        )) {
+            val e = assertThrows(java.io.IOException::class.java) { TransferFiles.writeArchive(failure) { it.write(ByteArray(10)) } }
+            assertEquals(expected, e.message)
+        }
+        // The vault locked half way: part of the archive may be on disk, so the message says to delete it.
+        val e = assertThrows(java.io.IOException::class.java) {
+            TransferFiles.writeArchive({ java.io.ByteArrayOutputStream() }) { throw IllegalStateException("Sejf jest zablokowany") }
+        }
+        assertEquals(expected, e.message)
+        val out = java.io.ByteArrayOutputStream()
+        assertEquals(7, TransferFiles.writeArchive({ out }) { it.write(byteArrayOf(1, 2, 3)); 7 })
+        assertArrayEquals(byteArrayOf(1, 2, 3), out.toByteArray())
     }
 
     @Test

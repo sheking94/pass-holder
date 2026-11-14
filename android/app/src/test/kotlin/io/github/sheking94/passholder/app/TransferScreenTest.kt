@@ -35,7 +35,7 @@ class TransferScreenTest : ScreenTestBase() {
         val vm = viewModel()
 
         menu("Import i eksport")
-        waitFor("Import rozpoznaje format sam: PassHolder JSON, Bitwarden JSON (bez szyfrowania) albo NordPass CSV.")
+        waitFor("Import rozpoznaje format sam: PassHolder ZIP, PassHolder JSON, Bitwarden JSON (bez szyfrowania) albo NordPass CSV.")
         assertEquals(Screen.Transfer, vm.state.value.screen)
         compose.onNodeWithText("Zapisz plik").performScrollTo().assertIsNotEnabled()
         shot("50-import-eksport")

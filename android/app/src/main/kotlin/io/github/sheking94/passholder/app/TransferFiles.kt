@@ -3,7 +3,9 @@ package io.github.sheking94.passholder.app
 import android.content.ContentResolver
 import android.net.Uri
 import io.github.sheking94.passholder.core.transfer.TransferFormat
+import java.io.BufferedOutputStream
 import java.io.ByteArrayOutputStream
+import java.io.FilterInputStream
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
@@ -82,7 +84,67 @@ object TransferFiles {
         }
     }
 
-    /** The name the save dialog suggests: passholder-RRRR-MM-DD.json, or .csv for NordPass. */
-    fun defaultFileName(format: TransferFormat, day: LocalDate = LocalDate.now()): String =
-        "passholder-$day.${if (format == TransferFormat.NORDPASS) "csv" else "json"}"
+    /** The name the save dialog suggests: passholder-RRRR-MM-DD.json, .csv for NordPass, .zip for a PassHolder ZIP ([zip]). */
+    fun defaultFileName(format: TransferFormat, day: LocalDate = LocalDate.now(), zip: Boolean = false): String =
+        "passholder-$day.${if (zip) "zip" else if (format == TransferFormat.NORDPASS) "csv" else "json"}"
+
+    /** The first bytes of a ZIP archive (a local file header): 50 4B 03 04. */
+    private val ZIP_MAGIC = byteArrayOf(0x50, 0x4B, 0x03, 0x04)
+
+    /** Whether the document at [uri] is a ZIP archive, by its first 4 bytes (the name and type are the provider's guess). */
+    fun isZip(resolver: ContentResolver, uri: Uri): Boolean = isZip { resolver.openInputStream(uri) }
+
+    /** Reads at most 4 bytes; provider failures become the Polish [READ_FAILED]. */
+    internal fun isZip(open: () -> InputStream?): Boolean = readFailing {
+        val input = open() ?: throw IOException("no stream")
+        input.use {
+            val head = ByteArray(ZIP_MAGIC.size)
+            var n = 0
+            while (n < head.size) {
+                val read = it.read(head, n, head.size - n)
+                if (read < 0) break
+                n += read
+            }
+            n == head.size && head.contentEquals(ZIP_MAGIC)
+        }
+    }
+
+    /**
+     * The archive to import at [uri], for streaming: opening it and reading from it fail with the Polish
+     * [READ_FAILED] (the caller closes it). The archive's own errors are not stream errors and stay as they are.
+     */
+    fun openArchive(resolver: ContentResolver, uri: Uri): InputStream = openArchive { resolver.openInputStream(uri) }
+
+    internal fun openArchive(open: () -> InputStream?): InputStream {
+        val input = readFailing { open() ?: throw IOException("no stream") }
+        return object : FilterInputStream(input) {
+            override fun read(): Int = readFailing { super.read() }
+            override fun read(b: ByteArray, off: Int, len: Int): Int = readFailing { super.read(b, off, len) }
+            override fun skip(n: Long): Long = readFailing { super.skip(n) }
+            override fun available(): Int = readFailing { super.available() }
+        }
+    }
+
+    private inline fun <T> readFailing(block: () -> T): T = try {
+        block()
+    } catch (_: IOException) {
+        throw IOException(READ_FAILED)
+    } catch (_: SecurityException) {
+        throw IOException(READ_FAILED)
+    }
+
+    /**
+     * Streams an archive into the document at [uri] ("wt", like [writeText]); [write] gets a buffered stream that is
+     * flushed and closed afterwards. Any failure once the document is open, including [write]'s own (the vault locked
+     * half way), becomes the Polish [WRITE_FAILED]: part of the archive may already be on disk and must be deleted.
+     */
+    fun <T> writeArchive(resolver: ContentResolver, uri: Uri, write: (OutputStream) -> T): T =
+        writeArchive({ resolver.openOutputStream(uri, "wt") }, write)
+
+    internal fun <T> writeArchive(open: () -> OutputStream?, write: (OutputStream) -> T): T = try {
+        val output = open() ?: throw IOException("no stream")
+        BufferedOutputStream(output, 64 * 1024).use { write(it) }
+    } catch (e: Exception) {
+        throw IOException(WRITE_FAILED, e)
+    }
 }

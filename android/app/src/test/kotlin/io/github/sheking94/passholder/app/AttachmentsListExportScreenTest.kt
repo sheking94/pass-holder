@@ -34,12 +34,12 @@ class AttachmentsListScreenTest : ScreenTestBase() {
 
 class AttachmentsExportNoteScreenTest : ScreenTestBase() {
     @Test
-    fun `the export screen says files are not exported when the vault has files`() {
+    fun `the export screen says JSON and CSV leave the files out and points to the ZIP`() {
         createVault()
         putEntry(login("bank.pl", 1))
         waitFor("bank.pl 📎 1")
         menu("Import i eksport")
-        waitFor("1 plik nie zostanie wyeksportowany (eksport z plikami będzie w kolejnej wersji).")
+        waitFor("1 plik nie zostanie wyeksportowany w formatach JSON i CSV. Wybierz PassHolder ZIP, żeby je zabrać.")
     }
 }
 
@@ -51,6 +51,6 @@ class NoExportNoteWithoutFilesScreenTest : ScreenTestBase() {
         waitFor("bank.pl")
         menu("Import i eksport")
         waitFor("Import i eksport")
-        assertTrue(gone("eksport z plikami"))
+        assertTrue(gone("nie zostanie wyeksportowany"))
     }
 }

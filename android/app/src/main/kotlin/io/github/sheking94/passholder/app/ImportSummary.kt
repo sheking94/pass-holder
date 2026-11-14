@@ -1,6 +1,8 @@
 package io.github.sheking94.passholder.app
 
 import io.github.sheking94.passholder.core.p2p.ImportResult
+import io.github.sheking94.passholder.core.transfer.ImportSkip
+import io.github.sheking94.passholder.core.transfer.ParsedArchive
 import io.github.sheking94.passholder.core.transfer.ParsedImport
 import io.github.sheking94.passholder.core.transfer.TransferFormat
 
@@ -22,23 +24,40 @@ fun entriesNoun(n: Int): String = "$n ${plural(n, "wpis", "wpisy", "wpisów")}"
 fun skippedFilesPhrase(n: Int): String =
     "$n ${plural(n, "plik nie zostanie wyeksportowany", "pliki nie zostaną wyeksportowane", "plików nie zostanie wyeksportowanych")}"
 
+/** "1 plik", "3 pliki", "5 plików". */
+fun filesNoun(n: Int): String = "$n ${plural(n, "plik", "pliki", "plików")}"
+
+/** The files of an import: [added] stored with their entries, [skipped] left out (with where and why). */
+data class ArchiveFiles(val added: Int, val skipped: List<ImportSkip>)
+
+/** "at: reason; at: reason" for the first [LISTED_SKIPPED] items, then "; …" if there are more, otherwise ".". */
+private fun listSkipped(skipped: List<ImportSkip>): String {
+    val listed = skipped.take(LISTED_SKIPPED).joinToString("; ") { "${it.at}: ${it.reason}" }
+    return "$listed${if (skipped.size > LISTED_SKIPPED) "; …" else "."}"
+}
+
 /**
  * The message shown after an import: what was added, what was skipped and why, and a reminder to delete the file.
  * Port of extension/src/import-summary.ts; on the phone the new entries reach the extension with the next sync.
+ * [files] (a PassHolder ZIP, or files described in a bare passholder.json) adds how many files came in or were skipped.
  */
-fun importSummary(parsed: ParsedImport, result: ImportResult, format: TransferFormat): String {
-    val skipped = parsed.skipped
+fun importSummary(parsed: ParsedImport, result: ImportResult, format: TransferFormat, files: ArchiveFiles? = null): String =
+    summary(parsed.skipped, result, format, files)
+
+/** The same message for a PassHolder ZIP. */
+fun importSummary(parsed: ParsedArchive, result: ImportResult, format: TransferFormat, files: ArchiveFiles? = null): String =
+    summary(parsed.skipped, result, format, files)
+
+private fun summary(skipped: List<ImportSkip>, result: ImportResult, format: TransferFormat, files: ArchiveFiles?): String {
     fun noun(n: Int) = if (format == TransferFormat.NORDPASS) plural(n, "wiersz", "wiersze", "wierszy") else plural(n, "wpis", "wpisy", "wpisów")
-    val listed = skipped.take(LISTED_SKIPPED).joinToString("; ") { "${it.at}: ${it.reason}" }
+    val fileSkips = files?.skipped.orEmpty()
     return listOfNotNull(
         "Dodano ${entriesNoun(result.added)} (zsynchronizuj, żeby trafiły do wtyczki).",
         if (result.duplicates > 0) "Pominięto ${result.duplicates} takich, które już są w sejfie lub powtarzają się w pliku." else null,
         if (result.tooLarge > 0) "Uwaga, pominięto za duże: ${result.tooLarge}." else null,
-        if (skipped.isNotEmpty()) {
-            "Pominięto ${skipped.size} ${noun(skipped.size)}: $listed${if (skipped.size > LISTED_SKIPPED) "; …" else "."}"
-        } else {
-            null
-        },
+        if (skipped.isNotEmpty()) "Pominięto ${skipped.size} ${noun(skipped.size)}: ${listSkipped(skipped)}" else null,
+        if (files != null && files.added > 0) "Dodano ${filesNoun(files.added)}." else null,
+        if (fileSkips.isNotEmpty()) "Pominięto ${filesNoun(fileSkips.size)}: ${listSkipped(fileSkips)}" else null,
         "Usuń plik z dysku, zawiera hasła jawnym tekstem.",
     ).joinToString(" ")
 }
