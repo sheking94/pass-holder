@@ -567,7 +567,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             showStatus(
                 listOfNotNull(
                     if (out.files > 0) "Wyeksportowano ${entriesNoun(entries.size)} i ${filesNoun(out.files)}." else "Wyeksportowano ${entriesNoun(entries.size)}.",
-                    if (out.missing > 0) "Pominięto ${filesNoun(out.missing)}, które czekają na synchronizację albo są uszkodzone." else null,
+                    if (out.missing > 0) missingFilesSentence(out.missing) else null,
                     "Usuń archiwum, gdy nie będzie już potrzebne.",
                 ).joinToString(" "),
             )

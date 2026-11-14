@@ -168,7 +168,7 @@ zamknęłoby okienko).
 - **PassHolder ZIP:** `passholder.json` (pierwszy wpis archiwum) + odszyfrowane pliki `files/<n>-<nazwa>` (`<>:"|?*` w
   nazwie → `_`; prawdziwa nazwa jest w indeksie). Eksport nie czeka na pliki: niekompletny (czeka na synchronizację)
   albo uszkodzony jest pomijany, wpis wychodzi bez niego. Status: „Wyeksportowano 2 wpisy i 3 pliki.”, przy
-  pominiętych „Pominięto 1 plik, które czekają na synchronizację albo są uszkodzone.”, na końcu „Usuń archiwum, gdy nie będzie już potrzebne.”
+  pominiętych „Pominięto 1 plik, który czeka na synchronizację albo jest uszkodzony.”, na końcu „Usuń archiwum, gdy nie będzie już potrzebne.”
 - **Import:** wybierz plik → **Importuj**. Format rozpoznaje się z treści pliku (ZIP po pierwszych bajtach `PK\x03\x04`; JSON z `"format":"passholder"` →
   PassHolder; JSON z `items` → Bitwarden; plik niebędący JSON-em → NordPass CSV; inny JSON → błąd). Podsumowanie mówi, ile dodano, ile pominięto i dlaczego
   (z numerem wpisu albo wiersza), przy ZIP także „Dodano N plików.” i „Pominięto N plików: wpis 3, umowa.pdf: uszkodzony; …” (pierwsze 5).
@@ -180,7 +180,9 @@ zamknęłoby okienko).
     („brak w archiwum”, „inny rozmiar niż w opisie”, „za duży”, „uszkodzony”; wpis wskazany jako „wpis N, <nazwa>”). Ta sama ścieżka powtórzona w indeksie → wpis pominięty.
   - Problem z całym archiwum (uszkodzony ZIP, brak `passholder.json`, brak miejsca, blokada sejfu w trakcie) → nic nie
     zostaje zaimportowane, dodane pliki są usuwane. Błędy: „Archiwum ZIP jest uszkodzone albo nieobsługiwane”
-    (ZIP64, szyfrowane, metoda inna niż 0/8, wiele dysków, powtórzone nazwy, zły CRC-32), „Plik jest za duży (limit 256 MiB)”.
+    (ZIP64, szyfrowane, metoda inna niż 0/8, wiele dysków, obcięty albo niezgodny katalog centralny lub koniec archiwum,
+    powtórzone nazwy, zły CRC-32 samego `passholder.json`), „Plik jest za duży (limit 256 MiB)”. Zły CRC-32 pliku
+    z `files/` nie blokuje importu: ten plik jest pomijany jako „uszkodzony”.
   - Telefon czyta archiwum strumieniowo (jeden plik naraz w pamięci, bez kopii na dysku), więc `passholder.json` musi być
     pierwszy – tak zapisują obie strony; inaczej „Archiwum nie jest eksportem PassHolder”. Wtyczka czyta całość do pamięci i kolejność jej nie obchodzi.
   - `passholder.json` wyjęty z ZIP i zaimportowany sam daje wpisy bez plików; podsumowanie: „Pominięto N plików: … importuj całe archiwum ZIP”.

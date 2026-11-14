@@ -15,8 +15,10 @@ import java.util.zip.Inflater
  * first entry must be passholder.json, else [PassHolderZip.NOT_ARCHIVE]), then [forEachFile]. Errors are
  * IllegalArgumentExceptions with the Polish message: [PassHolderZip.ZIP_TOO_LARGE] once more than the limit was read,
  * [PassHolderZip.ZIP_INVALID] for ZIP64, encryption, a method other than stored/deflate, a repeated name, a name over
- * 1024 bytes, more than 5000 entries, broken structure, or inflated output more than [MAX_EXCESS] beyond what the
- * index describes (the declared size of each described file; nothing for an entry it does not describe). Errors of the input stream itself are passed on. [close] closes the input.
+ * 1024 bytes, more than 5000 entries, broken structure (a central directory or end record included: cut short,
+ * inconsistent with the entries, for several disks or followed by more bytes), or inflated output more than
+ * [MAX_EXCESS] beyond what the index describes (the declared size of each described file; nothing for an entry it
+ * does not describe). Errors of the input stream itself are passed on. [close] closes the input.
  */
 class ArchiveReader internal constructor(private val input: InputStream, private val maxZipBytes: Long) : Closeable {
     constructor(input: InputStream) : this(input, PassHolderZip.MAX_ZIP_BYTES)
@@ -66,6 +68,10 @@ class ArchiveReader internal constructor(private val input: InputStream, private
     private var allowance = 0L
     private var state = State.NEW
 
+    /** Signature that ended the entries ([CENTRAL_SIG] or [END_SIG]) and its offset in the input. */
+    private var ending = 0L
+    private var endingAt = 0L
+
     /** The index (first entry). Throws [PassHolderZip.NOT_ARCHIVE] when it is missing, too large or not PassHolder JSON v3. */
     fun readIndex(): ParsedArchive {
         check(state == State.NEW) { "Index already read" }
@@ -91,9 +97,11 @@ class ArchiveReader internal constructor(private val input: InputStream, private
 
     /**
      * Reads the rest of the archive. For each entry whose path is in [wanted], calls [action] with its bytes (zeroed
-     * once [action] returns), or [onSkip] with the Polish reason: "za duży" (past [Attachments.MAX_FILE_SIZE], stopped
-     * while inflating) or "uszkodzony" (wrong CRC or size). Other entries are passed over. Wanted paths never met are
-     * for the caller to report ("brak w archiwum").
+     * once [action] returns), or [onSkip] with the Polish reason: past [Attachments.MAX_FILE_SIZE] (stopped while
+     * inflating) "inny rozmiar niż w opisie" for a path the index describes (as the extension says: no described
+     * size is past the limit), else "za duży"; "uszkodzony" for a wrong CRC or size. Other entries are passed
+     * over. Wanted paths never met are for the caller to report ("brak w archiwum"). The archive's end is checked
+     * last (see [readDirectory]): a caller must not act on what [action] gave it until this returns.
      */
     fun forEachFile(
         wanted: Set<String>,
@@ -115,13 +123,13 @@ class ArchiveReader internal constructor(private val input: InputStream, private
                 } finally {
                     d.bytes.fill(0)
                 }
-                Data.TooLarge -> onSkip(e.name, "za duży")
+                // The index describes no file past the limit, so a described one that passes it has another size.
+                Data.TooLarge -> onSkip(e.name, if (e.name in declared) "inny rozmiar niż w opisie" else "za duży")
                 Data.Corrupt -> onSkip(e.name, "uszkodzony")
                 Data.Skipped -> Unit
             }
         }
-        // The central directory is not needed, but counts towards the archive's size.
-        while (fill()) pos = lim
+        readDirectory()
         state = State.DONE
     }
 
@@ -133,11 +141,16 @@ class ArchiveReader internal constructor(private val input: InputStream, private
 
     // ---- Entries ----
 
-    /** The next local header, or null at the central directory (end of the entries). */
+    /** The next local header, or null at the central directory (end of the entries; [ending] then holds its signature and offset). */
     private fun nextEntry(): Local? {
-        when (u32()) {
+        val at = offset()
+        when (val sig = u32()) {
             LOCAL_SIG -> Unit
-            CENTRAL_SIG, END_SIG -> return null
+            CENTRAL_SIG, END_SIG -> {
+                ending = sig
+                endingAt = at
+                return null
+            }
             else -> invalid()
         }
         skip(2)
@@ -158,6 +171,52 @@ class ArchiveReader internal constructor(private val input: InputStream, private
         val name = strictUtf8(nameBytes) ?: invalid()
         if (!names.add(name) || names.size > PassHolderZip.MAX_ZIP_ENTRIES) invalid()
         return Local(name, method, descriptor, crc, csize, size)
+    }
+
+    /**
+     * The central directory and the end record, after the last entry: one central record for each entry met, with
+     * the same names, then an end record for a single disk that counts them, gives the directory's offset and size,
+     * and whose comment ends the input exactly. Anything else (cut short, trailing bytes, ZIP64, several disks) is
+     * [PassHolderZip.ZIP_INVALID], as the extension refuses it.
+     */
+    private fun readDirectory() {
+        val start = endingAt
+        var sig = ending
+        val seen = HashSet<String>()
+        while (sig == CENTRAL_SIG) {
+            skip(4) // versions
+            val flags = u16()
+            val method = u16()
+            skip(8) // time, date, CRC
+            val csize = u32()
+            val size = u32()
+            val nameLength = u16()
+            val extraLength = u16()
+            val commentLength = u16()
+            val disk = u16()
+            skip(6) // attributes
+            val localAt = u32()
+            if (nameLength > MAX_NAME_BYTES) invalid()
+            val name = strictUtf8(bytes(nameLength)) ?: invalid()
+            skip(extraLength.toLong() + commentLength)
+            if (flags and FLAG_ENCRYPTED != 0 || (method != 0 && method != 8) || disk != 0) invalid()
+            if (csize == MARKER_32 || size == MARKER_32 || localAt == MARKER_32 || localAt >= start) invalid()
+            if (name !in names || !seen.add(name)) invalid()
+            sig = u32()
+        }
+        if (sig != END_SIG) invalid()
+        val directorySize = offset() - 4 - start
+        val disk = u16()
+        val directoryDisk = u16()
+        val countOnDisk = u16()
+        val count = u16()
+        val size = u32()
+        val at = u32()
+        val commentLength = u16()
+        if (disk != 0 || directoryDisk != 0 || countOnDisk != count || count != seen.size || seen.size != names.size) invalid()
+        if (size != directorySize || at != start) invalid()
+        skip(commentLength.toLong())
+        if (fill()) invalid()
     }
 
     /** The entry's data: its bytes when [limit] is given and not passed, else read past ([limit] null: [Data.Skipped]). */
@@ -315,6 +374,9 @@ class ArchiveReader internal constructor(private val input: InputStream, private
         lim = n
         return true
     }
+
+    /** Offset in the input of the next unread byte. */
+    private fun offset(): Long = total - (lim - pos)
 
     private fun u8(): Int {
         if (!fill()) invalid()

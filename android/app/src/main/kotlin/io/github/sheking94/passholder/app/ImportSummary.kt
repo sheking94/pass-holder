@@ -27,6 +27,14 @@ fun skippedFilesPhrase(n: Int): String =
 /** "1 plik", "3 pliki", "5 plików". */
 fun filesNoun(n: Int): String = "$n ${plural(n, "plik", "pliki", "plików")}"
 
+/** The export status sentence for files left out, with the relative clause agreeing: "Pominięto 1 plik, który czeka…". */
+fun missingFilesSentence(n: Int): String = "Pominięto $n ${plural(
+    n,
+    "plik, który czeka na synchronizację albo jest uszkodzony",
+    "pliki, które czekają na synchronizację albo są uszkodzone",
+    "plików, które czekają na synchronizację albo są uszkodzone",
+)}."
+
 /** The files of an import: [added] stored with their entries, [skipped] left out (with where and why). */
 data class ArchiveFiles(val added: Int, val skipped: List<ImportSkip>)
 

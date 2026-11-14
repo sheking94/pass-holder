@@ -71,7 +71,7 @@ class TransferZipScreenTest : ScreenTestBase() {
         val target = File(dir, "passholder.zip").apply { writeText("old, longer content that must not survive the export".repeat(200)) }
         compose.runOnIdle { vm.exportArchiveTo(Uri.fromFile(target)) }
         waitFor(
-            "Wyeksportowano 1 wpis i 1 plik. Pominięto 1 plik, które czekają na synchronizację albo są uszkodzone. " +
+            "Wyeksportowano 1 wpis i 1 plik. Pominięto 1 plik, który czeka na synchronizację albo jest uszkodzony. " +
                 "Usuń archiwum, gdy nie będzie już potrzebne.",
         )
         val skips = HashMap<String, String>()

@@ -1,6 +1,6 @@
 import { transfer } from "@passholder/core";
 import { importSummary } from "../import-summary.ts";
-import { entriesNoun, filesNoun, skippedFilesPhrase } from "../plural.ts";
+import { entriesNoun, filesNoun, missingFilesSentence, skippedFilesPhrase } from "../plural.ts";
 import { busy, h, setStatus, show, statusLine } from "../ui/dom.ts";
 import { downloadFile } from "../ui/download.ts";
 import { showInTab } from "../ui/page.ts";
@@ -33,7 +33,7 @@ async function exportZip(status: HTMLElement, day: string) {
   downloadFile(`passholder-${day}.zip`, new Blob(out.parts as BlobPart[]), "application/zip");
   const parts = [
     out.files > 0 ? `Wyeksportowano ${entriesNoun(out.entries)} i ${filesNoun(out.files)}.` : `Wyeksportowano ${entriesNoun(out.entries)}.`,
-    out.missing > 0 && `Pominięto ${filesNoun(out.missing)}, które czekają na synchronizację albo są uszkodzone.`,
+    out.missing > 0 && missingFilesSentence(out.missing),
     "Usuń archiwum, gdy nie będzie już potrzebne.",
   ];
   setStatus(status, parts.filter(Boolean).join(" "));

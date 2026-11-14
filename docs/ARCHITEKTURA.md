@@ -47,7 +47,7 @@ danych opisuje [SPEC.md](SPEC.md), protokół [SYNCHRONIZACJA.md](SYNCHRONIZACJA
 | `src/files/host-files.ts` | strona hosta `/p2p/v2/file`: `FileStore`, `MemoryFileStore`, `processP2pFile` (`status`/`put`/`get`, 400/404/409/507), `orphanFileIds` (24 h) |
 | `src/files/client.ts` | klient: `LocalFileStore`, `syncFiles` (wysyłanie i pobieranie brakujących kawałków, `uploadedEpoch`), `noiseFileTransport`, `pruneLocalFiles` |
 | `src/files/merge.ts` | `mergeAttachments`: łączenie list załączników przy konflikcie (używa `src/p2p/sync.ts`) |
-| `src/transfer/` | import i eksport plików, czyste funkcje (bez DOM i `chrome.*`): `common.ts` (`contentKey`, `sortForExport`), `csv.ts` (RFC 4180), `passholder-json.ts`, `bitwarden-json.ts`, `nordpass-csv.ts`, `detect.ts` (`parseImportFile`, `exportFile`), `zip.ts` (CRC-32, zapis i odczyt ZIP, deflate przez `CompressionStream`, limity zip-bomb), `passholder-zip.ts` (`exportArchive`, `readArchive`: indeks + pliki, `ArchiveEntry.position`); pliki przykładowe w `test-vectors/transfer/` |
+| `src/transfer/` | import i eksport plików, czyste funkcje (bez DOM i `chrome.*`): `common.ts` (`contentKey`, `sortForExport`), `csv.ts` (RFC 4180), `passholder-json.ts`, `bitwarden-json.ts`, `nordpass-csv.ts`, `detect.ts` (`parseImportFile`, `exportFile`), `zip.ts` (CRC-32, zapis i odczyt ZIP, deflate przez `CompressionStream`, limity zip-bomb), `passholder-zip.ts` (`exportPassHolderZip`, `openPassHolderZip`: indeks + pliki, `ArchiveEntry.position`; `exportArchive` / `importArchive` to metody `VaultStore`); pliki przykładowe w `test-vectors/transfer/` |
 | `src/autofill/` | autouzupełnianie, czyste funkcje (bez DOM i `chrome.*`, podścieżka `@passholder/core/autofill`): `match.ts` (`matchUrl`, `matchLogins`), `fields.ts` (`classifyField` po opisie pola), `keywords.ts` (słowa kluczowe PL/EN), `values.ts` (`planFor` → `FillPlan`, `fillValue`: karta, `<select>`, kontakt); wektory `test-vectors/autofill/{match,fields,values}.json` |
 | `src/save/` | pytanie o zapis, czyste funkcje (podścieżka `@passholder/core/save`): `url.ts` (`saveUrl`: domena do zapisu, `saveName`), `decide.ts` (`decideSave` → `none`/`create`/`update`, `newLogin`, `withPassword`); wektory `test-vectors/save/{url,decide}.json` |
 | `scripts/gen-vectors.ts`, `gen-vectors-v2.ts`, `gen-vectors-v3.ts`, `gen-vectors-files.ts` | `test-vectors/v1.json` (KDF, klucz sejfu), `v2.json` (P2P), `v3.json` (wpisy v3, limity) i `files/files.json` (załączniki, kawałki, host plików) |
@@ -272,10 +272,15 @@ Wtyczka: [Synchronizuj]
 
 ```
 Wybór pliku → pierwsze 4 bajty PK\x03\x04? (nie → JSON / CSV jak dotąd)
-  rozmiar > 256 MiB → „Plik jest za duży (limit 256 MiB)”, plik nie jest czytany
+  > 256 MiB → „Plik jest za duży (limit 256 MiB)”: wtyczka sprawdza rozmiar wybranego pliku i go nie czyta;
+    telefon czyta strumieniowo i przerywa, gdy licznik przeczytanych bajtów przekroczy limit
   wtyczka: VaultStore.importArchive(bajty)   telefon: PhoneVaultStore.importArchive(strumień)
-    ArchiveReader: indeks passholder.json (musi być pierwszy na telefonie), potem pliki po kolei;
-      limity i CRC w trakcie inflate; plik z błędem → na listę pominiętych (wpis wchodzi bez niego)
+    wtyczka: katalog centralny i rekord końca (openPassHolderZip), potem pliki po ścieżkach z indeksu
+    telefon (ArchiveReader): indeks passholder.json (musi być pierwszy), potem pliki po kolei, na końcu
+      katalog centralny i rekord końca (zgodne z wpisami, jeden dysk, nic za nimi; inaczej błąd archiwum)
+      zanim cokolwiek trafi do sejfu
+    limity i CRC w trakcie inflate; plik z błędem → na listę pominiętych (wpis wchodzi bez niego);
+      zły CRC samego passholder.json → błąd całego archiwum
     duplikat wpisu (contentKey, tylko względem sejfu) → pominięty razem z plikami
     dla pliku: odszyfrowany odczyt z ZIP → nowy id i klucz → szyfrowanie kawałkami → magazyn plików
     wpisy dopiero po plikach, jednym zapisem (atomowo)

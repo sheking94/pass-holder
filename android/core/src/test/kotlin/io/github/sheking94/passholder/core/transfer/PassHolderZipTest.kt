@@ -247,7 +247,7 @@ class PassHolderZipTest {
         )
         val skips = HashMap<String, String>()
         val (_, files) = readAllFiles(zip, skips)
-        assertEquals(mapOf("files/1-bomb.bin" to "za duży"), skips)
+        assertEquals(mapOf("files/1-bomb.bin" to "inny rozmiar niż w opisie"), skips)
         assertEquals(setOf("files/2-a.txt"), files.keys)
     }
 
@@ -314,7 +314,7 @@ class PassHolderZipTest {
         }
         val skips = HashMap<String, String>()
         val (_, files) = readAllFiles(out.toByteArray(), skips)
-        assertEquals(mapOf("files/1-big.bin" to "za duży"), skips)
+        assertEquals(mapOf("files/1-big.bin" to "inny rozmiar niż w opisie"), skips)
         assertEquals(setOf("files/2-a.txt"), files.keys)
     }
 
@@ -374,6 +374,48 @@ class PassHolderZipTest {
             r.forEachFile(emptySet()) { _, _ -> }
         }
         assertEquals(268435456L, PassHolderZip.MAX_ZIP_BYTES)
+    }
+
+    private fun fixture(name: String) = File(System.getProperty("passholder.repoRoot"), "core/test-vectors/transfer/$name").readBytes()
+
+    private fun assertInvalid(zip: ByteArray) = assertEquals(zipInvalid, assertThrows<IllegalArgumentException> { readThrough(zip) }.message)
+
+    @Test
+    fun refusesAnArchiveWhoseEndIsCutShortOrFollowedByMoreBytes() {
+        for (zip in listOf(fixture("archive.passholder.zip"), fixture("archive-kotlin.passholder.zip"), exportBytes(listOf(login, note)).second)) {
+            readThrough(zip)
+            for (cut in listOf(1, 5, 22, 30)) assertInvalid(zip.copyOf(zip.size - cut))
+            assertInvalid(zip + byteArrayOf(0))
+            // Cut before the central directory: the entries are whole, the end is missing.
+            val directory = indexOf(zip, byteArrayOf(0x50, 0x4b, 0x01, 0x02))
+            assertInvalid(zip.copyOf(directory))
+        }
+    }
+
+    @Test
+    fun acceptsAnArchiveCommentAndRefusesAnInconsistentEndRecord() {
+        val out = ByteArrayOutputStream()
+        ZipOutputStream(out).use { z ->
+            z.setComment("komentarz")
+            z.putNextEntry(ZipEntry("passholder.json"))
+            z.write(index("{$bareNote}"))
+            z.putNextEntry(ZipEntry("files/1-a.txt"))
+            z.write("abc".toByteArray())
+        }
+        val zip = out.toByteArray()
+        readThrough(zip)
+        val end = indexOf(zip, byteArrayOf(0x50, 0x4b, 0x05, 0x06))
+        fun patched(at: Int, value: Int) = zip.copyOf().also { it[end + at] = value.toByte() }
+        assertInvalid(patched(4, 1)) // disk number: several disks
+        assertInvalid(patched(6, 1)) // disk of the central directory
+        assertInvalid(patched(8, 1)) // entries on this disk
+        assertInvalid(patched(10, 1)) // entries in all: not the two met
+        assertInvalid(patched(12, zip[end + 12] + 1)) // directory size
+        assertInvalid(patched(16, zip[end + 16] + 1)) // directory offset
+        assertInvalid(patched(20, 3)) // comment shorter than the bytes left
+        // A central record naming an entry that was not met.
+        val central = indexOf(zip, "files/1-a.txt".toByteArray(), indexOf(zip, byteArrayOf(0x50, 0x4b, 0x01, 0x02)))
+        assertInvalid(zip.copyOf().also { it[central + 6] = '2'.code.toByte() })
     }
 
     // ---- parseIndex: the same cases as parseArchiveIndex in core/test/transfer/passholder-zip.test.ts ----

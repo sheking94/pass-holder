@@ -65,6 +65,18 @@ class ImportSummaryTest {
     }
 
     @Test
+    fun `the export sentence for left-out files agrees with the count`() {
+        assertEquals(
+            listOf(
+                "Pominięto 1 plik, który czeka na synchronizację albo jest uszkodzony.",
+                "Pominięto 3 pliki, które czekają na synchronizację albo są uszkodzone.",
+                "Pominięto 5 plików, które czekają na synchronizację albo są uszkodzone.",
+            ),
+            listOf(1, 3, 5).map(::missingFilesSentence),
+        )
+    }
+
+    @Test
     fun `an archive adds files after the entry sentences`() {
         assertEquals(
             "Dodano 1 wpis (zsynchronizuj, żeby trafiły do wtyczki). Dodano 3 pliki. $end",

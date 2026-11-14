@@ -134,6 +134,31 @@ class PhoneVaultStoreArchiveTest {
         assertEquals(setOf(entry.attachments.single().id), storedIds())
     }
 
+    @Test
+    fun anArchiveWhoseEndIsCutShortImportsNothing() {
+        store.upsertContent("e1", plain.copy(name = "Było"))
+        val before = store.allContents()
+        val zip = archive()
+        val e = assertThrows<IllegalArgumentException> { store.importArchive(ByteArrayInputStream(zip.copyOf(zip.size - 5))) }
+        assertEquals(PassHolderZip.ZIP_INVALID, e.message)
+        assertEquals(before, store.allContents())
+        assertEquals(emptySet<String>(), storedIds())
+    }
+
+    @Test
+    fun importsTheFixturesOfBothApps() {
+        for (name in listOf("archive.passholder.zip", "archive-kotlin.passholder.zip")) {
+            val home = File(dir, name).also { it.mkdirs() }
+            val fresh = PhoneVaultStore(home, PlainSecretWrapper, { time }).also { it.createVault("pw") }
+            val zip = File(System.getProperty("passholder.repoRoot"), "core/test-vectors/transfer/$name").readBytes()
+            val (_, result) = fresh.importArchive(ByteArrayInputStream(zip))
+            assertTrue(result.filesAdded > 0 && result.fileSkips.isEmpty(), "$name: $result")
+            val files = fresh.allContents().flatMap { it.attachments }
+            assertEquals(result.filesAdded, files.size)
+            for (a in files) assertEquals(a.size, fresh.readFile(a).size.toLong())
+        }
+    }
+
     /** Reads at most 4 KiB per call and runs [onPassed] once [threshold] bytes went through. */
     private class Tripwire(input: InputStream, private val threshold: Int, private val onPassed: () -> Unit) : FilterInputStream(input) {
         private var count = 0

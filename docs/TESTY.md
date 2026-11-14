@@ -377,8 +377,8 @@ odszyfrowanych plikach → „Pobierz plik” → status „Wyeksportowano N wpi
 sejf albo inny wpis): Plik → import tego ZIP → „Dodano … Dodano 1 plik.”; wpis → „Pobierz” daje to samo zdjęcie.
 (3) Odwrotnie: telefon → eksport PassHolder ZIP (wpis z plikiem), import we wtyczce; nazwa pliku zachowana, „Pobierz” działa.
 (4) Drugi import tego samego ZIP na obu urządzeniach: „Pominięto … już są w sejfie”, żadnych nowych plików (lista wpisu nadal „📎 1”).
-(5) Ręcznie uszkodzone archiwum (obetnij kilka bajtów) → „Archiwum ZIP jest uszkodzone albo nieobsługiwane”, w sejfie nic
-nowego. (6) Usuń archiwa z dysku (zawierają hasła i pliki jawnym tekstem). Zapisz wynik, wersję Chrome, model telefonu i
+(5) Ręcznie uszkodzone archiwum (obetnij kilka ostatnich bajtów, np. `head -c -5 a.zip > b.zip`) → import na obu urządzeniach:
+„Archiwum ZIP jest uszkodzone albo nieobsługiwane”, w sejfie nic nowego (żadnych nowych wpisów ani plików). (6) Usuń archiwa z dysku (zawierają hasła i pliki jawnym tekstem). Zapisz wynik, wersję Chrome, model telefonu i
 wersję Androida.
 
 ## Czego brakuje
