@@ -59,3 +59,30 @@ describe("isPassHolderJson", () => {
     expect(isPassHolderJson({ format: "bitwarden" })).toBe(false);
   });
 });
+
+describe("parsePassHolderJson on an archive index", () => {
+  it("imports the entries without files and lists the file descriptions as skipped", () => {
+    const entry = { type: "note", name: "Umowa", note: "", fields: {}, custom: [] };
+    const files = [
+      { name: "skan.pdf", mime: "application/pdf", size: 10, path: "files/1-skan.pdf" },
+      { name: "a:b?.jpg", mime: "image/jpeg", size: 20, path: "files/2-a_b_.jpg" },
+    ];
+    const text = JSON.stringify({ format: "passholder", version: 3, entries: [{ ...entry, name: "Bez plików" }, { ...entry, attachments: files }] });
+    expect(parsePassHolderJson(text)).toEqual({
+      entries: [{ ...entry, name: "Bez plików" }, entry],
+      skipped: [],
+      files: [
+        { at: "wpis 2, skan.pdf", reason: "importuj całe archiwum ZIP" },
+        { at: "wpis 2, a:b?.jpg", reason: "importuj całe archiwum ZIP" },
+      ],
+    });
+  });
+
+  it("has no files list for a plain export and still skips a malformed description", () => {
+    const entry = { type: "note", name: "Umowa", note: "", fields: {}, custom: [] };
+    const plain = parsePassHolderJson(JSON.stringify({ format: "passholder", version: 3, entries: [entry] }));
+    expect("files" in plain).toBe(false);
+    const bad = parsePassHolderJson(JSON.stringify({ format: "passholder", version: 3, entries: [{ ...entry, attachments: [{ name: "x" }] }] }));
+    expect(bad).toEqual({ entries: [], skipped: [{ at: "wpis 1", reason: "zły format wpisu" }] });
+  });
+});

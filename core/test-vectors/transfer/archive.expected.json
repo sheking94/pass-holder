@@ -1,0 +1,48 @@
+{
+  "entries": [
+    {
+      "content": {
+        "type": "note",
+        "name": "Adres",
+        "note": "ul. Polna 1",
+        "fields": {},
+        "custom": []
+      },
+      "files": []
+    },
+    {
+      "content": {
+        "type": "login",
+        "name": "Bank",
+        "note": "Pliki w archiwum",
+        "fields": {
+          "username": "jan",
+          "password": "tajne hasło",
+          "totp": "",
+          "urls": [
+            "https://bank.example"
+          ],
+          "androidApps": []
+        },
+        "custom": []
+      },
+      "files": [
+        {
+          "name": "Zażółć ?.txt",
+          "mime": "text/plain",
+          "size": 5400,
+          "path": "files/1-Zażółć _.txt",
+          "sha256": "af5d1d1db850222ee6b00738c612609cb3f695839cf64b19b95d4fe500d14b72"
+        },
+        {
+          "name": "a:b?.jpg",
+          "mime": "image/jpeg",
+          "size": 3000,
+          "path": "files/2-a_b_.jpg",
+          "sha256": "82a4ad7133dd637e15b07ea7bf004962094084f8bb8bc5cb03108e15f1f9d799"
+        }
+      ]
+    }
+  ],
+  "skipped": []
+}
