@@ -122,12 +122,27 @@ AAD z `id` wiąże szyfrogram z wpisem, więc host nie może podmienić treści 
   odrzuca.
 
 - **Plik PassHolder JSON** (eksport i import wtyczki): `{"format":"passholder","version":3,"entries":[…]}`, wpisy
-  `{type,name,note,fields,custom}` jak wyżej, bez `v`, `hlc` i `attachments` (eksport pomija pliki, a
-  `countAttachments` podaje ich liczbę do komunikatu); ścisły odczyt `parseEntryContent`. Eksport
+  `{type,name,note,fields,custom}` jak wyżej, bez `v`, `hlc` i `attachments` (eksport JSON pomija pliki, a
+  `countAttachments` podaje ich liczbę do komunikatu; pliki niesie PassHolder ZIP); ścisły odczyt `parseEntryContent`. Eksport
   posortowany po nazwie (`localeCompare` „pl”), potem po typie. Opis: [FUNKCJE.md](FUNKCJE.md#import-i-eksport).
 - **Duplikat przy imporcie** (`contentKey` w `core/src/transfer/common.ts`): klucz z typu, nazwy, notatki, pól i własnych
   pól, **bez `attachments`** (jak w Kotlinie). Wpis różniący się od istniejącego tylko plikami jest duplikatem, a
-  import nie przenosi plików.
+  import JSON nie przenosi plików.
+- **PassHolder ZIP** (`core/src/transfer/zip.ts`, `passholder-zip.ts`; Kotlin `transfer/PassHolderZip.kt`, `ArchiveReader.kt`):
+  pierwszy wpis `passholder.json` (indeks jak PassHolder JSON), potem `files/<n>-<nazwa>` (`n` od 1 w kolejności
+  eksportu, `<>:"|?*` → `_`). Wpis z plikami ma `attachments: [{name, mime, size, path}]` (dokładnie te klucze, w tej
+  kolejności; bez `id`, `key`, `sha256`, `chunks`). Ścieżka z archiwum służy tylko do wyszukania wpisu w ZIP, nigdy
+  do systemu plików. Metoda 8 (deflate) albo 0 (gdy deflate nie zmniejsza), CRC-32, czas DOS w UTC; odczyt z katalogu
+  centralnego (wtyczka) albo własnym strumieniowym parserem (Android; `java.util.zip` obsługuje deskryptory danych).
+  Rozpoznanie po treści: `50 4B 03 04`. `ArchiveEntry.position` daje numer wpisu do komunikatów.
+- **Limity ZIP:** archiwum ≤ 268 435 456 B (256 MiB); `passholder.json` ≤ 10 MiB po rozpakowaniu; plik ≤
+  `MAX_FILE_SIZE` (10 485 760) po rozpakowaniu (licznik w trakcie inflate, nie nagłówek – zip-bomb); ≤ 40 plików
+  na wpis (`MAX_ATTACHMENTS_PARSED`); ≤ 5000 pozycji. Android dodatkowo: nazwa ≤ 1024 B, łączny budżet rozpakowywania =
+  zadeklarowane rozmiary + 64 MiB nadwyżki, pliki pomijane bez rozpakowania. Odrzucane: ZIP64, szyfrowane
+  (bit 0), metoda inna niż 0/8, wiele dysków, powtórzone nazwy, zły CRC-32. Powtórzona ścieżka w indeksie → wpis pominięty.
+  Treść jawna plików tylko w pamięci na czas jednego pliku (w Kotlinie tablice zerowane po użyciu); bez kopii w `cacheDir`.
+- Wektory: `core/test-vectors/transfer/archive.passholder.zip` (TypeScript) i `archive-kotlin.passholder.zip`
+  (`java.util.zip`, deskryptory danych) z `archive.expected.json`; czytają je obie implementacje.
 
 ### 4.1. Treść plików (kawałki)
 

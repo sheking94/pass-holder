@@ -47,7 +47,7 @@ danych opisuje [SPEC.md](SPEC.md), protokół [SYNCHRONIZACJA.md](SYNCHRONIZACJA
 | `src/files/host-files.ts` | strona hosta `/p2p/v2/file`: `FileStore`, `MemoryFileStore`, `processP2pFile` (`status`/`put`/`get`, 400/404/409/507), `orphanFileIds` (24 h) |
 | `src/files/client.ts` | klient: `LocalFileStore`, `syncFiles` (wysyłanie i pobieranie brakujących kawałków, `uploadedEpoch`), `noiseFileTransport`, `pruneLocalFiles` |
 | `src/files/merge.ts` | `mergeAttachments`: łączenie list załączników przy konflikcie (używa `src/p2p/sync.ts`) |
-| `src/transfer/` | import i eksport plików, czyste funkcje (bez DOM i `chrome.*`): `common.ts` (`contentKey`, `sortForExport`), `csv.ts` (RFC 4180), `passholder-json.ts`, `bitwarden-json.ts`, `nordpass-csv.ts`, `detect.ts` (`parseImportFile`, `exportFile`); pliki przykładowe w `test-vectors/transfer/` |
+| `src/transfer/` | import i eksport plików, czyste funkcje (bez DOM i `chrome.*`): `common.ts` (`contentKey`, `sortForExport`), `csv.ts` (RFC 4180), `passholder-json.ts`, `bitwarden-json.ts`, `nordpass-csv.ts`, `detect.ts` (`parseImportFile`, `exportFile`), `zip.ts` (CRC-32, zapis i odczyt ZIP, deflate przez `CompressionStream`, limity zip-bomb), `passholder-zip.ts` (`exportArchive`, `readArchive`: indeks + pliki, `ArchiveEntry.position`); pliki przykładowe w `test-vectors/transfer/` |
 | `src/autofill/` | autouzupełnianie, czyste funkcje (bez DOM i `chrome.*`, podścieżka `@passholder/core/autofill`): `match.ts` (`matchUrl`, `matchLogins`), `fields.ts` (`classifyField` po opisie pola), `keywords.ts` (słowa kluczowe PL/EN), `values.ts` (`planFor` → `FillPlan`, `fillValue`: karta, `<select>`, kontakt); wektory `test-vectors/autofill/{match,fields,values}.json` |
 | `src/save/` | pytanie o zapis, czyste funkcje (podścieżka `@passholder/core/save`): `url.ts` (`saveUrl`: domena do zapisu, `saveName`), `decide.ts` (`decideSave` → `none`/`create`/`update`, `newLogin`, `withPassword`); wektory `test-vectors/save/{url,decide}.json` |
 | `scripts/gen-vectors.ts`, `gen-vectors-v2.ts`, `gen-vectors-v3.ts`, `gen-vectors-files.ts` | `test-vectors/v1.json` (KDF, klucz sejfu), `v2.json` (P2P), `v3.json` (wpisy v3, limity) i `files/files.json` (załączniki, kawałki, host plików) |
@@ -71,7 +71,7 @@ osobno przez `fake-indexeddb`). Treść jawna nigdy nie jest zapisywana: odszyfr
 | Plik | Co robi |
 |---|---|
 | `src/popup.ts` | `start()`: wybiera pierwszy widok i włącza automatyczną blokadę strony |
-| `src/vault-store.ts` | `VaultStore`: konto, lokalny sejf, parowanie (`pairStart`, `pairFinish`, `repair`), `sync`, adresy, PIN, import; serce wtyczki. Wpisy każdego typu: `listEntries(typ)`, `getEntry`, `putEntry` (odmowa zapisu pod `id` innego typu); import przez `importContents` (wszystkie typy, jeden zapis), eksport przez `allContents`; starą treść v2 czyta jako login |
+| `src/vault-store.ts` | `VaultStore`: konto, lokalny sejf, parowanie (`pairStart`, `pairFinish`, `repair`), `sync`, adresy, PIN, import, `exportArchive` / `importArchive` (ZIP: plik po pliku, odszyfrowanie na czas jednego pliku; błąd archiwum albo blokada sejfu usuwa dodane pliki); serce wtyczki. Wpisy każdego typu: `listEntries(typ)`, `getEntry`, `putEntry` (odmowa zapisu pod `id` innego typu); import przez `importContents` (wszystkie typy, jeden zapis), eksport przez `allContents`; starą treść v2 czyta jako login |
 | `src/entry-types.ts` | typy wpisów w kolejności zakładek (`ENTRY_TYPES`, `TYPE_INFO`), rodzaje dokumentu, pusty wpis, opis wiersza (`entrySummary`), wyszukiwanie, sprzątanie przed zapisem (`tidyContent`) i sprawdzanie formatów (`validateContent`) |
 | `src/storage.ts` | klucze `chrome.storage` (`STORAGE_KEYS`), `chromeStore`, `memoryStore` do testów |
 | `src/phone-client.ts` | `PhoneClient`: JSON `POST` do telefonu z limitem 30 s, polskie komunikaty błędów (też „Zaktualizuj aplikację na telefonie”) |
@@ -113,7 +113,7 @@ Dwa moduły Gradle: `core` (czysta JVM, testy bez emulatora) i `app` (Jetpack Co
 | `p2p/Ristretto255.kt`, `Cpace.kt`, `Pairing.kt`, `PairingHost.kt` | parowanie: grupa, CPace, kod i zapieczętowane wiadomości, strona telefonu po HTTP |
 | `p2p/Noise.kt`, `Frames.kt`, `P2pHost.kt`, `HostSync.kt` | Noise KK, ramki, host synchronizacji (`/p2p/v2/*`, stare ścieżki → 410), `processSync`, budżet bajtów rundy i `MemorySyncStore` |
 | `p2p/SyncHttpServer.kt`, `PhoneRouter.kt`, `LocalAddresses.kt` | serwer HTTP na porcie 8787 z limitami, trasy `/p2p/v1/pair/*`, `/p2p/v1/ping` i `/p2p/v2/*` (stare `/p2p/v1/handshake` i `/sync` przekazane do hosta, który odpowiada 410), adresy telefonu |
-| `transfer/Common.kt`, `Csv.kt`, `JsonText.kt`, `PassHolderJson.kt`, `BitwardenJson.kt`, `NordPassCsv.kt`, `Transfer.kt` | pakiet `core.transfer`: port `core/src/transfer/` (`contentKey`, `sortForExport` na `RuleBasedCollator` zgodnym z wektorem `sort.json`, CSV RFC 4180, serializacja JSON jak `JSON.stringify`, `Transfer.parseImportFile` i `exportFile`); te same pliki przykładowe z `core/test-vectors/transfer/` |
+| `transfer/Common.kt`, `Csv.kt`, `JsonText.kt`, `PassHolderJson.kt`, `BitwardenJson.kt`, `NordPassCsv.kt`, `Transfer.kt`, `PassHolderZip.kt`, `ArchiveReader.kt` | pakiet `core.transfer`: ZIP bez `ZipInputStream` (własny strumieniowy parser: CRC i pomijanie pliku bez rozpakowania, budżet rozpakowywania; zapis `java.util.zip`); port `core/src/transfer/` (`contentKey`, `sortForExport` na `RuleBasedCollator` zgodnym z wektorem `sort.json`, CSV RFC 4180, serializacja JSON jak `JSON.stringify`, `Transfer.parseImportFile` i `exportFile`); te same pliki przykładowe z `core/test-vectors/transfer/` |
 | `files/Attachment.kt`, `FileChunks.kt`, `FileHost.kt`, `DiskFileStore.kt` | pliki w sejfie (port `core/src/files/` bez klienta): opis załącznika (stałe, ścisły parser), szyfrowanie kawałkami, host `/p2p/v2/file` (`FileHost`, `FileStore`, `MemoryFileStore`) i magazyn na dysku telefonu (`p2p/files/`, zapis przez `.tmp` i `rename`); `P2pHost` dostaje magazyn jako ostatni parametr |
 | `p2p/PhoneVaultStore.kt`, `PhoneVault.kt`, `FileSyncStore.kt`, `HostState.kt` | sejf telefonu: tworzenie, odtwarzanie, blokada (15 min), wpisy (`entries()` zwraca wszystkie typy, `upsert` zachowuje resztę pól i odmawia nadpisania wpisu innego typu), urządzenia; pliki `records.jsonl` i `host.json`; import: `importContents` (duplikaty po `contentKey`, jeden zapis) i `allContents`; pliki: `addFile`, `isFileComplete`, `readFile`, `pruneFiles`, `discardFiles` (kasuje podane pliki poza używanymi przez żywy wpis), kasowanie przy zmianie epoki |
 | `autofill/Keywords.kt`, `Fields.kt`, `Values.kt`, `Match.kt` | port `core/src/autofill/` 1:1 (`classifyField`, `planFor`, `fillValue`, `matchUrl` z własnym parserem adresu, `matchLogins`) na tych samych wektorach `{match,fields,values}.json`; `matchApp`: zaufana przeglądarka (13 pakietów, `TRUSTED_BROWSERS`) z `webDomain` → `matchLogins`, inaczej loginy z pakietem w `androidApps`, po nazwie; wektory `test-vectors/autofill/app.json` (tylko Kotlin) |
@@ -130,7 +130,7 @@ Dwa moduły Gradle: `core` (czysta JVM, testy bez emulatora) i `app` (Jetpack Co
 | `KeystoreSecretWrapper.kt` | zawija klucz tożsamości telefonu kluczem z Android Keystore |
 | `LockController.kt` | kiedy sejf się blokuje (wyjście z aplikacji, 15 minut, „Zablokuj”) i kiedy samo otwiera się okno odcisku |
 | `LeaveLock.kt` | minutnik blokady 60 s po wyjściu z aplikacji |
-| `ImportSummary.kt`, `TransferFiles.kt` | podsumowanie importu (port `import-summary.ts`); czytanie pliku (limit 10 MiB, ścisły UTF-8) i zapis, nazwa pliku |
+| `ImportSummary.kt`, `TransferFiles.kt` | podsumowanie importu (port `import-summary.ts`, także pliki ZIP); czytanie pliku (limit 10 MiB, ścisły UTF-8), rozpoznanie ZIP, strumień archiwum (limit 256 MiB, `PhoneVaultStore.importArchive`) i zapis, nazwa pliku |
 | `AttachmentFiles.kt`, `FileSize.kt` | wybrany plik (nazwa i rozmiar z `OpenableColumns`, najwyżej 10 MiB + 1 bajt, kolejność sprawdzeń jak we wtyczce), zapis przez `CreateDocumentOf` (własny kontrakt: nazwa i typ, tryb `"wt"`); `formatSize` („N KB”, „4,6 MB”) |
 | `BiometricController.kt`, `BiometricUnlock.kt` | odcisk palca: klucz w Android Keystore, zapisany klucz sejfu |
 | `InstalledApps.kt` | aplikacje z ikoną w launcherze (`PackageManager`; w manifeście `<queries>` MAIN + LAUNCHER, bez `QUERY_ALL_PACKAGES`) |
@@ -266,6 +266,21 @@ Wtyczka: [Synchronizuj]
       more albo lokalny wpis wygrał → kolejna runda
       potem faza plików: syncFiles (POST /p2p/v2/file: status, put, get) z IndexedDB, uszkodzone pomijane,
       błąd tej fazy nie cofa wpisów; na końcu sprzątanie nieużywanych plików
+```
+
+## Przepływ importu archiwum ZIP
+
+```
+Wybór pliku → pierwsze 4 bajty PK\x03\x04? (nie → JSON / CSV jak dotąd)
+  rozmiar > 256 MiB → „Plik jest za duży (limit 256 MiB)”, plik nie jest czytany
+  wtyczka: VaultStore.importArchive(bajty)   telefon: PhoneVaultStore.importArchive(strumień)
+    ArchiveReader: indeks passholder.json (musi być pierwszy na telefonie), potem pliki po kolei;
+      limity i CRC w trakcie inflate; plik z błędem → na listę pominiętych (wpis wchodzi bez niego)
+    duplikat wpisu (contentKey, tylko względem sejfu) → pominięty razem z plikami
+    dla pliku: odszyfrowany odczyt z ZIP → nowy id i klucz → szyfrowanie kawałkami → magazyn plików
+    wpisy dopiero po plikach, jednym zapisem (atomowo)
+    wyjątek, blokada sejfu albo brak miejsca w dowolnym momencie → usunięcie dodanych plików, nic nie wchodzi
+  → podsumowanie: dodano / duplikaty / pominięte wpisy i pliki; synchronizacja jak zwykle po „Synchronizuj”
 ```
 
 ## Przepływ v2 → v3 (format wpisu)

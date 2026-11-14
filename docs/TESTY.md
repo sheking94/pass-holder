@@ -48,14 +48,14 @@ Testy ekranów (`:app:testDebugUnitTest`, Robolectric + Roborazzi, ok. 5 min) za
 Pokrycie TypeScript (opcjonalnie): `npm i --no-save @vitest/coverage-v8 && npx vitest run --coverage` w
 katalogu pakietu.
 
-## Liczby (2026-11-13)
+## Liczby (2026-11-14)
 
 | Pakiet | Pliki | Testy | Uwagi |
 |---|---|---|---|
-| `core` | 34 | 603 | w tym `core/test/p2p/`, `core/test/files/`, `core/test/autofill/` i `core/test/save/` |
-| `extension` | 33 | 361 | w tym widoki w happy-dom (`extension/test/ui/`), `extension/test/autofill/` i `extension/test/save/`; `background.ts` bez testów (logika w `fill-tab.ts` i `save/candidates.ts`) |
-| `android/core` | 47 | 732 | 5 pomijane bez `PASSHOLDER_INTEROP_TEST=1`; w tym `autofill/` (wektory `core/test-vectors/autofill/`) i `save/` (wektory `core/test-vectors/save/`) |
-| `android/app` | 36 | 190 | Robolectric, zrzuty ekranów; w tym `autofill/`, ekrany autouzupełniania, zapis po odblokowaniu i załączniki (16 klas, po jednym teście) |
+| `core` | 36 | 637 | w tym `core/test/p2p/`, `core/test/files/`, `core/test/autofill/` i `core/test/save/` |
+| `extension` | 34 | 383 | w tym widoki w happy-dom (`extension/test/ui/`), `extension/test/autofill/` i `extension/test/save/`; `background.ts` bez testów (logika w `fill-tab.ts` i `save/candidates.ts`) |
+| `android/core` | 49 | 762 | 5 pomijane bez `PASSHOLDER_INTEROP_TEST=1`; w tym `autofill/` (wektory `core/test-vectors/autofill/`) i `save/` (wektory `core/test-vectors/save/`) |
+| `android/app` | 37 | 201 | Robolectric, zrzuty ekranów; w tym `autofill/`, ekrany autouzupełniania, zapis po odblokowaniu i załączniki (16 klas, po jednym teście), eksport i import ZIP (`TransferZip*`) |
 
 ## Co testują pliki
 
@@ -367,15 +367,26 @@ zapisu, „Zapisano plik …”; porównaj sumę kontrolną z oryginałem. (4) P
 wtyczce → „pobrano 1”; „Pobierz” pokazuje ostrzeżenie i zapisuje plik o tej samej sumie. (5) Usuń załącznik („Usuń”,
 „Zapisz”) → „Synchronizuj” na obu: znika z wpisu; na telefonie plik znika najpóźniej po 24 h. (6) Przerwanie: zamknij
 kartę w trakcie „Pliki: …” przy kilku dużych plikach, otwórz ponownie → „Synchronizuj” dokańcza. (7) Eksport: na obu
-ekran eksportu mówi „N plików nie zostanie wyeksportowanych (eksport z plikami będzie w kolejnej wersji).”, a plik
-PassHolder JSON nie ma `attachments`. Zapisz wynik, wersję Chrome, model telefonu i wersję Androida.
+ekran eksportu mówi „N plików nie zostanie wyeksportowanych w formatach JSON i CSV. Wybierz PassHolder ZIP, żeby je zabrać.”, a plik
+PassHolder JSON nie ma `attachments` (pliki zabiera T23). Zapisz wynik, wersję Chrome, model telefonu i wersję Androida.
+
+**T23. PassHolder ZIP (wtyczka i telefon).** Wtyczka sparowana z telefonem, sejf z kilkoma wpisami. (1) Wtyczka: wpis
+ze zdjęciem ok. 5 MB (nazwa np. „Zażółć: 1?.jpg”) → Plik → eksport „PassHolder ZIP (wpisy i pliki)”: ostrzeżenie mówi o
+odszyfrowanych plikach → „Pobierz plik” → status „Wyeksportowano N wpisów i 1 plik.”. Rozpakuj: `passholder.json` ma
+`attachments` z `path`, w `files/` jest `1-Zażółć_ 1_.jpg`; suma kontrolna zdjęcia jak oryginału. (2) Telefon (nowy
+sejf albo inny wpis): Plik → import tego ZIP → „Dodano … Dodano 1 plik.”; wpis → „Pobierz” daje to samo zdjęcie.
+(3) Odwrotnie: telefon → eksport PassHolder ZIP (wpis z plikiem), import we wtyczce; nazwa pliku zachowana, „Pobierz” działa.
+(4) Drugi import tego samego ZIP na obu urządzeniach: „Pominięto … już są w sejfie”, żadnych nowych plików (lista wpisu nadal „📎 1”).
+(5) Ręcznie uszkodzone archiwum (obetnij kilka bajtów) → „Archiwum ZIP jest uszkodzone albo nieobsługiwane”, w sejfie nic
+nowego. (6) Usuń archiwa z dysku (zawierają hasła i pliki jawnym tekstem). Zapisz wynik, wersję Chrome, model telefonu i
+wersję Androida.
 
 ## Czego brakuje
 
 - Testów `offscreen.ts` i `clipboard.ts` (API Chrome). Widoki są testowane w happy-dom, w prawdziwym Chromium
   tylko zrzutami ekranów (bez asercji na wyglądzie poza szerokością i zakryciem pól).
 - Testów automatycznych prośby o zgodę Chrome, Private Network Access i Tailscale (T4, T7 ręcznie).
-- Plików na prawdziwym telefonie: systemowy wybór i zapis (`OpenDocument`, `CreateDocument` z prawdziwym dostawcą, np. Dysk Google), duże pliki i brak miejsca (T22 ręcznie).
+- Plików na prawdziwym telefonie: systemowy wybór i zapis (`OpenDocument`, `CreateDocument` z prawdziwym dostawcą, np. Dysk Google), duże pliki i brak miejsca (T22 ręcznie); prawdziwy dostawca plików przy eksporcie i imporcie ZIP, archiwum bliskie 256 MiB (T23 ręcznie).
 - Testów na prawdziwym telefonie (Keystore, `BiometricPrompt`, port 8787) i wydajności Argon2id.
 - Pytania o zapis w prawdziwym Chrome: zgoda na dostęp do stron, `openPopup`, rejestracja skryptu, panel w prawdziwych stronach (T20 ręcznie).
 - Autouzupełniania z prawdziwym systemem: `readRequest` (prawdziwy `AssistStructure`), wpisanie wartości przez
