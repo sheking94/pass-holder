@@ -14,7 +14,8 @@ import kotlinx.serialization.json.JsonPrimitive
 /** An entry or row an importer did not take. [at] is ready to show, e.g. "wiersz 3" (CSV, header is row 1) or "wpis 2" (JSON, from 1). */
 data class ImportSkip(val at: String, val reason: String)
 
-data class ParsedImport(val entries: List<EntryContentV3>, val skipped: List<ImportSkip>)
+/** [files]: file descriptions left out (an archive index imported as plain JSON), shown like skipped files. */
+data class ParsedImport(val entries: List<EntryContentV3>, val skipped: List<ImportSkip>, val files: List<ImportSkip> = emptyList())
 
 /** Order of entry types in exports when names are equal. */
 val ENTRY_TYPE_ORDER = listOf("login", "contact", "card", "note", "document")

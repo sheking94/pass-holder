@@ -11,8 +11,14 @@ import io.github.sheking94.passholder.core.files.DiskFileStore
 import io.github.sheking94.passholder.core.files.FileChunks
 import io.github.sheking94.passholder.core.files.FileHost
 import io.github.sheking94.passholder.core.files.FileStore
+import io.github.sheking94.passholder.core.transfer.ArchiveImportResult
+import io.github.sheking94.passholder.core.transfer.ArchiveReader
+import io.github.sheking94.passholder.core.transfer.ImportSkip
+import io.github.sheking94.passholder.core.transfer.ParsedArchive
+import io.github.sheking94.passholder.core.transfer.contentKey
 import java.io.File
 import java.io.IOException
+import java.io.InputStream
 import java.nio.file.Files
 import java.security.MessageDigest
 import java.util.concurrent.atomic.AtomicLong
@@ -436,6 +442,85 @@ class PhoneVaultStore(
             val doomed = ids.toSet().filter { it !in used && it in present }
             doomed.forEach(store::delete)
             doomed.size
+        }
+    }
+
+    /**
+     * Imports a PassHolder ZIP read from [input] (closed at the end): the index, then the files of the entries that
+     * are not duplicates ([contentKey] against the vault and earlier entries of the archive), each encrypted and
+     * stored with [addFile], then the entries with their files in one [importContents]. A file that is missing, too
+     * large, damaged or of another size than described is left out of its entry and listed in `fileSkips`
+     * ("wpis N, nazwa"). Any exception (damaged archive, no space, vault locked) imports nothing: the files added so
+     * far are deleted and the exception is passed on. Files added for entries that were not imported are deleted.
+     */
+    fun importArchive(input: InputStream): Pair<ParsedArchive, ArchiveImportResult> {
+        val added = ArrayList<String>()
+        try {
+            val (parsed, prepared) = ArchiveReader(input).use { reader ->
+                val parsed = reader.readIndex()
+                val known = allContents().mapTo(HashSet(), ::contentKey)
+                val fresh = parsed.entries.filter { known.add(contentKey(it.content)) }
+                val wanted = fresh.flatMap { it.files }.associateBy { it.path }
+                val stored = HashMap<String, Attachment>()
+                val reasons = HashMap<String, String>()
+                reader.forEachFile(wanted.keys, { path, reason -> reasons[path] = reason }) { path, bytes ->
+                    val f = wanted.getValue(path)
+                    if (bytes.size != f.size) {
+                        reasons[path] = "inny rozmiar niż w opisie"
+                    } else {
+                        val a = addFile(bytes, f.name, f.mime)
+                        added.add(a.id)
+                        stored[path] = a
+                    }
+                }
+                val skips = ArrayList<ImportSkip>()
+                val freshPositions = fresh.mapTo(HashSet()) { it.position }
+                val contents = parsed.entries.map { e ->
+                    if (e.position !in freshPositions) return@map e.content
+                    val files = e.files.mapNotNull { f ->
+                        val a = stored[f.path]
+                        if (a == null) skips.add(ImportSkip("wpis ${e.position}, ${f.name}", reasons[f.path] ?: "brak w archiwum"))
+                        a
+                    }
+                    e.content.copy(attachments = files)
+                }
+                parsed to (contents to skips)
+            }
+            val (contents, skips) = prepared
+            return synchronized(this) {
+                val result = importContents(contents)
+                // Entries are written now: from here on a failure must not delete files they may use.
+                val mine = added.toList()
+                added.clear()
+                val used = allContents().flatMapTo(HashSet()) { e -> e.attachments.map { it.id } }
+                val filesAdded = mine.count { it in used }
+                try {
+                    discardFiles(mine)
+                } catch (e: Exception) {
+                    // Left for pruneFiles, which deletes unused files after a day.
+                    reportError(onError, e)
+                }
+                parsed to ArchiveImportResult(result, filesAdded, skips)
+            }
+        } catch (e: Throwable) {
+            dropNewFiles(added)
+            throw e
+        }
+    }
+
+    /**
+     * Deletes files [importArchive] just added, while no entry was written with them; works while locked (the
+     * vault may have locked mid-import). The ids are fresh random UUIDs nothing else refers to.
+     */
+    private fun dropNewFiles(ids: List<String>) {
+        if (ids.isEmpty()) return
+        try {
+            val store = openFiles()
+            synchronized(store) {
+                if (!store.closed) ids.forEach(store::delete)
+            }
+        } catch (e: Exception) {
+            reportError(onError, e)
         }
     }
 

@@ -146,9 +146,13 @@ describe("openPassHolderZip", () => {
     await expect(readFile(bad!)).rejects.toThrow("uszkodzony");
   });
 
-  it("reads the shared archive fixture", async () => {
+  // archive-kotlin.passholder.zip is the same export written by the Android core (java.util.zip: deflated entries
+  // with data descriptors), so both must read back as archive.expected.json.
+  it.each(["archive.passholder.zip", "archive-kotlin.passholder.zip"])("reads the shared archive fixture %s", async (name) => {
     const dir = new URL("../../test-vectors/transfer/", import.meta.url);
-    const zip = new Uint8Array(readFileSync(new URL("archive.passholder.zip", dir)));
+    const zip = new Uint8Array(readFileSync(new URL(name, dir)));
+    // The first local header's flags: bit 3 (data descriptor) is set only by java.util.zip.
+    expect(zip[6]! & 8).toBe(name.includes("kotlin") ? 8 : 0);
     const expected = JSON.parse(readFileSync(new URL("archive.expected.json", dir), "utf8"));
     const { parsed, readFile } = await openPassHolderZip(zip);
     const actual = [];
