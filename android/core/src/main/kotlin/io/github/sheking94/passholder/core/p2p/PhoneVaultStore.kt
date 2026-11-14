@@ -447,7 +447,7 @@ class PhoneVaultStore(
 
     /**
      * Imports a PassHolder ZIP read from [input] (closed at the end): the index, then the files of the entries that
-     * are not duplicates ([contentKey] against the vault and earlier entries of the archive), each encrypted and
+     * are not already in the vault ([contentKey]), each encrypted and
      * stored with [addFile], then the entries with their files in one [importContents]. A file that is missing, too
      * large, damaged or of another size than described is left out of its entry and listed in `fileSkips`
      * ("wpis N, nazwa"). Any exception (damaged archive, no space, vault locked) imports nothing: the files added so
@@ -458,8 +458,10 @@ class PhoneVaultStore(
         try {
             val (parsed, prepared) = ArchiveReader(input).use { reader ->
                 val parsed = reader.readIndex()
+                // Only against the vault: importContents drops repeats within the archive itself, and it may refuse
+                // the first copy as too large, so a later copy must still bring its files (unused ones are discarded).
                 val known = allContents().mapTo(HashSet(), ::contentKey)
-                val fresh = parsed.entries.filter { known.add(contentKey(it.content)) }
+                val fresh = parsed.entries.filter { contentKey(it.content) !in known }
                 val wanted = fresh.flatMap { it.files }.associateBy { it.path }
                 val stored = HashMap<String, Attachment>()
                 val reasons = HashMap<String, String>()

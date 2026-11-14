@@ -264,6 +264,30 @@ class PassHolderZipTest {
         assertEquals(zipInvalid, e.message)
     }
 
+    private fun readThrough(zip: ByteArray) = ArchiveReader(ByteArrayInputStream(zip)).use { r ->
+        r.readIndex()
+        r.forEachFile(emptySet()) { _, _ -> }
+    }
+
+    @Test
+    fun boundsTheInflatingByWhatTheIndexDescribes() {
+        // Eight 9 MiB entries of zeros with data descriptors: each under the file limit, 72 MiB in all.
+        val zeros = ByteArray(9 * 1024 * 1024)
+        val paths = (1..8).map { "files/$it-z.bin" }
+        val undescribed = zipOf("passholder.json" to index("{$bareNote}"), *paths.map { it to zeros }.toTypedArray())
+        assertEquals(zipInvalid, assertThrows<IllegalArgumentException> { readThrough(undescribed) }.message)
+        // Described with their sizes, the same entries are an ordinary archive (even when no file is wanted).
+        val described = index("{$bareNote,\"attachments\":[${paths.joinToString(",") { file(it, zeros.size, "z.bin") }}]}")
+        readThrough(zipOf("passholder.json" to described, *paths.map { it to zeros }.toTypedArray()))
+    }
+
+    @Test
+    fun refusesAnEntryNameOverTheLengthLimit() {
+        readThrough(zipOf("passholder.json" to index("{$bareNote}"), "x".repeat(1024) to "a".toByteArray()))
+        val zip = zipOf("passholder.json" to index("{$bareNote}"), "x".repeat(1025) to "a".toByteArray())
+        assertEquals(zipInvalid, assertThrows<IllegalArgumentException> { readThrough(zip) }.message)
+    }
+
     @Test
     fun skipsAFileWhoseHeaderDeclaresMoreThanTheLimitWithoutInflatingIt() {
         // Deflated with the sizes in the local header (no data descriptor), as the extension writes.

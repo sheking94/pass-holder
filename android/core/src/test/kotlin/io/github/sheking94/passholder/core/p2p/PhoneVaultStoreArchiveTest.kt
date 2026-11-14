@@ -110,6 +110,30 @@ class PhoneVaultStoreArchiveTest {
         assertEquals(setOf(entry.attachments.single().id), storedIds())
     }
 
+    @Test
+    fun aLaterCopyOfAnEntryRefusedAsTooLargeStillBringsItsFiles() {
+        // Same content (files aside); the first copy's 40 file descriptors push it past the entry size limit.
+        val head = """"type":"note","name":"Długa","note":"${"x".repeat(45_000)}","fields":{},"custom":[]"""
+        fun described(n: Int) = """{"name":"p$n.txt","mime":"text/plain","size":1,"path":"files/$n-p$n.txt"}"""
+        val index = """{"format":"passholder","version":3,"entries":[{$head,"attachments":[${(1..40).joinToString(",") { described(it) }}]},""" +
+            """{$head,"attachments":[${described(41)}]}]}"""
+        val out = ByteArrayOutputStream()
+        ZipOutputStream(out).use { z ->
+            z.putNextEntry(ZipEntry("passholder.json"))
+            z.write(index.toByteArray())
+            for (n in 1..41) {
+                z.putNextEntry(ZipEntry("files/$n-p$n.txt"))
+                z.write(byteArrayOf(n.toByte()))
+            }
+        }
+        val (_, result) = store.importArchive(ByteArrayInputStream(out.toByteArray()))
+        assertEquals(ArchiveImportResult(ImportResult(1, 0, 1), 1, emptyList()), result)
+        val entry = store.allContents().single()
+        assertEquals(listOf("p41.txt"), entry.attachments.map { it.name })
+        assertArrayEquals(byteArrayOf(41), store.readFile(entry.attachments.single()))
+        assertEquals(setOf(entry.attachments.single().id), storedIds())
+    }
+
     /** Reads at most 4 KiB per call and runs [onPassed] once [threshold] bytes went through. */
     private class Tripwire(input: InputStream, private val threshold: Int, private val onPassed: () -> Unit) : FilterInputStream(input) {
         private var count = 0
