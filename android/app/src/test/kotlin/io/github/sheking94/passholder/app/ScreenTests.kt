@@ -189,12 +189,16 @@ class FullFlowScreensTest : ScreenTestBase() {
         waitFor("Załóż sejf")
         shot("01-start-nowy-sejf")
 
-        // The same rules as the extension: at least 12 characters, typed twice the same.
+        // At least 12 characters, no obvious pattern (MasterPasswordRules), typed twice the same.
         type("Hasło główne", "za krotkie")
         type("Powtórz hasło główne", "za krotkie")
         click("Załóż sejf")
         waitFor("Hasło główne musi mieć co najmniej 12 znaków")
         shot("02-start-za-krotkie-haslo")
+        type("Hasło główne", "password2026")
+        type("Powtórz hasło główne", "password2026")
+        click("Załóż sejf")
+        waitFor("Hasło główne składa się z popularnych fragmentów haseł")
         type("Hasło główne", masterPassword)
         type("Powtórz hasło główne", "$masterPassword!")
         click("Załóż sejf")

@@ -1,9 +1,12 @@
 package io.github.sheking94.passholder.app
 
 import android.app.Application
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.util.Log
+import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import io.github.sheking94.passholder.app.autofill.ParsedRequest
 import io.github.sheking94.passholder.app.autofill.PendingSave
@@ -68,6 +71,18 @@ class PassHolderApp : Application() {
         settings = Settings(this)
         biometric = BiometricUnlock(this)
         leaveLock = LeaveLock(phoneStore)
+        // Screen off locks the vault at once (security review N1). SCREEN_OFF is a protected broadcast: only the system
+        // can send it, so an exported receiver is safe (NOT_EXPORTED would need an extra permission below Android 13).
+        ContextCompat.registerReceiver(
+            this,
+            object : BroadcastReceiver() {
+                override fun onReceive(context: Context, intent: Intent) {
+                    if (intent.action == Intent.ACTION_SCREEN_OFF && phoneStore.isUnlocked) leaveLock.lockNow()
+                }
+            },
+            IntentFilter(Intent.ACTION_SCREEN_OFF),
+            ContextCompat.RECEIVER_EXPORTED,
+        )
     }
 
     companion object {

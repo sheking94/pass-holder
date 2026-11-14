@@ -96,10 +96,37 @@ Pierwsza budowa pobiera Gradle i zależności (kilka minut). Na telefonie pojawi
 tym samym podpisem. Inny klucz oznacza odinstalowanie aplikacji, czyli usunięcie sejfu z telefonu (wróci
 z wtyczki przez „Odtwórz z wtyczki”, patrz [kopia zapasowa](#kopia-zapasowa)).
 
+**Własny klucz wydania (opcjonalnie, przegląd bezpieczeństwa N5).** Kto ma `debug.keystore` z komputera, na
+którym budowano, może wydać „aktualizację”, którą Android zainstaluje na miejscu PassHoldera i która dostanie
+jego dane. Ponadto wersja debug pozwala czytać pliki aplikacji przez USB (`adb run-as`, przy włączonym
+debugowaniu USB). Wersja wydania z własnym kluczem nie ma tych słabości:
+
+```powershell
+cd C:\Users\krzys\Projekty\PassHolder\android
+keytool -genkeypair -v -keystore passholder-release.jks -alias passholder -keyalg RSA -keysize 4096 -validity 10000
+```
+
+Potem plik `android\keystore.properties` (oba pliki są w `.gitignore`, nie trafią do repo):
+
+```
+storeFile=passholder-release.jks
+storePassword=<hasło magazynu>
+keyAlias=passholder
+keyPassword=<hasło klucza>
+```
+
+Instalacja wersji wydania: `.\gradlew.bat :app:installRelease`. Bez `keystore.properties` wersja wydania
+dostaje klucz debug (jak dotąd). **Zmiana klucza wymaga odinstalowania aplikacji** (inny podpis): najpierw
+eksport albo synchronizacja z wtyczką, potem odinstalowanie, instalacja i „Odtwórz z wtyczki”. Zrób kopię
+`passholder-release.jks` i haseł w bezpiecznym miejscu: bez nich nie zainstalujesz aktualizacji.
+
 ### 2.3. Założenie sejfu
 
 1. Otwórz aplikację i wybierz **Nowy sejf**.
-2. Wpisz **Hasło główne** i **Powtórz hasło główne** (co najmniej 12 znaków), stuknij **Załóż sejf**.
+2. Wpisz **Hasło główne** i **Powtórz hasło główne**, stuknij **Załóż sejf**. Hasło musi mieć co najmniej 12
+   znaków i nie może być oczywistym wzorcem: ten sam fragment powtórzony, prosty ciąg (`123456789012`,
+   `qwertyuiopas`), mniej niż 5 różnych znaków albo popularne słowo z cyframi (`password2026`, `Haslo1234567`).
+   Najlepiej zdanie z kilku słów.
 
 **Hasła głównego nie da się odzyskać.** Bez niego nie otworzysz sejfu ani na telefonie, ani we wtyczce.
 
@@ -271,7 +298,7 @@ Nowa wersja instaluje się na starej, sejf zostaje (pod warunkiem tego samego `d
 - **Zmiany na tym samym wpisie bez synchronizacji** w obu miejscach: wygrywa późniejsza, druga przepada.
 - **Pytanie o zapis** wymaga dostępu do wszystkich stron; karty otwarte przed włączeniem trzeba przeładować, logowanie w obcej ramce nie jest zgłaszane (więcej w [FUNKCJE.md](FUNKCJE.md#pytanie-o-zapis)). Na telefonie pytanie o zapis obejmuje też formularze rejestracji, a od Androida 9 zapis poprzedza podgląd.
 - **Wtyczka w trybie dewelopera:** Chrome może przy starcie przypominać o takich wtyczkach.
-- **Klucz debug:** aktualizacje wymagają tego samego `debug.keystore` (2.2).
+- **Klucz debug:** aktualizacje wymagają tego samego `debug.keystore` (2.2). Własny klucz wydania jest opcjonalny (2.2).
 
 ---
 

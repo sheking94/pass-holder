@@ -45,7 +45,7 @@ fun StartScreen(state: UiState, vm: AppViewModel) {
             PasswordField(password, { password = it }, "Hasło główne")
             PasswordField(repeat, { repeat = it }, "Powtórz hasło główne", onDone = create)
             Text(
-                "Co najmniej 12 znaków. Hasła głównego nie da się odzyskać: bez niego nie otworzysz sejfu.",
+                "Co najmniej 12 znaków, bez popularnych haseł i prostych ciągów (np. zdanie z kilku słów). Hasła głównego nie da się odzyskać: bez niego nie otworzysz sejfu.",
                 style = MaterialTheme.typography.bodySmall,
             )
             Button(onClick = create, enabled = !state.busy) { Text("Załóż sejf") }

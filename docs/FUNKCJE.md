@@ -173,6 +173,10 @@ zamknęłoby okienko).
   PassHolder; JSON z `items` → Bitwarden; plik niebędący JSON-em → NordPass CSV; inny JSON → błąd). Podsumowanie mówi, ile dodano, ile pominięto i dlaczego
   (z numerem wpisu albo wiersza), przy ZIP także „Dodano N plików.” i „Pominięto N plików: wpis 3, umowa.pdf: uszkodzony; …” (pierwsze 5).
   Wpisy są zmianami lokalnymi (•); na telefon trafiają po **Synchronizuj**.
+- **CSV a arkusze (przegląd bezpieczeństwa N2):** eksport NordPass CSV zapisuje wartości bez zmian (import musi
+  je odtworzyć co do znaku), więc pole zaczynające się od `=`, `+`, `-` lub `@` Excel albo LibreOffice wykona jako
+  formułę. Pod opcją NordPass CSV jest ostrzeżenie „Nie otwieraj pliku CSV w Excelu ani LibreOffice…”
+  (`CSV_WARNING` we wtyczce i na telefonie).
 - **Import ZIP – zasady:**
   - Duplikaty jak dla JSON: wpis o tej samej treści (bez załączników) jest pomijany razem ze swoimi plikami, więc ponowny
     import tego samego archiwum nic nie dubluje. Jeśli w sejfie jest ten sam wpis bez plików, pliki nie zostaną dołączone. Sprawdzany jest tylko sejf, nie powtórzenia w samym archiwum.
@@ -276,9 +280,10 @@ uprawnienia `tabs` (Chrome 116+), `chrome.tabs.update` + `chrome.windows.update`
   odcisku jest wyszarzony).
 - Okno odcisku otwiera się samo przy każdym otwarciu aplikacji i po blokadzie po 15 min. Po ręcznym
   „Zablokuj” trzeba nacisnąć przycisk „Odblokuj odciskiem palca”. Hasło główne działa zawsze.
-- **Sejf blokuje się po wyjściu z aplikacji** (Home, lista aplikacji, wyłączenie ekranu, Wstecz),
+- **Sejf blokuje się po wyjściu z aplikacji** (Home, lista aplikacji, Wstecz),
   domyślnie **60 s** po wyjściu. Przełącznik **„Blokuj dopiero po 60 s poza aplikacją”** wyłącza
   opóźnienie. Obrót ekranu nie blokuje.
+- **Wyłączenie ekranu blokuje od razu**, także z opóźnieniem 60 s (przegląd bezpieczeństwa N1).
 - „Usuń sejf z telefonu” wyłącza też odcisk.
 
 Zrzuty (z testów): `android/app/screenshots/13-odcisk-wylaczony.png` … `19-opoznienie-wylaczone.png`.
@@ -300,6 +305,10 @@ MainActivity.onStart() → LockController.onReturn()
   → LockedScreen: LaunchedEffect(timesLeftApp) → okno odcisku, gdy aktywność jest RESUMED
 ```
 
+- **Wyłączenie ekranu:** `PassHolderApp` rejestruje odbiornik `ACTION_SCREEN_OFF`, który wywołuje
+  `LeaveLock.lockNow()` (zatrzymuje minutnik i blokuje sejf w osobnym wątku). Powód: minutnik (`Handler`) stoi,
+  gdy telefon śpi, więc bez tego klucze mogłyby zostać w pamięci dużo dłużej niż 60 s. Telefon zasypia tylko przy
+  wyłączonym ekranie, więc po tej zmianie spóźniony minutnik nie przedłuża już życia kluczy.
 - `LeaveLock` odlicza `SystemClock.elapsedRealtime` (liczy też w uśpieniu). Gdy system zamrozi minutnik,
   sprawdzenie przy powrocie i tak zablokuje sejf przed pokazaniem wpisu. Usługa autouzupełniania sprawdza ten
   sam termin (`LeaveLock.expired()`) przed podpowiedziami: po 60 s blokuje sejf i pokazuje „Odblokuj PassHolder”.
@@ -321,7 +330,11 @@ Odblokowanie: okno odcisku → odszyfruj data → PhoneVaultStore.unlockWithKeys
               (porównanie z keyCheck w stałym czasie; zły klucz = odmowa)
 ```
 
-- Klucz Keystore nie opuszcza Keystore (TEE/StrongBox); kopia plików aplikacji nic nie daje.
+- Klucz Keystore nie opuszcza Keystore; kopia plików aplikacji nic nie daje. Od przeglądu bezpieczeństwa (I2):
+  klucz powstaje w **StrongBox** (osobny układ), gdy telefon go ma (Android 9+), inaczej w zwykłym Keystore
+  (TEE); działa tylko przy **odblokowanym telefonie** (`setUnlockedDeviceRequired`, Android 9+). Dotyczy klucza
+  utworzonego przy włączeniu odcisku: kto włączył odcisk wcześniej, dostaje te ustawienia po wyłączeniu i
+  ponownym włączeniu przełącznika.
 - Każde użycie wymaga palca (`setUserAuthenticationRequired(true)` bez okna czasowego), tylko
   `BIOMETRIC_STRONG`.
 - Nowy odcisk w telefonie unieważnia klucz (`KeyPermanentlyInvalidatedException`): aplikacja kasuje dane i
@@ -342,7 +355,11 @@ ekranu, obrót, dodanie nowego odcisku.
 Skopiowane hasło znika ze schowka po minucie.
 
 - Wtyczka: alarm w service workerze i dokument offscreen (`clipboard.ts`, `background.ts`, `offscreen.ts`).
-- Android: WorkManager (`SecureClipboard.kt`).
+- Android: WorkManager (`SecureClipboard.kt`). Zadanie WorkManagera leży w bazie na dysku, więc trafia do niego
+  tylko **HMAC-SHA256 hasła z losowym kluczem procesu** (klucz jest tylko w pamięci), a nie sam skrót SHA-256,
+  który dla słabego hasła dałoby się odwrócić słownikiem (przegląd bezpieczeństwa N6). Zadanie niesie też jawny
+  identyfikator klucza: gdy proces zdążył się zrestartować, klucza już nie ma i schowek jest czyszczony bez
+  porównania (tak samo jak wtedy, gdy Android 10+ nie pozwala czytać schowka w tle).
 
 ## Autouzupełnianie
 

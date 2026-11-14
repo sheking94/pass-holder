@@ -38,6 +38,7 @@ class TransferScreenTest : ScreenTestBase() {
         waitFor("Import rozpoznaje format sam: PassHolder ZIP, PassHolder JSON, Bitwarden JSON (bez szyfrowania) albo NordPass CSV.")
         assertEquals(Screen.Transfer, vm.state.value.screen)
         compose.onNodeWithText("Zapisz plik").performScrollTo().assertIsNotEnabled()
+        compose.onNodeWithText(io.github.sheking94.passholder.app.ui.CSV_WARNING).assertExists()
         shot("50-import-eksport")
         click("Rozumiem, plik będzie zawierał hasła jawnym tekstem")
         compose.onNodeWithText("Zapisz plik").performScrollTo().assertIsEnabled()

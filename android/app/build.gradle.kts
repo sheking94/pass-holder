@@ -1,7 +1,15 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+}
+
+// Your own release key (security review N5): android/keystore.properties, never committed (.gitignore), with
+// storeFile, storePassword, keyAlias, keyPassword. Without the file a release build falls back to the debug key.
+val releaseKey = rootProject.file("keystore.properties").takeIf { it.isFile }?.let { file ->
+    Properties().apply { file.inputStream().use { load(it) } }
 }
 
 android {
@@ -16,13 +24,24 @@ android {
         versionName = "0.1.0"
     }
 
+    signingConfigs {
+        if (releaseKey != null) {
+            create("release") {
+                storeFile = rootProject.file(releaseKey.getProperty("storeFile"))
+                storePassword = releaseKey.getProperty("storePassword")
+                keyAlias = releaseKey.getProperty("keyAlias")
+                keyPassword = releaseKey.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // No keystore in the repo: a release build is signed with the debug key so it installs as is.
-            // For anything beyond your own phone, set up a real signing key.
-            signingConfig = signingConfigs.getByName("debug")
+            // The debug key only when there is no keystore.properties: whoever has that debug.keystore could
+            // ship an "update" that takes over PassHolder's data. See docs/INSTALACJA.md, "Własny klucz wydania".
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
 

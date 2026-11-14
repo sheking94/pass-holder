@@ -129,13 +129,14 @@ Dwa moduły Gradle: `core` (czysta JVM, testy bez emulatora) i `app` (Jetpack Co
 | `SyncController.kt` | tryb Synchronizacja: start i stop serwera, kod parowania, zdarzenia, zatrzymanie po 5 min bez połączeń |
 | `KeystoreSecretWrapper.kt` | zawija klucz tożsamości telefonu kluczem z Android Keystore |
 | `LockController.kt` | kiedy sejf się blokuje (wyjście z aplikacji, 15 minut, „Zablokuj”) i kiedy samo otwiera się okno odcisku |
-| `LeaveLock.kt` | minutnik blokady 60 s po wyjściu z aplikacji |
+| `LeaveLock.kt` | minutnik blokady 60 s po wyjściu z aplikacji; `lockNow()` przy wyłączeniu ekranu (odbiornik `ACTION_SCREEN_OFF` w `PassHolderApp`) |
+| `MasterPasswordRules.kt` | reguły nowego hasła głównego: 12 znaków i bez oczywistych wzorców |
 | `ImportSummary.kt`, `TransferFiles.kt` | podsumowanie importu (port `import-summary.ts`, także pliki ZIP); czytanie pliku (limit 10 MiB, ścisły UTF-8), rozpoznanie ZIP, strumień archiwum (limit 256 MiB, `PhoneVaultStore.importArchive`) i zapis, nazwa pliku |
 | `AttachmentFiles.kt`, `FileSize.kt` | wybrany plik (nazwa i rozmiar z `OpenableColumns`, najwyżej 10 MiB + 1 bajt, kolejność sprawdzeń jak we wtyczce), zapis przez `CreateDocumentOf` (własny kontrakt: nazwa i typ, tryb `"wt"`); `formatSize` („N KB”, „4,6 MB”) |
-| `BiometricController.kt`, `BiometricUnlock.kt` | odcisk palca: klucz w Android Keystore, zapisany klucz sejfu |
+| `BiometricController.kt`, `BiometricUnlock.kt` | odcisk palca: klucz w Android Keystore (StrongBox, gdy jest; tylko przy odblokowanym telefonie), zapisany klucz sejfu |
 | `InstalledApps.kt` | aplikacje z ikoną w launcherze (`PackageManager`; w manifeście `<queries>` MAIN + LAUNCHER, bez `QUERY_ALL_PACKAGES`) |
 | `entries/EntryTypes.kt` | `EntryType`, opis wiersza, wyszukiwanie, `tidy`, walidacja (port `extension/src/entry-types.ts`) |
-| `SecureClipboard.kt` | kopiowanie i czyszczenie schowka po minucie (WorkManager) |
+| `SecureClipboard.kt` | kopiowanie i czyszczenie schowka po minucie (WorkManager; w zadaniu tylko HMAC hasła z kluczem procesu) |
 | `autofill/ViewNodeReader.kt` | `AssistStructure` → `ParsedRequest`: pakiet, `webDomain`/`webScheme`, widoczne i włączone pola tekstowe i list (`describeNode`: `htmlInfo`, `autofillHints`, `inputType`, `idEntry`, podpowiedź) |
 | `autofill/PassHolderAutofillService.kt` | usługa (`BIND_AUTOFILL_SERVICE`): `respond` (własny pakiet, brak sejfu → `null`; ekran bez pól do wypełnienia: odpowiedź tylko z `SaveInfo`, gdy ma pole hasła, inaczej `null`; zablokowany → „Odblokuj PassHolder”; inaczej `buildFillResponse`), praca w osobnym wątku; `onSaveRequest` czyta `readSaveData`: API ≥ 28 zawsze kandydat do `pendingSave` i `onSuccess(savePendingIntent)` (podgląd w `AutofillSaveActivity`); API < 28 `saveLogin` od razu, zablokowany → `onFailure`. Ekran logowania bez pasujących wpisów też dostaje `SaveInfo` |
 | `autofill/ResponseBuilder.kt` | `FillResponse`: `Dataset` z wierszem `res/layout/autofill_item.xml` i, na API 30+, podpowiedzią w pasku klawiatury (`androidx.autofill` `InlineSuggestionUi`, ≤ `min(10, maxSuggestionCount)`); `SaveInfo` (hasło + login, `FLAG_SAVE_ON_ALL_VIEWS_INVISIBLE`) dla każdego ekranu z polem hasła (także „nowe hasło”, każda grupa) przy włączonym „Pytaj o zapis haseł”, id pól i opis aplikacji w `clientState` |
@@ -314,3 +315,22 @@ limitu rund konfliktów (3), tylko do ogólnego (1000).
 
 Parowanie (`/p2p/v1/pair/hello`, `start`, `finish`) i odtwarzanie z wtyczki:
 [SYNCHRONIZACJA.md](SYNCHRONIZACJA.md) punkty 3 i 8.
+
+## Stan przeglądu bezpieczeństwa
+
+Raport: [archive/PRZEGLAD_BEZPIECZENSTWA.md](archive/PRZEGLAD_BEZPIECZENSTWA.md) (2026-11-01, jeszcze z serwerem Pi).
+
+| Punkt | Stan |
+|---|---|
+| S1–S4, N3 | poprawione w PR #18 ([archive/POPRAWKI_BEZPIECZENSTWA.md](archive/POPRAWKI_BEZPIECZENSTWA.md)); S2 w wersji P2P: ścisłe nagrobki (V3, PR #29) |
+| N1 | wyłączenie ekranu blokuje sejf od razu (`LeaveLock.lockNow`, [FUNKCJE.md](FUNKCJE.md#blokada-po-wyjściu)) |
+| N2 | ostrzeżenie pod eksportem NordPass CSV; wartości bez zmian (import musi je odtworzyć) |
+| N4 | nieaktualne: nie ma serwera ani tokenu instalacyjnego; sejf zakłada się na telefonie, parowanie kodem z ekranu |
+| N5 | opcjonalny własny klucz wydania (`android/keystore.properties`, [INSTALACJA.md](INSTALACJA.md#22-instalacja)); domyślnie nadal klucz debug (decyzja właściciela) |
+| N6 | w zadaniu WorkManagera HMAC z kluczem procesu zamiast SHA-256 hasła |
+| N7 | nieaktualne: sesje P2P są jednorazowe, żyją 60 s i nie zależą od blokady sejfu |
+| I1 | zmiana hasła głównego: osobny krok (zmiana na telefonie, wtyczka paruje się od nowa; bez rotacji vaultKey) |
+| I2 | klucz odcisku w StrongBox (gdy jest) i tylko przy odblokowanym telefonie |
+| I3 | ograniczenie platform, bez zmian: hasła jako `String` w JS i Kotlinie nie dają się wyzerować; klucze na Androidzie są zerowane (`fill(0)`), we wtyczce trzymane jako Base64 w `chrome.storage.session` (pamięć przeglądarki) |
+| I4 | `MasterPasswordRules`: 12 znaków i bez oczywistych wzorców |
+| I5 | `npm audit`: 0 podatności; Gradle do sprawdzenia ręcznie ([TESTY.md](TESTY.md#zależności-przegląd-bezpieczeństwa-i5)) |
