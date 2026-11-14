@@ -581,7 +581,10 @@ export class VaultStore {
           let plain: Uint8Array;
           try {
             plain = await archive.readFile(f);
-            if (plain.length !== f.size) throw new Error("inny rozmiar niż w opisie");
+            if (plain.length !== f.size) {
+              plain.fill(0);
+              throw new Error("inny rozmiar niż w opisie");
+            }
           } catch (error) {
             fileSkips.push({ at: `wpis ${e.position}, ${f.name}`, reason: error instanceof Error ? error.message : String(error) });
             continue;
@@ -613,11 +616,8 @@ export class VaultStore {
     // locked since: the vault object still holds the entries).
     const used = files.usedAttachments(vault);
     const filesAdded = added.filter((id) => used.has(id)).length;
-    try {
-      for (const id of added) if (!used.has(id)) await this.fileStore.delete(id);
-    } catch {
-      // Best effort, like pruneUnusedFiles; the import itself succeeded. A leftover is removed on disconnect.
-    }
+    // Best effort, like pruneUnusedFiles; the import itself succeeded. A leftover is removed on disconnect.
+    for (const id of added) if (!used.has(id)) await this.fileStore.delete(id).catch(() => undefined);
     return { parsed, result, filesAdded, fileSkips };
   }
 

@@ -32,7 +32,7 @@ async function exportZip(status: HTMLElement, day: string) {
   const out = await store.exportArchive();
   downloadFile(`passholder-${day}.zip`, new Blob(out.parts as BlobPart[]), "application/zip");
   const parts = [
-    `Wyeksportowano ${entriesNoun(out.entries)} i ${filesNoun(out.files)}.`,
+    out.files > 0 ? `Wyeksportowano ${entriesNoun(out.entries)} i ${filesNoun(out.files)}.` : `Wyeksportowano ${entriesNoun(out.entries)}.`,
     out.missing > 0 && `Pominięto ${filesNoun(out.missing)}, które czekają na synchronizację albo są uszkodzone.`,
     "Usuń archiwum, gdy nie będzie już potrzebne.",
   ];

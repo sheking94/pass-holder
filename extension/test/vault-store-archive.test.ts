@@ -88,6 +88,31 @@ describe("VaultStore.importArchive", () => {
     expect(await a.files.ids()).toEqual([kept[0]!.id]);
   }, 30_000);
 
+  it("one failed delete of an unused file does not stop removing the others", async () => {
+    const a = await pairedBrowser();
+    const plain = new Map<string, Uint8Array>();
+    const att = async (seed: number) => {
+      const ef = await files.encryptFile(bytesOf(seed, 10), { name: `f${seed}.txt`, mime: "text/plain" });
+      plain.set(ef.attachment.id, bytesOf(seed, 10));
+      return ef.attachment;
+    };
+    const one = loginWith("Bank", [await att(1)]);
+    const two = loginWith("Bank", [await att(2), await att(3)]);
+    const { parts } = await transfer.exportPassHolderZip([one, two], async (x) => plain.get(x.id));
+    const del = a.files.delete.bind(a.files);
+    let deletes = 0;
+    a.files.delete = async (id) => {
+      if (++deletes === 1) throw new Error("idb busy");
+      await del(id);
+    };
+    const { result, filesAdded } = await a.store.importArchive(concat(...parts));
+    expect(result.added).toBe(1);
+    expect(filesAdded).toBe(1);
+    expect(deletes).toBe(2);
+    // The kept file and the one whose delete failed.
+    expect(await a.files.ids()).toHaveLength(2);
+  }, 30_000);
+
   it("a file missing from the archive is skipped, its entry still comes in", async () => {
     const a = await pairedBrowser();
     const index = JSON.stringify({

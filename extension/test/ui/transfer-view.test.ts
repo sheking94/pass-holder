@@ -144,7 +144,7 @@ describe("transfer view", () => {
     await click(byText(app, "Pobierz plik"));
     await settle(() => status().textContent!.startsWith("Wyeksportowano"));
     expect(status().textContent).toBe(
-      "Wyeksportowano 1 wpis i 0 plików. Pominięto 1 plik, które czekają na synchronizację albo są uszkodzone. Usuń archiwum, gdy nie będzie już potrzebne.",
+      "Wyeksportowano 1 wpis. Pominięto 1 plik, które czekają na synchronizację albo są uszkodzone. Usuń archiwum, gdy nie będzie już potrzebne.",
     );
   });
 
