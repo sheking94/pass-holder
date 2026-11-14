@@ -24,8 +24,11 @@ export function countAttachments(entries: readonly EntryContentV3[]): number {
 /** A file description in an archive index: exactly these keys, in this order. `path` only finds the file in the ZIP. */
 export interface ArchivedFile { name: string; mime: string; size: number; path: string }
 
-/** An entry of an archive index: content without attachments, plus the descriptions of its files (may be empty). */
-export interface ArchiveEntry { content: EntryContentV3; files: ArchivedFile[] }
+/**
+ * An entry of an archive index: content without attachments, plus the descriptions of its files (may be empty).
+ * `position` is the entry's place in the index's `entries` (from 1), the N of "wpis N".
+ */
+export interface ArchiveEntry { content: EntryContentV3; files: ArchivedFile[]; position: number }
 
 export interface ParsedArchive { entries: ArchiveEntry[]; skipped: ImportSkip[] }
 
@@ -49,8 +52,11 @@ function parseArchivedFiles(value: unknown): ArchivedFile[] {
   return value.map(parseArchivedFile);
 }
 
-/** Entries with their position in the file (from 1), for "wpis N". */
-function parseIndex(text: string): { entries: (ArchiveEntry & { n: number })[]; skipped: ImportSkip[] } {
+/**
+ * The index of a PassHolder ZIP (also a PassHolder JSON v3 file): same rules as parsePassHolderJson, and an entry may
+ * carry `attachments` with 1..40 file descriptions; a bad description skips the entry as "zły format wpisu".
+ */
+export function parseArchiveIndex(text: string): ParsedArchive {
   let doc: unknown;
   try {
     doc = JSON.parse(text);
@@ -60,7 +66,7 @@ function parseIndex(text: string): { entries: (ArchiveEntry & { n: number })[]; 
   if (!isPassHolderJson(doc)) throw new Error(NOT_PASSHOLDER);
   const { version, entries: raw } = doc as Record<string, unknown>;
   if (version !== 3 || !Array.isArray(raw)) throw new Error(NOT_PASSHOLDER);
-  const entries: (ArchiveEntry & { n: number })[] = [];
+  const entries: ArchiveEntry[] = [];
   const skipped: ImportSkip[] = [];
   raw.forEach((item, i) => {
     try {
@@ -73,7 +79,7 @@ function parseIndex(text: string): { entries: (ArchiveEntry & { n: number })[]; 
       }
       const content = parseEntryContent(body);
       if (content.name.trim() === "") skipped.push({ at: `wpis ${i + 1}`, reason: "brak nazwy" });
-      else entries.push({ n: i + 1, content, files });
+      else entries.push({ content, files, position: i + 1 });
     } catch {
       skipped.push({ at: `wpis ${i + 1}`, reason: "zły format wpisu" });
     }
@@ -82,22 +88,13 @@ function parseIndex(text: string): { entries: (ArchiveEntry & { n: number })[]; 
 }
 
 /**
- * The index of a PassHolder ZIP (also a PassHolder JSON v3 file): same rules as parsePassHolderJson, and an entry may
- * carry `attachments` with 1..40 file descriptions; a bad description skips the entry as "zły format wpisu".
- */
-export function parseArchiveIndex(text: string): ParsedArchive {
-  const { entries, skipped } = parseIndex(text);
-  return { entries: entries.map(({ content, files }) => ({ content, files })), skipped };
-}
-
-/**
  * Throws a Polish message if the file is not PassHolder JSON v3; a bad entry is skipped as "wpis N" (from 1).
  * File descriptions of an archive index are left out and listed in `files` ("wpis N, nazwa"), since the files
  * themselves are only in the ZIP.
  */
 export function parsePassHolderJson(text: string): ParsedImport {
-  const { entries, skipped } = parseIndex(text);
-  const files = entries.flatMap((e) => e.files.map((f) => ({ at: `wpis ${e.n}, ${f.name}`, reason: "importuj całe archiwum ZIP" })));
+  const { entries, skipped } = parseArchiveIndex(text);
+  const files = entries.flatMap((e) => e.files.map((f) => ({ at: `wpis ${e.position}, ${f.name}`, reason: "importuj całe archiwum ZIP" })));
   const parsed: ParsedImport = { entries: entries.map((e) => e.content), skipped };
   if (files.length > 0) parsed.files = files;
   return parsed;

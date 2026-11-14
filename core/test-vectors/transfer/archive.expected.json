@@ -8,7 +8,8 @@
         "fields": {},
         "custom": []
       },
-      "files": []
+      "files": [],
+      "position": 1
     },
     {
       "content": {
@@ -41,7 +42,8 @@
           "path": "files/2-a_b_.jpg",
           "sha256": "82a4ad7133dd637e15b07ea7bf004962094084f8bb8bc5cb03108e15f1f9d799"
         }
-      ]
+      ],
+      "position": 2
     }
   ],
   "skipped": []

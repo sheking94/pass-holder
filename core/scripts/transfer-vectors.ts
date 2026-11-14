@@ -47,6 +47,6 @@ const expectedEntries = [];
 for (const e of parsed.entries) {
   const files = [];
   for (const f of e.files) files.push({ ...f, sha256: createHash("sha256").update(await readFile(f)).digest("hex") });
-  expectedEntries.push({ content: e.content, files });
+  expectedEntries.push({ content: e.content, files, position: e.position });
 }
 write("archive.expected.json", JSON.stringify({ entries: expectedEntries, skipped: parsed.skipped }, null, 2) + "\n");

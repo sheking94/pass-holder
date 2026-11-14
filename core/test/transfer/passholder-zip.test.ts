@@ -94,7 +94,7 @@ describe("exportPassHolderZip", () => {
     const { parts, missing } = await exportPassHolderZip([login], async () => undefined, date);
     expect(missing).toBe(2);
     const { parsed } = await openPassHolderZip(await bytesOf(parts));
-    expect(parsed).toEqual({ entries: [{ content: bare(login), files: [] }], skipped: [] });
+    expect(parsed).toEqual({ entries: [{ content: bare(login), files: [], position: 1 }], skipped: [] });
     expect(readZipIndex(await bytesOf(parts)).map((e) => e.path)).toEqual([ARCHIVE_INDEX]);
   });
 });
@@ -155,7 +155,7 @@ describe("openPassHolderZip", () => {
     for (const e of parsed.entries) {
       const files = [];
       for (const f of e.files) files.push({ ...f, sha256: createHash("sha256").update(await readFile(f)).digest("hex") });
-      actual.push({ content: e.content, files });
+      actual.push({ content: e.content, files, position: e.position });
     }
     expect({ entries: actual, skipped: parsed.skipped }).toEqual(expected);
   });
@@ -166,7 +166,7 @@ describe("parseArchiveIndex", () => {
 
   it("keeps entries with and without files", () => {
     expect(parseArchiveIndex(index([{ ...bare(note), attachments: [file] }, bare(login)]))).toEqual({
-      entries: [{ content: bare(note), files: [file] }, { content: bare(login), files: [] }],
+      entries: [{ content: bare(note), files: [file], position: 1 }, { content: bare(login), files: [], position: 2 }],
       skipped: [],
     });
   });
@@ -185,6 +185,12 @@ describe("parseArchiveIndex", () => {
     expect(r.skipped).toEqual([1, 2, 3, 4, 5, 6].map((n) => ({ at: `wpis ${n}`, reason: "zły format wpisu" })));
     expect(r.entries).toHaveLength(1);
     expect(r.entries[0]!.files).toHaveLength(40);
+  });
+
+  it("gives each entry its position in the index, counting skipped entries", () => {
+    const r = parseArchiveIndex(index([{ ...bare(note), attachments: [{ ...file, key: "x" }] }, bare(login), { ...bare(note), attachments: [file] }]));
+    expect(r.skipped).toEqual([{ at: "wpis 1", reason: "zły format wpisu" }]);
+    expect(r.entries.map((e) => e.position)).toEqual([2, 3]);
   });
 
   it("follows the PassHolder JSON rules for the rest", () => {
