@@ -3,6 +3,7 @@ package io.github.sheking94.passholder.app
 import android.content.ContentResolver
 import android.net.Uri
 import io.github.sheking94.passholder.core.transfer.TransferFormat
+import kotlinx.coroutines.CancellationException
 import java.io.BufferedOutputStream
 import java.io.ByteArrayOutputStream
 import java.io.FilterInputStream
@@ -135,8 +136,9 @@ object TransferFiles {
 
     /**
      * Streams an archive into the document at [uri] ("wt", like [writeText]); [write] gets a buffered stream that is
-     * flushed and closed afterwards. Any failure once the document is open, including [write]'s own (the vault locked
-     * half way), becomes the Polish [WRITE_FAILED]: part of the archive may already be on disk and must be deleted.
+     * flushed and closed afterwards. Provider and stream failures (IOException, SecurityException) and the vault
+     * locking half way (IllegalStateException) become the Polish [WRITE_FAILED]: part of the archive may already be
+     * on disk and must be deleted. Cancellation and other exceptions (programming errors) pass through unchanged.
      */
     fun <T> writeArchive(resolver: ContentResolver, uri: Uri, write: (OutputStream) -> T): T =
         writeArchive({ resolver.openOutputStream(uri, "wt") }, write)
@@ -144,7 +146,14 @@ object TransferFiles {
     internal fun <T> writeArchive(open: () -> OutputStream?, write: (OutputStream) -> T): T = try {
         val output = open() ?: throw IOException("no stream")
         BufferedOutputStream(output, 64 * 1024).use { write(it) }
-    } catch (e: Exception) {
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: IOException) {
+        throw IOException(WRITE_FAILED, e)
+    } catch (e: SecurityException) {
+        throw IOException(WRITE_FAILED, e)
+    } catch (e: IllegalStateException) {
+        // The vault locked half way ("Sejf jest zablokowany"); other programming errors are not masked.
         throw IOException(WRITE_FAILED, e)
     }
 }

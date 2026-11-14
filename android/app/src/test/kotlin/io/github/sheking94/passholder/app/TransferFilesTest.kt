@@ -103,6 +103,14 @@ class TransferFilesTest {
             TransferFiles.writeArchive({ java.io.ByteArrayOutputStream() }) { throw IllegalStateException("Sejf jest zablokowany") }
         }
         assertEquals(expected, e.message)
+        // Cancellation and programming errors are not disguised as a write failure.
+        assertThrows(kotlinx.coroutines.CancellationException::class.java) {
+            TransferFiles.writeArchive({ java.io.ByteArrayOutputStream() }) { throw kotlinx.coroutines.CancellationException("stop") }
+        }
+        val bug = assertThrows(IllegalArgumentException::class.java) {
+            TransferFiles.writeArchive({ java.io.ByteArrayOutputStream() }) { throw IllegalArgumentException("bug") }
+        }
+        assertEquals("bug", bug.message)
         val out = java.io.ByteArrayOutputStream()
         assertEquals(7, TransferFiles.writeArchive({ out }) { it.write(byteArrayOf(1, 2, 3)); 7 })
         assertArrayEquals(byteArrayOf(1, 2, 3), out.toByteArray())
