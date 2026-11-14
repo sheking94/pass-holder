@@ -47,6 +47,14 @@ describe("transfer view", () => {
     expect(app.querySelector("input[type=file]")!.getAttribute("accept")).toBe(".json,.csv,.zip,application/json,text/csv,application/zip");
   });
 
+  it("warns under NordPass CSV not to open the file in a spreadsheet (formulas)", async () => {
+    const { app } = await open();
+    const { CSV_WARNING } = await import("../../src/views/transfer.ts");
+    const hints = [...app.querySelectorAll(".hint")].map((p) => p.textContent);
+    expect(hints.filter((t) => t === CSV_WARNING)).toHaveLength(1);
+    expect(byText(app, "NordPass CSV").nextElementSibling!.nextElementSibling!.textContent).toBe(CSV_WARNING);
+  });
+
   it("refuses to export without the checkbox", async () => {
     const { app, downloads, status } = await open();
     await click(byText(app, "Pobierz plik"));

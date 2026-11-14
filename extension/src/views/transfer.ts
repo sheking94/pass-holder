@@ -15,6 +15,9 @@ export function openTransfer() {
 /** "passholder-zip" is not a transfer.TransferFormat: the archive is written by the store, which reads the files. */
 type ExportFormat = transfer.TransferFormat | "passholder-zip";
 
+export const CSV_WARNING =
+  "Nie otwieraj pliku CSV w Excelu ani LibreOffice: pole zaczynające się od „=”, „+”, „-” lub „@” arkusz wykona jako formułę.";
+
 const FORMATS: { format: ExportFormat; label: string; ext: string; mime: string; hint: boolean }[] = [
   { format: "passholder", label: "PassHolder JSON (wszystko, bez strat)", ext: "json", mime: "application/json", hint: false },
   { format: "passholder-zip", label: "PassHolder ZIP (wpisy i pliki)", ext: "zip", mime: "application/zip", hint: false },
@@ -45,6 +48,8 @@ function exportSection(status: HTMLElement) {
   const choices = FORMATS.flatMap((f, i) => [
     h("label", { class: "check" }, radios[i]!, f.label),
     f.hint && h("p", { class: "hint" }, "Część pól trafi do notatki lub własnych pól."),
+    // Security review N2: the values stay as they are (import must restore them exactly), so warn instead.
+    f.format === "nordpass" && h("p", { class: "hint" }, CSV_WARNING),
   ]);
   const chosen = () => FORMATS.find((_, i) => radios[i]!.checked)!;
   const warning = h("p", { class: "warning" }, PLAIN_WARNING);

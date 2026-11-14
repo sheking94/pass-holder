@@ -5,6 +5,7 @@ import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
+import android.security.keystore.StrongBoxUnavailableException
 import android.util.Base64
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
@@ -103,6 +104,16 @@ class KeystoreKeyProtector : UnlockKeyProtector {
     private fun keyStore() = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
 
     override fun newEncryptCipher(): Cipher {
+        // Generating under the same alias replaces the old key. StrongBox (a separate secure chip) where the phone
+        // has one; otherwise the usual hardware-backed Keystore (security review I2).
+        val key = runCatching { generateKey(strongBox = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) }
+            .recover { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && it is StrongBoxUnavailableException) generateKey(strongBox = false) else throw it }
+            .getOrThrow()
+        // The Keystore picks the nonce itself; it is read back from cipher.iv after encrypting.
+        return Cipher.getInstance(TRANSFORMATION).apply { init(Cipher.ENCRYPT_MODE, key) }
+    }
+
+    private fun generateKey(strongBox: Boolean): SecretKey {
         val spec = KeyGenParameterSpec.Builder(ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
             .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
             .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
@@ -111,15 +122,17 @@ class KeystoreKeyProtector : UnlockKeyProtector {
             .setUserAuthenticationRequired(true)
             .setInvalidatedByBiometricEnrollment(true)
             .apply {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    // The key works only while the phone's own screen lock is open.
+                    setUnlockedDeviceRequired(true)
+                    if (strongBox) setIsStrongBoxBacked(true)
+                }
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                     setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG)
                 }
             }
             .build()
-        // Generating under the same alias replaces the old key.
-        val key = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE).apply { init(spec) }.generateKey()
-        // The Keystore picks the nonce itself; it is read back from cipher.iv after encrypting.
-        return Cipher.getInstance(TRANSFORMATION).apply { init(Cipher.ENCRYPT_MODE, key) }
+        return KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE).apply { init(spec) }.generateKey()
     }
 
     override fun decryptCipher(iv: ByteArray): Cipher? {

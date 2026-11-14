@@ -191,9 +191,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     // --- Start ---------------------------------------------------------------------------------------
 
-    /** "Nowy sejf": the same rules for the master password as the extension. */
+    /** "Nowy sejf": the master password must pass [MasterPasswordRules]. */
     fun createVault(masterPassword: String, repeat: String) {
-        if (masterPassword.length < MIN_MASTER_PASSWORD) return fail("Hasło główne musi mieć co najmniej $MIN_MASTER_PASSWORD znaków")
+        MasterPasswordRules.problem(masterPassword)?.let { return fail(it) }
         if (masterPassword != repeat) return fail("Hasła się różnią")
         launchVaultOperation("Liczę klucze z hasła głównego… (to celowo trwa kilka sekund)") {
             store.createVault(masterPassword)
@@ -720,7 +720,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private companion object {
         const val TAG = "AppViewModel"
-        const val MIN_MASTER_PASSWORD = 12
         const val SAVED = "Zapisano na telefonie. Wtyczka dostanie zmianę przy następnej synchronizacji."
         const val DELETED = "Usunięto na telefonie. Wtyczka dostanie zmianę przy następnej synchronizacji."
     }

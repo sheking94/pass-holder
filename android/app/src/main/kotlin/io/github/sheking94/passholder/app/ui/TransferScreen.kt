@@ -41,6 +41,9 @@ import io.github.sheking94.passholder.core.transfer.countAttachments
 private val IMPORT_TYPES = arrayOf("application/json", "text/*", "text/comma-separated-values", "application/zip", "application/octet-stream")
 
 /** [zip]: PassHolder ZIP, written with the files by [AppViewModel.exportArchiveTo] ([format] is then not used). */
+internal const val CSV_WARNING =
+    "Nie otwieraj pliku CSV w Excelu ani LibreOffice: pole zaczynające się od „=”, „+”, „-” lub „@” arkusz wykona jako formułę."
+
 private class ExportChoice(val format: TransferFormat, val label: String, val hint: Boolean, val zip: Boolean = false)
 
 /** The same choices, order and labels as the extension. */
@@ -113,6 +116,10 @@ fun TransferScreen(state: UiState, vm: AppViewModel) {
                         Modifier.padding(start = 32.dp, bottom = 4.dp),
                         style = MaterialTheme.typography.bodySmall,
                     )
+                }
+                // Security review N2: the values stay as they are (import must restore them exactly), so warn instead.
+                if (option.format == TransferFormat.NORDPASS) {
+                    Text(CSV_WARNING, Modifier.padding(start = 32.dp, bottom = 4.dp), style = MaterialTheme.typography.bodySmall)
                 }
             }
         }

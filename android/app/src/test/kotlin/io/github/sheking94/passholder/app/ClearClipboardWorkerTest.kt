@@ -11,6 +11,7 @@ import androidx.work.workDataOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Before
 import org.junit.Test
 import androidx.work.testing.WorkManagerTestInitHelper
@@ -27,9 +28,14 @@ class ClearClipboardWorkerTest {
     @Before
     fun initWorkManager() = WorkManagerTestInitHelper.initializeTestWorkManager(ApplicationProvider.getApplicationContext())
 
-    private fun runWorker(copiedPassword: String) = runBlocking {
+    private fun runWorker(copiedPassword: String, keyId: String = SecureClipboard.keyId) = runBlocking {
         TestListenableWorkerBuilder<ClearClipboardWorker>(context)
-            .setInputData(workDataOf(ClearClipboardWorker.KEY_HASH to SecureClipboard.sha256(copiedPassword)))
+            .setInputData(
+                workDataOf(
+                    ClearClipboardWorker.KEY_TAG to SecureClipboard.tag(copiedPassword),
+                    ClearClipboardWorker.KEY_ID to keyId,
+                ),
+            )
             .build()
             .doWork()
     }
@@ -47,6 +53,22 @@ class ClearClipboardWorkerTest {
         clipboard.setPrimaryClip(ClipData.newPlainText("notatka", "lista zakupów"))
         runWorker("hunter2")
         assertEquals("lista zakupów", clipboard.primaryClip!!.getItemAt(0).text.toString())
+    }
+
+    @Test
+    fun `clears anyway when the process restarted and the key is gone`() {
+        SecureClipboard.copyPassword(context, "hasło", "hunter2")
+        clipboard.setPrimaryClip(ClipData.newPlainText("notatka", "lista zakupów"))
+        runWorker("hunter2", keyId = "inny-proces")
+        assertFalse(clipboard.hasPrimaryClip() && clipboard.primaryClip!!.getItemAt(0).text?.isNotEmpty() == true)
+    }
+
+    @Test
+    fun `the tag is keyed, not a plain hash of the password`() {
+        val plainSha256 = java.security.MessageDigest.getInstance("SHA-256").digest("hunter2".toByteArray())
+            .joinToString("") { "%02x".format(it) }
+        assertNotEquals(plainSha256, SecureClipboard.tag("hunter2"))
+        assertEquals(SecureClipboard.tag("hunter2"), SecureClipboard.tag("hunter2"))
     }
 
     @Test

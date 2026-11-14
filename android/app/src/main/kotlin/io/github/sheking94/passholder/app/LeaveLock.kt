@@ -45,6 +45,16 @@ class LeaveLock(
         return expired
     }
 
+    /**
+     * The screen went off: lock now, whatever the delay. The 60 s are for a short trip to another app; a phone put
+     * away sleeps, and while it sleeps the timer above stands still (Handler counts uptime), so the keys would stay
+     * in memory far longer than 60 s. The deadline stays, so a return still reports it the usual way.
+     */
+    fun lockNow() {
+        handler.removeCallbacks(lockTask)
+        lockTask.run()
+    }
+
     /** The time ran out and [cancel] has not been called since; changes nothing (the caller locks). */
     fun expired(): Boolean = deadline?.let { now() >= it } ?: false
 

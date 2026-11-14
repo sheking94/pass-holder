@@ -53,9 +53,9 @@ katalogu pakietu.
 | Pakiet | Pliki | Testy | Uwagi |
 |---|---|---|---|
 | `core` | 36 | 637 | w tym `core/test/p2p/`, `core/test/files/`, `core/test/autofill/` i `core/test/save/` |
-| `extension` | 34 | 383 | w tym widoki w happy-dom (`extension/test/ui/`), `extension/test/autofill/` i `extension/test/save/`; `background.ts` bez testów (logika w `fill-tab.ts` i `save/candidates.ts`) |
+| `extension` | 34 | 385 | w tym widoki w happy-dom (`extension/test/ui/`), `extension/test/autofill/` i `extension/test/save/`; `background.ts` bez testów (logika w `fill-tab.ts` i `save/candidates.ts`) |
 | `android/core` | 49 | 762 | 5 pomijane bez `PASSHOLDER_INTEROP_TEST=1`; w tym `autofill/` (wektory `core/test-vectors/autofill/`) i `save/` (wektory `core/test-vectors/save/`) |
-| `android/app` | 37 | 201 | Robolectric, zrzuty ekranów; w tym `autofill/`, ekrany autouzupełniania, zapis po odblokowaniu i załączniki (16 klas, po jednym teście), eksport i import ZIP (`TransferZip*`) |
+| `android/app` | 39 | 210 | Robolectric, zrzuty ekranów; w tym `autofill/`, ekrany autouzupełniania, zapis po odblokowaniu i załączniki (16 klas, po jednym teście), eksport i import ZIP (`TransferZip*`) |
 
 ## Co testują pliki
 
@@ -169,7 +169,8 @@ Playwright z Chromium nie jest zależnością repozytorium: w kontenerze w chmur
 | `FileSyncStoreTest`, `PhoneVaultTest`, `PhoneVaultStoreTest` (dodatki) | `putAll` (jeden dopis, obcięty fragment), `importContents` (duplikaty, za duży wpis, rewizje, HLC), atomowość |
 | `ImportSummaryTest`, `TransferFilesTest`, `TransferScreenTest`, `FilePickerLockTest` (app) | podsumowanie, limit 10 MiB i UTF-8, ekran importu i eksportu (zgoda, ponowny import), okno wyboru pliku 60 s |
 | `AttachmentFilesTest`, `FileSizeTest`, `AttachmentsScreenTest`, `AttachmentsListExportScreenTest` (app); `PhoneVaultStoreTest` (`discardFiles`) | wybór i zapis pliku (limity, kolejność sprawdzeń, nazwa `plik`, błędy dostawcy, `CreateDocumentOf`), `formatSize`, `skippedFilesPhrase`; ekran: dodanie, Anuluj/Wstecz/Usuń wpis kasują plik, ten sam plik dwa razy, limity, zablokowany sejf, „Pobierz” (ostrzeżenie, bajty), „czeka na synchronizację”, „Plik jest uszkodzony”, zmiana nazwy/hasła zachowuje pliki; „📎 N” na liście i dopisek o eksporcie (tylko gdy są pliki); `discardFiles` pomija plik używany przez wpis |
-| `BackupRulesTest`, `ClearClipboardWorkerTest` (app) | brak kopii zapasowych, czyszczenie schowka |
+| `BackupRulesTest`, `ClearClipboardWorkerTest` (app) | brak kopii zapasowych, czyszczenie schowka (HMAC z kluczem procesu zamiast SHA-256; nowy proces → czyszczenie bez porównania) |
+| `ScreenOffLockTest`, `MasterPasswordRulesTest` (app) | wyłączenie ekranu blokuje od razu mimo opóźnienia 60 s; reguły hasła głównego (12 znaków liczonych jako znaki Unicode, powtórzenia, ciągi, rzędy klawiatury, popularne fragmenty; prawdziwe frazy przechodzą) |
 | `autofill/FieldsVectorsTest`, `ValuesVectorsTest`, `MatchVectorsTest` | port autouzupełniania: te same wektory `{fields,values,match}.json` co TypeScript, `app.json` (`matchApp`: pakiet, zaufana przeglądarka, WebView obcej aplikacji z domeną banku) |
 | `autofill/PlannerTest` | grupa formularza, samo pole e-mail → loginy, rejestracja → nic, pomijanie wpisów bez wartości, karta tylko na `https`, indeks opcji listy, limit 10, opisy |
 | `autofill/NodeDescriptorTest`, `ResponseBuilderTest`, `FillLogicTest`, `ManifestTest` (app) | opis pola z `inputType`/HTML/podpowiedzi, `FillResponse` i pasek klawiatury (≤ `maxSuggestionCount`, styl bez wersji UI → bez paska), odpowiedzi usługi (własny pakiet, brak sejfu, zablokowany, tylko pasujące loginy), rejestracja usługi z `BIND_AUTOFILL_SERVICE` |
@@ -380,6 +381,26 @@ sejf albo inny wpis): Plik → import tego ZIP → „Dodano … Dodano 1 plik.�
 (5) Ręcznie uszkodzone archiwum (obetnij kilka ostatnich bajtów, np. `head -c -5 a.zip > b.zip`) → import na obu urządzeniach:
 „Archiwum ZIP jest uszkodzone albo nieobsługiwane”, w sejfie nic nowego (żadnych nowych wpisów ani plików). (6) Usuń archiwa z dysku (zawierają hasła i pliki jawnym tekstem). Zapisz wynik, wersję Chrome, model telefonu i
 wersję Androida.
+
+**T24. Poprawki przeglądu bezpieczeństwa (telefon).** (1) **Ekran (N1):** odblokuj sejf, przełącznik „Blokuj dopiero
+po 60 s” włączony, wyłącz ekran przyciskiem zasilania i od razu włącz: PassHolder pokazuje ekran blokady. Home i powrót
+przed 60 s nadal nie blokuje. (2) **Odcisk (I2):** wyłącz i włącz „Odblokowanie odciskiem palca”, zablokuj, odblokuj
+palcem: działa. Zablokuj telefon, odblokuj go, otwórz PassHolder: odcisk działa. (3) **Hasło główne (I4):** „Nowy sejf”
+na czystej instalacji z `password2026`: „Hasło główne składa się z popularnych fragmentów haseł”. (4) **Schowek (N6):**
+skopiuj hasło, po minucie schowek pusty. (5) **CSV (N2):** Plik → pod „NordPass CSV” ostrzeżenie o Excelu i LibreOffice,
+także we wtyczce. Zapisz wynik i model telefonu (czy ma StrongBox, nie da się tego łatwo sprawdzić: ważne, że odcisk działa).
+
+## Zależności (przegląd bezpieczeństwa I5)
+
+Stan 2026-11-14:
+
+- **npm:** `npm audit` (cały projekt) i `npm audit --omit=dev`: **0 podatności**. Zależności produkcyjne to tylko
+  `@noble/curves` i `@noble/hashes` 2.4.0.
+- **Gradle:** w chmurze nie da się sprawdzić bazy podatności (dostęp do `api.osv.dev` zablokowany), więc nie
+  sprawdzono. Do zrobienia ręcznie na Windows, np. [OSV-Scanner](https://google.github.io/osv-scanner/):
+  `osv-scanner scan source -r android` (czyta `gradle/libs.versions.toml` i lockfile) albo wyszukanie wersji z
+  `android/gradle/libs.versions.toml` na <https://osv.dev>. Kryptografia na Androidzie: BouncyCastle 1.82.
+- Przed każdą aktualizacją zależności: `npm audit` i ten sam przegląd Gradle.
 
 ## Czego brakuje
 
