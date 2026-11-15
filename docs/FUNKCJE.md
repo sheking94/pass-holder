@@ -447,11 +447,23 @@ PassHolder jest systemową usługą autouzupełniania (Android 8+). Włączenie:
 - **Podpowiedzi:** pod polem lista (nazwa wpisu i opis: login, `•••• 1234`, imię i nazwisko), najwyżej 10. Na
   Androidzie 11+ z klawiaturą, która to obsługuje (np. Gboard), te same podpowiedzi także w pasku klawiatury.
   Wybór wpisuje wszystkie pola formularza naraz.
-- **Co pasuje:** loginy w aplikacji – te z pakietem aplikacji na liście „Aplikacje” wpisu (po nazwie); w
+- **Co pasuje:** loginy w aplikacji – te z pakietem aplikacji na liście „Aplikacje” wpisu; w
   zaufanej przeglądarce (Chrome, Firefox, Edge, Brave, Samsung Internet, Opera, DuckDuckGo, Vivaldi i ich
   odmiany) – po adresie strony, te same reguły co we wtyczce. Domenę strony podaną przez inną aplikację (np. jej
   WebView) PassHolder pomija, więc obca aplikacja nie dostanie loginu banku. Karty i kontakty: wszystkie, w
   kolejności listy; kartę przeglądarka dostaje tylko na `https` (i `localhost`).
+- **Rozpoznanie po podpisie (przegląd V3-S3):** sama nazwa pakietu nie wystarcza, bo aplikacja spoza sklepu może
+  zająć nazwę nieobecnej przeglądarki albo aplikacji banku.
+  - Przeglądarka liczy się jako zaufana tylko z certyfikatem podpisu z listy (SHA-256, lista Google'a uprzywilejowanych
+    przeglądarek dla kluczy dostępu). Z innym certyfikatem jest zwykłą aplikacją: jej domena się nie liczy.
+  - Aplikacja wpisu: telefon zapamiętuje certyfikat aplikacji (skrót SHA-256, w prywatnych ustawieniach
+    PassHoldera, `app_certs`) przy wyborze z listy „+ Wybierz aplikację”, przy zapisie nowego loginu w tej
+    aplikacji, a dla pakietu wpisanego ręcznie albo przyszłego z wtyczki lub importu – przy pierwszej podpowiedzi
+    (zaufanie przy pierwszym użyciu). Potem loginy dostaje tylko aplikacja z tym certyfikatem (albo jego następcą
+    z historii podpisu po zmianie klucza). Nowy wybór z listy zastępuje zapamiętany certyfikat.
+  - Pakiet, którego PassHolder nie widzi (widoczność pakietów Androida 11+), nie dostaje nic.
+  - Ograniczenie: fałszywa aplikacja zainstalowana **przed** pierwszą podpowiedzią dla ręcznie wpisanego pakietu
+    zostanie zapamiętana jako prawdziwa.
 - **Rodzaj formularza:** pola rozpoznawane jak we wtyczce (`autofillHints`, `autocomplete` z HTML, typ pola,
   identyfikator, podpowiedź, opis; polskie i angielskie słowa). Pole loginu lub hasła → loginy; samo pole
   e-mail (pierwszy krok logowania, np. Google) → też loginy; pola karty → karty; pozostałe pola adresu → kontakty.
@@ -472,9 +484,9 @@ PassHolder jest systemową usługą autouzupełniania (Android 8+). Włączenie:
 - Aplikacja widzi tylko wartości wybranego wpisu, i to dopiero po wyborze podpowiedzi.
 
 Kod: `android/core/.../core/autofill/` (`Keywords.kt`, `Fields.kt`, `Values.kt`, `Match.kt`, `Planner.kt`; port
-`core/src/autofill/` plus `matchApp` i `planDatasets`), `android/app/.../app/autofill/` (`ViewNodeReader.kt`,
-`ResponseBuilder.kt`, `PassHolderAutofillService.kt`, `AutofillUnlockActivity.kt`), `ui/AutofillUnlockScreen.kt`,
-`AutofillStatus.kt`, `ui/SettingsScreen.kt`.
+`core/src/autofill/` plus `matchApp`, `verifyApp` i `planDatasets`), `android/app/.../app/autofill/` (`ViewNodeReader.kt`,
+`ResponseBuilder.kt`, `PassHolderAutofillService.kt`, `AutofillUnlockActivity.kt`), `AppTrust.kt` (certyfikaty
+aplikacji), `ui/AutofillUnlockScreen.kt`, `AutofillStatus.kt`, `ui/SettingsScreen.kt`.
 
 ## Pytanie o zapis
 
@@ -574,7 +586,7 @@ przed zapisem; PassHolder zapisuje nowy login albo nowe hasło istniejącego. Ty
   odblokowanie i wraca do podglądu z tym, co wpisano. Wyjście z podglądu (także w tło) blokuje sejf (D1), jeśli to
   ten ekran go odblokował; sejf otwarty wcześniej w aplikacji zostaje otwarty.
   Dane z podglądu żyją tylko w pamięci ekranu.
-- **Co się zapisuje:** w zaufanej przeglądarce (Chrome i pozostałe z listy) nazwa i adres to sama domena, jak w
+- **Co się zapisuje:** w zaufanej przeglądarce (Chrome i pozostałe z listy, rozpoznane po certyfikacie podpisu) nazwa i adres to sama domena, jak w
   Chrome (`github.com`; `http` → `http://domena`). W innej aplikacji wpis dostaje nazwę aplikacji i jej pakiet na
   liście „Aplikacje”; domenę zgłoszoną przez obcą aplikację (WebView) PassHolder pomija. Po zapisie komunikat
   „Zapisano w PassHolder” albo „Zaktualizowano hasło w PassHolder”; błąd to komunikat „Nie udało się zapisać w

@@ -608,14 +608,14 @@ class PhoneVaultStore(
      * phone's current addresses, sent to the extension in pairing and sync answers.
      * A pairing code from an earlier start is dropped: each start of sync mode asks for its own.
      */
-    fun router(onRequest: () -> Unit, addresses: () -> List<String>): PhoneRouter {
+    fun router(onActivity: () -> Unit, addresses: () -> List<String>): PhoneRouter {
         pairing.cancel()
         synchronized(stateLock) {
             this.addresses = addresses
             state = loadState()
             host = null
         }
-        return PhoneRouter(pairing, ::currentHost, onRequest, onError)
+        return PhoneRouter(pairing, ::currentHost, onActivity, onError)
     }
 
     /** A new pairing code; in restore mode while a restore is in progress. */

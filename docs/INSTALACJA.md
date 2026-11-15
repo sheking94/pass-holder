@@ -20,7 +20,8 @@ Kolejność: [1. narzędzia na Windows](#1-narzędzia-na-windows) → [2. telefo
 
 - Sejf zakładasz na telefonie. Hasła są szyfrowane na urządzeniach (Argon2id + AES-256-GCM, [SPEC.md](SPEC.md)).
 - Telefon słucha na porcie **8787** tylko w trybie **Synchronizacja**: włączasz go przyciskiem, a wyłącza się
-  sam po 5 minutach bez połączeń i po wyjściu z aplikacji.
+  sam po 5 minutach bez synchronizacji i po wyjściu z aplikacji. Odpowiada tylko w Wi-Fi i Tailscale, nie w sieci
+  komórkowej.
 - Wtyczkę parujesz z telefonem jednorazowym 8-cyfrowym kodem. Każda synchronizacja jest szyfrowana i
   uwierzytelniona protokołem Noise, więc zwykłe HTTP wystarcza: nie ma certyfikatów do instalowania.
 - Wtyczka działa bez telefonu na swojej kopii; zmiany wymienia, gdy telefon jest w trybie Synchronizacja.
@@ -272,7 +273,7 @@ Nowa wersja instaluje się na starej, sejf zostaje (pod warunkiem tego samego `d
 
 | Objaw | Co zrobić |
 |---|---|
-| „Telefon nie odpowiada. Czy tryb Synchronizacja jest włączony?” | Włącz **Synchronizacja** na telefonie (wyłącza się po wyjściu z aplikacji i po 5 min bez połączeń; „Włącz ponownie”). Sprawdź, czy oba urządzenia są w tej samej sieci Wi-Fi (sieć dla gości często blokuje połączenia między urządzeniami) i czy adres w „Adresy telefonu” zgadza się z ekranem telefonu. |
+| „Telefon nie odpowiada. Czy tryb Synchronizacja jest włączony?” | Włącz **Synchronizacja** na telefonie (wyłącza się po wyjściu z aplikacji i po 5 min bez synchronizacji; „Włącz ponownie”). Telefon nie odpowiada w sieci komórkowej, tylko w Wi-Fi i Tailscale. Sprawdź, czy oba urządzenia są w tej samej sieci Wi-Fi (sieć dla gości często blokuje połączenia między urządzeniami) i czy adres w „Adresy telefonu” zgadza się z ekranem telefonu. |
 | Telefon: „Telefon nie ma adresu w sieci…” | Połącz telefon z Wi-Fi (albo włącz Tailscale). |
 | Telefon: „Nie mogę uruchomić synchronizacji: port 8787 jest zajęty.” | Zamknij aplikację i otwórz ją ponownie; w ostateczności uruchom telefon ponownie. |
 | „Zły kod parowania…” albo „Telefon nie czeka na parowanie albo kod wygasł.” | Kod działa raz i 2 minuty. Na telefonie znów **Dodaj wtyczkę** i wpisz nowy kod. |

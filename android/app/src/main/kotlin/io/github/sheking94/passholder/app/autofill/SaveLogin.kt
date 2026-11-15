@@ -44,12 +44,15 @@ private fun AssistStructure.textOf(id: AutofillId): String? {
 private fun SaveRequest.valueOf(id: AutofillId): String? =
     fillContexts.asReversed().firstNotNullOfOrNull { it.structure.textOf(id)?.takeIf(String::isNotEmpty) }
 
-/** Null when the request carries no password (or no saved ids); a missing username becomes "". */
-fun readSaveData(request: SaveRequest): SaveData? {
+/**
+ * Null when the request carries no password (or no saved ids); a missing username becomes "". The app is checked
+ * by its certificate here (V3-S3), so the review and the save trust only what the phone verified.
+ */
+fun readSaveData(app: PassHolderApp, request: SaveRequest): SaveData? {
     val ids = request.clientState?.saveSpecIds() ?: return null
     val password = request.valueOf(ids.password) ?: return null
     val username = ids.username?.let { request.valueOf(it) }.orEmpty()
-    return SaveData(ids.app, username, password)
+    return SaveData(app.appTrust.verify(ids.app), username, password)
 }
 
 fun saveToast(outcome: SaveOutcome): String? = when (outcome) {

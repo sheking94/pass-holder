@@ -13,6 +13,7 @@ class AppPickerScreenTest : ScreenTestBase() {
         app.installedApps = InstalledApps {
             listOf(InstalledApp("mBank", "pl.mbank"), InstalledApp("Allegro", "pl.allegro"))
         }
+        app.appSigners = AppSigners { setOf("cc") }
     }
 
     @Test
@@ -44,6 +45,10 @@ class AppPickerScreenTest : ScreenTestBase() {
         waitFor("Zapisano na telefonie", substring = true)
         val store = ApplicationProvider.getApplicationContext<PassHolderApp>().phoneStore
         assertEquals(listOf("pl.mbank"), (store.entry(store.entries().single().id)!!.content.fields as LoginFields).androidApps)
+        // V3-S3: the picked app's certificate is remembered (written off the main thread).
+        val trust = ApplicationProvider.getApplicationContext<PassHolderApp>().appTrust
+        repeat(50) { if (trust.remembered("pl.mbank") == null) Thread.sleep(20) }
+        assertEquals(setOf("cc"), trust.remembered("pl.mbank"))
     }
 
     /** The "mBank / pl.mbank" row of the picker (its own text, not the list row "mBank · pl.mbank"). */
@@ -77,5 +82,7 @@ class ManualPackageStaysEditableTest : ScreenTestBase() {
         waitFor("Zapisano na telefonie", substring = true)
         val store = ApplicationProvider.getApplicationContext<PassHolderApp>().phoneStore
         assertEquals(listOf("pl.mbank.lite"), (store.entry(store.entries().single().id)!!.content.fields as LoginFields).androidApps)
+        // A typed package is remembered only at its first fill (trust on first use).
+        assertEquals(null, ApplicationProvider.getApplicationContext<PassHolderApp>().appTrust.remembered("pl.mbank.lite"))
     }
 }

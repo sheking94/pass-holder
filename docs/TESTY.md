@@ -52,7 +52,7 @@ katalogu pakietu.
 
 | Pakiet | Pliki | Testy | Uwagi |
 |---|---|---|---|
-| `core` | 36 | 640 | w tym `core/test/p2p/`, `core/test/files/`, `core/test/autofill/` i `core/test/save/` |
+| `core` | 36 | 644 | w tym `core/test/p2p/`, `core/test/files/`, `core/test/autofill/` i `core/test/save/` |
 | `extension` | 35 | 410 | w tym widoki w happy-dom (`extension/test/ui/`), `extension/test/autofill/` i `extension/test/save/`; `background.ts` bez testów (logika w `fill-tab.ts` i `save/candidates.ts`) |
 | `android/core` | 49 | 771 | 5 pomijane bez `PASSHOLDER_INTEROP_TEST=1`; w tym `autofill/` (wektory `core/test-vectors/autofill/`) i `save/` (wektory `core/test-vectors/save/`) |
 | `android/app` | 39 | 211 | Robolectric, zrzuty ekranów; w tym `autofill/`, ekrany autouzupełniania, zapis po odblokowaniu i załączniki (16 klas, po jednym teście), eksport i import ZIP (`TransferZip*`) |
@@ -155,16 +155,18 @@ Playwright z Chromium nie jest zależnością repozytorium: w kontenerze w chmur
 |---|---|
 | `CryptoTest`, `GeneratorTest`, `VectorsTest`, `KdfBoundsTest` | szyfrowanie, generator, `v1.json`, granice KDF i NFC |
 | `p2p/P2pVectorsTest`, `P2pVectorsV3Test`, `Ristretto255Test`, `CpaceTest`, `NoiseTest`, `PairingTest`, `HlcTest`, `P2pJsonTest`, `EntryV3Test`, `FramesTest` | te same wektory bit w bit, `safeLong`, ramki |
-| `HostSyncTest`, `P2pHostTest`, `PhoneVaultTest` | rewizje, stronicowanie (500 zmian i 512 KiB), cięcie konfliktów, 410 dla starych ścieżek, odmowa nadpisania wpisu innego typu, cofnięty telefon, kody HTTP, sesje (60 s, 32), wiele wątków |
-| `SyncHttpServerTest`, `FileSyncStoreTest`, `HostStateTest`, `PairingHostTest`, `PhoneRouterTest`, `LocalAddressesTest`, `PhoneVaultStoreTest` | serwer HTTP i limity, `Host`, trwała baza, parowanie po HTTP, sejf telefonu; `confirmMasterPassword` i KDF z `host.json` poza granicami (V3-N6, V3-I5); `changeMasterPassword` (ten sam klucz, nowy salt, urządzenia i kod parowania usunięte, 403 dla starej wtyczki, wymaga odblokowania) |
+| `HostSyncTest`, `P2pHostTest`, `PhoneVaultTest` | rewizje, stronicowanie (500 zmian i 512 KiB), cięcie konfliktów, 410 dla starych ścieżek, odmowa nadpisania wpisu innego typu, cofnięty telefon, kody HTTP, sesje (60 s, 32, ≤ 4 na urządzenie), kopia pierwszej wiadomości → 400 (też po 60 s i równolegle), nieudane uzgadnianie nie jest zapamiętywane, wiele wątków |
+| `SyncHttpServerTest`, `FileSyncStoreTest`, `HostStateTest`, `PairingHostTest`, `PhoneRouterTest`, `LocalAddressesTest`, `PhoneVaultStoreTest` | serwer HTTP i limity, `Host`, `Origin` (403), `Content-Type` (415), połączenie na niedozwolonym adresie lokalnym bez odpowiedzi, aktywność tylko po 200 na sync/plik/`pair/finish`, trwała baza, parowanie po HTTP, sejf telefonu; `confirmMasterPassword` i KDF z `host.json` poza granicami (V3-N6, V3-I5); `changeMasterPassword` (ten sam klucz, nowy salt, urządzenia i kod parowania usunięte, 403 dla starej wtyczki, wymaga odblokowania) |
 | `files/AttachmentTest`, `FileChunksTest`, `FilesVectorsTest`, `FileHostTest`, `DiskFileStoreTest` | załączniki we wpisie v3, szyfrowanie kawałkami, wektory `files/files.json` 1:1, `/p2p/v2/file` (400/404/409/507), magazyn na dysku (kawałek `.tmp` po przerwaniu, wątki, 507 przy < 50 MB) |
 | `P2pInteropTest`, `PhoneInteropTest` (opcjonalne) | prawdziwy klient wtyczki w Node przeciw hostowi w Kotlinie: wpisy w obie strony, 1300/1200 wpisów, odtworzenie, plik 3 kawałki w górę i plik z telefonu w dół (`syncFiles`, ten sam SHA-256) |
-| `ScreenTests`, `SyncScreenTests`, `SyncControllerTest`, `CorruptHostStateTest` (app) | ekrany, tryb Synchronizacja, odświeżenie po synchronizacji, uszkodzony stan |
+| `ScreenTests`, `SyncScreenTests`, `SyncControllerTest`, `CorruptHostStateTest` (app) | ekrany, tryb Synchronizacja (ping nie przedłuża 5 min, „Dodaj wtyczkę” przedłuża), odświeżenie po synchronizacji, uszkodzony stan; `SyncControllerTest`: niedozwolony adres lokalny bez odpowiedzi |
+| `SyncNetworksTest` (app) | Wi-Fi i Ethernet tak, komórkowa nie (też z adresem 100.64/10 operatora), VPN tylko z adresami Tailscale, zakres `100.64.0.0/10` |
 | `BiometricScreenTests` (app) | odcisk palca, blokada po wyjściu, opóźnienie 60 s (zegar Robolectric); `ChangeMasterPasswordTest`: zmiana hasła głównego (reguły, złe obecne hasło, odcisk wyłączony, urządzenia zapomniane, ten sam klucz, odblokowanie nowym hasłem) |
 | `EntryTypesTest` (app) | opisy wierszy, wyszukiwanie, `tidy`, walidacja (te same reguły co `entry-types.ts`) |
 | `ListTabsScreenTest`, `SettingsScreenTests` (app) | pięć zakładek, wyszukiwanie czyszczone przy zmianie zakładki, „+ Dodaj” typu zakładki, górny pasek i Ustawienia |
 | `EditLoginScreenTest`, `EditNoteScreenTest`, `EditContactScreenTest`, `EditCardScreenTest`, `EditDocumentScreenTest` (app) | formularze: pola wrażliwe i kopiowanie, listy, własne pola, formaty tylko zmienionych pól, „Ten wpis ma inny typ” |
-| `AppPickerScreenTest`, `InstalledAppsTest` (app) | wybór aplikacji, ręczny pakiet, lista tylko aplikacji z launchera |
+| `AppPickerScreenTest`, `InstalledAppsTest` (app) | wybór aplikacji (zapamiętuje certyfikat), ręczny pakiet (nie zapamiętuje), lista tylko aplikacji z launchera |
+| `autofill/VerifyAppTest`, `AppTrustTest` (app) | V3-S3: 13 przeglądarek z poprawnymi skrótami, przeglądarka z innym certyfikatem lub nieczytelna nie jest zaufana, certyfikat po zmianie klucza (historia) pasuje, zaufanie przy pierwszym użyciu i potem tylko zapamiętany certyfikat; odczyt certyfikatów z `PackageManager` (API 35 historia, API 27 `signatures`), `remember`/`rememberIfNew` |
 | `CommonTest`, `CsvTest`, `JsonTextTest`, `SortVectorTest`, `PassHolderJsonTest`, `BitwardenJsonTest`, `NordPassCsvTest`, `TransferTest` | pakiet `transfer`: wektory z `core/test-vectors/transfer/`, przypadki z testów TS, kolejność sortowania, brzegi JSON/CSV |
 | `FileSyncStoreTest`, `PhoneVaultTest`, `PhoneVaultStoreTest` (dodatki) | `putAll` (jeden dopis, obcięty fragment), `importContents` (duplikaty, za duży wpis, rewizje, HLC), atomowość |
 | `ImportSummaryTest`, `TransferFilesTest`, `TransferScreenTest`, `FilePickerLockTest` (app) | podsumowanie, limit 10 MiB i UTF-8, ekran importu i eksportu (zgoda, hasło główne przed eksportem, ponowny import), okno wyboru pliku 60 s |
@@ -410,7 +412,23 @@ elementu `data-passholder-save`). (3) **Kontakt (S4):** strona z formularzem: wi
 wypełniony tylko e-mail. (4) **I4:** popup „Wypełnij” i Kopiuj hasło działają jak wcześniej. Sprawdzone automatycznie w
 Chromium (Playwright, 2026-11-15): (1), (2), (3) i zamknięcie okna z odznaką.
 
-**T27. Grupa 5 przeglądu V3 (wtyczka i telefon).** (1) **Eksport (N6), wtyczka:** Plik → zaznacz „Rozumiem…”, bez
+**T27. Serwer telefonu (przegląd V3-N1, V3-N2).** (1) Telefon w Wi-Fi, Synchronizacja: wtyczka synchronizuje jak dotąd
+(sprawdza `Origin` i `Content-Type` prawdziwego Chrome). (2) Wyłącz Wi-Fi, zostaw dane komórkowe, włącz Synchronizacja:
+ekran nie pokazuje adresu komórkowego („Telefon nie ma adresu w sieci…”, chyba że działa Tailscale). (3) Z Tailscale
+na obu urządzeniach i bez Wi-Fi na telefonie: adres `100.x.y.z` widoczny, synchronizacja działa. (4) W Wi-Fi z komputera:
+`curl -X POST -H 'Content-Type: application/json' -d '{}' http://<IP>:8787/p2p/v1/ping` co minutę przez 6 min: tryb
+wyłącza się po 5 min mimo pingów. (5) `curl -X POST -H 'Origin: https://example.com' -H 'Content-Type: application/json'
+-d '{}' http://<IP>:8787/p2p/v1/ping` → 403; bez `Content-Type` → 415. Zapisz wynik, model telefonu i wersję Androida.
+
+**T28. Zaufane aplikacje na telefonie (przegląd V3-S3).** Aplikacja zainstalowana, usługa autouzupełniania
+włączona, w sejfie login z adresem `https://github.com` i login z aplikacją wybraną przez „+ Wybierz aplikację”.
+(1) Chrome na `github.com/login`: podpowiedź loginu jest (Chrome rozpoznany po podpisie). (2) W aplikacji z
+wpisu: podpowiedź jest. (3) Opcjonalnie, z Android Studio: aplikacja testowa z pakietem nieobecnej przeglądarki
+(np. `com.vivaldi.browser`) i `WebView` z `github.com` – podpowiedzi loginu GitHuba **nie ma**. (4) Opcjonalnie:
+odinstaluj aplikację z (2) i zainstaluj aplikację testową z tym samym pakietem, podpisaną kluczem debug – podpowiedzi
+**nie ma**; ponowny wybór aplikacji w formularzu loginu przywraca podpowiedzi. Zapisz model telefonu i wersję Androida.
+
+**T29. Grupa 5 przeglądu V3 (wtyczka i telefon).** (1) **Eksport (N6), wtyczka:** Plik → zaznacz „Rozumiem…”, bez
 hasła → „Wpisz hasło główne, żeby pobrać plik.”; złe hasło → „Złe hasło główne”, nic się nie pobiera; dobre → plik.
 (2) **Eksport, telefon:** sejf odblokowany odciskiem, ⋮ → Import i eksport → „Zapisz plik” z pustym albo złym hasłem: okno
 zapisu się nie otwiera; dobre hasło → okno zapisu, plik zapisany. (3) **PIN (N4):** PIN włączony, otwórz wtyczkę w dwóch

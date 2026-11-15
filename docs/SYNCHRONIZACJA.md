@@ -196,14 +196,22 @@ Błędy `{error: "…"}`, w tej kolejności:
 | 413 | ciało > 1 MiB (sprawdzane pierwsze) |
 | 410 | stare ścieżki `/p2p/v1/handshake` i `/p2p/v1/sync` (`update required`) |
 | 404 | nieznana ścieżka |
-| 400 | handshake: brak pól, zły Base64, nieudane uzgadnianie; ciało nie jest obiektem JSON |
+| 400 | handshake: brak pól, zły Base64, nieudane uzgadnianie; ciało nie jest obiektem JSON; kopia przyjętej już pierwszej wiadomości (`replayed handshake`) |
 | 403 | handshake: `deviceId` spoza listy urządzeń |
-| 503 | handshake: 32 żywe sesje (`too many sessions`); telefon bez sejfu (`vault not ready`) |
+| 503 | handshake: 32 żywe sesje albo 4 żywe sesje tego urządzenia (`too many sessions`); telefon bez sejfu (`vault not ready`) |
 | 400 | sync: brak `session`, 0 albo > 18 ramek, ramka nie jest tekstem |
 | 401 | sync: nieznana lub wygasła sesja (też powtórzone żądanie) |
 | 403 | sync: urządzenia nie ma już na liście |
 | 400 | sync: nie da się odszyfrować albo żądanie nie przechodzi walidacji |
 | 500 | błąd przy budowaniu odpowiedzi |
+
+**Powtórzenia uzgadniania (przegląd V3-N1).** Pierwsza wiadomość Noise KK (`e, es, ss`) nie zawiera nic świeżego od
+telefonu, więc jej kopia też przeszłaby `readMessage`. Host pamięta klucze efemeryczne `e` (pierwsze 32 B wiadomości)
+przyjętych uzgodnień, do 4096 (najstarsze wypadają), przez cały czas życia hosta (jeden start trybu Synchronizacja),
+nie tylko 60 s. Zapisuje tylko wiadomości, które przeszły Noise, więc pamięć zapełnia jedynie sparowane urządzenie.
+Sprawdzenie i zapis idą pod tą samą blokadą co tabela sesji, więc z równoległych kopii przechodzi jedna. Limit 4
+sesji na urządzenie chroni pozostałe wtyczki, gdyby ktoś miał wiele przechwyconych wiadomości jednego urządzenia
+(prawdziwa wtyczka używa jednej sesji naraz, czasem dwóch).
 
 Sesja żyje w pamięci 60 s, jest jednorazowa (usuwana przy pierwszej próbie sync) i przy `/sync` urządzenie
 jest sprawdzane jeszcze raz, więc usunięcie urządzenia odcina też otwartą sesję. `handshake` i `sync`
@@ -303,9 +311,21 @@ Każdy w sieci może się połączyć przed uwierzytelnieniem, więc serwer ma l
 | Błędy `accept()` | 20 pod rząd | serwer się kończy |
 
 - Ścisły parser: tylko `POST` (405), wymagany `Content-Length` (411), bez `Transfer-Encoding` (501).
+- **Strony WWW (przegląd V3-N2):** nagłówek `Origin` inny niż `chrome-extension://…` → 403 `forbidden origin`;
+  brak `Content-Type: application/json` (parametry jak `; charset=utf-8` dozwolone) → 415 `unsupported media type`.
+  Strona w przeglądarce może bez CORS wysłać tylko „prosty” `POST` (`text/plain`, formularz), więc do hosta nie dojdzie.
+  Brak `Origin` jest dozwolony (wtyczka go wysyła, testy i `curl` nie).
+- **Tylko Wi-Fi, Ethernet i Tailscale (V3-N2):** gniazdo nadal słucha na wszystkich interfejsach (adresy zmieniają się
+  w trakcie), ale połączenie przyjęte na adresie lokalnym spoza tych sieci (np. komórkowym) jest zamykane bez
+  odpowiedzi (`allowLocal`). Które adresy są dozwolone, aplikacja czyta przy każdym połączeniu z `ConnectivityManager`
+  (`SyncNetworks.kt`, uprawnienie `ACCESS_NETWORK_STATE`): sieć VPN tylko z adresami `100.64.0.0/10` (Tailscale), Wi-Fi i
+  Ethernet wszystkie, reszta żadne; loopback zawsze. Te same adresy dostaje wtyczka. W sieci komórkowej port nadal
+  kończy uzgadnianie TCP, ale nic nie odpowiada.
 - **`Host` musi być literałem IPv4 albo `localhost`** (inaczej 403 `forbidden host`): ochrona przed DNS
   rebinding. Dlatego adres telefonu we wtyczce musi być IPv4; MagicDNS i IPv6 nie działają.
-- Tylko znane ścieżki liczą się jako aktywność, więc skaner w sieci nie utrzyma trybu przy życiu.
+- **Aktywność (V3-N2):** licznik bezczynności przesuwa tylko odpowiedź 200 na `/p2p/v2/sync`, `/p2p/v2/file` albo
+  `/p2p/v1/pair/finish` (dowód sesji Noise albo kodu parowania; `PhoneRouter`) oraz „Dodaj wtyczkę” na telefonie.
+  Ping, uzgadnianie i pierwsze kroki parowania może wysłać każdy, więc się nie liczą.
 
 ### 6.2. Dane na telefonie (`filesDir/p2p/`)
 
@@ -324,9 +344,9 @@ Każdy w sieci może się połączyć przed uwierzytelnieniem, więc serwer ma l
 
 ### 6.3. Tryb Synchronizacja (`SyncController.kt`)
 
-- Włącza go przycisk „Synchronizacja” przy odblokowanym sejfie. Ekran pokazuje adresy `http://<IPv4>:8787`
-  (Tailscale `100.64.0.0/10` na końcu) i nie gaśnie (`FLAG_KEEP_SCREEN_ON`).
-- Wyłącza się: po 5 min bez połączeń (sprawdzane co 15 s), po wyjściu z aplikacji, po blokadzie sejfu,
+- Włącza go przycisk „Synchronizacja” przy odblokowanym sejfie. Ekran pokazuje adresy `http://<IPv4>:8787` z Wi-Fi,
+  Ethernetu i Tailscale (Tailscale `100.64.0.0/10` na końcu, bez sieci komórkowej) i nie gaśnie (`FLAG_KEEP_SCREEN_ON`).
+- Wyłącza się: po 5 min bez synchronizacji (punkt 6.1, „Aktywność”; sprawdzane co 15 s), po wyjściu z aplikacji, po blokadzie sejfu,
   przyciskiem „Zakończ”.
 - Każdy start trybu ma własny kod; stara oferta jest odrzucana. Lista wpisów odświeża się po każdej
   synchronizacji.

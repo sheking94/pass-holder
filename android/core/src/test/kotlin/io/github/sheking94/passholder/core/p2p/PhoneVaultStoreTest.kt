@@ -45,8 +45,8 @@ class PhoneVaultStoreTest {
         PhoneVaultStore(dir, PlainSecretWrapper, { time }, autoLockMs)
 
     /** Starts a real HTTP server on a free port with the store's router; returns a transport to it. */
-    private fun serve(store: PhoneVaultStore, onRequest: () -> Unit = {}): HttpTestTransport {
-        val server = SyncHttpServer(0, store.router(onRequest) { phoneAddresses }::handle)
+    private fun serve(store: PhoneVaultStore, onActivity: () -> Unit = {}): HttpTestTransport {
+        val server = SyncHttpServer(0, store.router(onActivity) { phoneAddresses }::handle)
         servers.add(server)
         return HttpTestTransport(server.start())
     }
@@ -81,6 +81,8 @@ class PhoneVaultStoreTest {
         assertEquals(PairingMode.PAIR, offer.mode)
         val pair = TestP2pClient.pair(http, offer.code, extIdentity)
         assertEquals(200, pair.finish!!.status, pair.finish!!.body)
+        // Only the finished pairing counts as activity, not hello and start.
+        assertEquals(1, requests)
         val info = pair.phoneVaultInfo!!
         assertEquals(phoneAddresses, info.addresses)
         assertEquals("Telefon", pair.phoneIdentity!!.name)
@@ -107,7 +109,8 @@ class PhoneVaultStoreTest {
         assertEquals(1, pushed.accepted.size)
         assertEquals(listOf("Bank", "Poczta"), store.entries().map { it.credentials.name })
         assertEquals(emptyList<String>(), store.unreadableIds())
-        assertTrue(requests >= 5)
+        // Plus the two syncs; their handshakes do not count.
+        assertEquals(3, requests)
 
         // A new store on the same directory: locked, unlocks with the password, keeps entries and devices.
         servers.forEach { it.stop() }

@@ -49,9 +49,22 @@ class P2pHost(
 
         /** Most sessions alive at once; a handshake beyond that gets 503 until some expire or are used. */
         const val MAX_SESSIONS = 32
+
+        /** Most sessions of one device alive at once, so one device's messages cannot fill the whole table. */
+        const val MAX_SESSIONS_PER_DEVICE = 4
+
+        /**
+         * How many accepted first handshake messages the host remembers (oldest dropped first). A copy of one of them
+         * is refused with 400: the message holds nothing fresh from the phone, so without this memory every copy would
+         * open a session. Only messages that passed Noise (made by a paired device) are kept.
+         */
+        const val MAX_SEEN_HANDSHAKES = 4096
     }
 
     private val sessions = HashMap<String, Session>()
+
+    /** Ephemeral keys (first 32 bytes, Base64) of accepted handshakes, oldest first. Guarded by the sessions lock. */
+    private val seen = LinkedHashSet<String>()
 
     private fun fail(status: Int, error: String) =
         HostReply(status, buildJsonObject { put("error", error) }.toString())
@@ -67,6 +80,14 @@ class P2pHost(
             "/p2p/v1/handshake", "/p2p/v1/sync" -> fail(410, "update required")
             else -> fail(404, "not found")
         }
+    }
+
+    /** 400 for a copy of an accepted message, 503 when the table or the device's share is full. Caller holds the lock. */
+    private fun refusal(ephemeral: String, deviceId: String): HostReply? = when {
+        ephemeral in seen -> fail(400, "replayed handshake")
+        sessions.size >= MAX_SESSIONS -> fail(503, "too many sessions")
+        sessions.values.count { it.deviceId == deviceId } >= MAX_SESSIONS_PER_DEVICE -> fail(503, "too many sessions")
+        else -> null
     }
 
     /** Caller holds the sessions lock. */
@@ -90,13 +111,14 @@ class P2pHost(
         val messageText = obj["message"].text()
         if (deviceId == null || messageText == null) return fail(400, "malformed request")
         val device = devices().firstOrNull { it.deviceId == deviceId } ?: return fail(403, "device not paired")
-        // handle() already pruned the expired sessions.
-        if (synchronized(sessions) { sessions.size } >= MAX_SESSIONS) return fail(503, "too many sessions")
         val message = try {
             Encoding.fromBase64(messageText)
         } catch (_: IllegalArgumentException) {
             return fail(400, "malformed request")
         }
+        val ephemeral = Encoding.toBase64(message.copyOf(minOf(message.size, 32)))
+        // handle() already pruned the expired sessions.
+        synchronized(sessions) { refusal(ephemeral, device.deviceId) }?.let { return it }
         val reply: ByteArray
         val ciphers: TransportCiphers
         try {
@@ -114,8 +136,10 @@ class P2pHost(
             device.deviceId, device.staticPublicKey.copyOf(), ciphers.send, ciphers.recv, now() + SESSION_TTL_MS,
         )
         synchronized(sessions) {
-            // Concurrent handshakes may have filled the map since the check above.
-            if (sessions.size >= MAX_SESSIONS) return fail(503, "too many sessions")
+            // Concurrent handshakes may have filled the map or used the same message since the check above.
+            refusal(ephemeral, device.deviceId)?.let { return it }
+            seen.add(ephemeral)
+            if (seen.size > MAX_SEEN_HANDSHAKES) seen.remove(seen.first())
             sessions[id] = session
         }
         return HostReply(

@@ -54,7 +54,7 @@ fun <Id> planRequest(nodes: List<AutofillNode<Id>>): FillRequestPlan<Id>? {
 
 private fun cardAllowed(request: AppRequest): Boolean {
     val scheme = request.webScheme
-    val plainBrowser = request.packageName in TRUSTED_BROWSERS && scheme != null && scheme != "https"
+    val plainBrowser = request.browserVerified && scheme != null && scheme != "https"
     return !plainBrowser || request.webDomain == "localhost"
 }
 
