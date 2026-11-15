@@ -1,4 +1,4 @@
-import { deriveMasterKey, fromBase64, fromUtf8, newKdfParams, open, seal, toBase64, utf8, type KdfParams } from "@passholder/core";
+import { assertKdfParamsAcceptable, deriveMasterKey, fromBase64, fromUtf8, newKdfParams, open, seal, toBase64, utf8, type KdfParams } from "@passholder/core";
 
 /**
  * Unlocking with a PIN. The PIN never replaces the master password: it only re-wraps the keys this
@@ -72,6 +72,8 @@ export async function createPinLock(pin: string, keys: UnlockKeys): Promise<PinL
 /** Throws WrongPinError if the PIN is wrong (the GCM tag does not verify). */
 export async function openPinLock(pin: string, lock: PinLock): Promise<UnlockKeys> {
   if (!isValidPin(pin)) throw new WrongPinError(INVALID_PIN);
+  // Security review V3-I5: the lock is read from storage, so its KDF gets the same bounds as one from the phone.
+  assertKdfParamsAcceptable(lock.kdf);
   const pinKey = await deriveMasterKey(pin, lock.kdf);
   let plaintext: Uint8Array;
   try {

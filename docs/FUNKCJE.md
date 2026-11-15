@@ -115,8 +115,11 @@ Strony dzielą termin przez `storage.session`, więc blokada w jednej blokuje ws
 
 PIN to skrót zamiast hasła głównego, **tylko w tej jednej przeglądarce**. Hasło główne działa zawsze.
 
-- Włączanie: przycisk **PIN** na liście (przy odblokowanym sejfie). PIN to 4-6 cyfr.
-- Po **5 błędnych PIN-ach z rzędu** PIN jest kasowany i trzeba podać hasło główne.
+- Włączanie: przycisk **PIN** na liście (przy odblokowanym sejfie). PIN w pamięci to 4-6 cyfr albo długi PIN
+  (jak niżej); PIN na dysku musi być długi.
+- Po **5 błędnych PIN-ach z rzędu** PIN jest kasowany i trzeba podać hasło główne. Próby z kilku kart wtyczki
+  idą po kolei (`navigator.locks`, blokada `passholder-pin` w `PinStore.unlock`), więc każda się liczy
+  (przegląd V3-N4).
 - Domyślnie PIN jest tylko w pamięci (`chrome.storage.session`): po zamknięciu Chrome albo przeładowaniu
   wtyczki trzeba raz podać hasło główne.
 - **„Pamiętaj PIN po zamknięciu przeglądarki”** zapisuje go na dysku (`chrome.storage.local`). Ten tryb
@@ -138,7 +141,10 @@ głównego, tylko klucz sejfu.
 
 **Przechowywanie** (`pin-store.ts`, `PinStore`): `PinLock` leży albo w `session`, albo w `local`, nigdy w
 obu. `unlock(pin)` odrzuca zły format bez liczenia próby, a licznik zapisuje **przed** sprawdzeniem PIN-u
-(Argon2id trwa ok. 1 s; zamknięcie okienka w trakcie nie daje darmowej próby). Udane hasło główne zeruje
+(Argon2id trwa ok. 1 s; zamknięcie okienka w trakcie nie daje darmowej próby). Odczyt i zapis licznika nie są
+atomowe, więc cała próba biegnie pod blokadą Web Locks `passholder-pin` (`pinAttemptLock`; okienko, karty i
+service worker mają ten sam origin wtyczki); bez `navigator.locks` (testy w Node) kolejka w obrębie jednego
+kontekstu. Parametry KDF z `PinLock` są sprawdzane (`assertKdfParamsAcceptable`, przegląd V3-I5) przed Argon2id. Udane hasło główne zeruje
 licznik. Parowanie przeglądarki (`pairFinish`) i odłączenie kasują PIN; `repair` (inny telefon) go
 zostawia, bo klucz sejfu jest ten sam.
 
@@ -160,7 +166,9 @@ Wszystkie pięć typów wpisów, w trzech formatach. Lista → **Plik** otwiera 
 zamknęłoby okienko).
 
 - **Eksport:** wybierz format (PassHolder JSON, **PassHolder ZIP (wpisy i pliki)**, Bitwarden JSON, NordPass CSV), zaznacz „Rozumiem, plik będzie
-  zawierał hasła jawnym tekstem” (dla ZIP ostrzeżenie mówi też o odszyfrowanych plikach) → **Pobierz plik**
+  zawierał hasła jawnym tekstem” (dla ZIP ostrzeżenie mówi też o odszyfrowanych plikach), wpisz **hasło główne**
+  (przegląd V3-N6: `VaultStore.confirmMasterPassword`; puste → „Wpisz hasło główne, żeby pobrać plik.”, złe →
+  „Złe hasło główne”; pole czyszczone po każdym kliknięciu; PIN nie wystarczy) → **Pobierz plik**
   (`<format>-RRRR-MM-DD.json`, `.csv` albo `.zip`; domyślnie nadal JSON). Wpisy posortowane po
   nazwie (`localeCompare` „pl”), przy równej nazwie w kolejności login, kontakt, karta, notatka, dokument.
   **JSON i CSV nie niosą plików:** gdy sejf je ma, ekran eksportu pisze np. „2 pliki nie zostaną
@@ -238,8 +246,11 @@ sortowania co we wtyczce; pliki przez systemowy wybór pliku (bez uprawnień do 
   „Plik jest za duży (limit 10 MiB)”; plik niebędący UTF-8 (np. Windows-1250 z Excela) → „Plik nie jest zapisany w
   UTF-8”. Podsumowanie jak we wtyczce („Dodano N wpisów (zsynchronizuj, żeby trafiły do wtyczki).”, w NordPass
   „wiersze”); nowe wpisy są lokalne do następnej synchronizacji. Import jest atomowy (jeden zapis `putAll`).
-- **Eksport:** wybór formatu, ostrzeżenie, „Rozumiem…”, **Zapisz plik** (nieaktywny do zaznaczenia zgody) →
-  wybór miejsca; nazwa `passholder-RRRR-MM-DD.json` (NordPass `.csv`). Po zapisie: „Zapisano plik. Usuń go zaraz
+- **Eksport:** wybór formatu, ostrzeżenie, „Rozumiem…”, pole **Hasło główne**, **Zapisz plik** (nieaktywny do
+  zaznaczenia zgody) → sprawdzenie hasła (przegląd V3-N6, także gdy sejf odblokowano odciskiem palca:
+  `AppViewModel.confirmExport` → `PhoneVaultStore.confirmMasterPassword`) → wybór miejsca. Zgoda jest
+  jednorazowa (`exportApproved`): następny powrót z okna zapisu ją zużywa, a eksport bez niej kończy się
+  „Wpisz hasło główne, żeby zapisać plik.”; nazwa `passholder-RRRR-MM-DD.json` (NordPass `.csv`). Po zapisie: „Zapisano plik. Usuń go zaraz
   po użyciu, zawiera hasła jawnym tekstem.”
 - **Okno wyboru pliku (60 s):** wybór pliku wyprowadza z aplikacji, więc zwykła blokada po wyjściu zablokowałaby
   sejf w trakcie. Przy otwieraniu wyboru blokada po pierwszym wyjściu czeka 60 s, nawet gdy opóźnienie jest

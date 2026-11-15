@@ -258,7 +258,7 @@ class StartStopRaceTest : SyncScreenTestBase() {
     fun `a stop that comes before the background start leaves no server running`() {
         createVault()
         val vm = viewModel()
-        // Both on the main thread, before the start on Dispatchers.IO gets to run.
+        // Both on the main thread; each start runs on Dispatchers.IO.
         scenario.onActivity {
             vm.openSync()
             vm.onLeftApp()
@@ -271,7 +271,9 @@ class StartStopRaceTest : SyncScreenTestBase() {
         Thread.sleep(1_000)
         compose.waitForIdle()
         assertFalse(vm.syncState.value.running)
-        assertEquals("no server was bound", -1, port)
+        // The second start leaves for Dispatchers.IO right away and may bind before closeSync runs; then closeSync
+        // stops it. Either way nothing may be listening afterwards (it failed in CI when only "never bound" was allowed).
+        if (port != -1) assertNotListening(port)
         assertFalse(keepsScreenOn())
     }
 }

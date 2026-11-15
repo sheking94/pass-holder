@@ -52,10 +52,10 @@ katalogu pakietu.
 
 | Pakiet | Pliki | Testy | Uwagi |
 |---|---|---|---|
-| `core` | 36 | 639 | w tym `core/test/p2p/`, `core/test/files/`, `core/test/autofill/` i `core/test/save/` |
-| `extension` | 35 | 405 | w tym widoki w happy-dom (`extension/test/ui/`), `extension/test/autofill/` i `extension/test/save/`; `background.ts` bez testów (logika w `fill-tab.ts` i `save/candidates.ts`) |
-| `android/core` | 49 | 769 | 5 pomijane bez `PASSHOLDER_INTEROP_TEST=1`; w tym `autofill/` (wektory `core/test-vectors/autofill/`) i `save/` (wektory `core/test-vectors/save/`) |
-| `android/app` | 39 | 211 | Robolectric, zrzuty ekranów; w tym `autofill/`, ekrany autouzupełniania, zapis po odblokowaniu i załączniki (16 klas, po jednym teście), eksport i import ZIP (`TransferZip*`) |
+| `core` | 36 | 644 | w tym `core/test/p2p/`, `core/test/files/`, `core/test/autofill/` i `core/test/save/` |
+| `extension` | 35 | 410 | w tym widoki w happy-dom (`extension/test/ui/`), `extension/test/autofill/` i `extension/test/save/`; `background.ts` bez testów (logika w `fill-tab.ts` i `save/candidates.ts`) |
+| `android/core` | 49 | 787 | 5 pomijane bez `PASSHOLDER_INTEROP_TEST=1`; w tym `autofill/` (wektory `core/test-vectors/autofill/`) i `save/` (wektory `core/test-vectors/save/`) |
+| `android/app` | 39 | 222 | Robolectric, zrzuty ekranów; w tym `autofill/`, ekrany autouzupełniania, zapis po odblokowaniu i załączniki (16 klas, po jednym teście), eksport i import ZIP (`TransferZip*`) |
 
 ## Co testują pliki
 
@@ -66,7 +66,7 @@ katalogu pakietu.
 | `edge-cases.test.ts` | NFC, Base64/hex, AES-GCM (zły klucz i nonce, ucięty blob), złe hasło, granice KDF, generator |
 | `cipher.test.ts`, `generator.test.ts`, `vectors.test.ts` | szyfrowanie, generator, wektory `v1.json` |
 | `sync-edge.test.ts` | `processSync`: duplikaty, nieznana rewizja, rosnące rewizje |
-| `p2p/*.test.ts` | HLC, ristretto255 (RFC 9496), CPace (draft, dodatek B.3), Noise KK (Cacophony), parowanie, klient parowania, host, transport (ścieżki v2, 410/404), synchronizacja (stronicowanie po bajtach, rundy `more`, łączenie załączników przy konflikcie), wpis v3 (`entry-v3.test.ts`), wektory `v2.json` i `v3.json` |
+| `p2p/*.test.ts` | HLC, ristretto255 (RFC 9496), CPace (draft, dodatek B.3), Noise KK (Cacophony), parowanie, klient parowania, host, transport (ścieżki v2, 410/404), synchronizacja (stronicowanie po bajtach, rundy `more`, łączenie załączników przy konflikcie), wpis v3 (`entry-v3.test.ts`), wektory `v2.json` i `v3.json`; stara wersja wpisu od hosta pod nową rewizją pomijana (V3-I2) |
 
 `core/test/files/*.test.ts` (6 plików, pliki w sejfie, rdzeń TS):
 
@@ -112,10 +112,10 @@ wartości losowe mają stałe klucze i nonce.
 
 | Plik | Co sprawdza |
 |---|---|
-| `vault-store.test.ts`, `pairing-flow.test.ts` | wpisy v3 (zachowanie pól loginu, odmowa nadpisania innego typu, stary sejf v2, za duży wpis), parowanie, złe hasło po zamknięciu okienka, wygaśnięcie po 10 min, inny sejf, odtwarzanie, kilka adresów, brak zgody Chrome, odłączanie; po zmianie hasła na telefonie: ponowne parowanie nowym hasłem (PIN wyłączony, stare hasło nie otwiera), stare hasło → komunikat o nowym haśle, nowe hasło innego sejfu → „To inny sejf”, telefon w `restore` nie traci kodu przy złym haśle |
+| `vault-store.test.ts`, `pairing-flow.test.ts` | wpisy v3 (zachowanie pól loginu, odmowa nadpisania innego typu, stary sejf v2, za duży wpis), parowanie, złe hasło po zamknięciu okienka, wygaśnięcie po 10 min, inny sejf, odtwarzanie, kilka adresów, brak zgody Chrome, odłączanie (też `saveNever` i `saveCandidates`, V3-I3), KDF konta poza granicami (V3-I5); po zmianie hasła na telefonie: ponowne parowanie nowym hasłem (PIN wyłączony, stare hasło nie otwiera), stare hasło → komunikat o nowym haśle, nowe hasło innego sejfu → „To inny sejf”, telefon w `restore` nie traci kodu przy złym haśle |
 | `edge-cases.test.ts` | konflikty HLC, zablokowany sejf, słaby KDF od telefonu, telefon, który zapomniał przeglądarkę, limit 30 s |
 | `phone-urls.test.ts` | adresy IPv4, zera wiodące, porty, `pickPhone` (4 s) |
-| `pin.test.ts` | PIN: kształt, 5 prób, licznik przed sprawdzeniem, długi PIN na dysku |
+| `pin.test.ts` | PIN: kształt, 5 prób, licznik przed sprawdzeniem, długi PIN na dysku, równoległe próby z kilku kart (V3-N4), KDF z pamięci poza granicami (V3-I5) |
 | `import.test.ts` | `importContents` (wszystkie typy, duplikaty w sejfie i w pliku, ponowny import, wpis za duży, jeden zapis), `allContents`, podsumowanie importu |
 | `plural.test.ts` | odmiana „wpis/wpisy/wpisów” i `skippedFilesPhrase` (zgodny czasownik) |
 | `open-in-tab.test.ts` | tryby strony, przełączanie na otwartą kartę |
@@ -123,7 +123,7 @@ wartości losowe mają stałe klucze i nonce.
 | `entry-types.test.ts`, `vault-store-types.test.ts` | opis wiersza, wyszukiwanie, sprzątanie, formaty i nazwa pakietu (tylko zmienione pola); `listEntries`/`getEntry`/`putEntry`, odmowa innego typu, za duży wpis, synchronizacja kart i kontaktów |
 | `ui/list-view.test.ts` | zakładki, opis wiersza, wyszukiwanie w obrębie zakładki, powrót na zakładkę typu |
 | `ui/edit-login.test.ts`, `ui/edit-types.test.ts` | formularze: zapis każdego pola, puste elementy list pomijane, data w innym zapisie oraz e-mail i adres strony ze spacjami zapisują się bez zmian, etykiety pól list, błędy formatów, zachowanie pól spoza formularza, ukryte własne pole, generator, „Usuń” |
-| `ui/transfer-view.test.ts` | ekran „Import i eksport”: formaty, zgoda przed eksportem, import pliku, błąd uszkodzonego pliku, zdanie o pominiętych plikach (`2 pliki nie zostaną wyeksportowane…`, brak go bez załączników) |
+| `ui/transfer-view.test.ts` | ekran „Import i eksport”: formaty, zgoda i hasło główne przed eksportem (V3-N6), import pliku, błąd uszkodzonego pliku, zdanie o pominiętych plikach (`2 pliki nie zostaną wyeksportowane…`, brak go bez załączników) |
 | `idb-file-store.test.ts` | `IdbFileStore` (`fake-indexeddb`): plik kompletny, kawałki jeden po drugim, zmiana liczby kawałków, prefiks `id`, baza, która się nie otwiera (błąd w każdej operacji), dane między instancjami, synchronizacja z hostem telefonu (wysłanie i pobranie w drugim magazynie) |
 | `vault-store-files.test.ts` | pliki w `VaultStore`: plik z przeglądarki A pobrany w B, wznowienie po przerwanej fazie (jeden kawałek), sprzątanie po usunięciu załącznika i wpisu (plik niewysłany zostaje), błąd zapisu wpisu i sprzątania, stary telefon (404), zapamiętany plik uszkodzony, `upsert` zachowuje załączniki, `putEntry` po blokadzie (także w trakcie zapisu plików), faza plików przerwana blokadą (bez kolejnych żądań i sprzątania), `disconnect` czyści pliki (i działa przy błędzie IndexedDB) |
 | `ui/attachments.test.ts` | sekcja „Załączniki” w karcie i okienku: nowy plik dopiero po „Zapisz” (treść jawna wyczyszczona po szyfrowaniu), limity (21. plik, 10 MB, pusty, zła nazwa), ten sam plik dwa razy, „Usuń” (zamyka pytanie o pobranie), ostrzeżenie przed „Pobierz”, „czeka na synchronizację” (także gdy stanu nie da się odczytać) i „Plik jest uszkodzony”, ostrzeżenie „Otwórz w karcie”, tryb `edit` (cel jednorazowy, id innego typu daje nowy wpis), „📎 N” na liście, „Pliki: 0 z t” … „Pliki: t z t” i komunikat po synchronizacji |
@@ -156,7 +156,7 @@ Playwright z Chromium nie jest zależnością repozytorium: w kontenerze w chmur
 | `CryptoTest`, `GeneratorTest`, `VectorsTest`, `KdfBoundsTest` | szyfrowanie, generator, `v1.json`, granice KDF i NFC |
 | `p2p/P2pVectorsTest`, `P2pVectorsV3Test`, `Ristretto255Test`, `CpaceTest`, `NoiseTest`, `PairingTest`, `HlcTest`, `P2pJsonTest`, `EntryV3Test`, `FramesTest` | te same wektory bit w bit, `safeLong`, ramki |
 | `HostSyncTest`, `P2pHostTest`, `PhoneVaultTest` | rewizje, stronicowanie (500 zmian i 512 KiB), cięcie konfliktów, 410 dla starych ścieżek, odmowa nadpisania wpisu innego typu, cofnięty telefon, kody HTTP, sesje (60 s, 32, ≤ 4 na urządzenie), kopia pierwszej wiadomości → 400 (też po 60 s i równolegle), nieudane uzgadnianie nie jest zapamiętywane, wiele wątków |
-| `SyncHttpServerTest`, `FileSyncStoreTest`, `HostStateTest`, `PairingHostTest`, `PhoneRouterTest`, `LocalAddressesTest`, `PhoneVaultStoreTest` | serwer HTTP i limity, `Host`, `Origin` (403), `Content-Type` (415), połączenie na niedozwolonym adresie lokalnym bez odpowiedzi, aktywność tylko po 200 na sync/plik/`pair/finish`, trwała baza, parowanie po HTTP, sejf telefonu; `changeMasterPassword` (ten sam klucz, nowy salt, urządzenia i kod parowania usunięte, 403 dla starej wtyczki, wymaga odblokowania) |
+| `SyncHttpServerTest`, `FileSyncStoreTest`, `HostStateTest`, `PairingHostTest`, `PhoneRouterTest`, `LocalAddressesTest`, `PhoneVaultStoreTest` | serwer HTTP i limity, `Host`, `Origin` (403), `Content-Type` (415), połączenie na niedozwolonym adresie lokalnym bez odpowiedzi, aktywność tylko po 200 na sync/plik/`pair/finish`, trwała baza, parowanie po HTTP, sejf telefonu; `confirmMasterPassword` i KDF z `host.json` poza granicami (V3-N6, V3-I5); `changeMasterPassword` (ten sam klucz, nowy salt, urządzenia i kod parowania usunięte, 403 dla starej wtyczki, wymaga odblokowania) |
 | `files/AttachmentTest`, `FileChunksTest`, `FilesVectorsTest`, `FileHostTest`, `DiskFileStoreTest` | załączniki we wpisie v3, szyfrowanie kawałkami, wektory `files/files.json` 1:1, `/p2p/v2/file` (400/404/409/507), magazyn na dysku (kawałek `.tmp` po przerwaniu, wątki, 507 przy < 50 MB) |
 | `P2pInteropTest`, `PhoneInteropTest` (opcjonalne) | prawdziwy klient wtyczki w Node przeciw hostowi w Kotlinie: wpisy w obie strony, 1300/1200 wpisów, odtworzenie, plik 3 kawałki w górę i plik z telefonu w dół (`syncFiles`, ten sam SHA-256) |
 | `ScreenTests`, `SyncScreenTests`, `SyncControllerTest`, `CorruptHostStateTest` (app) | ekrany, tryb Synchronizacja (ping nie przedłuża 5 min, „Dodaj wtyczkę” przedłuża), odświeżenie po synchronizacji, uszkodzony stan; `SyncControllerTest`: niedozwolony adres lokalny bez odpowiedzi |
@@ -169,7 +169,7 @@ Playwright z Chromium nie jest zależnością repozytorium: w kontenerze w chmur
 | `autofill/VerifyAppTest`, `AppTrustTest` (app) | V3-S3: 13 przeglądarek z poprawnymi skrótami, przeglądarka z innym certyfikatem lub nieczytelna nie jest zaufana, certyfikat po zmianie klucza (historia) pasuje, zaufanie przy pierwszym użyciu i potem tylko zapamiętany certyfikat; odczyt certyfikatów z `PackageManager` (API 35 historia, API 27 `signatures`), `remember`/`rememberIfNew` |
 | `CommonTest`, `CsvTest`, `JsonTextTest`, `SortVectorTest`, `PassHolderJsonTest`, `BitwardenJsonTest`, `NordPassCsvTest`, `TransferTest` | pakiet `transfer`: wektory z `core/test-vectors/transfer/`, przypadki z testów TS, kolejność sortowania, brzegi JSON/CSV |
 | `FileSyncStoreTest`, `PhoneVaultTest`, `PhoneVaultStoreTest` (dodatki) | `putAll` (jeden dopis, obcięty fragment), `importContents` (duplikaty, za duży wpis, rewizje, HLC), atomowość |
-| `ImportSummaryTest`, `TransferFilesTest`, `TransferScreenTest`, `FilePickerLockTest` (app) | podsumowanie, limit 10 MiB i UTF-8, ekran importu i eksportu (zgoda, ponowny import), okno wyboru pliku 60 s |
+| `ImportSummaryTest`, `TransferFilesTest`, `TransferScreenTest`, `FilePickerLockTest` (app) | podsumowanie, limit 10 MiB i UTF-8, ekran importu i eksportu (zgoda, hasło główne przed eksportem, ponowny import), okno wyboru pliku 60 s |
 | `AttachmentFilesTest`, `FileSizeTest`, `AttachmentsScreenTest`, `AttachmentsListExportScreenTest` (app); `PhoneVaultStoreTest` (`discardFiles`) | wybór i zapis pliku (limity, kolejność sprawdzeń, nazwa `plik`, błędy dostawcy, `CreateDocumentOf`), `formatSize`, `skippedFilesPhrase`; ekran: dodanie, Anuluj/Wstecz/Usuń wpis kasują plik, ten sam plik dwa razy, limity, zablokowany sejf, „Pobierz” (ostrzeżenie, bajty), „czeka na synchronizację”, „Plik jest uszkodzony”, zmiana nazwy/hasła zachowuje pliki; „📎 N” na liście i dopisek o eksporcie (tylko gdy są pliki); `discardFiles` pomija plik używany przez wpis |
 | `BackupRulesTest`, `ClearClipboardWorkerTest` (app) | brak kopii zapasowych, czyszczenie schowka (HMAC z kluczem procesu zamiast SHA-256; nowy proces → czyszczenie bez porównania) |
 | `ScreenOffLockTest`, `MasterPasswordRulesTest` (app) | wyłączenie ekranu blokuje od razu mimo opóźnienia 60 s; reguły hasła głównego (12 znaków liczonych jako znaki Unicode, powtórzenia, ciągi, rzędy klawiatury, popularne fragmenty; prawdziwe frazy przechodzą) |
@@ -427,6 +427,14 @@ wpisu: podpowiedź jest. (3) Opcjonalnie, z Android Studio: aplikacja testowa z 
 (np. `com.vivaldi.browser`) i `WebView` z `github.com` – podpowiedzi loginu GitHuba **nie ma**. (4) Opcjonalnie:
 odinstaluj aplikację z (2) i zainstaluj aplikację testową z tym samym pakietem, podpisaną kluczem debug – podpowiedzi
 **nie ma**; ponowny wybór aplikacji w formularzu loginu przywraca podpowiedzi. Zapisz model telefonu i wersję Androida.
+
+**T29. Grupa 5 przeglądu V3 (wtyczka i telefon).** (1) **Eksport (N6), wtyczka:** Plik → zaznacz „Rozumiem…”, bez
+hasła → „Wpisz hasło główne, żeby pobrać plik.”; złe hasło → „Złe hasło główne”, nic się nie pobiera; dobre → plik.
+(2) **Eksport, telefon:** sejf odblokowany odciskiem, ⋮ → Import i eksport → „Zapisz plik” z pustym albo złym hasłem: okno
+zapisu się nie otwiera; dobre hasło → okno zapisu, plik zapisany. (3) **PIN (N4):** PIN włączony, otwórz wtyczkę w dwóch
+kartach („Otwórz w karcie”), wpisz zły PIN w obu prawie naraz: licznik spada o 2. (4) **Odłącz (I3):** na jakiejś
+stronie wybierz „Nigdy” w pytaniu o zapis, potem „Odłącz tę przeglądarkę” i sparuj ponownie: na tej stronie pytanie
+znowu się pojawia. (5) **CI (N7):** po scaleniu na GitHubie zakładka Actions → „CI” zielone. Zapisz wynik i wersję Chrome.
 
 ## Zależności (przegląd bezpieczeństwa I5)
 

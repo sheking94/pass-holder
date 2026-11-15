@@ -324,8 +324,13 @@ function deserializeVault(json: string): p2p.LocalVaultV2 {
   };
 }
 
-/** Unwraps the vault key; a wrong password (the GCM tag does not verify) becomes "Złe hasło główne". */
+/**
+ * Unwraps the vault key; a wrong password (the GCM tag does not verify) becomes "Złe hasło główne".
+ * KDF parameters out of bounds (assertKdfParamsAcceptable) are refused before any hashing.
+ */
 async function unwrapWithPassword(masterPassword: string, kdf: KdfParams, wrappedVaultKey: string): Promise<Uint8Array> {
+  // Security review V3-I5: parameters read from disk get the same bounds as those from the phone.
+  assertKdfParamsAcceptable(kdf);
   const keys = await deriveKeys(masterPassword, kdf);
   try {
     return await unwrapVaultKey(keys.encKey, wrappedVaultKey);
@@ -834,6 +839,18 @@ export class VaultStore {
   }
 
   /**
+   * Checks the master password again while unlocked, before a plain-text export (security review V3-N6): someone
+   * at an unlocked browser cannot take the whole vault in one file without knowing it. Throws "Złe hasło główne"
+   * for a password that does not open this vault, and LOCKED when the vault is locked.
+   */
+  async confirmMasterPassword(masterPassword: string): Promise<void> {
+    const keys = this.requireKeys();
+    const account = await this.requireAccount();
+    const vaultKey = await unwrapWithPassword(masterPassword, account.kdf, account.wrappedVaultKey);
+    if (toBase64(vaultKey) !== keys.vaultKey) throw new Error(WRONG_PASSWORD);
+  }
+
+  /**
    * Works offline like unlock(), but with the PIN set in enablePin(). Every wrong PIN counts; after
    * MAX_PIN_ATTEMPTS in a row the PIN is deleted and only the master password works (see PinStore).
    */
@@ -917,7 +934,7 @@ export class VaultStore {
   }
 
   /**
-   * Forgets this browser's account, PIN, local copy and an unfinished pairing. The phone keeps what it has
+   * Forgets this browser's account, PIN, local copy, an unfinished pairing and the save-question lists. The phone keeps what it has
    * seen, but local changes it has not are lost: while unlocked, that is refused (UnsyncedChanges) unless
    * `force` says the user confirmed it. While locked they cannot be counted; the screen warns instead.
    */
@@ -929,6 +946,9 @@ export class VaultStore {
     await this.lock();
     await this.disablePin();
     await this.session.remove(STORAGE_KEYS.pendingPairing);
+    // Security review V3-I3: the hosts never to ask about and the unanswered save questions belong to this vault too.
+    await this.session.remove(STORAGE_KEYS.saveCandidates);
+    await this.local.remove(STORAGE_KEYS.saveNever);
     await this.local.remove(STORAGE_KEYS.account);
     await this.local.remove(STORAGE_KEYS.vault);
     // The files are the local copy of the vault's attachments: they go with it. The account is gone already,

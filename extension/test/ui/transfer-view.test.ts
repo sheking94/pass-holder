@@ -2,6 +2,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { PASSWORD } from "../fake-phone.ts";
 import { byText, click, settle, setupPopup, teardownPopup } from "./fake-chrome.ts";
 
 afterEach(() => {
@@ -23,6 +24,12 @@ async function open() {
   });
   const status = () => ctx.app.querySelector(".status")!;
   return { ...ctx, downloads, status };
+}
+
+/** Ticks „Rozumiem” and types the master password (V3-N6). */
+function confirmExport(app: Element, password = PASSWORD) {
+  (app.querySelector("input[type=checkbox]") as HTMLInputElement).checked = true;
+  (app.querySelector("input[autocomplete=current-password]") as HTMLInputElement).value = password;
 }
 
 function chooseFile(app: Element, data: string | Uint8Array | File, name = "x.json") {
@@ -70,18 +77,32 @@ describe("transfer view", () => {
   ])("exports %s with the right file name", async (label, prefix, ext, mime) => {
     const { app, downloads, status } = await open();
     (byText(app, label).querySelector("input") as HTMLInputElement).click();
-    (app.querySelector("input[type=checkbox]") as HTMLInputElement).checked = true;
+    confirmExport(app);
     await click(byText(app, "Pobierz plik"));
+    await settle(() => status().textContent!.startsWith("Wyeksportowano"), 30_000);
     const day = new Date().toISOString().slice(0, 10);
     expect(downloads).toEqual([{ name: `${prefix}-${day}.${ext}`, type: mime }]);
     expect(status().textContent).toBe("Wyeksportowano 0 wpisów. Usuń plik, gdy nie będzie już potrzebny.");
   });
 
+  it("refuses to export without the master password, or with a wrong one (V3-N6)", async () => {
+    const { app, downloads, status } = await open();
+    (app.querySelector("input[type=checkbox]") as HTMLInputElement).checked = true;
+    await click(byText(app, "Pobierz plik"));
+    expect(status().textContent).toBe("Wpisz hasło główne, żeby pobrać plik.");
+    confirmExport(app, "nie to hasło");
+    await click(byText(app, "Pobierz plik"));
+    await settle(() => status().classList.contains("error") && status().textContent === "Złe hasło główne", 30_000);
+    expect(downloads).toEqual([]);
+    expect((app.querySelector("input[autocomplete=current-password]") as HTMLInputElement).value).toBe("");
+  }, 60_000);
+
   it("shows an export failure (locked vault) as an error and downloads nothing", async () => {
     const { app, store, downloads, status } = await open();
     await store.lock();
-    (app.querySelector("input[type=checkbox]") as HTMLInputElement).checked = true;
+    confirmExport(app);
     await click(byText(app, "Pobierz plik"));
+    await settle(() => status().classList.contains("error"));
     expect(downloads).toEqual([]);
     expect(status().textContent).toBe("Sejf jest zablokowany");
     expect(status().classList.contains("error")).toBe(true);
@@ -136,9 +157,9 @@ describe("transfer view", () => {
     const { app, store, downloads, status } = await open();
     vi.spyOn(store, "exportArchive").mockResolvedValue({ parts: [new Uint8Array([1])], entries: 3, files: 2, missing: 0 });
     (byText(app, "PassHolder ZIP (wpisy i pliki)").querySelector("input") as HTMLInputElement).click();
-    (app.querySelector("input[type=checkbox]") as HTMLInputElement).checked = true;
+    confirmExport(app);
     await click(byText(app, "Pobierz plik"));
-    await settle(() => status().textContent!.startsWith("Wyeksportowano"));
+    await settle(() => status().textContent!.startsWith("Wyeksportowano"), 30_000);
     const day = new Date().toISOString().slice(0, 10);
     expect(downloads).toEqual([{ name: `passholder-${day}.zip`, type: "application/zip" }]);
     expect(status().textContent).toBe("Wyeksportowano 3 wpisy i 2 pliki. Usuń archiwum, gdy nie będzie już potrzebne.");
@@ -148,9 +169,9 @@ describe("transfer view", () => {
     const { app, store, status } = await open();
     vi.spyOn(store, "exportArchive").mockResolvedValue({ parts: [], entries: 1, files: 0, missing: 1 });
     (byText(app, "PassHolder ZIP (wpisy i pliki)").querySelector("input") as HTMLInputElement).click();
-    (app.querySelector("input[type=checkbox]") as HTMLInputElement).checked = true;
+    confirmExport(app);
     await click(byText(app, "Pobierz plik"));
-    await settle(() => status().textContent!.startsWith("Wyeksportowano"));
+    await settle(() => status().textContent!.startsWith("Wyeksportowano"), 30_000);
     expect(status().textContent).toBe(
       "Wyeksportowano 1 wpis. Pominięto 1 plik, który czeka na synchronizację albo jest uszkodzony. Usuń archiwum, gdy nie będzie już potrzebne.",
     );

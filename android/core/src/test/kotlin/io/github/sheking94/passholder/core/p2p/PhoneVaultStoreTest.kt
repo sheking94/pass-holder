@@ -194,6 +194,27 @@ class PhoneVaultStoreTest {
     }
 
     @Test
+    fun confirmMasterPasswordChecksThePasswordOfTheOpenVault() {
+        val store = newStore()
+        assertThrows<IllegalStateException> { store.confirmMasterPassword("pw") }
+        store.createVault("pw")
+        store.confirmMasterPassword("pw")
+        assertEquals("Złe hasło główne", assertThrows<IllegalArgumentException> { store.confirmMasterPassword("inne") }.message)
+        assertTrue(store.isUnlocked)
+        store.lock()
+        assertThrows<IllegalStateException> { store.confirmMasterPassword("pw") }
+    }
+
+    @Test
+    fun unlockRefusesKdfParametersOnDiskOutOfBounds() {
+        newStore().createVault("pw")
+        val file = dir.walkTopDown().first { it.name == "host.json" }
+        file.writeText(file.readText().replace(Regex("\"iterations\":\\d+"), "\"iterations\":1000"))
+        val error = assertThrows<IllegalArgumentException> { newStore().unlock("pw") }
+        assertEquals("KDF iterations too high", error.message)
+    }
+
+    @Test
     fun pairingAgainWithTheSameDeviceReplacesIt() {
         val store = newStore()
         store.createVault("pw")

@@ -19,6 +19,25 @@ export interface PinStatus {
   attemptsLeft: number;
 }
 
+/** Runs work alone among every caller that uses the same lock name, then releases it. */
+export type ExclusiveRunner = <T>(work: () => Promise<T>) => Promise<T>;
+
+const PIN_LOCK_NAME = "passholder-pin";
+let localQueue: Promise<unknown> = Promise.resolve();
+
+/**
+ * Security review V3-N4: every popup tab and the service worker share the extension's origin, so the Web Locks
+ * API (navigator.locks) makes PIN attempts from all of them run one at a time. Where it is missing (tests in
+ * Node) one queue per JavaScript context does the same within it.
+ */
+export const pinAttemptLock: ExclusiveRunner = (work) => {
+  const locks = (globalThis.navigator as Navigator | undefined)?.locks;
+  if (locks) return locks.request(PIN_LOCK_NAME, work);
+  const run = localQueue.then(work, work);
+  localQueue = run.catch(() => undefined);
+  return run;
+};
+
 /** What unlock() found out besides the keys. */
 export interface PinUnlockResult {
   keys: UnlockKeys;
@@ -38,6 +57,7 @@ export class PinStore {
   constructor(
     private readonly local: KeyValueStore,
     private readonly session: KeyValueStore,
+    private readonly exclusive: ExclusiveRunner = pinAttemptLock,
   ) {}
 
   /** undefined when the PIN is off. */
@@ -70,9 +90,15 @@ export class PinStore {
   /**
    * The keys wrapped under this PIN. Every wrong PIN counts; after MAX_PIN_ATTEMPTS in a row the PIN is
    * deleted and only the master password works. A PIN of the wrong shape is refused without counting.
+   * Attempts run one at a time (pinAttemptLock): read and write of failedAttempts are not atomic, so parallel
+   * attempts from several popup tabs would otherwise count as one (security review V3-N4).
    */
   async unlock(pin: string): Promise<PinUnlockResult> {
     if (!isValidPin(pin)) throw new Error(INVALID_PIN);
+    return this.exclusive(() => this.attempt(pin));
+  }
+
+  private async attempt(pin: string): Promise<PinUnlockResult> {
     const found = await this.find();
     if (!found) throw new Error("PIN jest wyłączony. Odblokuj hasłem głównym.");
     const { lock, area } = found;
