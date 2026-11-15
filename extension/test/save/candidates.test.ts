@@ -198,6 +198,21 @@ describe("SaveCandidates", () => {
     expect((await s.fresh()).listEntries("login")).toHaveLength(2);
   }, 30_000);
 
+  it("a subdomain never updates the parent domain's login (review V3-S2)", async () => {
+    const s = await setup();
+    const sub = "https://moje.bank.pl/login";
+    // Same login and password as the parent domain: no question.
+    await s.sc.onCandidate(candidate({ password: "bankpass" }), scriptSender(7, sub, sub));
+    expect(await s.stored()).toEqual({});
+    // A new password: a new login for the subdomain, the parent domain keeps its password.
+    await s.sc.onCandidate(candidate(), scriptSender(7, sub, sub));
+    expect(await s.sc.info({ target: "background", type: "save-info", tabId: 7 }, extSender)).toMatchObject({ host: "moje.bank.pl", decision: "create" });
+    const id = (await s.stored())["7"]!.id;
+    expect(await s.sc.answer({ target: "background", type: "save-answer", candidateId: id, answer: "save" }, extSender)).toEqual({ ok: true });
+    expect((await s.fresh()).getEntry("l1")!.data).toMatchObject({ fields: { password: "bankpass" } });
+    expect((await s.fresh()).listEntries("login")).toHaveLength(3);
+  }, 30_000);
+
   it("answer save does nothing when the login appeared meanwhile", async () => {
     const s = await setup();
     await s.sc.onCandidate(candidate(), scriptSender());

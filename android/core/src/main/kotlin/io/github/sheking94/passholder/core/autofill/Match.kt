@@ -97,11 +97,17 @@ fun matchUrl(pageUrl: String, savedUrl: String): MatchKind? {
 
     if (page.host == saved.host) return MatchKind.EXACT
     if (isExactOnlyHost(saved.host) || isExactOnlyHost(page.host)) return null
-    return if (page.host.endsWith(".${saved.host}")) MatchKind.SUBDOMAIN else null
+    if (!page.host.endsWith(".${saved.host}")) return null
+    // Only within one registrable domain (review V3-S2): a saved `github.io` or `co.uk` is not a parent of other owners.
+    val site = registrableDomain(page.host) ?: return null
+    return if (saved.host == site || saved.host.endsWith(".$site")) MatchKind.SUBDOMAIN else null
 }
 
-/** Items whose best saved address matches the page: exact host first, then subdomains, each group sorted by name. */
-fun <T> matchLogins(pageUrl: String, items: List<T>, candidate: (T) -> MatchCandidate): List<T> {
+/**
+ * Items whose best saved address matches the page: exact host first, then subdomains, each group sorted by name.
+ * [exactOnly] leaves out subdomain matches (review V3-S2), for updating a saved login.
+ */
+fun <T> matchLogins(pageUrl: String, items: List<T>, exactOnly: Boolean = false, candidate: (T) -> MatchCandidate): List<T> {
     class Hit(val item: T, val name: String, val rank: Int)
     val hits = mutableListOf<Hit>()
     for (item in items) {
@@ -110,7 +116,7 @@ fun <T> matchLogins(pageUrl: String, items: List<T>, candidate: (T) -> MatchCand
         for (url in urls) {
             when (matchUrl(pageUrl, url)) {
                 MatchKind.EXACT -> rank = 0
-                MatchKind.SUBDOMAIN -> rank = minOf(rank, 1)
+                MatchKind.SUBDOMAIN -> if (!exactOnly) rank = minOf(rank, 1)
                 null -> {}
             }
         }
@@ -121,13 +127,19 @@ fun <T> matchLogins(pageUrl: String, items: List<T>, candidate: (T) -> MatchCand
 }
 
 /**
- * Logins for an app (spec 3.2). The web domain counts only for trusted browsers, so an app cannot
- * pose as a site; otherwise only logins assigned to the package match.
+ * Scheme of the page a browser reports; none (Android 8.0-8.1, or a browser that does not say) counts as `http`, so
+ * such a page gets neither `https` logins nor cards (review V3-N5).
  */
-fun <T> matchApp(request: AppRequest, items: List<T>, candidate: (T) -> AppCandidate): List<T> {
+fun pageScheme(request: AppRequest): String = request.webScheme?.lowercase() ?: "http"
+
+/**
+ * Logins for an app (spec 3.2). The web domain counts only for trusted browsers, so an app cannot
+ * pose as a site; otherwise only logins assigned to the package match. [exactOnly] as in [matchLogins].
+ */
+fun <T> matchApp(request: AppRequest, items: List<T>, exactOnly: Boolean = false, candidate: (T) -> AppCandidate): List<T> {
     val domain = request.webDomain
     if (request.packageName in TRUSTED_BROWSERS && !domain.isNullOrEmpty()) {
-        return matchLogins("${request.webScheme ?: "https"}://$domain", items) {
+        return matchLogins("${pageScheme(request)}://$domain", items, exactOnly) {
             candidate(it).let { c -> MatchCandidate(c.name, c.urls) }
         }
     }

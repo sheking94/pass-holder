@@ -394,12 +394,18 @@ sejfu w polach innych aplikacji i przeglądarek ([niżej](#android-1)).
 - **Pasujące do tej strony:** na zakładce Loginy okienko pokazuje u góry sekcję „Pasujące do tej strony” z
   loginami dla adresu otwartej karty (dokładny host przed subdomenami, w grupie po nazwie). Przycisk
   **Wypełnij** wpisuje login i hasło. Adres wpisu `http` pasuje do strony `http` i `https`, adres `https` tylko
-  do `https`; `www.`, port i schemat są brane pod uwagę, `localhost` i adresy IP tylko dokładnie.
+  do `https`; `www.`, port i schemat są brane pod uwagę, `localhost` i adresy IP tylko dokładnie. Subdomena
+  pasuje tylko w obrębie jednej domeny rejestrowalnej z listy sufiksów publicznych (PSL): wpis `example.com`
+  pasuje do `x.example.com`, ale wpis `github.io` albo `co.uk` nie pasuje do `ktos.github.io` ani `sklep.co.uk`
+  (inni właściciele). Lista jest wbudowana (ICANN i prywatne sufiksy, np. `github.io`, `blogspot.com`; także
+  polskie jak `waw.pl`, `shop.pl`); aktualizacja: pobrać `public_suffix_list.dat` z publicsuffix.org i
+  `npm run gen-psl -w core -- <plik>` (zapisuje kopię dla TypeScriptu i Kotlina).
 - **Karta i kontakt:** wiersz na zakładce Karty i Kontakty ma **Wypełnij** (tylko w okienku, nie w karcie
   PassHolder). Karta: tylko na stronach `https` (i `localhost`); kontakt: imię, nazwisko, e-mail, telefon,
   pierwszy adres i data urodzenia. Ważność karty dzielona na miesiąc i rok zależnie od pól i opcji `<select>`.
-- **Skrót** `Ctrl+Shift+L` (Mac: `Command+Shift+L`): przy dokładnie jednym pasującym loginie wypełnia od razu,
-  przy zerze lub kilku (albo zablokowanym sejfie) otwiera okienko. Zmiana skrótu: `chrome://extensions/shortcuts`.
+- **Skrót** `Ctrl+Shift+L` (Mac: `Command+Shift+L`): przy dokładnie jednym loginie zapisanym dla tego samego hosta
+  wypełnia od razu, w pozostałych przypadkach (zero lub kilka, login pasujący tylko jako subdomena, zablokowany
+  sejf) otwiera okienko, gdzie wybiera się **Wypełnij**. Zmiana skrótu: `chrome://extensions/shortcuts`.
 - **Jak wpisuje:** pola rozpoznaje po `autocomplete`, typie, nazwie, etykiecie i placeholderze (polskie i
   angielskie słowa); wpisuje przez setter prototypu i wysyła `input` oraz `change`, więc działa z React/Vue. Pomija
   pola ukryte, wyłączone, tylko do odczytu i `type=hidden`; pusta wartość nie nadpisuje pola; `new-password`
@@ -423,7 +429,7 @@ sejfu w polach innych aplikacji i przeglądarek ([niżej](#android-1)).
 - Wypełniane są tylko ramki z tym samym origin co górna ramka, a origin sprawdzonej strony jest przypięty przy
   wstrzyknięciu (po nawigacji karty nic się nie wpisze). Ramki płatnicze z innego origin zostają puste.
 
-Kod: `core/src/autofill/` (`match.ts`, `fields.ts`, `keywords.ts`, `values.ts`), `extension/src/autofill/`
+Kod: `core/src/autofill/` (`match.ts`, `psl.ts` z `psl-rules.ts`, `fields.ts`, `keywords.ts`, `values.ts`), `extension/src/autofill/`
 (`fill-page.ts`, `fill-tab.ts`), `autofill-content.ts`, `background.ts` (komunikat `fill`, polecenie `fill-login`),
 `ui/active-tab.ts`, `views/list.ts`. Wymaga Chrome 127 lub nowszego.
 
@@ -440,7 +446,9 @@ PassHolder jest systemową usługą autouzupełniania (Android 8+). Włączenie:
   zaufanej przeglądarce (Chrome, Firefox, Edge, Brave, Samsung Internet, Opera, DuckDuckGo, Vivaldi i ich
   odmiany) – po adresie strony, te same reguły co we wtyczce. Domenę strony podaną przez inną aplikację (np. jej
   WebView) PassHolder pomija, więc obca aplikacja nie dostanie loginu banku. Karty i kontakty: wszystkie, w
-  kolejności listy; kartę przeglądarka dostaje tylko na `https` (i `localhost`).
+  kolejności listy; kartę przeglądarka dostaje tylko na `https` (i `localhost`). Strona, której schematu
+  przeglądarka nie podaje (Android 8.0–8.1 zawsze), liczy się jak `http`: bez loginów zapisanych jako `https` (także
+  adresów bez schematu) i bez kart; nowy login z takiej strony dostaje adres `http://domena`.
 - **Rodzaj formularza:** pola rozpoznawane jak we wtyczce (`autofillHints`, `autocomplete` z HTML, typ pola,
   identyfikator, podpowiedź, opis; polskie i angielskie słowa). Pole loginu lub hasła → loginy; samo pole
   e-mail (pierwszy krok logowania, np. Google) → też loginy; pola karty → karty; pozostałe pola adresu → kontakty.
@@ -460,7 +468,8 @@ PassHolder jest systemową usługą autouzupełniania (Android 8+). Włączenie:
 - Usługa nie trzyma wpisów ani kluczy: wpisy są odszyfrowywane przy każdym żądaniu, tylko do budowy odpowiedzi.
 - Aplikacja widzi tylko wartości wybranego wpisu, i to dopiero po wyborze podpowiedzi.
 
-Kod: `android/core/.../core/autofill/` (`Keywords.kt`, `Fields.kt`, `Values.kt`, `Match.kt`, `Planner.kt`; port
+Kod: `android/core/.../core/autofill/` (`Keywords.kt`, `Fields.kt`, `Values.kt`, `Match.kt`, `PublicSuffix.kt` z
+zasobem `public_suffix_rules.txt`, `Planner.kt`; port
 `core/src/autofill/` plus `matchApp` i `planDatasets`), `android/app/.../app/autofill/` (`ViewNodeReader.kt`,
 `ResponseBuilder.kt`, `PassHolderAutofillService.kt`, `AutofillUnlockActivity.kt`), `ui/AutofillUnlockScreen.kt`,
 `AutofillStatus.kt`, `ui/SettingsScreen.kt`.
@@ -484,6 +493,8 @@ istniejącego. Tylko loginy.
   jest z innym hasłem (nagłówek „Zmiana hasła: <wpis>”, **Zapisz** zmienia hasło, a stare zostaje w ukrytym polu
   własnym „Poprzednie hasło” wpisu, tylko ostatnie); to samo hasło: cisza. Login porównywany bez
   wielkości liter i spacji na brzegach. Decyzja liczona jest od nowa przy każdym pytaniu i odpowiedzi.
+  Zmienić hasło można tylko we wpisie z tym samym hostem: login z `moje.bank.pl` nie zmienia wpisu `bank.pl`
+  (zamiast tego „Nowy login”), a ten sam login i hasło zapisane dla `bank.pl` nie wywołują pytania.
 - **Co się zapisuje:** nazwa i adres to sama domena (`github.com`, bez `www.` i ścieżki); strona `http` →
   `http://domena`, port niestandardowy zostaje.
 - **Okno (podgląd z edycją):** osobne małe okno wtyczki (380 × 420, przy prawym górnym rogu okna Chrome), a na
@@ -551,7 +562,8 @@ przed zapisem; PassHolder zapisuje nowy login albo nowe hasło istniejącego. Ty
   rejestracja, formularz z danymi kontaktowymi i hasłem, zmiana hasła. Login może być pusty (uzupełnisz go w podglądzie).
   Hasło: pole „nowe hasło”, inaczej hasło; login: pole loginu, inaczej ostatni e-mail przed hasłem. Decyzja jak w
   Chrome: brak wpisu z tym loginem → nowy; jest z innym hasłem → zmiana hasła (stare w ukrytym polu
-  „Poprzednie hasło”); to samo hasło: nic.
+  „Poprzednie hasło”); to samo hasło: nic. Jak w Chrome hasło zmienia się tylko we wpisie z tym samym hostem
+  (subdomena daje nowy login).
   Login porównywany bez wielkości liter i spacji na brzegach. Pytanie dotyczy także ekranu logowania, na którym
   nie było pasujących wpisów (usługa zwraca wtedy odpowiedź tylko z prośbą o zapis, nie „nic”).
 - **Podgląd przed zapisem (Android 9+):** ekran „Zapisz w PassHolder” z polami **Nazwa** (tylko nowy wpis),

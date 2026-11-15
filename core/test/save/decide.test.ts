@@ -3,13 +3,13 @@ import { describe, expect, it } from "vitest";
 import { decideSave, newLogin, PREVIOUS_PASSWORD_LABEL, withPassword, type SaveDecision, type SavedLogin } from "../../src/save/decide.ts";
 
 const vectors = JSON.parse(readFileSync(new URL("../../test-vectors/save/decide.json", import.meta.url), "utf8")) as {
-  cases: { username: string; password: string; logins: SavedLogin[]; expected: SaveDecision; why: string }[];
+  cases: { username: string; password: string; logins: SavedLogin[]; related?: SavedLogin[]; expected: SaveDecision; why: string }[];
 };
 
 describe("decideSave vectors", () => {
   for (const c of vectors.cases) {
     it(c.why, () => {
-      expect(decideSave(c.username, c.password, c.logins)).toEqual(c.expected);
+      expect(decideSave(c.username, c.password, c.logins, c.related)).toEqual(c.expected);
     });
   }
 });

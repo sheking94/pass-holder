@@ -37,10 +37,11 @@ class SaveVectorsTest {
         val cases = readCases("decide.json")
         assertEquals(true, cases.isNotEmpty())
         for (c in cases) {
-            val logins = (c["logins"] as JsonArray).map {
+            fun saved(key: String) = (c[key] as JsonArray? ?: JsonArray(emptyList())).map {
                 val o = it as JsonObject
                 SavedLogin(o["id"]!!.jsonPrimitive.content, o["username"]!!.jsonPrimitive.content, o["password"]!!.jsonPrimitive.content)
             }
+            val logins = saved("logins")
             val e = c["expected"] as JsonObject
             val expected = when (val kind = e["kind"]!!.jsonPrimitive.content) {
                 "none" -> SaveDecision.None
@@ -48,7 +49,7 @@ class SaveVectorsTest {
                 "update" -> SaveDecision.Update(e["id"]!!.jsonPrimitive.content)
                 else -> error("unknown kind $kind")
             }
-            val actual = decideSave(c["username"]!!.jsonPrimitive.content, c["password"]!!.jsonPrimitive.content, logins)
+            val actual = decideSave(c["username"]!!.jsonPrimitive.content, c["password"]!!.jsonPrimitive.content, logins, saved("related"))
             assertEquals(expected, actual, c["why"]?.jsonPrimitive?.content)
         }
     }

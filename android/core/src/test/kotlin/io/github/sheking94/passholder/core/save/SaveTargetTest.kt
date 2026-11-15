@@ -15,6 +15,8 @@ class SaveTargetTest {
     fun trustedBrowserGivesWeb() {
         assertEquals(SaveTarget.Web("github.com"), saveTargetFor(AppRequest(chrome, "www.GitHub.com", "https")))
         assertEquals(SaveTarget.Web("http://intranet.local"), saveTargetFor(AppRequest(chrome, "intranet.local", "http")))
+        // No reported scheme counts as http (review V3-N5).
+        assertEquals(SaveTarget.Web("http://bank.pl"), saveTargetFor(AppRequest(chrome, "bank.pl", null)))
     }
 
     @Test

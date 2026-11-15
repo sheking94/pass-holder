@@ -96,9 +96,12 @@ znakami, spacją, cyframi, „résumé”/„resume”); generuje je `core/scrip
 wymusza `eol=lf` dla `core/test-vectors/transfer/*.json` i `-text` dla wszystkich `core/test-vectors/transfer/*.csv` (CRLF w plikach),
 żeby Windows (`autocrlf`) nie zmieniał bajtów.
 
-`core/test/autofill/*.test.ts` (3 pliki) odtwarzają wektory `core/test-vectors/autofill/`: `match.json` (host, subdomena,
-`www.`, schemat, port, IP, `evilgoogle.com`), `fields.json` (opis pola → rodzaj) i `values.json` (karta: formaty
-ważności, `<select>`; kontakt, data urodzenia); w Kotlinie te same pliki dojdą w kroku Android.
+`core/test/autofill/*.test.ts` (4 pliki) odtwarzają wektory `core/test-vectors/autofill/`: `match.json` (host, subdomena,
+`www.`, schemat, port, IP, `evilgoogle.com`, sufiksy publiczne: `github.io`, `co.uk`, reguły `*.` i `!`), `psl.json`
+(sufiks publiczny i domena rejestrowalna), `fields.json` (opis pola → rodzaj) i `values.json` (karta: formaty
+ważności, `<select>`; kontakt, data urodzenia); w Kotlinie te same pliki sprawdza `MatchVectorsTest` (plus
+`app.json`: strona bez schematu = `http`). `psl.test.ts` sprawdza też, że zasób Kotlina
+`public_suffix_rules.txt` ma te same reguły co `psl-rules.ts`.
 
 `v3.json` (sekcje `limits`, `entries`, `rejected`, `oldPaths`) trzyma po jednym wpisie każdego typu, stary wpis v2,
 nagrobek, 22 przykłady odrzucane i odpowiedzi na stare ścieżki; odtwarza go `npm run gen-vectors-v3 -w core`,
@@ -409,6 +412,14 @@ elementu `data-passholder-save`). (3) **Kontakt (S4):** strona z formularzem: wi
 `style="clip-path: inset(50%)"` i drugi formularz z polem `tel`; kursor w e-mailu → okienko → **Wypełnij** kontaktem:
 wypełniony tylko e-mail. (4) **I4:** popup „Wypełnij” i Kopiuj hasło działają jak wcześniej. Sprawdzone automatycznie w
 Chromium (Playwright, 2026-11-15): (1), (2), (3) i zamknięcie okna z odznaką.
+
+**T-S2. Przegląd V3, grupa 2 (dopasowanie adresów).** Sejf otwarty, jeden login z adresem `example.com` (albo
+własną domeną z subdomeną). (1) **Skrót (S2):** na `https://x.example.com` Ctrl+Shift+L otwiera okienko zamiast
+wypełniać; „Pasujące do tej strony” nadal pokazuje login, **Wypełnij** działa. Na `https://example.com` skrót
+wypełnia od razu. (2) **Zapis (S2):** pytanie o zapis włączone, na subdomenie zaloguj się tym samym loginem z innym
+hasłem: okno mówi „Nowy login”, wpis `example.com` zostaje bez zmian. (3) **PSL:** login z adresem `github.io`
+nie pasuje do `https://<ktoś>.github.io`. (4) **Android (N5):** tylko na Androidzie 8.0–8.1: na stronie w Chrome
+login z adresem bez schematu nie jest podpowiadany, z adresem `http://` tak. Zapisz wynik i wersję Chrome/Androida.
 
 ## Zależności (przegląd bezpieczeństwa I5)
 

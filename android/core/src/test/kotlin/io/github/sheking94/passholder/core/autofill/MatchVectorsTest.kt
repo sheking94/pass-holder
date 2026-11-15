@@ -45,6 +45,23 @@ class MatchVectorsTest {
         }
     }
 
+    @TestFactory
+    fun publicSuffixVectors(): List<DynamicTest> = readAutofillCases("psl.json").map { c ->
+        DynamicTest.dynamicTest(c.str("host")) {
+            assertEquals(c.str("publicSuffix"), publicSuffix(c.str("host")))
+            val expected = if (c["registrableDomain"] is JsonNull) null else c.str("registrableDomain")
+            assertEquals(expected, registrableDomain(c.str("host")))
+        }
+    }
+
+    @Test
+    fun exactOnlyLeavesOutSubdomains() {
+        val items = listOf("Domain" to "example.com", "Host" to "x.example.com")
+        val pick = { url: String -> matchLogins(url, items, exactOnly = true) { MatchCandidate(it.first, listOf(it.second)) }.map { it.first } }
+        assertEquals(listOf("Host"), pick("https://x.example.com"))
+        assertEquals(emptyList<String>(), pick("https://y.example.com"))
+    }
+
     @Test
     fun matchLoginsRanksExactBeforeSubdomain() {
         val items = listOf("A" to "google.com", "B" to "mail.google.com", "C" to "x.pl")

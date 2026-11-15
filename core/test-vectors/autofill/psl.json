@@ -1,0 +1,94 @@
+{
+  "cases": [
+    {
+      "host": "com",
+      "publicSuffix": "com",
+      "registrableDomain": null
+    },
+    {
+      "host": "example.com",
+      "publicSuffix": "com",
+      "registrableDomain": "example.com"
+    },
+    {
+      "host": "a.b.example.com",
+      "publicSuffix": "com",
+      "registrableDomain": "example.com"
+    },
+    {
+      "host": "example.co.uk",
+      "publicSuffix": "co.uk",
+      "registrableDomain": "example.co.uk"
+    },
+    {
+      "host": "co.uk",
+      "publicSuffix": "co.uk",
+      "registrableDomain": null
+    },
+    {
+      "host": "user.github.io",
+      "publicSuffix": "github.io",
+      "registrableDomain": "user.github.io"
+    },
+    {
+      "host": "x.user.github.io",
+      "publicSuffix": "github.io",
+      "registrableDomain": "user.github.io"
+    },
+    {
+      "host": "b.ck",
+      "publicSuffix": "b.ck",
+      "registrableDomain": null
+    },
+    {
+      "host": "a.b.ck",
+      "publicSuffix": "b.ck",
+      "registrableDomain": "a.b.ck"
+    },
+    {
+      "host": "www.ck",
+      "publicSuffix": "ck",
+      "registrableDomain": "www.ck"
+    },
+    {
+      "host": "a.www.ck",
+      "publicSuffix": "ck",
+      "registrableDomain": "www.ck"
+    },
+    {
+      "host": "a.b.example",
+      "publicSuffix": "example",
+      "registrableDomain": "b.example"
+    },
+    {
+      "host": "example",
+      "publicSuffix": "example",
+      "registrableDomain": null
+    },
+    {
+      "host": "xn--85x722f.xn--55qx5d.cn",
+      "publicSuffix": "xn--55qx5d.cn",
+      "registrableDomain": "xn--85x722f.xn--55qx5d.cn"
+    },
+    {
+      "host": "city.kawasaki.jp",
+      "publicSuffix": "kawasaki.jp",
+      "registrableDomain": "city.kawasaki.jp"
+    },
+    {
+      "host": "a.b.kawasaki.jp",
+      "publicSuffix": "b.kawasaki.jp",
+      "registrableDomain": "a.b.kawasaki.jp"
+    },
+    {
+      "host": "sklep.waw.pl",
+      "publicSuffix": "waw.pl",
+      "registrableDomain": "sklep.waw.pl"
+    },
+    {
+      "host": "bank.pl",
+      "publicSuffix": "pl",
+      "registrableDomain": "bank.pl"
+    }
+  ]
+}

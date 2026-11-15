@@ -16,7 +16,8 @@
     "gen-vectors": "tsx scripts/gen-vectors.ts",
     "gen-vectors-v2": "tsx scripts/gen-vectors-v2.ts",
     "gen-vectors-v3": "tsx scripts/gen-vectors-v3.ts",
-    "gen-vectors-files": "tsx scripts/gen-vectors-files.ts"
+    "gen-vectors-files": "tsx scripts/gen-vectors-files.ts",
+    "gen-psl": "tsx scripts/gen-psl.ts"
   },
   "dependencies": {
     "@noble/curves": "^2.4.0",

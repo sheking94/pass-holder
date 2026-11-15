@@ -53,8 +53,8 @@ fun <Id> planRequest(nodes: List<AutofillNode<Id>>): FillRequestPlan<Id>? {
 }
 
 private fun cardAllowed(request: AppRequest): Boolean {
-    val scheme = request.webScheme
-    val plainBrowser = request.packageName in TRUSTED_BROWSERS && scheme != null && scheme != "https"
+    // A browser page without a reported scheme counts as http (review V3-N5).
+    val plainBrowser = request.packageName in TRUSTED_BROWSERS && pageScheme(request) != "https"
     return !plainBrowser || request.webDomain == "localhost"
 }
 
