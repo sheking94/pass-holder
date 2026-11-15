@@ -28,6 +28,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.util.UUID
@@ -757,13 +759,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      * Reads the entries off the main thread (decrypting every record). Does nothing if the vault locked meanwhile:
      * decrypted entries never go into the state of a locked screen.
      */
-    private suspend fun refresh() {
-        if (!store.isUnlocked) return
+    private suspend fun refresh() = refreshing.withLock {
+        // One read at a time: an older read finishing last would put a stale list on screen (seen in CI).
+        if (!store.isUnlocked) return@withLock
         val read = withContext(Dispatchers.IO) { runCatching { store.entries() to store.unreadableIds().size } }
         read.onSuccess { (entries, unreadable) ->
             _state.update { if (store.isUnlocked) it.copy(entries = entries, unreadable = unreadable) else it }
         }
     }
+
+    private val refreshing = Mutex()
 
     /** Runs a blocking vault operation off the main thread, with a progress message and errors shown in the status line. */
     private fun launchVaultOperation(progress: String, action: () -> Unit) {
