@@ -1,6 +1,6 @@
 import type { p2p } from "@passholder/core";
 import { SaveCandidates, type Sender } from "../../src/save/candidates.ts";
-import type { SaveCandidateMessage, ToWatchMessage } from "../../src/save/messages.ts";
+import type { SaveCandidateMessage } from "../../src/save/messages.ts";
 import { STORAGE_KEYS } from "../../src/storage.ts";
 import { VaultStore } from "../../src/vault-store.ts";
 import { pairedBrowser } from "../fake-phone.ts";
@@ -18,13 +18,21 @@ export const candidate = (o: Partial<SaveCandidateMessage> = {}): SaveCandidateM
   target: "background", type: "save-candidate", username: "jan", password: "new", formSignature: "u|p", ...o,
 });
 
-export async function setup(o: { locked?: boolean; onSend?: (tabId: number, m: ToWatchMessage) => void } = {}) {
+/** What SaveCandidates asked the question window to do, per tab. */
+export type PromptCall =
+  | { type: "save-show"; candidateId: string }
+  | { type: "save-hide" }
+  | { type: "close-window" }
+  | { type: "badge" };
+
+export async function setup(o: { locked?: boolean; onSend?: (tabId: number, m: PromptCall) => void } = {}) {
   let t = 1_000_000;
   const b = await pairedBrowser({ now: () => t });
   await b.store.putEntry("l1", login("Bank", ["https://bank.pl"], "jan", "bankpass"));
   await b.store.putEntry("s1", login("Shop", ["https://shop.pl"], "jan", "old"));
   if (o.locked) await b.store.lock();
-  const sent: { tabId: number; m: ToWatchMessage }[] = [];
+  const sent: { tabId: number; m: PromptCall }[] = [];
+  const record = async (tabId: number, m: PromptCall) => { sent.push({ tabId, m }); o.onSend?.(tabId, m); };
   const alarms = new Map<string, number>();
   const cleared: string[] = [];
   const timers: { ms: number; fn: () => void }[] = [];
@@ -35,7 +43,12 @@ export async function setup(o: { locked?: boolean; onSend?: (tabId: number, m: T
     session: b.session,
     local: b.local,
     selfId: EXT,
-    sendToTab: async (tabId, m) => { sent.push({ tabId, m }); o.onSend?.(tabId, m); },
+    prompt: {
+      show: (tabId, candidateId) => record(tabId, { type: "save-show", candidateId }),
+      hide: (tabId) => record(tabId, { type: "save-hide" }),
+      closeWindow: (tabId) => record(tabId, { type: "close-window" }),
+      badge: (tabId) => record(tabId, { type: "badge" }),
+    },
     alarms: {
       create: async (name, info) => { alarms.set(name, info.when); },
       clear: async (name) => { cleared.push(name); return alarms.delete(name); },

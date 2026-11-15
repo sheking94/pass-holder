@@ -4,7 +4,7 @@ import { STORAGE_KEYS, type KeyValueStore } from "../storage.ts";
 import type { VaultStore } from "../vault-store.ts";
 import type {
   SaveAnswerMessage, SaveCandidateMessage, SaveInfoMessage, SavePendingMessage, SavePreviewMessage, SavePreviewResponse, SavePromptInfo,
-  ToWatchMessage,
+  SaveUnlockMessage,
 } from "./messages.ts";
 
 export const SAVE_TTL_MS = 120_000;
@@ -13,6 +13,17 @@ export const SAVE_ALARM_PREFIX = "save-expire:";
 
 export interface Sender { id?: string; url?: string; tab?: { id?: number; url?: string } }
 
+/** Where the question is shown: PromptWindows (its own window and a badge) in the extension, a fake in tests. */
+export interface SavePrompt {
+  show(tabId: number, candidateId: string): Promise<void>;
+  /** Window closed, badge cleared: no question for the tab any more. */
+  hide(tabId: number): Promise<void>;
+  /** Window closed, badge kept: the question still waits in the popup. */
+  closeWindow(tabId: number): Promise<void>;
+  /** Badge only (it may be reset when the tab navigates). */
+  badge(tabId: number): Promise<void>;
+}
+
 export interface SaveDeps {
   store(): VaultStore;
   /** chrome.storage.session: the candidates (with the password) live only here. */
@@ -20,7 +31,7 @@ export interface SaveDeps {
   /** chrome.storage.local: only the never list. */
   local: KeyValueStore;
   selfId: string;
-  sendToTab(tabId: number, m: ToWatchMessage): Promise<void>;
+  prompt: SavePrompt;
   alarms: { create(name: string, info: { when: number }): Promise<void>; clear(name: string): Promise<boolean> };
   now(): number;
   newId(): string;
@@ -37,6 +48,8 @@ interface Candidate {
   at: number;
   /** origin + "|" + the form signature from the script */
   formSignature: string;
+  /** The user closed the question window: keep only the badge, do not open it again on the next page. */
+  dismissed?: boolean;
 }
 
 type Candidates = Record<string, Candidate>;
@@ -108,10 +121,10 @@ export class SaveCandidates {
   }
 
   private hide(tabId: number): Promise<void> {
-    return this.deps.sendToTab(tabId, { target: "save-watch", type: "save-hide" });
+    return this.deps.prompt.hide(tabId);
   }
 
-  /** Removes the candidate for any reason but a save or a closed tab: its panel must not stay on the page. */
+  /** Removes the candidate for any reason but a save or a closed tab: its question must not stay open. */
   private async drop(tabId: number): Promise<void> {
     if (await this.remove(tabId)) await this.hide(tabId);
   }
@@ -192,7 +205,7 @@ export class SaveCandidates {
     all[String(from.tabId)] = c;
     await this.write(all);
     await this.deps.alarms.create(alarmName(from.tabId), { when: now + SAVE_TTL_MS });
-    await this.deps.sendToTab(from.tabId, { target: "save-watch", type: "save-show", candidateId: c.id });
+    await this.deps.prompt.show(from.tabId, c.id);
   }
 
   onPending(m: SavePendingMessage, s: Sender): Promise<{ candidateId?: string }> {
@@ -204,9 +217,16 @@ export class SaveCandidates {
     if (!from || webUrl(s.tab?.url)?.origin !== from.frame.origin) return {};
     const c = await this.forTab(from.tabId);
     if (!c) return {};
+    // The same login form again, empty: the login most likely failed, so do not ask about it on this page.
     if (from.frame.origin === candidateOrigin(c) && m.emptyLoginForms.some((sig) => `${from.frame.origin}|${sig}` === c.formSignature)) {
+      await this.deps.prompt.closeWindow(from.tabId);
       return {};
     }
+    if (c.dismissed) {
+      await this.deps.prompt.badge(from.tabId);
+      return {};
+    }
+    await this.deps.prompt.show(from.tabId, c.id);
     return { candidateId: c.id };
   }
 
@@ -258,17 +278,8 @@ export class SaveCandidates {
   private async doAnswer(m: SaveAnswerMessage, s: Sender): Promise<Answer> {
     if (!this.fromExtensionPage(s)) return { ok: false, error: NOT_ALLOWED };
     const c = await this.byId(m.candidateId);
-    if (!c) {
-      if (m.answer === "save") return { ok: false, error: GONE };
-      // Nothing left to decline: just take the stale panel off its tab, or point it at the tab's newer candidate.
-      const tabId = s.tab?.id;
-      if (tabId !== undefined) {
-        const current = await this.forTab(tabId);
-        if (current) await this.deps.sendToTab(tabId, { target: "save-watch", type: "save-show", candidateId: current.id });
-        else await this.hide(tabId);
-      }
-      return { ok: true };
-    }
+    // Nothing left to decline (expired or replaced; a newer candidate already has the window): the page closes itself.
+    if (!c) return m.answer === "save" ? { ok: false, error: GONE } : { ok: true };
 
     if (m.answer === "later" || m.answer === "never") {
       if (m.answer === "never") {
@@ -277,7 +288,7 @@ export class SaveCandidates {
         if (!never.includes(host)) await this.deps.local.set(STORAGE_KEYS.saveNever, [...never, host]);
       }
       await this.remove(c.tabId);
-      await this.deps.sendToTab(c.tabId, { target: "save-watch", type: "save-hide" });
+      await this.hide(c.tabId);
       return { ok: true };
     }
 
@@ -291,7 +302,7 @@ export class SaveCandidates {
     if (decision.kind === "update") {
       const entry = store.getEntry(decision.id);
       if (entry?.data.type !== "login") {
-        await this.deps.sendToTab(c.tabId, { target: "save-watch", type: "save-hide" });
+        await this.hide(c.tabId);
         return { ok: false, error: GONE };
       }
       await store.putEntry(decision.id, save.withPassword(entry.data, draft.password));
@@ -300,12 +311,12 @@ export class SaveCandidates {
       await store.putEntry(this.deps.newId(), { ...save.newLogin(c.url, draft.username, draft.password), name });
     }
     if (decision.kind !== "none") {
-      // The panel shows "Zapisano" by itself; the tab hides it a moment later.
+      // The window shows "Zapisano" by itself; it is closed a moment later.
       this.deps.later(SAVED_HIDE_MS, () => {
-        void this.deps.sendToTab(c.tabId, { target: "save-watch", type: "save-hide" }).catch(() => undefined);
+        void this.hide(c.tabId).catch(() => undefined);
       });
     } else {
-      await this.deps.sendToTab(c.tabId, { target: "save-watch", type: "save-hide" });
+      await this.hide(c.tabId);
       // A draft can name a login saved meanwhile: tell the panel instead of pretending it saved.
       if (m.draft) return { ok: false, error: ALREADY_SAVED };
     }
@@ -323,6 +334,25 @@ export class SaveCandidates {
   }
 
   onTabRemoved(tabId: number): Promise<void> {
-    return this.serial(async () => void (await this.remove(tabId)));
+    return this.serial(async () => {
+      await this.remove(tabId);
+      await this.deps.prompt.closeWindow(tabId);
+    });
+  }
+
+  /** The user closed the question window of the tab: keep the candidate (badge and popup) until it expires. */
+  onWindowClosed(tabId: number): Promise<void> {
+    return this.serial(async () => {
+      const all = await this.all();
+      const c = all[String(tabId)];
+      if (!c) return;
+      all[String(tabId)] = { ...c, dismissed: true };
+      await this.write(all);
+    });
+  }
+
+  /** The tab of the candidate the question window asks to unlock for; undefined for a foreign sender or none. */
+  unlockTab(m: SaveUnlockMessage, s: Sender): Promise<number | undefined> {
+    return this.serial(async () => (this.fromExtensionPage(s) ? (await this.byId(m.candidateId))?.tabId : undefined));
   }
 }

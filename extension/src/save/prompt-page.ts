@@ -1,14 +1,17 @@
-/** The panel page (save-prompt.html?id=<candidate id>) without the chrome.* wiring, so it can be tested. */
+/** The question window's page (save-prompt.html?id=<candidate id>) without the chrome.* wiring, so it can be tested. */
 import { promptView } from "./prompt-view.ts";
-import type { SaveAnswerMessage, SaveAnswerResponse, SaveInfoMessage, SavePreviewMessage, SavePreviewResponse, SavePromptInfo } from "./messages.ts";
+import type {
+  SaveAnswerMessage, SaveAnswerResponse, SaveInfoMessage, SavePreviewMessage, SavePreviewResponse, SavePromptInfo, SaveUnlockMessage,
+} from "./messages.ts";
 
 export interface PromptPageRuntime {
-  send(m: SaveInfoMessage | SaveAnswerMessage | SavePreviewMessage): Promise<unknown>;
-  openPopup(): Promise<void>;
+  send(m: SaveInfoMessage | SaveAnswerMessage | SavePreviewMessage | SaveUnlockMessage): Promise<unknown>;
+  /** Closes the window itself, when nothing is left to ask. */
+  close(): void;
 }
 
 export async function startPromptPage(app: HTMLElement, id: string | null, runtime: PromptPageRuntime): Promise<void> {
-  if (!id) return;
+  if (!id) return runtime.close();
   const answerMessage = (answer: SaveAnswerMessage["answer"], draft?: SaveAnswerMessage["draft"]): SaveAnswerMessage =>
     ({ target: "background", type: "save-answer", candidateId: id, answer, ...(draft && { draft }) });
   const info = async () =>
@@ -28,13 +31,13 @@ export async function startPromptPage(app: HTMLElement, id: string | null, runti
         }
         return result;
       },
-      unlock: () => void runtime.openPopup().catch(() => undefined),
-      // The service worker removes the frame itself (2 s after a save).
+      unlock: () => void runtime.send({ target: "background", type: "save-unlock", candidateId: id }).catch(() => undefined),
+      // The service worker closes the window itself (2 s after a save).
       done: () => undefined,
     }));
   };
-  // Nothing to ask about (expired, or the login is already saved): ask the service worker to take the frame away.
-  const dismiss = () => runtime.send(answerMessage("later")).then(() => undefined, () => undefined);
+  // Nothing to ask about (expired, or the login is already saved): drop the candidate and close the window.
+  const dismiss = () => runtime.send(answerMessage("later")).then(() => undefined, () => undefined).then(() => runtime.close());
 
   const first = await info().catch(() => undefined);
   if (first) render(first);

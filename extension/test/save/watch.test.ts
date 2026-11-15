@@ -1,37 +1,21 @@
 // @vitest-environment happy-dom
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { startSaveWatch, type WatchRuntime } from "../../src/save/watch.ts";
-import type { SaveCandidateMessage, SavePendingMessage, ToWatchMessage } from "../../src/save/messages.ts";
+import type { SaveCandidateMessage, SavePendingMessage } from "../../src/save/messages.ts";
 
 const LOGIN = `<form id="f"><input name="username" value="jan"><input type="password" name="password" value="s3cret">
   <button type="submit" id="go">Go</button></form>`;
 
-function setup(pendingReply: unknown = {}) {
+/** Events dispatched in tests are untrusted; `trusted` says which ones count as the user's. */
+function setup(trusted: ((e: Event) => boolean) | "real" = () => true) {
   const sent: Array<SaveCandidateMessage | SavePendingMessage> = [];
-  let handler: ((m: ToWatchMessage) => void) | undefined;
   const runtime: WatchRuntime = {
-    send: (m) => { sent.push(m); return Promise.resolve(m.type === "save-pending" ? pendingReply : undefined); },
-    onMessage: (h) => { handler = h; },
-    panelUrl: (id) => `chrome-extension://abc/save-prompt.html?id=${encodeURIComponent(id)}`,
+    send: (m) => { sent.push(m); return Promise.resolve(undefined); },
+    ...(trusted !== "real" && { trusted }),
   };
-  const emit = (m: ToWatchMessage): void => handler?.(m);
-  return { sent, runtime, emit, candidates: () => sent.filter((m) => m.type === "save-candidate") };
+  return { sent, runtime, candidates: () => sent.filter((m) => m.type === "save-candidate") };
 }
-const flush = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
-const roots: ShadowRoot[] = [];
-const origAttach = Element.prototype.attachShadow;
-const frames = (): HTMLIFrameElement[] =>
-  roots.filter((r) => r.host.isConnected).flatMap((r) => Array.from(r.querySelectorAll("iframe")));
 
-beforeEach(() => {
-  roots.length = 0;
-  vi.spyOn(Element.prototype, "attachShadow").mockImplementation(function (this: Element, init: ShadowRootInit) {
-    expect(init.mode).toBe("closed");
-    const root = origAttach.call(this, init);
-    roots.push(root);
-    return root;
-  });
-});
 afterEach(() => { document.body.innerHTML = ""; vi.restoreAllMocks(); });
 
 describe("startSaveWatch", () => {
@@ -88,44 +72,32 @@ describe("startSaveWatch", () => {
     expect(t.candidates()).toMatchObject([{ username: "jan", password: "s3cret" }]);
   });
 
-  it("sends save-pending with the empty login forms on start and shows the panel for the reply", async () => {
+  it("sends save-pending with the empty login forms on start and puts nothing on the page", () => {
     document.body.innerHTML = `<form><input name="u"><input type="password" name="p"></form>`;
-    const t = setup({ candidateId: "c1" });
+    const before = document.body.innerHTML;
+    const t = setup();
     startSaveWatch(document, t.runtime);
     expect(t.sent[0]).toEqual({ target: "background", type: "save-pending", emptyLoginForms: ["p,u"] });
-    await flush();
-    expect(frames().map((f) => f.src)).toEqual(["chrome-extension://abc/save-prompt.html?id=c1"]);
+    expect(document.body.innerHTML).toBe(before);
   });
 
-  it("save-show inserts one frame in a closed shadow root, save-hide removes it", () => {
-    const t = setup();
+  it("ignores submit, Enter and click the page dispatched itself (isTrusted false)", () => {
+    document.body.innerHTML = LOGIN;
+    const t = setup("real"); // the real check: event.isTrusted (happy-dom leaves it undefined, a browser sets false)
     startSaveWatch(document, t.runtime);
-    t.emit({ target: "save-watch", type: "save-show", candidateId: "c2" });
-    t.emit({ target: "save-watch", type: "save-show", candidateId: "c2" });
-    const host = document.querySelector("[data-passholder-save]") as HTMLElement;
-    expect(document.querySelectorAll("[data-passholder-save]")).toHaveLength(1);
-    expect(host.shadowRoot).toBeNull();
-    expect(host.style.position).toBe("fixed");
-    expect(host.style.zIndex).toBe("2147483647");
-    expect(frames()).toHaveLength(1);
-    expect(frames()[0]?.src).toBe("chrome-extension://abc/save-prompt.html?id=c2");
-    expect(frames()[0]?.style.height).toBe("340px");
-    t.emit({ target: "save-watch", type: "save-hide" });
-    expect(document.querySelector("[data-passholder-save]")).toBeNull();
+    document.getElementById("f")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    document.querySelector("[type=password]")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    document.getElementById("go")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(t.candidates()).toEqual([]);
   });
 
-  it("save-show with another id points the same frame at the new candidate", () => {
-    const t = setup();
+  it("only events the check accepts count", () => {
+    document.body.innerHTML = LOGIN;
+    const t = setup((e) => e.type === "click");
     startSaveWatch(document, t.runtime);
-    t.emit({ target: "save-watch", type: "save-show", candidateId: "c5" });
-    const frame = frames()[0]!;
-    t.emit({ target: "save-watch", type: "save-show", candidateId: "c6" });
-    expect(frames()).toEqual([frame]);
-    expect(frame.src).toBe("chrome-extension://abc/save-prompt.html?id=c6");
-    t.emit({ target: "save-watch", type: "save-hide" });
-    t.emit({ target: "save-watch", type: "save-show", candidateId: "c6" });
-    expect(frames()).toHaveLength(1);
-    expect(frames()[0]).not.toBe(frame);
+    document.getElementById("f")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    document.getElementById("go")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(t.candidates()).toHaveLength(1);
   });
 
   it("does nothing when the top frame is cross-origin", () => {
@@ -136,19 +108,15 @@ describe("startSaveWatch", () => {
     const t = setup();
     startSaveWatch(document, t.runtime);
     document.getElementById("f")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-    t.emit({ target: "save-watch", type: "save-show", candidateId: "c3" });
     expect(t.sent).toEqual([]);
-    expect(document.querySelector("[data-passholder-save]")).toBeNull();
   });
 
-  it("a same-origin subframe sends candidates but not save-pending and hosts no panel", () => {
+  it("a same-origin subframe sends candidates but not save-pending", () => {
     document.body.innerHTML = LOGIN;
     vi.spyOn(window, "top", "get").mockReturnValue({ location: { origin: window.location.origin } } as unknown as Window);
-    const t = setup({ candidateId: "x" });
+    const t = setup();
     startSaveWatch(document, t.runtime);
     document.getElementById("f")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-    t.emit({ target: "save-watch", type: "save-show", candidateId: "c4" });
     expect(t.sent.map((m) => m.type)).toEqual(["save-candidate"]);
-    expect(document.querySelector("[data-passholder-save]")).toBeNull();
   });
 });

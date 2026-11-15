@@ -2,6 +2,7 @@ package io.github.sheking94.passholder.core.save
 
 import io.github.sheking94.passholder.core.autofill.AppRequest
 import io.github.sheking94.passholder.core.autofill.TRUSTED_BROWSERS
+import io.github.sheking94.passholder.core.p2p.CustomField
 import io.github.sheking94.passholder.core.p2p.EntryContentV3
 import io.github.sheking94.passholder.core.p2p.LoginFields
 
@@ -49,8 +50,20 @@ fun newLogin(target: SaveTarget, appLabel: String, username: String, password: S
     return EntryContentV3(name, "", LoginFields(username, password, urls = urls, androidApps = apps), emptyList())
 }
 
-/** Copy of the login with only the password changed. */
+/** Label of the hidden custom field that keeps the password a save prompt replaced (review V3-S1). */
+const val PREVIOUS_PASSWORD_LABEL = "Poprzednie hasło"
+
+/**
+ * Copy of the login with the new password; the old one goes to the hidden custom field „Poprzednie hasło”
+ * (only the latest: an earlier such field is replaced), so a wrong save loses nothing.
+ */
 fun withPassword(content: EntryContentV3, password: String): EntryContentV3 {
     val fields = content.fields as LoginFields
-    return content.copy(fields = fields.copy(password = password))
+    val old = fields.password
+    val custom = if (old.isEmpty() || old == password) {
+        content.custom
+    } else {
+        content.custom.filter { it.label != PREVIOUS_PASSWORD_LABEL } + CustomField(PREVIOUS_PASSWORD_LABEL, old, true)
+    }
+    return content.copy(fields = fields.copy(password = password), custom = custom)
 }
