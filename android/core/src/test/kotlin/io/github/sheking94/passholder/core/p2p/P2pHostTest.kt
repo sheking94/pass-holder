@@ -136,8 +136,7 @@ class P2pHostTest {
     @Test
     fun sessionIdsAre16RandomBytes() {
         val s = Setup()
-        val key = s.addDevice("a")
-        val ids = (1..5).map { s.rawHandshake("a", key).first }
+        val ids = (1..5).map { s.rawHandshake("d$it").first }
         assertEquals(5, ids.toSet().size)
         ids.forEach { assertEquals(16, Encoding.fromBase64(it).size) }
     }
@@ -364,23 +363,73 @@ class P2pHostTest {
     @Test
     fun holdsAtMost32LiveSessionsAndAnswers503WhenFull() {
         val s = Setup()
-        val key = s.addDevice("a")
-        repeat(P2pHost.MAX_SESSIONS) { s.rawHandshake("a", key) }
-        assertError(503, "too many sessions", s.post("/p2p/v2/handshake", s.handshakeBody("a", key)))
+        val keys = (0 until 8).map { s.addDevice("d$it") }
+        repeat(P2pHost.MAX_SESSIONS) { s.rawHandshake("d${it % 8}", keys[it % 8]) }
+        val extra = s.addDevice("extra")
+        assertError(503, "too many sessions", s.post("/p2p/v2/handshake", s.handshakeBody("extra", extra)))
         // The pairing check comes first.
-        assertError(403, "device not paired", s.post("/p2p/v2/handshake", s.handshakeBody("nobody", key)))
+        assertError(403, "device not paired", s.post("/p2p/v2/handshake", s.handshakeBody("nobody", extra)))
         s.time += 61_000
-        s.rawHandshake("a", key)
+        s.rawHandshake("extra", extra)
     }
 
     @Test
     fun aUsedSessionFreesItsSlot() {
         val s = Setup()
         val key = s.addDevice("a")
-        val sessions = (1..P2pHost.MAX_SESSIONS).map { s.rawHandshake("a", key) }
+        val sessions = (1..P2pHost.MAX_SESSIONS_PER_DEVICE).map { s.rawHandshake("a", key) }
+        assertError(503, "too many sessions", s.post("/p2p/v2/handshake", s.handshakeBody("a", key)))
         val (id, ciphers) = sessions.first()
         s.post("/p2p/v2/sync", s.syncBody(id, Frames.encrypt(ciphers.send, s.emptyRequest())))
         s.rawHandshake("a", key)
+    }
+
+    @Test
+    fun oneDeviceWithFullShareDoesNotBlockAnother() {
+        val s = Setup()
+        val a = s.addDevice("a")
+        repeat(P2pHost.MAX_SESSIONS_PER_DEVICE) { s.rawHandshake("a", a) }
+        assertError(503, "too many sessions", s.post("/p2p/v2/handshake", s.handshakeBody("a", a)))
+        s.rawHandshake("b")
+    }
+
+    @Test
+    fun refusesACopyOfAnAcceptedFirstMessageAlsoAfterItsSessionExpired() {
+        val s = Setup()
+        val a = s.addDevice("a")
+        val body = s.handshakeBody("a", a)
+        assertEquals(200, s.post("/p2p/v2/handshake", body).status)
+        assertError(400, "replayed handshake", s.post("/p2p/v2/handshake", body))
+        s.time += 61_000
+        assertError(400, "replayed handshake", s.post("/p2p/v2/handshake", body))
+        // Thirty-two copies do not fill the table.
+        repeat(P2pHost.MAX_SESSIONS) { s.post("/p2p/v2/handshake", body) }
+        s.rawHandshake("a", a)
+    }
+
+    @Test
+    fun concurrentCopiesOfOneMessageOpenOneSession() {
+        val s = Setup()
+        val a = s.addDevice("a")
+        val body = s.handshakeBody("a", a)
+        val pool = Executors.newFixedThreadPool(8)
+        val statuses = try {
+            pool.invokeAll((1..8).map { Callable { s.post("/p2p/v2/handshake", body).status } }).map { it.get() }
+        } finally {
+            pool.shutdown()
+        }
+        assertEquals(listOf(200) + List(7) { 400 }, statuses.sorted())
+    }
+
+    @Test
+    fun aMessageThatFailedTheHandshakeIsNotRemembered() {
+        val s = Setup()
+        val a = s.addDevice("a")
+        s.addDevice("b")
+        val message = (P2pJson.json.parseToJsonElement(s.handshakeBody("a", a)) as JsonObject)["message"]
+        // Device a's message under device b's id fails Noise and must not block the real one.
+        assertError(400, "handshake failed", s.post("/p2p/v2/handshake", """{"deviceId":"b","message":$message}"""))
+        assertEquals(200, s.post("/p2p/v2/handshake", """{"deviceId":"a","message":$message}""").status)
     }
 
     @Test

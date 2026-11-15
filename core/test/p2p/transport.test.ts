@@ -346,15 +346,69 @@ describe("p2p host: final review fixes", () => {
 
   it("holds at most 32 live sessions and answers 503 when full", async () => {
     const s = setup();
-    const key = s.addDevice("a");
-    for (let i = 0; i < 32; i++) await rawHandshake(s, "a", key);
-    const noise = NoiseKK.initiator({ s: key, rs: s.hostKey.publicKey, prologue: P2P_PROLOGUE });
-    const message = toBase64(await noise.writeMessage(new Uint8Array()));
-    expect(await s.host.handle("/p2p/v2/handshake", { deviceId: "a", message })).toEqual({
+    const keys = Array.from({ length: 8 }, (_, i) => s.addDevice(`d${i}`));
+    for (let i = 0; i < 32; i++) await rawHandshake(s, `d${i % 8}`, keys[i % 8]);
+    const extra = s.addDevice("extra");
+    expect(await s.host.handle("/p2p/v2/handshake", { deviceId: "extra", message: await firstMessage(s, extra) })).toEqual({
       status: 503,
       body: { error: "too many sessions" },
     });
     s.advance(61_000);
-    await rawHandshake(s, "a", key);
+    await rawHandshake(s, "extra", extra);
+  });
+
+  it("one device holds at most 4 live sessions; others are not blocked", async () => {
+    const s = setup();
+    const a = s.addDevice("a");
+    for (let i = 0; i < 4; i++) await rawHandshake(s, "a", a);
+    expect(await s.host.handle("/p2p/v2/handshake", { deviceId: "a", message: await firstMessage(s, a) })).toEqual({
+      status: 503,
+      body: { error: "too many sessions" },
+    });
+    await rawHandshake(s, "b");
+    s.advance(61_000);
+    await rawHandshake(s, "a", a);
+  });
+
+  it("refuses a copy of an accepted first handshake message, also after the session expired", async () => {
+    const s = setup();
+    const a = s.addDevice("a");
+    const message = await firstMessage(s, a);
+    expect((await s.host.handle("/p2p/v2/handshake", { deviceId: "a", message })).status).toBe(200);
+    const replay = { status: 400, body: { error: "replayed handshake" } };
+    expect(await s.host.handle("/p2p/v2/handshake", { deviceId: "a", message })).toEqual(replay);
+    s.advance(61_000);
+    expect(await s.host.handle("/p2p/v2/handshake", { deviceId: "a", message })).toEqual(replay);
+    // Thirty-two copies do not fill the table.
+    for (let i = 0; i < 32; i++) await s.host.handle("/p2p/v2/handshake", { deviceId: "a", message });
+    await rawHandshake(s, "a", a);
+  });
+
+  it("concurrent copies of one message open one session", async () => {
+    const s = setup();
+    const a = s.addDevice("a");
+    const message = await firstMessage(s, a);
+    const replies = await Promise.all(
+      Array.from({ length: 5 }, () => s.host.handle("/p2p/v2/handshake", { deviceId: "a", message })),
+    );
+    expect(replies.map((r) => r.status).sort()).toEqual([200, 400, 400, 400, 400]);
+  });
+
+  it("does not remember a message that failed the handshake", async () => {
+    const s = setup();
+    const a = s.addDevice("a");
+    s.addDevice("b");
+    const message = await firstMessage(s, a);
+    // Device a's message under device b's id fails Noise and must not block the real one.
+    expect(await s.host.handle("/p2p/v2/handshake", { deviceId: "b", message })).toEqual({
+      status: 400,
+      body: { error: "handshake failed" },
+    });
+    expect((await s.host.handle("/p2p/v2/handshake", { deviceId: "a", message })).status).toBe(200);
   });
 });
+
+async function firstMessage(s: ReturnType<typeof setup>, key: ReturnType<typeof generateKeyPair>): Promise<string> {
+  const noise = NoiseKK.initiator({ s: key, rs: s.hostKey.publicKey, prologue: P2P_PROLOGUE });
+  return toBase64(await noise.writeMessage(new Uint8Array()));
+}

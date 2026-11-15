@@ -126,7 +126,8 @@ Dwa moduły Gradle: `core` (czysta JVM, testy bez emulatora) i `app` (Jetpack Co
 | `PassHolderApp.kt` | obiekt procesu: jeden `PhoneVaultStore`, `LeaveLock`, ustawienia (m.in. `askToSave`), `pendingSave`, odcisk, haki testowe autouzupełniania |
 | `MainActivity.kt` | `onStart` / `onStop` (powrót i wyjście z aplikacji), ekran nie gaśnie w trybie Synchronizacja, blokada zrzutów ekranu |
 | `AppViewModel.kt` | stan ekranów (`UiState`, `askToSave`) i operacje na sejfie w tle (`launchVaultOperation`) |
-| `SyncController.kt` | tryb Synchronizacja: start i stop serwera, kod parowania, zdarzenia, zatrzymanie po 5 min bez połączeń |
+| `SyncController.kt` | tryb Synchronizacja: start i stop serwera, kod parowania, zdarzenia, zatrzymanie po 5 min bez synchronizacji |
+| `SyncNetworks.kt` | adresy, na których odpowiada tryb Synchronizacja: Wi-Fi, Ethernet i Tailscale, bez sieci komórkowej (`ConnectivityManager`) |
 | `KeystoreSecretWrapper.kt` | zawija klucz tożsamości telefonu kluczem z Android Keystore |
 | `LockController.kt` | kiedy sejf się blokuje (wyjście z aplikacji, 15 minut, „Zablokuj”) i kiedy samo otwiera się okno odcisku |
 | `LeaveLock.kt` | minutnik blokady 60 s po wyjściu z aplikacji; `lockNow()` przy wyłączeniu ekranu (odbiornik `ACTION_SCREEN_OFF` w `PassHolderApp`) |
@@ -335,4 +336,5 @@ Drugi, pełny przegląd po V3: [PRZEGLAD_BEZPIECZENSTWA_V3.md](PRZEGLAD_BEZPIECZ
 | I3 | ograniczenie platform, bez zmian: hasła jako `String` w JS i Kotlinie nie dają się wyzerować; klucze na Androidzie są zerowane (`fill(0)`), we wtyczce trzymane jako Base64 w `chrome.storage.session` (pamięć przeglądarki) |
 | I4 | `MasterPasswordRules`: 12 znaków i bez oczywistych wzorców |
 | I5 | `npm audit`: 0 podatności; Gradle do sprawdzenia ręcznie ([TESTY.md](TESTY.md#zależności-przegląd-bezpieczeństwa-i5)) |
+| V3-N1, V3-N2 | host pamięta przyjęte pierwsze wiadomości Noise (kopia → 400) i trzyma ≤ 4 sesje na urządzenie; tryb Synchronizacja liczy aktywność tylko po udanej synchronizacji, pliku lub parowaniu; 403 dla obcego `Origin`, 415 bez JSON; odpowiada tylko w Wi-Fi, Ethernecie i Tailscale ([SYNCHRONIZACJA.md](SYNCHRONIZACJA.md#61-serwer-http-synchttpserverkt)) |
 | V3 (2026-11-15) | pełny przegląd po V3: 0 K, 0 W, 4 S, 7 N, 5 I; poprawki w osobnych wątkach ([PRZEGLAD_BEZPIECZENSTWA_V3.md](PRZEGLAD_BEZPIECZENSTWA_V3.md)) |

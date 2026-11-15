@@ -156,6 +156,10 @@ utrzymać włączony i zablokować, ale nie odczytać. Testy automatyczne nie po
   uzgadnianie → 503.
 - **Naprawa:** limit sesji na urządzenie (np. 2) i pamięć skrótów `e` z ostatnich 60 s (powtórzenie → 400). Koszt:
   mały, w TS i Kotlinie. Test: ta sama wiadomość drugi raz → 400; 32 sesje jednego urządzenia nie blokują drugiego.
+- **Stan (2026-11-15, grupa 4):** poprawione w `host.ts` i `P2pHost.kt`. Limit 4 sesji na urządzenie (2 to za mało,
+  gdy wtyczka po zerwanym połączeniu ponawia, a stara sesja żyje jeszcze 60 s). Pamięć `e` dłuższa niż w propozycji:
+  do 4096 przyjętych wiadomości przez cały start trybu, bo przy 60 s napastnik mógłby co minutę odnawiać jedną sesję.
+  Opis: [SYNCHRONIZACJA.md](SYNCHRONIZACJA.md#51-noise-po-http) punkt 5.1 („Powtórzenia uzgadniania”); test ręczny T26.
 
 ### V3-N2. Nieuwierzytelnione żądania utrzymują tryb Synchronizacja i zajmują serwer
 
@@ -180,6 +184,11 @@ utrzymać włączony i zablokować, ale nie odczytać. Testy automatyczne nie po
   nagłówkiem `Origin` innym niż `chrome-extension://…` i bez `Content-Type: application/json` (wtyczka je wysyła);
   wiązać gniazdo tylko z adresami Wi-Fi i Tailscale (bez interfejsu komórkowego). Koszt: mały. Test: ping co
   minutę nie zatrzymuje wyłączenia po 5 min.
+- **Stan (2026-11-15, grupa 4):** poprawione. Aktywność = 200 na sync, plik, `pair/finish` i „Dodaj wtyczkę”
+  (`PhoneRouter`, `SyncController`); 403 dla `Origin` spoza `chrome-extension://`, 415 bez `application/json`
+  (`SyncHttpServer`). Decyzja właściciela: tylko Wi-Fi i Tailscale. Zamiast wiązania gniazda z adresami (zmieniają się
+  w trakcie) serwer zamyka bez odpowiedzi połączenie przyjęte na niedozwolonym adresie lokalnym i nie podaje go
+  wtyczce (`SyncNetworks.kt`, Ethernet też dozwolony). W sieci komórkowej port nadal kończy uzgadnianie TCP. Test ręczny T26.
 
 ### V3-N3. Strona sprawdza po pojawieniu się panelu, czy dany login i hasło są w sejfie
 
@@ -396,7 +405,7 @@ T1 → V3-N1, T3 i T4 → V3-N2, T5 → V3-S1 i V3-N3, T6 → V3-S2, T7 → V3-S
 - **Podatności Gradle:** baza OSV niedostępna z kontenera (403). Do uruchomienia na Windows, jak w
   [TESTY.md](TESTY.md#zależności-przegląd-bezpieczeństwa-i5), dla wersji z `android/gradle/libs.versions.toml`
   (m.in. Bouncy Castle 1.82, kotlinx-serialization 1.9.0, biometric 1.1.0).
-- **Testy ręczne** T4, T7, T15, T17–T25 z TESTY.md nadal niepotwierdzone.
+- **Testy ręczne** T4, T7, T15, T17–T25 z TESTY.md nadal niepotwierdzone (T26 doszedł z poprawkami grupy 4).
 - Formalny audyt CPace i Noise (poza zakresem, jak w planie).
 
 ## 7. Proponowane grupy poprawek
