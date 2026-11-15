@@ -6,6 +6,9 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.github.sheking94.passholder.app.LeaveLock
 import io.github.sheking94.passholder.app.PassHolderApp
+import io.github.sheking94.passholder.app.AppSigners
+import io.github.sheking94.passholder.app.TEST_APP_CERT
+import io.github.sheking94.passholder.app.TestAppSigners
 import io.github.sheking94.passholder.app.TestSecretWrapper
 import io.github.sheking94.passholder.core.autofill.AppRequest
 import io.github.sheking94.passholder.core.autofill.AutofillNode
@@ -45,6 +48,7 @@ class FillLogicTest {
     @Before
     fun setUp() {
         app.secretWrapper = TestSecretWrapper
+        app.appSigners = TestAppSigners
         app.phoneStore.disconnect()
     }
 
@@ -226,6 +230,37 @@ class FillLogicTest {
         app.phoneStore.lock()
         assertNotNull(respond(app, request(), null, auth))
         assertEquals(1, authCalls)
+    }
+
+    @Test
+    fun `browser package with another certificate gets no login by web domain`() {
+        vaultWithLogin()
+        // V3-S3: an app installed under the package of a browser that is not on the phone.
+        app.appSigners = AppSigners { setOf("ff") }
+        assertEquals(0, datasetCount(respond(app, request(), null, auth)!!))
+    }
+
+    @Test
+    fun `app login only for the remembered certificate, remembered on first fill`() {
+        app.phoneStore.createVault("haslo-glowne-1")
+        app.phoneStore.upsertContent(
+            "1", EntryContentV3("Bank", "", LoginFields("jan", "s3cret", androidApps = listOf("pl.bank")), emptyList()),
+        )
+        val bank = { respond(app, request(pkg = "pl.bank", domain = null), null, auth)!! }
+        assertNull(app.appTrust.remembered("pl.bank"))
+        assertEquals(1, datasetCount(bank()))
+        assertEquals(setOf(TEST_APP_CERT), app.appTrust.remembered("pl.bank"))
+        // The real app replaced by one with the same package and another certificate.
+        app.appSigners = AppSigners { setOf("ff") }
+        assertEquals(0, datasetCount(bank()))
+        assertEquals(setOf(TEST_APP_CERT), app.appTrust.remembered("pl.bank"))
+    }
+
+    @Test
+    fun `app with no login tied to it is not remembered`() {
+        vaultWithLogin()
+        respond(app, request(pkg = "com.other", domain = null), null, auth)
+        assertNull(app.appTrust.remembered("com.other"))
     }
 
     @Test

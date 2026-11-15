@@ -164,7 +164,8 @@ Playwright z Chromium nie jest zależnością repozytorium: w kontenerze w chmur
 | `EntryTypesTest` (app) | opisy wierszy, wyszukiwanie, `tidy`, walidacja (te same reguły co `entry-types.ts`) |
 | `ListTabsScreenTest`, `SettingsScreenTests` (app) | pięć zakładek, wyszukiwanie czyszczone przy zmianie zakładki, „+ Dodaj” typu zakładki, górny pasek i Ustawienia |
 | `EditLoginScreenTest`, `EditNoteScreenTest`, `EditContactScreenTest`, `EditCardScreenTest`, `EditDocumentScreenTest` (app) | formularze: pola wrażliwe i kopiowanie, listy, własne pola, formaty tylko zmienionych pól, „Ten wpis ma inny typ” |
-| `AppPickerScreenTest`, `InstalledAppsTest` (app) | wybór aplikacji, ręczny pakiet, lista tylko aplikacji z launchera |
+| `AppPickerScreenTest`, `InstalledAppsTest` (app) | wybór aplikacji (zapamiętuje certyfikat), ręczny pakiet (nie zapamiętuje), lista tylko aplikacji z launchera |
+| `autofill/VerifyAppTest`, `AppTrustTest` (app) | V3-S3: 13 przeglądarek z poprawnymi skrótami, przeglądarka z innym certyfikatem lub nieczytelna nie jest zaufana, certyfikat po zmianie klucza (historia) pasuje, zaufanie przy pierwszym użyciu i potem tylko zapamiętany certyfikat; odczyt certyfikatów z `PackageManager` (API 35 historia, API 27 `signatures`), `remember`/`rememberIfNew` |
 | `CommonTest`, `CsvTest`, `JsonTextTest`, `SortVectorTest`, `PassHolderJsonTest`, `BitwardenJsonTest`, `NordPassCsvTest`, `TransferTest` | pakiet `transfer`: wektory z `core/test-vectors/transfer/`, przypadki z testów TS, kolejność sortowania, brzegi JSON/CSV |
 | `FileSyncStoreTest`, `PhoneVaultTest`, `PhoneVaultStoreTest` (dodatki) | `putAll` (jeden dopis, obcięty fragment), `importContents` (duplikaty, za duży wpis, rewizje, HLC), atomowość |
 | `ImportSummaryTest`, `TransferFilesTest`, `TransferScreenTest`, `FilePickerLockTest` (app) | podsumowanie, limit 10 MiB i UTF-8, ekran importu i eksportu (zgoda, ponowny import), okno wyboru pliku 60 s |
@@ -398,6 +399,14 @@ odcisku wyłączony, „Urządzenia” puste. (3) Zablokuj telefon: stare hasło
 „Dodaj wtyczkę”. Wtyczka: „Adresy telefonu” → „Sparuj z innym telefonem / odtwórz telefon”, kod, **stare** hasło → „To
 hasło nie otwiera sejfu na telefonie…”; nowy kod i nowe hasło → sparowano, wpis z kroku 1 jest na telefonie. (6) Wtyczka:
 PIN wyłączony; zablokuj: stare hasło odrzucone, nowe działa. Zapisz wynik, wersję Chrome i model telefonu.
+
+**T-S3. Zaufane aplikacje na telefonie (przegląd V3-S3).** Aplikacja zainstalowana, usługa autouzupełniania
+włączona, w sejfie login z adresem `https://github.com` i login z aplikacją wybraną przez „+ Wybierz aplikację”.
+(1) Chrome na `github.com/login`: podpowiedź loginu jest (Chrome rozpoznany po podpisie). (2) W aplikacji z
+wpisu: podpowiedź jest. (3) Opcjonalnie, z Android Studio: aplikacja testowa z pakietem nieobecnej przeglądarki
+(np. `com.vivaldi.browser`) i `WebView` z `github.com` – podpowiedzi loginu GitHuba **nie ma**. (4) Opcjonalnie:
+odinstaluj aplikację z (2) i zainstaluj aplikację testową z tym samym pakietem, podpisaną kluczem debug – podpowiedzi
+**nie ma**; ponowny wybór aplikacji w formularzu loginu przywraca podpowiedzi. Zapisz model telefonu i wersję Androida.
 
 ## Zależności (przegląd bezpieczeństwa I5)
 

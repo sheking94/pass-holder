@@ -13,14 +13,16 @@ class SaveTargetTest {
 
     @Test
     fun trustedBrowserGivesWeb() {
-        assertEquals(SaveTarget.Web("github.com"), saveTargetFor(AppRequest(chrome, "www.GitHub.com", "https")))
-        assertEquals(SaveTarget.Web("http://intranet.local"), saveTargetFor(AppRequest(chrome, "intranet.local", "http")))
+        assertEquals(SaveTarget.Web("github.com"), saveTargetFor(AppRequest(chrome, "www.GitHub.com", "https", browserVerified = true)))
+        assertEquals(SaveTarget.Web("http://intranet.local"), saveTargetFor(AppRequest(chrome, "intranet.local", "http", browserVerified = true)))
     }
 
     @Test
     fun otherAppsAndMissingDomainGiveApp() {
         assertEquals(SaveTarget.App("com.example.app"), saveTargetFor(AppRequest("com.example.app", "bank.pl", "https")))
-        assertEquals(SaveTarget.App(chrome), saveTargetFor(AppRequest(chrome, null, null)))
+        assertEquals(SaveTarget.App(chrome), saveTargetFor(AppRequest(chrome, null, null, browserVerified = true)))
+        // V3-S3: a browser package with another certificate saves under its package, never under the claimed site.
+        assertEquals(SaveTarget.App(chrome), saveTargetFor(AppRequest(chrome, "bank.pl", "https")))
         assertNull(saveTargetFor(AppRequest("", null, null)))
     }
 

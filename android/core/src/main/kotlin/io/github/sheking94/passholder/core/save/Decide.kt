@@ -1,7 +1,6 @@
 package io.github.sheking94.passholder.core.save
 
 import io.github.sheking94.passholder.core.autofill.AppRequest
-import io.github.sheking94.passholder.core.autofill.TRUSTED_BROWSERS
 import io.github.sheking94.passholder.core.p2p.EntryContentV3
 import io.github.sheking94.passholder.core.p2p.LoginFields
 
@@ -33,7 +32,7 @@ sealed interface SaveTarget {
 
 fun saveTargetFor(request: AppRequest): SaveTarget? {
     val domain = request.webDomain
-    if (request.packageName in TRUSTED_BROWSERS && !domain.isNullOrEmpty()) {
+    if (request.browserVerified && !domain.isNullOrEmpty()) {
         val url = saveUrl("${request.webScheme ?: "https"}://$domain") ?: return null
         return SaveTarget.Web(url)
     }

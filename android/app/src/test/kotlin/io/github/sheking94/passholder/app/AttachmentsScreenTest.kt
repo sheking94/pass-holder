@@ -327,7 +327,7 @@ class AttachmentsKeepScreenTest : AttachmentsScreenBase() {
             "1",
             EntryContentV3("GitHub", "", LoginFields("jkowalski", "s3cret", urls = listOf("https://github.com")), emptyList(), listOf(a)),
         )
-        val review = SaveReview(SaveData(AppRequest("com.android.chrome", "github.com", "https"), "jkowalski", "nowe"), phoneStore().entries(), "Chrome")
+        val review = SaveReview(SaveData(AppRequest("com.android.chrome", "github.com", "https", browserVerified = true), "jkowalski", "nowe"), phoneStore().entries(), "Chrome")
         assertEquals(SaveOutcome.UPDATED, saveReviewed(app(), review, review.initialDraft()))
         assertEquals(listOf(a), phoneStore().entry("1")!!.content.attachments)
     }

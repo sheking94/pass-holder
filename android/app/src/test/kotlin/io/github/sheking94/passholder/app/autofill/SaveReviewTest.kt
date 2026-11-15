@@ -29,7 +29,7 @@ class SaveReviewTest {
         app.phoneStore.createVault("haslo-glowne-1")
     }
 
-    private fun browser(domain: String) = AppRequest("com.android.chrome", domain, "https")
+    private fun browser(domain: String) = AppRequest("com.android.chrome", domain, "https", browserVerified = true, appVerified = true)
     private fun review(data: SaveData, label: String = "Chrome") = SaveReview(data, app.phoneStore.entries(), label)
     private fun addGithub() = app.phoneStore.upsertContent(
         "1", EntryContentV3("GitHub", "", LoginFields("jkowalski", "s3cret", urls = listOf("https://github.com")), emptyList()),
@@ -48,7 +48,7 @@ class SaveReviewTest {
 
     @Test
     fun `a new app login is named after the app`() {
-        val review = review(SaveData(AppRequest("com.example.bank", null, null), "jan", "pw"), label = "Bank")
+        val review = review(SaveData(AppRequest("com.example.bank", null, null, appVerified = true), "jan", "pw"), label = "Bank")
         assertEquals("Bank", review.initialDraft().name)
         assertEquals("Aplikacja: Bank (com.example.bank)", review.place)
     }
