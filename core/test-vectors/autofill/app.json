@@ -212,6 +212,70 @@
         "B"
       ],
       "why": "package matches sorted by Polish collation"
+    },
+    {
+      "request": {
+        "packageName": "com.vivaldi.browser",
+        "webDomain": "bank.pl",
+        "browserVerified": false
+      },
+      "logins": [
+        {
+          "name": "Bank",
+          "urls": [
+            "bank.pl"
+          ],
+          "androidApps": []
+        }
+      ],
+      "expected": [],
+      "why": "browser package with another signing certificate: web domain ignored (V3-S3)"
+    },
+    {
+      "request": {
+        "packageName": "com.bank.app",
+        "appVerified": false
+      },
+      "logins": [
+        {
+          "name": "Bank",
+          "urls": [
+            "bank.pl"
+          ],
+          "androidApps": [
+            "com.bank.app"
+          ]
+        }
+      ],
+      "expected": [],
+      "why": "app signed with another certificate than the remembered one: androidApps ignored (V3-S3)"
+    },
+    {
+      "request": {
+        "packageName": "com.android.chrome",
+        "webDomain": "bank.pl",
+        "browserVerified": false
+      },
+      "logins": [
+        {
+          "name": "Bank",
+          "urls": [
+            "bank.pl"
+          ],
+          "androidApps": []
+        },
+        {
+          "name": "Chrome login",
+          "urls": [],
+          "androidApps": [
+            "com.android.chrome"
+          ]
+        }
+      ],
+      "expected": [
+        "Chrome login"
+      ],
+      "why": "unverified browser is treated as an ordinary app"
     }
   ]
 }

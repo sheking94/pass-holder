@@ -42,6 +42,10 @@ import javax.crypto.Cipher
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
+/** Robolectric installs no real browsers: each trusted browser has its own certificate, every other app [TEST_APP_CERT]. */
+val TestAppSigners = AppSigners { io.github.sheking94.passholder.core.autofill.TRUSTED_BROWSERS[it] ?: setOf(TEST_APP_CERT) }
+const val TEST_APP_CERT = "aa"
+
 /**
  * Robolectric has no Android Keystore: the phone's identity key is wrapped with a plain software AES key,
  * in the same format as [KeystoreSecretWrapper].

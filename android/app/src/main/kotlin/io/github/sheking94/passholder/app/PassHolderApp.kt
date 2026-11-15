@@ -49,6 +49,11 @@ class PassHolderApp : Application() {
     lateinit var biometric: BiometricUnlock
     /** Locks the vault 60 s after leaving the app, when the delay is on in the settings. */
     lateinit var leaveLock: LeaveLock
+    /** Signing certificates of installed apps; tests replace it (Robolectric installs no real browsers). */
+    var appSigners: AppSigners = SystemAppSigners(this)
+    /** Browsers and the apps of a login, recognized by their certificates (security review V3-S3). */
+    lateinit var appTrust: AppTrust
+        private set
     /** The launcher apps a login can be tied to; tests replace it. */
     var installedApps: InstalledApps = SystemInstalledApps(this)
     var fingerprintPrompt: FingerprintPrompt = SystemFingerprintPrompt
@@ -74,6 +79,7 @@ class PassHolderApp : Application() {
             onError = { Log.w(TAG, "Sync mode error", it) },
         )
         settings = Settings(this)
+        appTrust = AppTrust(this) { appSigners }
         biometric = BiometricUnlock(this)
         leaveLock = LeaveLock(phoneStore)
         // Screen off locks the vault at once (security review N1). SCREEN_OFF is a protected broadcast: only the system

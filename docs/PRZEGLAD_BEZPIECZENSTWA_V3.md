@@ -103,6 +103,9 @@ utrzymać włączony i zablokować, ale nie odczytać. Testy automatyczne nie po
 
 ### V3-S3. Android: zaufana przeglądarka i aplikacja wpisu rozpoznawane tylko po nazwie pakietu
 
+- **Stan:** naprawione (grupa 3): przeglądarki po certyfikacie SHA-256 z listy, aplikacje wpisu po certyfikacie
+  zapamiętanym przy wyborze z listy, przy zapisie albo przy pierwszej podpowiedzi (`verifyApp`, `AppTrust.kt`;
+  [FUNKCJE.md](FUNKCJE.md#android-1)). Na telefonie do sprawdzenia: T28 w [TESTY.md](TESTY.md).
 - **Waga / pewność:** Średnia / z kodu (zachowanie na telefonie: hipoteza)
 - **Napastnik:** A3 · **Obszar:** Android, autouzupełnianie · **Powiązanie:** trop T7
 - **Miejsce:** `android/core/.../core/autofill/Match.kt:15-29` (`TRUSTED_BROWSERS`), `Match.kt:127-138` (`matchApp`)
@@ -416,7 +419,7 @@ Każda grupa to jeden wątek i jeden PR, w tej kolejności:
    pól, nadawca `fill`). **Zrobione** (2026-11-15), zob. „Stan poprawek” niżej.
 2. **Dopasowanie adresów:** V3-S2 i V3-N5 (lista sufiksów publicznych w TS i Kotlinie, skrót tylko przy dokładnym
    dopasowaniu, brak schematu = `http`).
-3. **Zaufane przeglądarki na Androidzie:** V3-S3 (certyfikaty podpisu).
+3. **Zaufane przeglądarki na Androidzie:** V3-S3 (certyfikaty podpisu). **Zrobione.**
 4. **Serwer telefonu:** V3-N1, V3-N2 (limit sesji na urządzenie, odrzucenie powtórzeń, aktywność po uwierzytelnieniu,
    `Origin`/`Content-Type`, interfejsy).
 5. **Drobne:** V3-N4, V3-N6, V3-N7, V3-I1, V3-I2, V3-I3, V3-I5.

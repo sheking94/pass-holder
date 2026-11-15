@@ -4,10 +4,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import io.github.sheking94.passholder.app.InstalledApp
 import io.github.sheking94.passholder.app.PassHolderApp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -44,6 +46,8 @@ fun LoginForm(fields: LoginFields, onChange: (LoginFields) -> Unit, vm: AppViewM
     val apps = rememberInstalledApps()
     val labels = apps.orEmpty().associate { it.packageName to it.label }
     var picking by remember { mutableStateOf(false) }
+    val phApp = LocalContext.current.applicationContext as PassHolderApp
+    val scope = rememberCoroutineScope()
     ListEditor(
         "Aplikacje Androida",
         fields.androidApps,
@@ -61,6 +65,8 @@ fun LoginForm(fields: LoginFields, onChange: (LoginFields) -> Unit, vm: AppViewM
         AppPickerDialog(
             apps.orEmpty(),
             onPick = { pkg ->
+                // The picked installed app is the one tied to the login: remember its certificate (V3-S3).
+                scope.launch(Dispatchers.IO) { runCatching { phApp.appTrust.remember(pkg) } }
                 if (pkg !in fields.androidApps) onChange(fields.copy(androidApps = fields.androidApps + pkg))
                 picking = false
             },

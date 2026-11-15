@@ -63,7 +63,7 @@ abstract class AutofillSaveTestBase {
         app.settings.lockDelay = lockDelay
         app.phoneStore.createVault(masterPassword)
         if (!unlockedAtStart) app.phoneStore.lock()
-        app.pendingSave.put(SaveData(AppRequest("com.example.bank", null, null), "jan", "nowe-haslo"))
+        app.pendingSave.put(SaveData(AppRequest("com.example.bank", null, null, appVerified = true), "jan", "nowe-haslo"))
         beforeLaunch()
         scenario = ActivityScenario.launchActivityForResult(Intent(app, AutofillSaveActivity::class.java))
     }
