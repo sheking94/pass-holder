@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { decideSave, newLogin, withPassword, type SaveDecision, type SavedLogin } from "../../src/save/decide.ts";
+import { decideSave, newLogin, PREVIOUS_PASSWORD_LABEL, withPassword, type SaveDecision, type SavedLogin } from "../../src/save/decide.ts";
 
 const vectors = JSON.parse(readFileSync(new URL("../../test-vectors/save/decide.json", import.meta.url), "utf8")) as {
   cases: { username: string; password: string; logins: SavedLogin[]; expected: SaveDecision; why: string }[];
@@ -26,15 +26,26 @@ describe("newLogin", () => {
 });
 
 describe("withPassword", () => {
-  it("changes only the password", () => {
+  it("changes the password and keeps the old one in a hidden custom field", () => {
     const e = newLogin("github.com", "a", "b");
     e.note = "n";
-    e.custom = [{ label: "k", value: "v" }] as typeof e.custom;
+    e.custom = [{ label: "k", value: "v", hidden: false }];
     const u = withPassword(e, "c");
     expect(u.fields.password).toBe("c");
     expect(u.note).toBe("n");
-    expect(u.custom).toEqual(e.custom);
+    expect(u.custom).toEqual([{ label: "k", value: "v", hidden: false }, { label: PREVIOUS_PASSWORD_LABEL, value: "b", hidden: true }]);
     expect(u.fields.urls).toEqual(["github.com"]);
     expect(e.fields.password).toBe("b");
+    expect(e.custom).toHaveLength(1);
+  });
+
+  it("keeps only the latest previous password", () => {
+    const u = withPassword(withPassword(newLogin("github.com", "a", "one"), "two"), "three");
+    expect(u.custom).toEqual([{ label: PREVIOUS_PASSWORD_LABEL, value: "two", hidden: true }]);
+  });
+
+  it("adds nothing for an empty or unchanged password", () => {
+    expect(withPassword(newLogin("github.com", "a", ""), "x").custom).toEqual([]);
+    expect(withPassword(newLogin("github.com", "a", "x"), "x").custom).toEqual([]);
   });
 });

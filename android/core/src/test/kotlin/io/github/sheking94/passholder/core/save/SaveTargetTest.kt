@@ -37,6 +37,19 @@ class SaveTargetTest {
         val c = EntryContentV3(
             "n", "note", LoginFields("u", "old", "totp", listOf("x.pl"), listOf("a.b")), listOf(CustomField("l", "v", true)),
         )
-        assertEquals(c.copy(fields = (c.fields as LoginFields).copy(password = "new")), withPassword(c, "new"))
+        assertEquals(
+            c.copy(
+                fields = (c.fields as LoginFields).copy(password = "new"),
+                custom = listOf(CustomField("l", "v", true), CustomField(PREVIOUS_PASSWORD_LABEL, "old", true)),
+            ),
+            withPassword(c, "new"),
+        )
+    }
+
+    @Test
+    fun withPasswordKeepsOnlyTheLatestPrevious() {
+        val c = EntryContentV3("n", "", LoginFields("u", "one", "", emptyList(), emptyList()), emptyList())
+        assertEquals(listOf(CustomField(PREVIOUS_PASSWORD_LABEL, "two", true)), withPassword(withPassword(c, "two"), "three").custom)
+        assertEquals(emptyList<CustomField>(), withPassword(c, "one").custom)
     }
 }

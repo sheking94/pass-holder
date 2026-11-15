@@ -86,7 +86,7 @@ body.panel main { padding: 10px 12px; }
 .save-head h1 { margin: 0 0 6px; font-size: 14px; }
 .save-head .close { padding: 0 7px; font-size: 1.2em; line-height: 1.3; border: 0; }
 .save-prompt .actions { margin-top: 10px; }
-/* Compact, so the editable fields fit the 340 px panel without scrolling. */
+/* Compact, so the editable fields fit the question window without scrolling. */
 .save-prompt label { margin: 6px 0 2px; }
 .save-prompt input[type="text"], .save-prompt input[type="password"] { padding: 4px 8px; }
 .save-prompt .site { margin-top: 8px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }

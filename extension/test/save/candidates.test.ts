@@ -12,7 +12,7 @@ describe("SaveCandidates", () => {
     const c = (await s.stored())["7"]!;
     expect(c.password).toBe("new");
     expect(await s.local.get(STORAGE_KEYS.saveCandidates)).toBeUndefined();
-    expect(s.sent).toEqual([{ tabId: 7, m: { target: "save-watch", type: "save-show", candidateId: c.id } }]);
+    expect(s.sent).toEqual([{ tabId: 7, m: { type: "save-show", candidateId: c.id } }]);
     expect(s.alarms.get(`${SAVE_ALARM_PREFIX}7`)).toBe(s.now() + SAVE_TTL_MS);
   }, 30_000);
 
@@ -156,7 +156,7 @@ describe("SaveCandidates", () => {
     s.sent.length = 0;
     expect(await s.sc.info({ target: "background", type: "save-info", candidateId: id }, extSender)).toBeUndefined();
     expect(await s.stored()).toEqual({});
-    expect(s.sent).toEqual([{ tabId: 7, m: { target: "save-watch", type: "save-hide" } }]);
+    expect(s.sent).toEqual([{ tabId: 7, m: { type: "save-hide" } }]);
   }, 30_000);
 
   it("info and answer only from extension pages", async () => {
@@ -184,16 +184,17 @@ describe("SaveCandidates", () => {
     expect(s.sent).toEqual([]);
     expect(s.timers.map((t) => t.ms)).toEqual([SAVED_HIDE_MS]);
     s.timers[0]!.fn();
-    expect(s.sent).toEqual([{ tabId: 7, m: { target: "save-watch", type: "save-hide" } }]);
+    expect(s.sent).toEqual([{ tabId: 7, m: { type: "save-hide" } }]);
   }, 30_000);
 
-  it("answer save updates only the password", async () => {
+  it("answer save updates the password and keeps the old one as „Poprzednie hasło”", async () => {
     const s = await setup();
     await s.sc.onCandidate(candidate(), scriptSender());
     const id = (await s.stored())["7"]!.id;
     expect(await s.sc.answer({ target: "background", type: "save-answer", candidateId: id, answer: "save" }, extSender)).toEqual({ ok: true });
     const shop = (await s.fresh()).getEntry("s1")!;
     expect(shop.data).toMatchObject({ name: "Shop", fields: { username: "jan", password: "new", urls: ["https://shop.pl"] } });
+    expect(shop.data.custom).toEqual([{ label: "Poprzednie hasło", value: "old", hidden: true }]);
     expect((await s.fresh()).listEntries("login")).toHaveLength(2);
   }, 30_000);
 
@@ -245,7 +246,7 @@ describe("SaveCandidates", () => {
     expect(await s.sc.answer({ target: "background", type: "save-answer", candidateId: id, answer: "save", draft }, extSender))
       .toEqual({ ok: false, error: "Ten login jest już zapisany w PassHolder" });
     expect(await s.stored()).toEqual({});
-    expect(s.sent).toEqual([{ tabId: 7, m: { target: "save-watch", type: "save-hide" } }]);
+    expect(s.sent).toEqual([{ tabId: 7, m: { type: "save-hide" } }]);
   }, 30_000);
 
   it("answer save with an empty draft password keeps the candidate", async () => {
@@ -276,7 +277,7 @@ describe("SaveCandidates", () => {
     s.sent.length = 0;
     expect(await s.sc.answer({ target: "background", type: "save-answer", candidateId: id, answer: "later" }, extSender)).toEqual({ ok: true });
     expect(await s.stored()).toEqual({});
-    expect(s.sent).toEqual([{ tabId: 7, m: { target: "save-watch", type: "save-hide" } }]);
+    expect(s.sent).toEqual([{ tabId: 7, m: { type: "save-hide" } }]);
     expect(s.cleared).toContain(`${SAVE_ALARM_PREFIX}7`);
   }, 30_000);
 
@@ -288,7 +289,7 @@ describe("SaveCandidates", () => {
     expect(await s.sc.answer({ target: "background", type: "save-answer", candidateId: id, answer: "never" }, extSender)).toEqual({ ok: true });
     expect(await neverList(s.local)).toEqual(["shop.pl"]);
     expect(await s.stored()).toEqual({});
-    expect(s.sent).toEqual([{ tabId: 7, m: { target: "save-watch", type: "save-hide" } }]);
+    expect(s.sent).toEqual([{ tabId: 7, m: { type: "save-hide" } }]);
     await removeFromNever(s.local, "shop.pl");
     expect(await neverList(s.local)).toEqual([]);
   }, 30_000);
@@ -307,31 +308,58 @@ describe("SaveCandidates", () => {
     expect(r).toEqual({ ok: false, error: "Pytanie o zapis wygasło" });
   }, 30_000);
 
-  it("later or never for a gone candidate succeeds and takes the panel off its tab", async () => {
+  it("later or never for a gone candidate succeeds without touching any window (the page closes itself)", async () => {
     const s = await setup();
-    const panel: Sender = { id: EXT, url: `chrome-extension://${EXT}/save-prompt.html?id=gone`, tab: { id: 7, url: PAGE } };
+    const panel: Sender = { id: EXT, url: `chrome-extension://${EXT}/save-prompt.html?id=gone`, tab: { id: 70 } };
     expect(await s.sc.answer({ target: "background", type: "save-answer", candidateId: "gone", answer: "later" }, extSender)).toEqual({ ok: true });
-    expect(s.sent).toEqual([]);
-    expect(await s.sc.answer({ target: "background", type: "save-answer", candidateId: "gone", answer: "later" }, panel)).toEqual({ ok: true });
     expect(await s.sc.answer({ target: "background", type: "save-answer", candidateId: "gone", answer: "never" }, panel)).toEqual({ ok: true });
-    expect(s.sent).toEqual([
-      { tabId: 7, m: { target: "save-watch", type: "save-hide" } },
-      { tabId: 7, m: { target: "save-watch", type: "save-hide" } },
-    ]);
+    expect(s.sent).toEqual([]);
     expect(await neverList(s.local)).toEqual([]);
     const web: Sender = { id: EXT, url: PAGE, tab: { id: 7, url: PAGE } };
     expect((await s.sc.answer({ target: "background", type: "save-answer", candidateId: "gone", answer: "later" }, web)).ok).toBe(false);
   }, 30_000);
 
-  it("later for a replaced candidate points the panel at the tab's current one and keeps it", async () => {
+  it("later for a replaced candidate keeps the tab's current one", async () => {
     const s = await setup();
     await s.sc.onCandidate(candidate(), scriptSender());
-    const current = (await s.stored())["7"]!.id;
     s.sent.length = 0;
-    const panel: Sender = { id: EXT, url: `chrome-extension://${EXT}/save-prompt.html?id=old`, tab: { id: 7, url: PAGE } };
-    expect(await s.sc.answer({ target: "background", type: "save-answer", candidateId: "old", answer: "later" }, panel)).toEqual({ ok: true });
-    expect(s.sent).toEqual([{ tabId: 7, m: { target: "save-watch", type: "save-show", candidateId: current } }]);
+    expect(await s.sc.answer({ target: "background", type: "save-answer", candidateId: "old", answer: "later" }, extSender)).toEqual({ ok: true });
+    expect(s.sent).toEqual([]);
     expect(Object.keys(await s.stored())).toEqual(["7"]);
+  }, 30_000);
+
+  it("pending after a failed login (same form, empty) closes the window and keeps the badge", async () => {
+    const s = await setup();
+    await s.sc.onCandidate(candidate(), scriptSender());
+    s.sent.length = 0;
+    expect(await s.sc.onPending({ target: "background", type: "save-pending", emptyLoginForms: ["u|p"] }, scriptSender())).toEqual({});
+    expect(s.sent).toEqual([{ tabId: 7, m: { type: "close-window" } }]);
+    expect(Object.keys(await s.stored())).toEqual(["7"]);
+  }, 30_000);
+
+  it("a window the user closed is not opened again on the next page, only the badge stays", async () => {
+    const s = await setup();
+    await s.sc.onCandidate(candidate(), scriptSender());
+    await s.sc.onWindowClosed(7);
+    await s.sc.onWindowClosed(9); // no candidate: nothing happens
+    s.sent.length = 0;
+    expect(await s.sc.onPending({ target: "background", type: "save-pending", emptyLoginForms: [] }, scriptSender(7, "https://shop.pl/home"))).toEqual({});
+    expect(s.sent).toEqual([{ tabId: 7, m: { type: "badge" } }]);
+    // The popup still shows the question for the tab.
+    expect((await s.sc.info({ target: "background", type: "save-info", tabId: 7 }, extSender))?.username).toBe("jan");
+    // A new login in the tab asks again.
+    await s.sc.onCandidate(candidate({ password: "newer" }), scriptSender());
+    expect(s.sent.at(-1)?.m.type).toBe("save-show");
+  }, 30_000);
+
+  it("save-unlock gives the candidate's tab only to an extension page", async () => {
+    const s = await setup();
+    await s.sc.onCandidate(candidate(), scriptSender());
+    const id = (await s.stored())["7"]!.id;
+    const m = { target: "background" as const, type: "save-unlock" as const, candidateId: id };
+    expect(await s.sc.unlockTab(m, extSender)).toBe(7);
+    expect(await s.sc.unlockTab(m, scriptSender())).toBeUndefined();
+    expect(await s.sc.unlockTab({ ...m, candidateId: "gone" }, extSender)).toBeUndefined();
   }, 30_000);
 
   it("the same login sent again by one submission keeps its id and refreshes the time", async () => {
@@ -351,7 +379,7 @@ describe("SaveCandidates", () => {
     expect(new Set(ids).size).toBe(3);
   }, 30_000);
 
-  it("the alarm takes the panel off the tab, a closed tab gets no message", async () => {
+  it("the alarm takes the question away, a closed tab only loses its window", async () => {
     const s = await setup();
     await s.sc.onCandidate(candidate(), scriptSender(7));
     await s.sc.onCandidate(candidate(), scriptSender(8));
@@ -359,7 +387,7 @@ describe("SaveCandidates", () => {
     await s.sc.onAlarm(`${SAVE_ALARM_PREFIX}7`);
     await s.sc.onAlarm(`${SAVE_ALARM_PREFIX}7`);
     await s.sc.onTabRemoved(8);
-    expect(s.sent).toEqual([{ tabId: 7, m: { target: "save-watch", type: "save-hide" } }]);
+    expect(s.sent).toEqual([{ tabId: 7, m: { type: "save-hide" } }, { tabId: 8, m: { type: "close-window" } }]);
   }, 30_000);
 
   it("an expired candidate found later takes the panel off the tab", async () => {
@@ -370,7 +398,7 @@ describe("SaveCandidates", () => {
     s.advance(SAVE_TTL_MS);
     expect(await s.sc.info({ target: "background", type: "save-info", candidateId: id }, extSender)).toBeUndefined();
     expect(await s.stored()).toEqual({});
-    expect(s.sent).toEqual([{ tabId: 7, m: { target: "save-watch", type: "save-hide" } }]);
+    expect(s.sent).toEqual([{ tabId: 7, m: { type: "save-hide" } }]);
   }, 30_000);
 
   it("alarm and closed tab remove the candidate", async () => {

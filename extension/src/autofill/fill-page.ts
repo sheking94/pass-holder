@@ -41,6 +41,8 @@ export function describeField(el: FieldElement): autofill.FieldDescriptor {
 
 /** Smaller than this (px, either side) is not something a person can see or type into. */
 const MIN_VISIBLE_PX = 2;
+/** Contact and card (any https page may ask for them): a field this small is treated as hidden. */
+const STRICT_MIN_PX = 10;
 
 /**
  * True when the page has layout at all: the root element has a non-empty box. Real browsers always give
@@ -51,7 +53,45 @@ function hasLayout(doc: Document): boolean {
   return rect.width > 0 || rect.height > 0;
 }
 
-export function isVisible(el: Element): boolean {
+/** clip-path, or clip on a positioned box, on the element or an ancestor: a way to hide a field in plain sight. */
+function isClipped(el: Element, view: Window): boolean {
+  for (let node: Element | null = el; node; node = node.parentElement) {
+    const style = view.getComputedStyle(node);
+    const clipPath = style.getPropertyValue("clip-path");
+    if (clipPath !== "" && clipPath !== "none") return true;
+    const clip = style.getPropertyValue("clip");
+    if (clip !== "" && clip !== "auto" && (style.position === "absolute" || style.position === "fixed")) return true;
+  }
+  return false;
+}
+
+const CLIPS = new Set(["hidden", "clip", "auto", "scroll"]);
+
+/**
+ * The field's centre is cut off by an ancestor with overflow other than visible (a field pushed right or down out
+ * of a box), or, when that centre is on screen, another element lies on top of it.
+ */
+function isCoveredOrCut(el: Element, rect: DOMRect, view: Window): boolean {
+  const x = rect.left + rect.width / 2;
+  const y = rect.top + rect.height / 2;
+  for (let node = el.parentElement; node && node !== el.ownerDocument.documentElement; node = node.parentElement) {
+    const style = view.getComputedStyle(node);
+    if (![style.overflowX, style.overflowY, style.overflow].some((v) => CLIPS.has(v))) continue;
+    const box = node.getBoundingClientRect();
+    if (x < box.left || x > box.right || y < box.top || y > box.bottom) return true;
+  }
+  if (x < 0 || y < 0 || x > view.innerWidth || y > view.innerHeight) return false; // below the fold: reachable by scrolling
+  const hit = el.ownerDocument.elementFromPoint(x, y);
+  if (!hit || hit === el || el.contains(hit)) return false;
+  // A floating label drawn over its own field.
+  return (hit.closest("label") as HTMLLabelElement | null)?.control !== el;
+}
+
+/**
+ * Whether a person can see the field. `strict` (contact and card, review V3-S4) also rejects clipped, tiny,
+ * cut-off and covered fields; login fill does not need it, because it only runs on the entry's own site.
+ */
+export function isVisible(el: Element, strict = false): boolean {
   const view = el.ownerDocument.defaultView;
   if (!view) return false;
   // Chrome 121+: covers display, visibility, opacity of the element and its ancestors, content-visibility.
@@ -62,25 +102,31 @@ export function isVisible(el: Element): boolean {
     if (style.display === "none" || style.visibility === "hidden") return false;
     if (style.opacity !== "" && parseFloat(style.opacity) === 0) return false;
   }
+  if (strict && isClipped(el, view)) return false;
   if (!hasLayout(el.ownerDocument)) return true;
   // Zero-size or fully off-screen (above or left of the page origin, unreachable by scrolling) boxes.
   const rect = el.getBoundingClientRect();
-  if (rect.width < MIN_VISIBLE_PX || rect.height < MIN_VISIBLE_PX) return false;
-  return rect.right + view.scrollX > 0 && rect.bottom + view.scrollY > 0;
+  const min = strict ? STRICT_MIN_PX : MIN_VISIBLE_PX;
+  if (rect.width < min || rect.height < min) return false;
+  if (rect.right + view.scrollX <= 0 || rect.bottom + view.scrollY <= 0) return false;
+  return !strict || !isCoveredOrCut(el, rect, view);
 }
 
-function isFillable(el: FieldElement): boolean {
+const isField = (el: Element | null): el is FieldElement =>
+  el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement;
+
+function isFillable(el: FieldElement, strict = false): boolean {
   if (el.disabled || (!(el instanceof HTMLSelectElement) && el.readOnly)) return false;
   if (el instanceof HTMLInputElement && el.type === "hidden") return false;
-  return isVisible(el);
+  return isVisible(el, strict);
 }
 
 interface Candidate { el: FieldElement; descriptor: autofill.FieldDescriptor; kind: autofill.FieldKind | null }
 
-function candidatesIn(root: ParentNode): Candidate[] {
+function candidatesIn(root: ParentNode, strict = false): Candidate[] {
   const out: Candidate[] = [];
   for (const el of root.querySelectorAll<FieldElement>("input, select, textarea")) {
-    if (!isFillable(el)) continue;
+    if (!isFillable(el, strict)) continue;
     const descriptor = describeField(el);
     out.push({ el, descriptor, kind: autofill.classifyField(descriptor) });
   }
@@ -124,6 +170,24 @@ function fillLogin(plan: autofill.FillPlan, doc: Document): number {
   return first ? fillCandidates(plan, [first], username !== undefined) : 0;
 }
 
+/**
+ * Contact and card: only the form the user is in (the focused field's form), or else the form of the first
+ * visible field the plan fills, never every matching field of the page (review V3-S4).
+ */
+function fillOther(plan: autofill.FillPlan, doc: Document): number {
+  const active = doc.activeElement;
+  let scope: ParentNode;
+  if (isField(active) && isFillable(active, true)) {
+    scope = active.form ?? doc;
+  } else {
+    const all = candidatesIn(doc, true);
+    const first = all.find((c) => c.kind && autofill.fillValue(plan, c.kind, c.descriptor, { hasUsernameField: false }) !== undefined);
+    scope = first?.el.form ?? doc;
+  }
+  const cands = candidatesIn(scope, true);
+  return fillCandidates(plan, cands, hasUsername(cands));
+}
+
 /** The origin of the top frame when it is the frame's own or same-origin with it; undefined when cross-origin. */
 function topOrigin(doc: Document): string | undefined {
   const win = doc.defaultView;
@@ -144,6 +208,5 @@ function topOrigin(doc: Document): string | undefined {
 export function fillPage(plan: autofill.FillPlan, expectedOrigin: string, doc: Document = document): { filled: number } {
   if (topOrigin(doc) !== expectedOrigin) return { filled: 0 };
   if (plan.kind === "login") return { filled: fillLogin(plan, doc) };
-  const cands = candidatesIn(doc);
-  return { filled: fillCandidates(plan, cands, hasUsername(cands)) };
+  return { filled: fillOther(plan, doc) };
 }
