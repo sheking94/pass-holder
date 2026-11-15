@@ -14,6 +14,8 @@ export const STORAGE_KEYS = {
   /** session: save candidates by tab id; local: hosts the user never wants to be asked about. */
   saveCandidates: "saveCandidates",
   saveNever: "saveNever",
+  /** session: tab id → the window that shows its save question (prompt-window.ts). */
+  savePromptWindows: "savePromptWindows",
   /** local: ids of attachments whose download did not match their descriptor; sync skips them. */
   corruptFiles: "corruptFiles",
 } as const;

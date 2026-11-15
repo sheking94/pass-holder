@@ -28,7 +28,17 @@ export function newLogin(url: string, username: string, password: string): Login
   return { ...entry, fields: { ...entry.fields, username, password, urls: [url] } };
 }
 
-/** Copy of the login with only the password changed. */
+/** Label of the hidden custom field that keeps the password a save prompt replaced (review V3-S1). */
+export const PREVIOUS_PASSWORD_LABEL = "Poprzednie hasło";
+
+/**
+ * Copy of the login with the new password; the old one goes to the hidden custom field „Poprzednie hasło”
+ * (only the latest: an earlier such field is replaced), so a wrong „Zapisz” loses nothing.
+ */
 export function withPassword(entry: LoginEntry, password: string): LoginEntry {
-  return { ...entry, fields: { ...entry.fields, password } };
+  const old = entry.fields.password;
+  const custom = old === "" || old === password
+    ? entry.custom
+    : [...entry.custom.filter((c) => c.label !== PREVIOUS_PASSWORD_LABEL), { label: PREVIOUS_PASSWORD_LABEL, value: old, hidden: true }];
+  return { ...entry, custom, fields: { ...entry.fields, password } };
 }
