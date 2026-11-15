@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -64,7 +65,7 @@ private const val ZIP_WARNING =
 /**
  * "Import i eksport": files go through the system file picker (another app, so [AppViewModel.beginFilePick]
  * comes first). Export is plain text (a PassHolder ZIP also holds the decrypted files): the button waits for the user
- * to confirm they understand that.
+ * to confirm they understand that, and the save dialog opens only after the master password ([AppViewModel.confirmExport]).
  */
 @Composable
 fun TransferScreen(state: UiState, vm: AppViewModel) {
@@ -74,6 +75,8 @@ fun TransferScreen(state: UiState, vm: AppViewModel) {
     val choice = EXPORT_CHOICES[chosen]
     val format = choice.format
     var understood by rememberSaveable { mutableStateOf(false) }
+    // Security review V3-N6. remember, not rememberSaveable: the password must not end up in the saved instance state.
+    var password by remember { mutableStateOf("") }
 
     val openFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { vm.importFrom(it) }
     // The save dialog's type is fixed per launcher.
@@ -143,14 +146,19 @@ fun TransferScreen(state: UiState, vm: AppViewModel) {
             Checkbox(checked = understood, onCheckedChange = null)
             Text("Rozumiem, plik będzie zawierał hasła jawnym tekstem")
         }
+        PasswordField(password, { password = it; vm.clearError() }, "Hasło główne")
         Button(
             onClick = {
                 val name = TransferFiles.defaultFileName(format, zip = choice.zip)
-                pick {
-                    when {
-                        choice.zip -> saveZip.launch(name)
-                        format == TransferFormat.NORDPASS -> saveCsv.launch(name)
-                        else -> saveJson.launch(name)
+                val typed = password
+                password = ""
+                vm.confirmExport(typed) {
+                    pick {
+                        when {
+                            choice.zip -> saveZip.launch(name)
+                            format == TransferFormat.NORDPASS -> saveCsv.launch(name)
+                            else -> saveJson.launch(name)
+                        }
                     }
                 }
             },

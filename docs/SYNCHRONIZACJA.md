@@ -159,6 +159,12 @@ Wpis zamiast czasu modyfikacji ma w szyfrogramie **hybrydowy zegar logiczny** `{
 Reguła: lokalny wpis `dirty` wygrywa tylko z większym HLC; inaczej wygrywa wersja z telefonu. Zmiana
 zrobiona po zobaczeniu innej zawsze ma większy HLC, nawet przy rozjechanych zegarach.
 
+**Starsza wersja z telefonu (przegląd V3-I2):** wtyczka nie przyjmuje rekordu z HLC mniejszym niż znany jej dla tego
+`id`, także gdy lokalny wpis nie jest `dirty` (`applyResponse` w `core/src/p2p/sync.ts`). Przy poprawnym działaniu
+taki rekord nie powstaje, bo każda edycja obserwuje HLC nadpisywanej wersji; pojawia się tylko, gdy ktoś z kontrolą
+nad danymi telefonu poda stary szyfrogram pod nową rewizją (stare hasło, usunięty wpis znowu żywy). Wpis zostaje
+lokalnie z dawną rewizją, więc następna edycja we wtyczce trafia na konflikt i wygrywa go większym HLC.
+
 **Łączenie załączników:** gdy obie wersje są żywe, a lokalna `dirty`, HLC wybiera wpis, ale lista
 `attachments` jest łączona (`mergeAttachments`): lista zwycięzcy, potem opisy przegranej, których `id` zwycięzca
 nie ma (w kolejności przegranej; przy tym samym `id` zostaje opis zwycięzcy). Gdy to dodaje pliki, wtyczka
@@ -376,7 +382,8 @@ zwykłe parowanie kończy się błędem bez spalenia kodu.
   zużywa wtedy kod. Gdy zmienia się `wrappedVaultKey`, wtyczka zapisuje nową kopię (stare hasło przestaje działać) i
   wyłącza PIN.
 - „Odłącz tę przeglądarkę” (ekran blokady, drugie kliknięcie potwierdza) usuwa konto, sejf, PIN,
-  `pendingPairing` i pliki z IndexedDB. Telefon zachowuje to, co dostał; przeglądarkę usuwa się tam w „Urządzenia”.
+  `pendingPairing`, listę „Nigdy” pytania o zapis (`saveNever`), niezapisanych kandydatów (`saveCandidates`, przegląd
+  V3-I3) i pliki z IndexedDB. Telefon zachowuje to, co dostał; przeglądarkę usuwa się tam w „Urządzenia”.
 
 ### 7.5. Pliki we wtyczce (`vault-store.ts`, `files/idb-file-store.ts`)
 

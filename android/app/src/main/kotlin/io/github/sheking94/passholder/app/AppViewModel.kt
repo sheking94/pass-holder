@@ -573,10 +573,41 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Set by [confirmExport] and used up by the next export callback, whatever it brings ([takeExportApproval]). */
+    @Volatile
+    private var exportApproved = false
+
+    /**
+     * "Zapisz plik": the master password again before a plain-text export (security review V3-N6), also when the
+     * fingerprint unlocks the vault. Only after it opens this vault does [onConfirmed] launch the save dialog.
+     */
+    fun confirmExport(masterPassword: String, onConfirmed: () -> Unit) {
+        if (masterPassword.isEmpty()) return fail(EXPORT_NEEDS_PASSWORD)
+        if (_state.value.busy) return
+        exportApproved = false
+        _state.update { it.copy(busy = true, status = Status("Sprawdzam hasło główne…")) }
+        viewModelScope.launch {
+            val checked = withContext(Dispatchers.IO) { runCatching { store.confirmMasterPassword(masterPassword) } }
+            _state.update { it.copy(busy = false) }
+            locks.onOperationFinished()
+            checked.exceptionOrNull()?.let { e ->
+                if (e is CancellationException) throw e
+                return@launch fail(e.message ?: e.javaClass.simpleName)
+            }
+            exportApproved = true
+            _state.update { it.copy(status = null) }
+            onConfirmed()
+        }
+    }
+
+    private fun takeExportApproval(): Boolean = exportApproved.also { exportApproved = false }
+
     /** The document created for "Zapisz plik", or null when the save dialog was cancelled. */
     fun exportTo(format: TransferFormat, uri: Uri?) {
         endFilePick()
+        val approved = takeExportApproval()
         if (uri == null || !store.isUnlocked) return
+        if (!approved) return fail(EXPORT_NEEDS_PASSWORD)
         launchVaultOperation("Zapisuję plik…") {
             TransferFiles.writeText(app.contentResolver, uri, Transfer.exportFile(format, store.allContents()))
             showStatus("Zapisano plik. Usuń go zaraz po użyciu, zawiera hasła jawnym tekstem.")
@@ -590,7 +621,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun exportArchiveTo(uri: Uri?) {
         endFilePick()
+        val approved = takeExportApproval()
         if (uri == null || !store.isUnlocked) return
+        if (!approved) return fail(EXPORT_NEEDS_PASSWORD)
         launchVaultOperation("Przygotowuję archiwum…") {
             val entries = store.allContents()
             val out = TransferFiles.writeArchive(app.contentResolver, uri) { stream ->
@@ -752,6 +785,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private companion object {
         const val TAG = "AppViewModel"
+        const val EXPORT_NEEDS_PASSWORD = "Wpisz hasło główne, żeby zapisać plik."
         const val SAVED = "Zapisano na telefonie. Wtyczka dostanie zmianę przy następnej synchronizacji."
         const val DELETED = "Usunięto na telefonie. Wtyczka dostanie zmianę przy następnej synchronizacji."
     }

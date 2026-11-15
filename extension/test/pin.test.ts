@@ -57,6 +57,22 @@ describe("Unlocking with a PIN", () => {
     expect((await store.pinStatus())?.attemptsLeft).toBe(MAX_PIN_ATTEMPTS);
   }, 60_000);
 
+  it("counts parallel wrong PINs from several popup tabs one by one (V3-N4)", async () => {
+    const { local, session, store } = await lockedBrowserWithPin();
+    const tabs = [store, new VaultStore(local, session), new VaultStore(local, session)];
+    const results = await Promise.allSettled(tabs.map((tab) => tab.unlockWithPin("0000")));
+    expect(results.every((r) => r.status === "rejected")).toBe(true);
+    expect((await store.pinStatus())?.attemptsLeft).toBe(MAX_PIN_ATTEMPTS - 3);
+  }, 60_000);
+
+  it("refuses a PIN lock whose KDF read from storage is out of bounds (V3-I5)", async () => {
+    const { session, store } = await lockedBrowserWithPin();
+    const lock = (await session.get<PinLock>(STORAGE_KEYS.pinLock))!;
+    await session.set(STORAGE_KEYS.pinLock, { ...lock, kdf: { ...lock.kdf, memoryKiB: 8 } });
+    await expect(store.unlockWithPin(PIN)).rejects.toThrow("KDF memory out of range");
+    expect(store.isUnlocked()).toBe(false);
+  }, 60_000);
+
   it("does not count input that is not 4-6 digits", async () => {
     const { store } = await lockedBrowserWithPin();
     for (const bad of ["", "123", "1234567", "12a4"]) {

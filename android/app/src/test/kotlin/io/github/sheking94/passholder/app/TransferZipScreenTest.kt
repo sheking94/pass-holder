@@ -1,6 +1,7 @@
 package io.github.sheking94.passholder.app
 
 import android.net.Uri
+import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
 import io.github.sheking94.passholder.core.Encoding
 import io.github.sheking94.passholder.core.files.Attachment
@@ -69,6 +70,10 @@ class TransferZipScreenTest : ScreenTestBase() {
         assertTrue(gone(ZIP_WARNING))
 
         val target = File(dir, "passholder.zip").apply { writeText("old, longer content that must not survive the export".repeat(200)) }
+        var confirmed = false
+        compose.runOnIdle { vm.confirmExport(masterPassword) { confirmed = true } }
+        // The check resumes on the main looper, which Robolectric runs only when told to.
+        compose.waitUntil(60_000) { shadowOf(Looper.getMainLooper()).idle(); confirmed }
         compose.runOnIdle { vm.exportArchiveTo(Uri.fromFile(target)) }
         waitFor(
             "Wyeksportowano 1 wpis i 1 plik. Pominięto 1 plik, który czeka na synchronizację albo jest uszkodzony. " +

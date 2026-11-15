@@ -205,6 +205,7 @@ utrzymać włączony i zablokować, ale nie odczytać. Testy automatyczne nie po
 - **Skutek:** więcej niż 5 prób PIN-u przez interfejs. Mały zysk: kto ma narzędzia deweloperskie wtyczki, i tak
   odczyta `PinLock` z `storage.session` i sprawdzi krótki PIN offline (zaakceptowane ograniczenie).
 - **Naprawa:** próby PIN-u w service workerze, kolejno (jak `SaveCandidates.serial`). Koszt: mały.
+- **Stan (grupa 5):** poprawione. Cała próba w `PinStore.unlock` biegnie pod blokadą Web Locks `passholder-pin` (`pinAttemptLock`), wspólną dla okienka, kart i service workera (ten sam origin). Zamiast przenosić PIN do service workera: ten sam efekt, mniejsza zmiana. Test: trzy równoległe próby z trzech `VaultStore` zużywają trzy.
 
 ### V3-N5. Android 8.0–8.1: brak schematu strony traktowany jak `https`, zapis bez podglądu
 
@@ -228,6 +229,7 @@ utrzymać włączony i zablokować, ale nie odczytać. Testy automatyczne nie po
 - **Opis:** wystarczy zaznaczyć pole i kliknąć „Pobierz plik”.
 - **Skutek:** kto ma chwilę przy odblokowanym sejfie, wynosi wszystko jednym plikiem zamiast przepisywać wpisy.
 - **Naprawa:** hasło główne (albo odcisk na telefonie) przed eksportem. Koszt: mały. **Decyzja właściciela.**
+- **Stan (grupa 5):** poprawione według decyzji właściciela: zawsze hasło główne, bez odcisku i PIN-u. Wtyczka: pole „Hasło główne” i `VaultStore.confirmMasterPassword` przed pobraniem. Telefon: `AppViewModel.confirmExport` → `PhoneVaultStore.confirmMasterPassword` przed oknem zapisu; zgoda jednorazowa, eksport bez niej odrzucony.
 
 ### V3-N7. Wrapper Gradle bez sumy kontrolnej, brak CI
 
@@ -239,6 +241,7 @@ utrzymać włączony i zablokować, ale nie odczytać. Testy automatyczne nie po
   sprawdzana. Testy nie są wymuszane przed scaleniem.
 - **Naprawa:** `distributionSha256Sum` dla 8.14.3 (z gradle.org), opcjonalnie workflow z `gradle/actions/wrapper-validation`
   i `npm test`. Koszt: mały.
+- **Stan (grupa 5):** poprawione. `distributionSha256Sum` dla `gradle-8.14.3-bin.zip` (z gradle.org/release-checksums; suma sprawdzona na pobranym pliku), `gradle-wrapper.jar` zgodny z sumą z tej strony. Workflow `.github/workflows/ci.yml`: `wrapper-validation`, `npm ci`, typecheck, testy TS i Androida. Akcje przypięte do wersji głównej (`@v4`), nie do SHA.
 
 ### V3-I1. Zdania w dokumentacji niezgodne z kodem
 
@@ -251,6 +254,7 @@ utrzymać włączony i zablokować, ale nie odczytać. Testy automatyczne nie po
 - Plan przeglądu (krok 1.5) mówi o „HMAC schowka” we wtyczce; wtyczka liczy SHA-256 (HMAC jest tylko na Androidzie,
   zob. V3-I3).
 - **Naprawa:** poprawić zdania razem z poprawkami odpowiednich punktów.
+- **Stan (grupa 5):** poprawione SPEC §8 (autouzupełnianie nie jest już poza zakresem) i PIN w FUNKCJE (4-6 cyfr albo długi). Zdania o V3-N2, V3-S3 i V3-S4 poprawiają wątki tych punktów (grupy 1, 3, 4), bo zależą od ich zmian. Zdanie o „HMAC schowka” jest w planie przeglądu (dokument historyczny), nie w opisie kodu: zostaje.
 
 ### V3-I2. Wtyczka przyjmuje od telefonu starszą wersję wpisu niż już znana
 
@@ -262,6 +266,7 @@ utrzymać włączony i zablokować, ale nie odczytać. Testy automatyczne nie po
   zaakceptowane ograniczenie „cofnięcie wykrywane częściowo” obejmuje tylko cały magazyn.
 - **Naprawa (utwardzenie):** odrzucić rekord z HLC mniejszym niż znany dla tego `id` (przy poprawnym działaniu HLC
   na hoście tylko rośnie). Koszt: mały.
+- **Stan (grupa 5):** poprawione w `applyResponse`: rekord z HLC mniejszym niż lokalny jest pomijany, wpis zachowuje dawną rewizję; następna edycja trafia na konflikt i wygrywa HLC. Opis: SYNCHRONIZACJA.md §4.3.
 
 ### V3-I3. „Odłącz” zostawia listę „Nigdy”; skrót schowka to SHA-256 bez klucza
 
@@ -271,6 +276,7 @@ utrzymać włączony i zablokować, ale nie odczytać. Testy automatyczne nie po
   `session`. Wtyczka trzyma w `session` (pamięć) zwykły SHA-256 skopiowanego hasła; Android po N6 używa HMAC z
   kluczem procesu.
 - **Naprawa:** kasować `saveNever` i `saveCandidates` przy odłączeniu (albo zapytać); HMAC jak na Androidzie. Koszt: mały.
+- **Stan (grupa 5):** „Odłącz” kasuje `saveNever` i `saveCandidates`. HMAC schowka **nie zrobiony**: klucz musiałby leżeć w `storage.session` obok skrótu (service worker może zostać zatrzymany, dokument offscreen nie ma `chrome.storage`), więc nic by nie dodał. Kto czyta `storage.session`, ma tam też `vaultKey` odblokowanego sejfu, a skrót żyje najwyżej minutę.
 
 ### V3-I4. Komunikaty `fill` i `password-copied` przyjmowane też od skryptów treści
 
@@ -291,6 +297,7 @@ utrzymać włączony i zablokować, ale nie odczytać. Testy automatyczne nie po
   zapisu do profilu może osłabić KDF albo zawiesić odblokowanie (1 GiB × 100), tylko że z takim prawem ma też
   prostsze ataki.
 - **Naprawa:** `assertKdfParamsAcceptable` także przy odczycie. Koszt: mały.
+- **Stan (grupa 5):** poprawione. Wtyczka: `assertKdfParamsAcceptable` w `unwrapWithPassword` (odblokowanie, `repair`, potwierdzenie eksportu) i w `openPinLock`. Telefon: `Kdf.assertAcceptable` w `PhoneVaultStore.unwrap` (odblokowanie, zmiana hasła, potwierdzenie eksportu).
 
 ## 4. Tropy odrzucone
 

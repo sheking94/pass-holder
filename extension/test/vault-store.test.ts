@@ -355,6 +355,24 @@ describe("VaultStore offline", () => {
     expect(await browser.session.get(STORAGE_KEYS.pendingPairing)).toBeUndefined();
   }, 30_000);
 
+  it("refuses to unlock with KDF parameters on disk out of bounds (V3-I5)", async () => {
+    const browser = await pairedBrowser();
+    await browser.store.lock();
+    const account = (await browser.store.getAccount())!;
+    await browser.local.set(STORAGE_KEYS.account, { ...account, kdf: { ...account.kdf, iterations: 1000 } });
+    await expect(browser.store.unlock(PASSWORD)).rejects.toThrow("KDF iterations out of range");
+    expect(browser.store.isUnlocked()).toBe(false);
+  }, 30_000);
+
+  it("disconnect also forgets the never-ask hosts and pending save questions (V3-I3)", async () => {
+    const browser = await pairedBrowser();
+    await browser.local.set(STORAGE_KEYS.saveNever, ["bank.pl"]);
+    await browser.session.set(STORAGE_KEYS.saveCandidates, { 7: { stale: true } });
+    await browser.store.disconnect();
+    expect(await browser.local.get(STORAGE_KEYS.saveNever)).toBeUndefined();
+    expect(await browser.session.get(STORAGE_KEYS.saveCandidates)).toBeUndefined();
+  }, 30_000);
+
   it("refuses to disconnect with unsynced changes unless forced, and names how many (I1)", async () => {
     const browser = await pairedBrowser();
     await browser.store.upsert("1", { name: "a.pl", username: "u", password: "p" });
