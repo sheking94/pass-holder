@@ -81,12 +81,13 @@ osobno przez `fake-indexeddb`). Treść jawna nigdy nie jest zapisywana: odszyfr
 | `src/import-summary.ts`, `src/plural.ts` | polskie podsumowanie importu (dodano, duplikaty, pominięte) i odmiana „wpis/wpisy/wpisów” oraz zdanie o pominiętych plikach (`skippedFilesPhrase`) |
 | `src/clipboard.ts`, `src/background.ts`, `src/offscreen.ts` | czyszczenie schowka po minucie (alarm + dokument offscreen); `background.ts` obsługuje też autouzupełnianie (komunikat `fill`, polecenie `fill-login`) |
 | `src/autofill/fill-tab.ts` | `fillTab` (sprawdza sejf, wpis, adres karty, https, `matchLogins`; wstrzykuje skrypt), `onFillCommand` (skrót), `chromeTabApi` (`tabs.get`, `scripting.executeScript`, przypięty origin) |
-| `src/autofill/fill-page.ts`, `src/autofill-content.ts` | `fillPage` w stronie: pola, widoczność, ramki tego samego origin, wpisanie wartości; `autofill-content.ts` wystawia `globalThis.passholderFill` |
+| `src/autofill/fill-page.ts`, `src/autofill-content.ts` | `fillPage` w stronie: pola, widoczność (`isVisible`, dla kontaktu i karty `strict`: `clip-path`/`clip`, min. 10 px, `overflow` rodzica, `elementFromPoint`), kontakt i karta tylko w formularzu pola z kursorem, ramki tego samego origin, wpisanie wartości; `autofill-content.ts` wystawia `globalThis.passholderFill` |
 | `src/ui/active-tab.ts` | `activeTab` (karta pod okienkiem) i `requestFill` (komunikat `fill` do service workera) |
-| `src/save/read-form.ts`, `watch.ts`, `src/save-watch.ts` | skrypt w stronie: `readLogin` (hasło i login, `formSignature`), `loginScope`, `emptyLoginForms`; `startSaveWatch` (submit, Enter, klik; ramka główna i ramki tego samego origin; panel jako `<iframe>` w zamkniętym Shadow DOM) |
-| `src/save/candidates.ts` | `SaveCandidates` w service workerze: kandydat w `chrome.storage.session` (`saveCandidates`), lista „Nigdy” w `chrome.storage.local`; `onCandidate` (ten sam login z tej samej karty zachowuje id), `onPending`, `info`, `preview`, `answer`, alarm 2 min (`save-expire:<karta>`), `onTabRemoved`; operacje po kolei (`serial`); każde usunięcie poza zapisem i zamknięciem karty wysyła `save-hide` |
+| `src/save/read-form.ts`, `watch.ts`, `src/save-watch.ts` | skrypt w stronie: `readLogin` (hasło i login, `formSignature`), `loginScope`, `emptyLoginForms`; `startSaveWatch` (submit, Enter, klik tylko od użytkownika: `isTrusted`, przy submit też `navigator.userActivation`; ramka główna i ramki tego samego origin; nic nie dodaje do strony) |
+| `src/save/candidates.ts` | `SaveCandidates` w service workerze: kandydat w `chrome.storage.session` (`saveCandidates`), lista „Nigdy” w `chrome.storage.local`; `onCandidate` (ten sam login z tej samej karty zachowuje id), `onPending`, `info`, `preview`, `answer`, alarm 2 min (`save-expire:<karta>`), `onTabRemoved`, `onWindowClosed` (okno zamknięte przez użytkownika: tylko odznaka), `unlockTab`; operacje po kolei (`serial`); okno i odznakę obsługuje przez `SavePrompt` (`PromptWindows`); każde usunięcie poza zapisem i zamknięciem karty zamyka okno i zdejmuje odznakę |
 | `src/save/registration.ts` | `syncSaveWatch`: rejestracja skryptu `save-watch` zgodna z uprawnieniem `https://*/*` (wywołania po kolei); `disableSavePrompt` |
-| `src/save/messages.ts`, `prompt-view.ts`, `prompt-page.ts`, `src/save-prompt.ts` | typy wiadomości (`save-candidate`, `save-pending`, `save-info`, `save-preview` (decyzja dla wpisanego loginu i hasła), `save-answer` (z `draft {name, username, password}`), `save-show`, `save-hide`); `promptView`: podgląd z edycją (Nazwa, Login, Hasło), wspólny dla panelu (`save-prompt.html`) i okienka; `startPromptPage`: strona panelu (brak kandydata → prosi o zamknięcie, sejf zablokowany po załadowaniu → „Odblokuj i zapisz”) |
+| `src/save/messages.ts`, `prompt-view.ts`, `prompt-page.ts`, `src/save-prompt.ts` | typy wiadomości (`save-candidate`, `save-pending`, `save-info`, `save-preview` (decyzja dla wpisanego loginu i hasła), `save-answer` (z `draft {name, username, password}`), `save-unlock`); `promptView`: podgląd z edycją (Nazwa, Login, Hasło; przy zmianie hasła uwaga o „Poprzednie hasło”), wspólny dla okna (`save-prompt.html`) i okienka; `startPromptPage`: strona okna (brak kandydata → zamyka okno, sejf zablokowany po załadowaniu → „Odblokuj i zapisz”) |
+| `src/save/prompt-window.ts` | `PromptWindows`: okno pytania (`chrome.windows.create`, `type: "popup"`, 380 × 420 przy prawym górnym rogu okna karty), odznaka „?” (`chrome.action.setBadgeText` dla karty), mapa karta → okno w `storage.session`, `show`/`hide`/`closeWindow`/`badge`/`closedByUser` |
 | `src/views/save-settings.ts`, `save-question.ts` | „Zapis haseł” (przełącznik, lista „Nigdy”) i pytanie w okienku po odblokowaniu (`showUnlocked` w `locked.ts` pyta tło o kandydata karty) |
 | `src/page-mode.ts`, `src/open-in-tab.ts` | tryby strony, przycisk „Otwórz w karcie ↗” |
 | `src/ui/dom.ts` | pomocniki DOM: `h`, `show`, `form`, `passwordField`, `secretField` (pole wrażliwe: „Pokaż/Ukryj”, „Kopiuj”), `pinInput`, `confirmButton`, `busy` |
@@ -154,7 +155,7 @@ Dwa moduły Gradle: `core` (czysta JVM, testy bez emulatora) i `app` (Jetpack Co
 
 ```
  okienko (list.ts)                    service worker (background.ts)              strona (wszystkie ramki)
- „Wypełnij” ── {fill, entryId, tabId} ──► sender.id == własne?  ──nie──► ignoruje
+ „Wypełnij” ── {fill, entryId, tabId} ──► strona wtyczki (sender.id i sender.url)?  ──nie──► ignoruje
  skrót Ctrl+Shift+L ── onCommand ───────► fillTab:
                                            sejf odblokowany? wpis → planFor
                                            tabs.get(tabId) → adres (http/https)
@@ -163,6 +164,8 @@ Dwa moduły Gradle: `core` (czysta JVM, testy bez emulatora) i `app` (Jetpack Co
                                            executeScript(func: passholderFill(plan, origin)) ──► fillPage:
                                                                                       ten sam origin co góra i = origin?
                                                                                       pola → classifyField → wartość
+                                                                                      kontakt/karta: formularz z kursorem,
+                                                                                      tylko pola naprawdę widoczne
  { ok } albo komunikat ◄────────────────── suma wypełnionych pól (0 → „Nie znaleziono pól…”)
 ```
 
@@ -172,28 +175,35 @@ loginie, w pozostałych przypadkach otwiera okienko.
 ## Przepływ pytania o zapis (Chrome)
 
 ```
- strona (save-watch.js)                service worker (SaveCandidates)               panel (save-prompt.html)
- submit / Enter / klik ─ save-candidate ─► sender.id własne, sender.tab, origin ramki = origin karty?
+ strona (save-watch.js)                service worker (SaveCandidates, PromptWindows)  okno wtyczki (save-prompt.html)
+ submit / Enter / klik użytkownika      sender.id własne, sender.tab, origin ramki = origin karty?
+   (isTrusted; submit też aktywacja) ─ save-candidate ─►
    {login, hasło, podpis}                  adres = saveUrl(sender.url); host na liście „Nigdy”? → koniec
                                            decideSave (sejf odblokowany; none → koniec)
                                            kandydat → storage.session, alarm 2 min
- save-show ◄─────────────────────────────── ramka główna karty
- iframe (zamknięty Shadow DOM) ─────────────────────────────────────────────────────► save-info → {id, host, username,
-                                                                                         password, decision, entryName, locked}
-                                           save-preview {candidateId, username, password} ◄──────────────────────── edycja loginu / hasła → decyzja
-                                           save-answer {draft}: decyzja od nowa z draftu → putEntry ◄── „Zapisz” / „Nie teraz” / „Nigdy”
- save-hide ◄──────────────────────────────  (od razu po „Nie teraz”/„Nigdy”, po 2 min i gdy login już jest; 2 s po zapisie)
- nowa strona ── save-pending ─────────────► kandydat żyje? ten sam pusty formularz? → {candidateId}
+                                           odznaka „?” na karcie, chrome.windows.create(popup) ──► save-info → {id, host, username,
+                                                                                                    password, decision, entryName, locked}
+                                           save-preview {candidateId, username, password} ◄──────── edycja loginu / hasła → decyzja
+                                           save-answer {draft}: decyzja od nowa → putEntry ◄────── „Zapisz” / „Nie teraz” / „Nigdy”
+                                             (update: withPassword, stare → „Poprzednie hasło”)
+                                           zamyka okno, zdejmuje odznakę (od razu po „Nie teraz”/„Nigdy”, po 2 min; 2 s po zapisie)
+ nowa strona ── save-pending ─────────────► kandydat żyje? ten sam pusty formularz → zamyka okno (odznaka zostaje);
+                                           okno zamknięte przez użytkownika → tylko odznaka; inaczej okno
 ```
 
 Skrypt rejestruje service worker (`chrome.scripting.registerContentScripts`, `id: "save-watch"`) tylko przy
 uprawnieniu `https://*/*`: to uprawnienie jest przełącznikiem (bez flagi w `storage`), a `syncSaveWatch`
-uzgadnia rejestrację przy starcie, instalacji i zmianie uprawnień. Zablokowany sejf: panel ma „Odblokuj i
-zapisz” (`chrome.action.openPopup()`), a okienko po odblokowaniu pyta o kandydata karty (`save-info` z `tabId`).
+uzgadnia rejestrację przy starcie, instalacji i zmianie uprawnień. Zablokowany sejf: okno ma „Odblokuj i
+zapisz” (`save-unlock` → service worker aktywuje kartę i `chrome.action.openPopup({windowId})`), a okienko po
+odblokowaniu pyta o kandydata karty (`save-info` z `tabId`). `PromptWindows` trzyma w `storage.session`
+(`savePromptWindows`) kartę → okno; `windows.onRemoved` dla okna z tej mapy to zamknięcie przez użytkownika
+(kandydat dostaje `dismissed`). Okno poza ekranem (błąd „Bounds must be at least 50%…”) Chrome ustawia sam.
 Odczyt sejfu dla pytania nie przedłuża blokady (`resume({touch: false})`); zapis (`touch: true`) tak.
 
 Bezpieczeństwo: adres z `sender.url`, nie z wiadomości; ramki z innym origin pomijane; `save-info`, `save-preview` i
-`save-answer` tylko ze stron wtyczki; panel dostaje hasło kandydata (nie innych wpisów; strona go nie czyta);
+`save-answer` i `save-unlock` tylko ze stron wtyczki; pytanie w osobnym oknie, nie w stronie (strona go nie widzi
+ani nie przykryje; `save-prompt.html` nie jest `web_accessible_resources`); okno dostaje hasło kandydata (nie
+innych wpisów);
 kandydat tylko w pamięci sesji (domyślnie
 dostępnej tylko dla stron wtyczki); lista „Nigdy” jawna w `storage.local`.
 
@@ -336,4 +346,5 @@ Drugi, pełny przegląd po V3: [PRZEGLAD_BEZPIECZENSTWA_V3.md](PRZEGLAD_BEZPIECZ
 | I4 | `MasterPasswordRules`: 12 znaków i bez oczywistych wzorców |
 | I5 | `npm audit`: 0 podatności; Gradle do sprawdzenia ręcznie ([TESTY.md](TESTY.md#zależności-przegląd-bezpieczeństwa-i5)) |
 | V3 (2026-11-15) | pełny przegląd po V3: 0 K, 0 W, 4 S, 7 N, 5 I; poprawki w osobnych wątkach ([PRZEGLAD_BEZPIECZENSTWA_V3.md](PRZEGLAD_BEZPIECZENSTWA_V3.md)) |
+| V3-S1, V3-N3, V3-S4, V3-I4 | grupa 1: pytanie o zapis w osobnym oknie wtyczki z odznaką, tylko zdarzenia użytkownika, stare hasło w „Poprzednie hasło”; kontakt i karta tylko w widocznych polach formularza z kursorem; `fill` i `password-copied` tylko ze stron wtyczki ([FUNKCJE.md](FUNKCJE.md#pytanie-o-zapis)) |
 | V3 grupa 5 (PR #54) | N4: próby PIN-u pod `navigator.locks`; N6: hasło główne przed eksportem (wtyczka `confirmMasterPassword`, telefon `confirmExport`); N7: `distributionSha256Sum` i `.github/workflows/ci.yml`; I1: SPEC §8 i PIN w FUNKCJE; I2: wtyczka odrzuca starszy HLC; I3: „Odłącz” kasuje `saveNever` i `saveCandidates` (HMAC schowka nie, uzasadnienie w raporcie); I5: granice KDF przy odczycie z dysku |

@@ -28,6 +28,8 @@ export function promptView(info: SavePromptInfo, actions: PromptActions): HTMLEl
   const passwordRow = secretField(password, "hasło", status, { copy: false });
   const title = h("h1", {}, "Zapisać login w PassHolder?");
   const nameBox = h("div", {}, h("label", {}, "Nazwa"), name);
+  // „Zapisz” replaces the entry's password: say so, and where the old one goes (review V3-S1).
+  const replaceHint = h("div", { class: "hint" }, "Obecne hasło trafi do pola „Poprzednie hasło” we wpisie.");
 
   // Only the answer to the latest preview counts: a slow earlier one must not overwrite a newer header.
   let decision: NonNullable<SavePreviewResponse>["decision"] = info.decision ?? "create";
@@ -39,6 +41,7 @@ export function promptView(info: SavePromptInfo, actions: PromptActions): HTMLEl
       : decision === "update" ? `Zmiana hasła: ${entryName ?? info.entryName ?? ""}`
       : "Nowy login";
     nameBox.hidden = decision !== "create";
+    replaceHint.hidden = decision !== "update";
     primary.disabled = saving || decision === "none" || password.value === "";
   };
   const preview = async () => {
@@ -114,6 +117,7 @@ export function promptView(info: SavePromptInfo, actions: PromptActions): HTMLEl
     username,
     h("label", {}, "Hasło"),
     passwordRow.row,
+    replaceHint,
     h("div", { class: "site" }, `Strona: ${info.host}`),
     actionRow,
     status,

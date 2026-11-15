@@ -411,7 +411,7 @@ T1 → V3-N1, T3 i T4 → V3-N2, T5 → V3-S1 i V3-N3, T6 → V3-S2, T7 → V3-S
 Każda grupa to jeden wątek i jeden PR, w tej kolejności:
 
 1. **Pytanie o zapis i wypełnianie we wtyczce:** V3-S1, V3-N3, V3-S4, V3-I4 (`isTrusted`, ochrona panelu, widoczność
-   pól, nadawca `fill`).
+   pól, nadawca `fill`). **Zrobione** (2026-11-15), zob. „Stan poprawek” niżej.
 2. **Dopasowanie adresów:** V3-S2 i V3-N5 (lista sufiksów publicznych w TS i Kotlinie, skrót tylko przy dokładnym
    dopasowaniu, brak schematu = `http`).
 3. **Zaufane przeglądarki na Androidzie:** V3-S3 (certyfikaty podpisu).
@@ -421,7 +421,29 @@ Każda grupa to jeden wątek i jeden PR, w tej kolejności:
 
 **Decyzje właściciela** (naprawa zmienia zachowanie):
 
-- V3-S1: panel w stronie z ochroną przed kliknięciem albo zamiana na odznakę i okienko wtyczki.
+- V3-S1: panel w stronie z ochroną przed kliknięciem albo zamiana na odznakę i okienko wtyczki. **Decyzja
+  (2026-11-15): osobne okno wtyczki i odznaka.**
 - V3-S2: subdomeny tylko w domenie rejestrowalnej i skrót tylko dla dokładnego hosta (mniej podpowiedzi niż dziś).
-- V3-N2: czy telefon ma odpowiadać w sieci komórkowej (dziś tak).
-- V3-N6: hasło główne przed eksportem.
+  **Decyzja: tak (lista sufiksów publicznych, skrót tylko dla dokładnego hosta).**
+- V3-N2: czy telefon ma odpowiadać w sieci komórkowej (dziś tak). **Decyzja: nie, tylko Wi-Fi i Tailscale.**
+- V3-N6: hasło główne przed eksportem. **Decyzja: zawsze hasło główne (wtyczka i telefon, bez odcisku).**
+
+### Stan poprawek
+
+- **Grupa 1 (V3-S1, V3-N3, V3-S4, V3-I4), 2026-11-15:**
+  - V3-S1: skrypt liczy tylko zdarzenia użytkownika (`isTrusted`; `submit` dodatkowo z aktywacją użytkownika, bo
+    Chrome oznacza jako zaufany także `submit` z `form.requestSubmit()` skryptu, sprawdzone w Chromium); pytanie
+    w osobnym oknie wtyczki (`chrome.windows.create`, `type: "popup"`) z odznaką „?” zamiast ramki w stronie;
+    `save-prompt.html` usunięte z `web_accessible_resources`; przy zmianie hasła stare trafia do ukrytego pola
+    własnego „Poprzednie hasło” (TS i Kotlin, tylko ostatnie), a okno o tym mówi. Zostaje: strona może wysłać
+    formularz skryptem w ciągu kilku sekund po dowolnym kliknięciu użytkownika; zapis i tak wymaga **Zapisz**
+    w osobnym oknie.
+  - V3-N3: skrypt strony nie tworzy kandydata, a okna nie widać w DOM. Zostaje: otwarcie okna zabiera stronie
+    fokus (`blur`), ale każda próba wymaga prawdziwego wysłania formularza przez użytkownika. Limitu „jeden
+    kandydat na minutę” nie dodałem: blokowałby poprawkę literówki w haśle zaraz po złym logowaniu.
+  - V3-S4: kontakt i karta tylko w formularzu pola z kursorem (bez kursora: pierwszego pasującego pola) i tylko w
+    polach bez `clip-path`/`clip`, co najmniej 10 × 10 px, nieuciętych przez `overflow` rodzica i
+    nieprzykrytych (`elementFromPoint`; etykieta pola nad nim się nie liczy). Sprawdzone w Chromium. Android
+    (`ViewNodeReader`, wspomniany w raporcie jako „podobnie”) bez zmian: poza grupą 1, do osobnego wątku.
+  - V3-I4: `fill` i `password-copied` tylko ze stron wtyczki (`sender.url` `chrome-extension://<id>/`).
+

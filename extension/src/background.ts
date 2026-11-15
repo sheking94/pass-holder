@@ -3,15 +3,27 @@ import { CLEAR_AFTER_MINUTES, CLEAR_CLIPBOARD_ALARM, type ClipboardMessage } fro
 import { chromeTabApi, fillTab, onFillCommand, type FillMessage, UNSUPPORTED_PAGE } from "./autofill/fill-tab.ts";
 import { chromeSaveWatchApi, syncSaveWatch } from "./save/registration.ts";
 import { SaveCandidates } from "./save/candidates.ts";
-import type { SaveAnswerMessage, SaveCandidateMessage, SaveInfoMessage, SavePendingMessage, SavePreviewMessage } from "./save/messages.ts";
+import type {
+  SaveAnswerMessage, SaveCandidateMessage, SaveInfoMessage, SavePendingMessage, SavePreviewMessage, SaveUnlockMessage,
+} from "./save/messages.ts";
+import { chromeWindowApi, PromptWindows } from "./save/prompt-window.ts";
 import { chromeStore, STORAGE_KEYS } from "./storage.ts";
 import { VaultStore } from "./vault-store.ts";
+
+/**
+ * A page of this extension (popup, tab, question window), not its content script running inside a web page
+ * (review V3-I4): only those may ask to fill a tab or to clear the clipboard.
+ */
+function fromExtensionPage(sender: chrome.runtime.MessageSender): boolean {
+  return sender.id === chrome.runtime.id && (sender.url ?? "").startsWith(`chrome-extension://${chrome.runtime.id}/`);
+}
 
 // The popup closes as soon as it loses focus, so the one-minute timer lives here, in an alarm that
 // survives the service worker being stopped.
 
-chrome.runtime.onMessage.addListener((message: ClipboardMessage) => {
+chrome.runtime.onMessage.addListener((message: ClipboardMessage, sender) => {
   if (message.target !== "background" || message.type !== "password-copied") return;
+  if (!fromExtensionPage(sender)) return;
   void (async () => {
     await chrome.storage.session.set({ copiedPasswordHash: message.hash });
     await chrome.alarms.create(CLEAR_CLIPBOARD_ALARM, { delayInMinutes: CLEAR_AFTER_MINUTES });
@@ -23,9 +35,8 @@ const newStore = () => new VaultStore(chromeStore(chrome.storage.local), chromeS
 
 chrome.runtime.onMessage.addListener((message: FillMessage, sender, sendResponse) => {
   if (message.target !== "background" || message.type !== "fill") return;
-  // sender.id only limits this to this extension's own contexts (its pages and its injected content script);
-  // messages from other extensions arrive at onMessageExternal and never reach this listener.
-  if (sender.id !== chrome.runtime.id) return;
+  // Other extensions arrive at onMessageExternal; the sender URL also keeps out this extension's own content scripts.
+  if (!fromExtensionPage(sender)) return;
   void fillTab(newStore(), chromeTabApi(), message.tabId, message.entryId)
     .catch(() => ({ ok: false, error: UNSUPPORTED_PAGE }))
     .then(sendResponse);
@@ -33,25 +44,24 @@ chrome.runtime.onMessage.addListener((message: FillMessage, sender, sendResponse
 });
 
 // Save prompt: candidates live in session storage, so a stopped service worker loses nothing.
+const promptWindows = new PromptWindows(
+  chromeWindowApi(),
+  chromeStore(chrome.storage.session),
+  (id) => chrome.runtime.getURL("save-prompt.html") + "?id=" + encodeURIComponent(id),
+);
 const saveCandidates = new SaveCandidates({
   store: newStore,
   session: chromeStore(chrome.storage.session),
   local: chromeStore(chrome.storage.local),
   selfId: chrome.runtime.id,
-  sendToTab: async (tabId, m) => {
-    try {
-      await chrome.tabs.sendMessage(tabId, m, { frameId: 0 });
-    } catch {
-      // No receiver: the tab was closed or the script is not there (permission taken away); nothing to show.
-    }
-  },
+  prompt: promptWindows,
   alarms: chrome.alarms,
   now: Date.now,
   newId: () => crypto.randomUUID(),
   later: (ms, fn) => void setTimeout(fn, ms),
 });
 
-type SaveMessage = SaveCandidateMessage | SavePendingMessage | SaveInfoMessage | SaveAnswerMessage | SavePreviewMessage;
+type SaveMessage = SaveCandidateMessage | SavePendingMessage | SaveInfoMessage | SaveAnswerMessage | SavePreviewMessage | SaveUnlockMessage;
 chrome.runtime.onMessage.addListener((message: { target?: string } & Partial<SaveMessage>, sender, sendResponse) => {
   if (message.target !== "background") return;
   const run = <T>(work: Promise<T>, onError: T) => {
@@ -73,7 +83,27 @@ chrome.runtime.onMessage.addListener((message: { target?: string } & Partial<Sav
       return run(saveCandidates.preview(m, sender), undefined);
     case "save-answer":
       return run(saveCandidates.answer(m, sender), { ok: false, error: UNSUPPORTED_PAGE });
+    case "save-unlock":
+      return run(unlockForSave(m, sender), undefined);
   }
+});
+
+/** The question window has no toolbar: bring the candidate's tab forward and open the popup there to unlock. */
+async function unlockForSave(m: SaveUnlockMessage, sender: chrome.runtime.MessageSender): Promise<undefined> {
+  const tabId = await saveCandidates.unlockTab(m, sender);
+  if (tabId === undefined) return undefined;
+  const tab = await chrome.tabs.update(tabId, { active: true });
+  if (tab?.windowId === undefined) return undefined;
+  await chrome.windows.update(tab.windowId, { focused: true });
+  await chrome.action.openPopup({ windowId: tab.windowId });
+  return undefined;
+}
+
+// Closed with the window's own close button: the question stays behind the badge until it expires.
+chrome.windows.onRemoved.addListener((windowId) => {
+  void promptWindows.closedByUser(windowId).then((tabId) => {
+    if (tabId !== undefined) return saveCandidates.onWindowClosed(tabId);
+  });
 });
 
 // The https permission is the save-prompt switch: keep the script registration in step with it, also when the

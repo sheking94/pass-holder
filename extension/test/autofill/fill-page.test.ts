@@ -163,6 +163,67 @@ describe("fillPage", () => {
     expect(val("#co")).toBe("PL");
   });
 
+  describe("contact and card only where the user is (review V3-S4)", () => {
+    // happy-dom does not compute `clip`; the browser check (TESTY.md) covers it.
+    it("a field hidden with clip-path, on itself or an ancestor, stays empty", () => {
+      html(`<form><input type="email" id="em">
+        <input type="tel" id="tl" style="clip-path: inset(50%)">
+        <div style="clip-path: circle(0)"><input autocomplete="street-address" id="st"></div></form>`);
+      expect(fillPage(contact, ORIGIN)).toEqual({ filled: 1 });
+      expect(val("#em")).toBe("jan@example.com");
+      expect(val("#tl")).toBe("");
+      expect(val("#st")).toBe("");
+    });
+
+    it("fills only the form of the focused field", () => {
+      html(`<form><input type="email" id="a"></form><form><input type="email" id="b"><input type="tel" id="t"></form>`);
+      (document.getElementById("b") as HTMLInputElement).focus();
+      expect(fillPage(contact, ORIGIN)).toEqual({ filled: 2 });
+      expect(val("#a")).toBe("");
+      expect(val("#b")).toBe("jan@example.com");
+    });
+
+    it("without focus fills only the form of the first field it can fill", () => {
+      html(`<form><input name="q" id="q"></form><form><input type="email" id="a"></form><form><input type="tel" id="t"></form>`);
+      expect(fillPage(contact, ORIGIN)).toEqual({ filled: 1 });
+      expect(val("#a")).toBe("jan@example.com");
+      expect(val("#t")).toBe("");
+    });
+
+    it("login fill is not limited to one form scope by focus", () => {
+      html(`<form><input type="email" id="news"></form><form><input name="username" id="u"><input type="password" id="p"></form>`);
+      (document.getElementById("news") as HTMLInputElement).focus();
+      expect(fillPage(login, ORIGIN)).toEqual({ filled: 2 });
+    });
+
+    describe("with layout", () => {
+      function layout(rects: Record<string, [number, number, number, number]>, hit: (x: number, y: number) => Element | null): void {
+        vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+          const [x, y, w, h] = rects[this.id || this.tagName] ?? [0, 0, 0, 0];
+          return { x, y, left: x, top: y, width: w, height: h, right: x + w, bottom: y + h, toJSON() { return {}; } } as DOMRect;
+        });
+        document.elementFromPoint = hit;
+      }
+
+      it("skips a 3 px field, a covered field and one cut off by overflow, fills a field under its own label", () => {
+        html(`<form><input type="email" id="em"><label for="tl" id="lb">Telefon</label><input type="tel" id="tl">
+          <input autocomplete="postal-code" id="small"><input autocomplete="address-level2" id="covered"><div id="cover"></div>
+          <div id="box" style="overflow: hidden"><input autocomplete="street-address" id="cut"></div></form>`);
+        const $ = (id: string) => document.getElementById(id);
+        layout({
+          HTML: [0, 0, 800, 600], em: [10, 10, 200, 20], tl: [10, 40, 200, 20], small: [10, 70, 3, 3],
+          covered: [10, 100, 200, 20], box: [10, 130, 200, 20], cut: [400, 130, 200, 20],
+        }, (_x, y) => (y === 50 ? $("lb") : y === 110 ? $("cover") : y === 20 ? $("em") : null));
+        expect(fillPage(contact, ORIGIN)).toEqual({ filled: 2 });
+        expect(val("#em")).toBe("jan@example.com");
+        expect(val("#tl")).toBe("600100200");
+        expect(val("#small")).toBe("");
+        expect(val("#covered")).toBe("");
+        expect(val("#cut")).toBe("");
+      });
+    });
+  });
+
   it("does not overwrite with empty values", () => {
     html(`<form><input type="tel" id="tl" value="123"><input type="email" id="em"></form>`);
     const r = fillPage({ ...contact, tel: "" } as Plan, ORIGIN);

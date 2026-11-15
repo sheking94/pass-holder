@@ -5,8 +5,10 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.github.sheking94.passholder.app.PassHolderApp
 import io.github.sheking94.passholder.app.TestSecretWrapper
 import io.github.sheking94.passholder.core.autofill.AppRequest
+import io.github.sheking94.passholder.core.p2p.CustomField
 import io.github.sheking94.passholder.core.p2p.EntryContentV3
 import io.github.sheking94.passholder.core.p2p.LoginFields
+import io.github.sheking94.passholder.core.save.PREVIOUS_PASSWORD_LABEL
 import io.github.sheking94.passholder.core.save.SaveDecision
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -120,13 +122,19 @@ class SaveReviewTest {
     }
 
     @Test
-    fun `saving a changed password updates only the password`() {
+    fun `saving a changed password updates the password and keeps the old one`() {
         addGithub()
         val review = review(SaveData(browser("github.com"), "jkowalski", "new"))
         assertEquals(SaveOutcome.UPDATED, saveReviewed(app, review, review.initialDraft().copy(password = "newer")))
         val entry = app.phoneStore.entries().single()
         assertEquals("1", entry.id)
-        assertEquals(EntryContentV3("GitHub", "", LoginFields("jkowalski", "newer", urls = listOf("https://github.com")), emptyList()), entry.content)
+        assertEquals(
+            EntryContentV3(
+                "GitHub", "", LoginFields("jkowalski", "newer", urls = listOf("https://github.com")),
+                listOf(CustomField(PREVIOUS_PASSWORD_LABEL, "s3cret", true)),
+            ),
+            entry.content,
+        )
     }
 
     @Test

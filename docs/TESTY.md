@@ -52,9 +52,9 @@ katalogu pakietu.
 
 | Pakiet | Pliki | Testy | Uwagi |
 |---|---|---|---|
-| `core` | 36 | 638 | w tym `core/test/p2p/`, `core/test/files/`, `core/test/autofill/` i `core/test/save/` |
-| `extension` | 34 | 394 | w tym widoki w happy-dom (`extension/test/ui/`), `extension/test/autofill/` i `extension/test/save/`; `background.ts` bez testów (logika w `fill-tab.ts` i `save/candidates.ts`) |
-| `android/core` | 49 | 770 | 5 pomijane bez `PASSHOLDER_INTEROP_TEST=1`; w tym `autofill/` (wektory `core/test-vectors/autofill/`) i `save/` (wektory `core/test-vectors/save/`) |
+| `core` | 36 | 640 | w tym `core/test/p2p/`, `core/test/files/`, `core/test/autofill/` i `core/test/save/` |
+| `extension` | 35 | 410 | w tym widoki w happy-dom (`extension/test/ui/`), `extension/test/autofill/` i `extension/test/save/`; `background.ts` bez testów (logika w `fill-tab.ts` i `save/candidates.ts`) |
+| `android/core` | 49 | 771 | 5 pomijane bez `PASSHOLDER_INTEROP_TEST=1`; w tym `autofill/` (wektory `core/test-vectors/autofill/`) i `save/` (wektory `core/test-vectors/save/`) |
 | `android/app` | 39 | 211 | Robolectric, zrzuty ekranów; w tym `autofill/`, ekrany autouzupełniania, zapis po odblokowaniu i załączniki (16 klas, po jednym teście), eksport i import ZIP (`TransferZip*`) |
 
 ## Co testują pliki
@@ -128,10 +128,10 @@ wartości losowe mają stałe klucze i nonce.
 | `vault-store-files.test.ts` | pliki w `VaultStore`: plik z przeglądarki A pobrany w B, wznowienie po przerwanej fazie (jeden kawałek), sprzątanie po usunięciu załącznika i wpisu (plik niewysłany zostaje), błąd zapisu wpisu i sprzątania, stary telefon (404), zapamiętany plik uszkodzony, `upsert` zachowuje załączniki, `putEntry` po blokadzie (także w trakcie zapisu plików), faza plików przerwana blokadą (bez kolejnych żądań i sprzątania), `disconnect` czyści pliki (i działa przy błędzie IndexedDB) |
 | `ui/attachments.test.ts` | sekcja „Załączniki” w karcie i okienku: nowy plik dopiero po „Zapisz” (treść jawna wyczyszczona po szyfrowaniu), limity (21. plik, 10 MB, pusty, zła nazwa), ten sam plik dwa razy, „Usuń” (zamyka pytanie o pobranie), ostrzeżenie przed „Pobierz”, „czeka na synchronizację” (także gdy stanu nie da się odczytać) i „Plik jest uszkodzony”, ostrzeżenie „Otwórz w karcie”, tryb `edit` (cel jednorazowy, id innego typu daje nowy wpis), „📎 N” na liście, „Pliki: 0 z t” … „Pliki: t z t” i komunikat po synchronizacji |
 | `format-size.test.ts` | `formatSize`: KB poniżej 1 MiB (co najmniej 1), MB z przecinkiem od 1 MiB |
-| `autofill/fill-page.test.ts` | `fillPage` w happy-dom: logowanie, dwuetapowe, rejestracja (`new-password` pomijane), karta z jednym i dwoma polami ważności, `<select>`, adres; pola ukryte, wyłączone i tylko do odczytu, pusta wartość, obcy origin i inny origin niż sprawdzony |
+| `autofill/fill-page.test.ts` | `fillPage` w happy-dom: logowanie, dwuetapowe, rejestracja (`new-password` pomijane), karta z jednym i dwoma polami ważności, `<select>`, adres; pola ukryte, wyłączone i tylko do odczytu, pusta wartość, obcy origin i inny origin niż sprawdzony; kontakt i karta (V3-S4): `clip-path`, tylko formularz pola z kursorem albo pierwszego pasującego pola, pole 3 px, przykryte, ucięte przez `overflow`, etykieta nad polem nie przeszkadza |
 | `autofill/fill-tab.test.ts` | `fillTab` i `onFillCommand` z atrapą `TabApi`: zablokowany sejf, strona niepasująca, karta na http, brak pól, błąd wstrzyknięcia; skrót przy jednym, kilku i zerze loginów |
 | `ui/autofill-view.test.ts` | sekcja „Pasujące do tej strony”, „Wypełnij” przy karcie i kontakcie (nie w karcie PassHolder), komunikaty błędów, zamknięcie okienka po powodzeniu |
-| `save/*.test.ts`, `ui/save-*.test.ts` | pytanie o zapis: odczyt formularza (hasło, login, podpis; formularz kontaktowy z hasłem, samo „nowe hasło”), `startSaveWatch` (submit, Enter, klik, bez `<form>`, obcy origin), `SaveCandidates` (`save-preview`, `draft`, adres z `sender.url`, „Nigdy”, 2 min, zamknięcie karty, zły formularz, ten sam login zgłoszony kilka razy, `save-hide` po wygaśnięciu), logowanie SPA od skryptu do tła (`flow.test.ts`), `syncSaveWatch` (też wywołania naraz), `promptView` (edycja, podgląd decyzji, Zapisz nieaktywny), strona panelu (`startPromptPage`: brak kandydata, blokada po załadowaniu), `save-watch.ts` po przeładowaniu wtyczki, widoki „Zapis haseł” i pytanie w okienku |
+| `save/*.test.ts`, `ui/save-*.test.ts` | pytanie o zapis: odczyt formularza (hasło, login, podpis; formularz kontaktowy z hasłem, samo „nowe hasło”), `startSaveWatch` (submit, Enter, klik, bez `<form>`, obcy origin, zdarzenia nie od użytkownika pomijane, nic nie trafia do DOM strony), `SaveCandidates` (`save-preview`, `draft`, adres z `sender.url`, „Nigdy”, 2 min, zamknięcie karty, zły formularz zamyka okno, okno zamknięte przez użytkownika zostawia odznakę, `save-unlock` tylko ze stron wtyczki, ten sam login zgłoszony kilka razy, `save-hide` po wygaśnięciu, „Poprzednie hasło” po aktualizacji), `PromptWindows` (`prompt-window.test.ts`: jedno okno na kartę, przełączenie na nowszego kandydata, odznaka, zamknięcie przez użytkownika), logowanie SPA od skryptu do tła (`flow.test.ts`), `syncSaveWatch` (też wywołania naraz), `promptView` (edycja, podgląd decyzji, Zapisz nieaktywny, uwaga o „Poprzednie hasło”), strona okna (`startPromptPage`: brak kandydata zamyka okno, blokada po załadowaniu, `save-unlock`), `save-watch.ts` po przeładowaniu wtyczki, widoki „Zapis haseł” i pytanie w okienku |
 | `ui/widgets.test.ts` | `secretField` (zakrycie, „Pokaż”, kopia czyści schowek, puste pole się nie kopiuje), `listEditor`, przyciski kopiowania w wierszu |
 
 Testy wtyczki używają `extension/test/fake-phone.ts`: parowanie z prawdziwym CPace przed referencyjnym
@@ -175,7 +175,7 @@ Playwright z Chromium nie jest zależnością repozytorium: w kontenerze w chmur
 | `autofill/PlannerTest` | grupa formularza, samo pole e-mail → loginy, rejestracja → nic, pomijanie wpisów bez wartości, karta tylko na `https`, indeks opcji listy, limit 10, opisy |
 | `autofill/NodeDescriptorTest`, `ResponseBuilderTest`, `FillLogicTest`, `ManifestTest` (app) | opis pola z `inputType`/HTML/podpowiedzi, `FillResponse` i pasek klawiatury (≤ `maxSuggestionCount`, styl bez wersji UI → bez paska), odpowiedzi usługi (własny pakiet, brak sejfu, zablokowany, tylko pasujące loginy), rejestracja usługi z `BIND_AUTOFILL_SERVICE` |
 | `AutofillUnlockTest`, `AutofillUnlockScreenTest`, `AutofillSettingTest` (app) | odblokowanie z podpowiedzi (złe i dobre hasło, odcisk, Wstecz, Anuluj, brak pasujących, brak żądania, ponowna blokada, powrót do aplikacji → lista), wiersz „Autouzupełnianie” w Ustawieniach (stan, „Włącz” → systemowy wybór, odświeżenie po powrocie) |
-| `save/SaveVectorsTest`, `SaveFieldsTest`, `SaveTargetTest` | port pytania o zapis: te same wektory `{url,decide}.json` co TypeScript (adres, nazwa, decyzja; `www.` → brak adresu), wybór pól hasła i loginu (nowe hasło przed hasłem, e-mail przed hasłem), cel zapisu (domena tylko od zaufanej przeglądarki, inaczej pakiet), `newLogin`, `withPassword` |
+| `save/SaveVectorsTest`, `SaveFieldsTest`, `SaveTargetTest` | port pytania o zapis: te same wektory `{url,decide}.json` co TypeScript (adres, nazwa, decyzja; `www.` → brak adresu), wybór pól hasła i loginu (nowe hasło przed hasłem, e-mail przed hasłem), cel zapisu (domena tylko od zaufanej przeglądarki, inaczej pakiet), `newLogin`, `withPassword` (stare hasło w „Poprzednie hasło”, tylko ostatnie) |
 | `autofill/SaveStateTest`, `SaveLoginTest`, `PendingSaveTest` (app) | `clientState` (id pól i aplikacja; tylko poniżej API 33, `SaveInfo` testuje `FillLogicTest`), zapis nowego loginu pod domeną i pod pakietem, obca aplikacja z domeną banku, zmiana hasła, to samo hasło → nic, zablokowany → `LOCKED`, komunikaty; kandydat tylko w pamięci, 2 minuty, jeden naraz |
 | `AutofillSaveTest` (app) | ekran zapisu: odblokowanie tylko przy zablokowanym sejfie, podgląd i edycja (nazwa, login, hasło), zmiana hasła, „Ten login jest już zapisany”, sejf zablokowany w trakcie podglądu (ten sam szkic), wyjście w tło (D1; z opóźnieniem: powrót kasuje termin, zamknięcie go nie przesuwa), Anuluj, Wstecz, kandydat starszy niż 2 minuty z komunikatem, brak kandydata, stary termin 60 s; `SaveReviewTest` (logika: `SaveReview`, `saveReviewed`, ponowny odczyt sejfu), `SaveReviewScreenTest` (zrzut podglądu); `FillLogicTest` (`SaveInfo` dla każdego ekranu z polem hasła: kontakt, samo „nowe hasło”, odpowiedź z samym `SaveInfo` bez pasujących wpisów, brak `SaveInfo` przy wyłączonym przełączniku), `SettingsScreenTests` (przełącznik „Pytaj o zapis haseł”), `BackgroundSaveRefreshTest` (powrót do aplikacji odświeża listę po zapisie w tle) |
 
@@ -315,18 +315,20 @@ PassHolderze (np. pole „Hasło główne”) usługa nic nie podpowiada; formul
 lista → **Zapis** → „Pytaj o zapis haseł”: Chrome pyta o dostęp do wszystkich stron (odmowa: przełącznik zostaje
 wyłączony); zezwól, przeładuj kartę testową. Po zablokowaniu uprawnienia w `chrome://extensions` przełącznik jest
 wyłączony. (2) **Nowy login:** strona z formularzem logowania (własny HTML albo prawdziwa strona) → zaloguj się
-nowym loginem: panel „Nowy login” z polami Nazwa, Login, Hasło (Pokaż; bez Kopiuj) → zmień nazwę i hasło → **Zapisz**:
-„Zapisano”, panel znika po 2 s, wpis ma Twoją nazwę, poprawione hasło i adres samej domeny (puste Nazwa: domena).
+nowym loginem: osobne okno wtyczki „Nowy login” z polami Nazwa, Login, Hasło (Pokaż; bez Kopiuj) i odznaka „?” na
+ikonie → zmień nazwę i hasło → **Zapisz**: „Zapisano”, okno zamyka się po 2 s, wpis ma Twoją nazwę, poprawione hasło i adres samej domeny (puste Nazwa: domena).
 Zmiana loginu na już zapisany z tym hasłem: „Ten login jest już zapisany”, **Zapisz** nieaktywny; puste hasło:
-**Zapisz** nieaktywny. Ponowne logowanie tym samym hasłem: bez panelu. (3) **Zmiana hasła:** ten sam login z
-innym hasłem → nagłówek „Zmiana hasła: <wpis>” → **Zapisz**: zmieniło się tylko hasło. Rejestracja z polem „nowe
+**Zapisz** nieaktywny. Ponowne logowanie tym samym hasłem: bez okna. (3) **Zmiana hasła:** ten sam login z
+innym hasłem → nagłówek „Zmiana hasła: <wpis>” i uwaga o „Poprzednie hasło” → **Zapisz**: zmieniło się hasło, w
+polach własnych wpisu ukryte „Poprzednie hasło” ze starym. Rejestracja z polem „nowe
 hasło” pyta o to hasło; samo pole „nowe hasło” (zmiana hasła bez loginu) i formularz
-kontaktowy z hasłem też pytają. (4) **Bez przeładowania i przekierowania:** logowanie przez fetch/SPA (panel od razu) i
-przez przekierowanie na inną stronę tej samej domeny (panel po załadowaniu, do 2 min). Złe hasło z przeładowaniem
-tego samego formularza: bez panelu. Panel zostawiony bez odpowiedzi znika sam po 2 min. (5) **Odmowy:** **Nie teraz** i × zamykają panel; po przeładowaniu go nie ma.
+kontaktowy z hasłem też pytają. (4) **Bez przeładowania i przekierowania:** logowanie przez fetch/SPA (okno od razu) i
+przez przekierowanie na inną stronę tej samej domeny (okno zostaje). Złe hasło z przeładowaniem
+tego samego formularza: okno się zamyka. Okno zostawione bez odpowiedzi zamyka się samo po 2 min. (5) **Odmowy:** **Nie teraz** i × zamykają okno i zdejmują odznakę.
+Zamknięcie okna systemowym przyciskiem: odznaka zostaje, klik w ikonę pokazuje pytanie w okienku.
 **Nigdy dla tej strony**: host na liście w **Zapis**, kolejne logowanie bez pytania, **Usuń** przywraca pytanie.
-(6) **Zablokowany sejf:** wyślij formularz, zablokuj sejf (albo poczekaj 15 min): panel „Odblokuj i zapisz” →
-okienko → hasło albo PIN → najpierw pytanie o zapis, potem lista. (7) **Wyłączenie:** przełącznik wyłączony →
+(6) **Zablokowany sejf:** zablokuj sejf, wyślij formularz: okno „Odblokuj i zapisz” → przełącza na kartę i otwiera
+okienko wtyczki → hasło albo PIN → najpierw pytanie o zapis, potem lista. (7) **Wyłączenie:** przełącznik wyłączony →
 Chrome cofa uprawnienie, formularze nie pytają (połączenie z telefonem po `http` nadal działa). Zapisz wersję Chrome.
 
 **PIN i karta.** PIN `4821` → Zablokuj → zły PIN „Pozostało prób: 4”, dobry otwiera; restart Chrome prosi o
@@ -338,7 +340,8 @@ login:** aplikacja z ekranem logowania (własna testowa albo prawdziwa) → zalo
 okno systemu z pytaniem o zapis w PassHolder → **Zapisz**: „Zapisano w PassHolder”, na liście loginów nowy wpis z nazwą aplikacji i jej
 pakietem. (2) **Chrome, nowy login:** strona logowania (własny HTML albo prawdziwa) → nowy login: okno systemu →
 zapis; wpis ma nazwę i adres samej domeny. Ponowne logowanie tym samym hasłem: bez okna. (3) **Chrome, zmiana
-hasła:** ten sam login z innym hasłem → okno → „Zaktualizowano hasło w PassHolder”, zmieniło się tylko hasło
+hasła:** ten sam login z innym hasłem → okno → „Zaktualizowano hasło w PassHolder”, zmieniło się hasło (stare w
+ukrytym polu „Poprzednie hasło”)
 (login w innej wielkości liter: aktualizacja, nie duplikat). (4) **Zablokowany sejf:** zablokuj sejf, zaloguj się
 nowym loginem: okno systemu → ekran odblokowania; hasło główne (potem to samo z odciskiem palca: okno odcisku
 otwiera się samo) → „Zapisano w PassHolder”, sejf znów zablokowany (po 60 s albo od razu, zależnie od „Blokuj
@@ -399,7 +402,15 @@ odcisku wyłączony, „Urządzenia” puste. (3) Zablokuj telefon: stare hasło
 hasło nie otwiera sejfu na telefonie…”; nowy kod i nowe hasło → sparowano, wpis z kroku 1 jest na telefonie. (6) Wtyczka:
 PIN wyłączony; zablokuj: stare hasło odrzucone, nowe działa. Zapisz wynik, wersję Chrome i model telefonu.
 
-**T26. Grupa 5 przeglądu V3 (wtyczka i telefon).** (1) **Eksport (N6), wtyczka:** Plik → zaznacz „Rozumiem…”, bez
+**T26. Przegląd V3, grupa 1 (wtyczka).** Pytanie o zapis włączone, sejf otwarty. (1) **Skrypt strony (S1):** w konsoli
+DevTools strony logowania: `setTimeout(() => document.forms[0].requestSubmit(), 6000)` i nic nie klikaj: brak okna
+i odznaki. (2) **Okno (S1):** zaloguj się ręcznie: okno wtyczki obok, nie w stronie (w DevTools strony nie ma
+elementu `data-passholder-save`). (3) **Kontakt (S4):** strona z formularzem: widoczne pole e-mail, pole `tel` z
+`style="clip-path: inset(50%)"` i drugi formularz z polem `tel`; kursor w e-mailu → okienko → **Wypełnij** kontaktem:
+wypełniony tylko e-mail. (4) **I4:** popup „Wypełnij” i Kopiuj hasło działają jak wcześniej. Sprawdzone automatycznie w
+Chromium (Playwright, 2026-11-15): (1), (2), (3) i zamknięcie okna z odznaką.
+
+**T27. Grupa 5 przeglądu V3 (wtyczka i telefon).** (1) **Eksport (N6), wtyczka:** Plik → zaznacz „Rozumiem…”, bez
 hasła → „Wpisz hasło główne, żeby pobrać plik.”; złe hasło → „Złe hasło główne”, nic się nie pobiera; dobre → plik.
 (2) **Eksport, telefon:** sejf odblokowany odciskiem, ⋮ → Import i eksport → „Zapisz plik” z pustym albo złym hasłem: okno
 zapisu się nie otwiera; dobre hasło → okno zapisu, plik zapisany. (3) **PIN (N4):** PIN włączony, otwórz wtyczkę w dwóch
