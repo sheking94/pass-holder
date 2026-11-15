@@ -319,6 +319,7 @@ Parowanie (`/p2p/v1/pair/hello`, `start`, `finish`) i odtwarzanie z wtyczki:
 ## Stan przeglądu bezpieczeństwa
 
 Raport: [archive/PRZEGLAD_BEZPIECZENSTWA.md](archive/PRZEGLAD_BEZPIECZENSTWA.md) (2026-11-01, jeszcze z serwerem Pi).
+Drugi, pełny przegląd po V3: [PRZEGLAD_BEZPIECZENSTWA_V3.md](PRZEGLAD_BEZPIECZENSTWA_V3.md) (2026-11-15).
 
 | Punkt | Stan |
 |---|---|
@@ -334,3 +335,4 @@ Raport: [archive/PRZEGLAD_BEZPIECZENSTWA.md](archive/PRZEGLAD_BEZPIECZENSTWA.md)
 | I3 | ograniczenie platform, bez zmian: hasła jako `String` w JS i Kotlinie nie dają się wyzerować; klucze na Androidzie są zerowane (`fill(0)`), we wtyczce trzymane jako Base64 w `chrome.storage.session` (pamięć przeglądarki) |
 | I4 | `MasterPasswordRules`: 12 znaków i bez oczywistych wzorców |
 | I5 | `npm audit`: 0 podatności; Gradle do sprawdzenia ręcznie ([TESTY.md](TESTY.md#zależności-przegląd-bezpieczeństwa-i5)) |
+| V3 (2026-11-15) | pełny przegląd po V3: 0 K, 0 W, 4 S, 7 N, 5 I; poprawki w osobnych wątkach ([PRZEGLAD_BEZPIECZENSTWA_V3.md](PRZEGLAD_BEZPIECZENSTWA_V3.md)) |
