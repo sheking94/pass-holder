@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import java.io.IOException
 import java.net.BindException
+import java.net.InetAddress
 import java.util.concurrent.atomic.AtomicLong
 
 data class SyncUiState(
@@ -40,11 +41,13 @@ class SyncController(
     private val now: () -> Long = System::currentTimeMillis,
     /** The phone's addresses for the port actually bound (with [port] 0 the system picks one). */
     private val addresses: (boundPort: Int) -> List<String> = { LocalAddresses.list(it) },
+    /** Whether to serve a connection that came in on this local address (e.g. not on the cellular network). */
+    private val allowsLocal: (InetAddress) -> Boolean = { true },
     /** After each sync an extension finished (on a server thread): the vault on disk may have changed. */
     private val onSynced: () -> Unit = {},
 ) {
     companion object {
-        const val IDLE_STOPPED = "Tryb synchronizacji wyłączony po 5 min bez połączeń."
+        const val IDLE_STOPPED = "Tryb synchronizacji wyłączony po 5 min bez synchronizacji."
         const val LEFT_APP_STOPPED = "Tryb synchronizacji wyłączony po wyjściu z aplikacji."
     }
 
@@ -56,7 +59,7 @@ class SyncController(
     private var known: Map<String, StoredDevice> = emptyMap()
     @Volatile
     private var currentAddresses: List<String> = emptyList()
-    private val lastRequestAt = AtomicLong(0)
+    private val lastActivityAt = AtomicLong(0)
 
     private val _state = MutableStateFlow(SyncUiState())
     val state: StateFlow<SyncUiState> = _state.asStateFlow()
@@ -77,9 +80,11 @@ class SyncController(
     fun start(ticket: Long = startTicket()): Boolean {
         synchronized(lock) {
             if (server != null || ticket != stops) return false
-            val router = store.router(onRequest = { lastRequestAt.set(now()) }, addresses = { currentAddresses })
+            val router = store.router(onActivity = { lastActivityAt.set(now()) }, addresses = { currentAddresses })
             lateinit var http: SyncHttpServer
-            http = SyncHttpServer(port, { path, body -> router.handle(path, body).also { afterRequest(http) } })
+            http = SyncHttpServer(
+                port, { path, body -> router.handle(path, body).also { afterRequest(http) } }, allowLocal = allowsLocal,
+            )
             val bound = try {
                 http.start()
             } catch (e: BindException) {
@@ -89,7 +94,7 @@ class SyncController(
             }
             server = http
             currentAddresses = addresses(bound)
-            lastRequestAt.set(now())
+            lastActivityAt.set(now())
             val devices = store.devices()
             known = devices.associateBy { it.deviceId }
             _state.value = SyncUiState(running = true, addresses = currentAddresses, devices = devices)
@@ -117,18 +122,20 @@ class SyncController(
         }
     }
 
-    /** "Dodaj wtyczkę": a new code (in restore mode while a restore is in progress). */
+    /** "Dodaj wtyczkę": a new code (in restore mode while a restore is in progress); the idle time starts again. */
     fun offerPairing() {
         val offer = store.offerPairing()
+        lastActivityAt.set(now())
         _state.update { it.copy(offer = offer, offerSpent = false) }
     }
 
     /**
-     * Stops sync mode after [PhoneSync.SYNC_IDLE_MS] without a request; also notices an expired code.
+     * Stops sync mode after [PhoneSync.SYNC_IDLE_MS] without a successful sync, file request, pairing or new code
+     * (ping and handshakes do not count, see PhoneRouter); also notices an expired code.
      * Returns true when it stopped sync mode.
      */
     fun checkIdle(): Boolean {
-        if (running && now() - lastRequestAt.get() >= PhoneSync.SYNC_IDLE_MS) {
+        if (running && now() - lastActivityAt.get() >= PhoneSync.SYNC_IDLE_MS) {
             stop(IDLE_STOPPED)
             return true
         }

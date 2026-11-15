@@ -101,7 +101,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val state: StateFlow<UiState> = _state.asStateFlow()
 
     /** A sync may have changed entries: the list must not keep (and the edit form must not save over) older ones. */
-    private val sync = SyncController(store, app.syncPort, { app.clock() }, app.syncAddresses, onSynced = {
+    private val sync = SyncController(store, app.syncPort, { app.clock() }, app.syncAddresses, app.syncAllowsLocal, onSynced = {
         viewModelScope.launch { refresh() }
     })
     /** Sync mode: server, addresses, pairing code, last event, paired devices. */

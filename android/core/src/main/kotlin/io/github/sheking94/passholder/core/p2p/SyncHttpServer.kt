@@ -3,6 +3,7 @@ package io.github.sheking94.passholder.core.p2p
 import java.io.BufferedInputStream
 import java.io.IOException
 import java.io.InputStream
+import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
@@ -20,7 +21,10 @@ import java.util.concurrent.TimeUnit
  * Any LAN host can connect before it authenticates, so a client gets at most [requestDeadlineMs] in total to send
  * its request (headers and body), [threads] connections are served at once and [queueCapacity] more may wait;
  * beyond that a connection gets 503 at once. The Host header must be an IPv4 literal or localhost
- * (a DNS-rebinding page in the user's browser would send its own host name).
+ * (a DNS-rebinding page in the user's browser would send its own host name). A request with an `Origin` header
+ * other than `chrome-extension://…` gets 403 and one without `Content-Type: application/json` gets 415, so a web page
+ * cannot send a "simple" no-cors POST (`text/plain`) that the server would act on.
+ * A connection to a local address [allowLocal] refuses (e.g. the cellular interface) is closed without an answer.
  */
 class SyncHttpServer(
     private val port: Int,
@@ -30,6 +34,8 @@ class SyncHttpServer(
     private val requestDeadlineMs: Long = 15_000,
     private val queueCapacity: Int = 16,
     private val socketFactory: () -> ServerSocket = { ServerSocket() },
+    /** Whether to serve a connection that came in on this local address; checked on a worker thread. */
+    private val allowLocal: (InetAddress) -> Boolean = { true },
 ) {
     companion object {
         const val MAX_HEADER_BYTES = 16 * 1024
@@ -171,6 +177,7 @@ class SyncHttpServer(
 
     private fun serve(client: Socket) {
         client.use {
+            if (!localAllowed(client)) return
             try {
                 val deadline = System.nanoTime() + requestDeadlineMs * 1_000_000
                 val input = BufferedInputStream(DeadlineInput(client, deadline))
@@ -189,6 +196,12 @@ class SyncHttpServer(
                 // Timeout, reset or early EOF: just drop the connection.
             }
         }
+    }
+
+    private fun localAllowed(client: Socket): Boolean = try {
+        allowLocal(client.localAddress)
+    } catch (_: Exception) {
+        false
     }
 
     private fun error(status: Int, message: String) = HostReply(status, """{"error":"$message"}""")
@@ -217,6 +230,10 @@ class SyncHttpServer(
         if (raw.isEmpty() || !raw.all { it in '0'..'9' } || raw.length > 10) throw HttpError(400, "bad request")
         val length = raw.toLong()
         if (length > P2pHost.MAX_BODY_BYTES) throw HttpError(413, "body too large")
+        val origin = headers["origin"]
+        if (origin != null && !origin.startsWith("chrome-extension://")) throw HttpError(403, "forbidden origin")
+        val type = headers["content-type"]?.substringBefore(';')?.trim()?.lowercase()
+        if (type != "application/json") throw HttpError(415, "unsupported media type")
         val body = ByteArray(length.toInt())
         var read = 0
         while (read < body.size) {
@@ -270,6 +287,7 @@ class SyncHttpServer(
         405 -> "Method Not Allowed"
         411 -> "Length Required"
         413 -> "Payload Too Large"
+        415 -> "Unsupported Media Type"
         431 -> "Request Header Fields Too Large"
         500 -> "Internal Server Error"
         501 -> "Not Implemented"

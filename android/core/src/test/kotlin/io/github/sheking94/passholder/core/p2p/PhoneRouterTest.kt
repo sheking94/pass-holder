@@ -62,19 +62,24 @@ class PhoneRouterTest {
     }
 
     @Test
-    fun everyRequestToAKnownPathCallsOnRequest() {
+    fun onlyAuthenticatedSuccessCountsAsActivity() {
         var count = 0
-        val router = PhoneRouter(pairing, { null }, { count++ })
+        val hostKey = NoiseKeys.generate()
+        val key = NoiseKeys.generate()
+        val epoch = Encoding.toBase64(Encoding.randomBytes(16))
+        val host = P2pHost(hostKey, { listOf(PairedDevice("a", "a", key.publicKey)) }, MemorySyncStore(), epoch, { emptyList() })
+        val router = PhoneRouter(pairing, { host }, { count++ })
+        // Anyone on the network can send these: they must not keep sync mode awake.
         post(router, "/p2p/v1/ping")
         post(router, "/p2p/v1/ping", "[]")
         post(router, "/p2p/v2/handshake")
+        post(router, "/p2p/v2/sync")
         post(router, "/p2p/v1/pair/hello")
-        assertEquals(4, count)
-        // A scanner probing unknown paths does not keep sync mode awake.
         post(router, "/p2p/v1/nope")
-        post(router, "/")
-        post(router, "/index.html", "[]")
-        assertEquals(4, count)
+        assertEquals(0, count)
+        val client = TestP2pClient("a", key, hostKey.publicKey, router::handle)
+        client.syncResponse(P2pSyncRequest(epoch, 0, emptyList()))
+        assertEquals(1, count)
     }
 
     @Test
@@ -110,7 +115,7 @@ class PhoneRouterTest {
         val router = PhoneRouter(pairing, { host }, { calls.incrementAndGet() })
         assertEquals(HostReply(400, """{"error":"malformed request"}"""), post(router, "/p2p/v2/sync"))
         assertEquals(HostReply(400, """{"error":"malformed request"}"""), post(router, "/p2p/v2/handshake"))
-        assertEquals(2, calls.get())
+        assertEquals(0, calls.get())
     }
 
     @Test
@@ -118,7 +123,7 @@ class PhoneRouterTest {
         var count = 0
         val notReady = HostReply(503, """{"error":"vault not ready"}""")
         assertEquals(notReady, post(PhoneRouter(pairing, { null }, { count++ }), "/p2p/v2/file"))
-        assertEquals(1, count)
+        assertEquals(0, count)
         val hostKey = NoiseKeys.generate()
         val key = NoiseKeys.generate()
         val host = P2pHost(
@@ -128,6 +133,7 @@ class PhoneRouterTest {
         val router = PhoneRouter(pairing, { host }, { count++ })
         val client = TestP2pClient("a", key, hostKey.publicKey, router::handle)
         assertEquals(HostReply(200, """{"files":[]}"""), client.file("""{"op":"status","epoch":"e","ids":[]}"""))
-        assertEquals(3, count)
+        // The handshake before it does not count, the file answer does.
+        assertEquals(1, count)
     }
 }

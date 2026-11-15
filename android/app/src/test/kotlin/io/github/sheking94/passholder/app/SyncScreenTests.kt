@@ -147,23 +147,25 @@ class SyncAndPairTest : SyncScreenTestBase() {
 
 class IdleStopTest : SyncScreenTestBase() {
     @Test
-    fun `sync mode turns off after 5 minutes without a request`() {
+    fun `sync mode turns off after 5 minutes without a sync, a ping does not keep it on`() {
         createVault()
         click("Synchronizacja")
         waitFor("http://127.0.0.1:", substring = true)
         val vm = viewModel()
 
-        // A request restarts the 5 minutes. (All the shifts together stay under the 15-minute auto-lock.)
+        // A new code restarts the 5 minutes. (All the shifts together stay under the 15-minute auto-lock.)
         clock += 200_000
-        assertEquals(200, ping())
+        click("Dodaj wtyczkę")
+        waitFor("Ważny jeszcze", substring = true)
         clock += 299_000
         vm.checkAutoLock()
         compose.waitForIdle()
+        // Anyone on the network can ping (security review V3-N2): it answers, but does not count as activity.
         assertEquals(200, ping())
 
-        clock += 300_001
+        clock += 1_001
         vm.checkAutoLock()
-        waitFor("Tryb synchronizacji wyłączony po 5 min bez połączeń.")
+        waitFor("Tryb synchronizacji wyłączony po 5 min bez synchronizacji.")
         assertNotListening(port)
         assertFalse(keepsScreenOn())
         shot("25-synchronizacja-wylaczona")
@@ -296,7 +298,7 @@ class RestoreRestartTest : SyncScreenTestBase() {
         // The idle stop, then "Włącz ponownie" brings the server back with a fresh code.
         clock += 300_001
         viewModel().checkAutoLock()
-        waitFor("Tryb synchronizacji wyłączony po 5 min bez połączeń.")
+        waitFor("Tryb synchronizacji wyłączony po 5 min bez synchronizacji.")
         assertNotListening(port)
         click("Włącz ponownie")
         waitFor("Ważny jeszcze 02:00", substring = true)
