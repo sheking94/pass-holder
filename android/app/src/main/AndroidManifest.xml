@@ -3,6 +3,8 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Sync mode answers only on Wi-Fi, Ethernet and Tailscale (security review V3-N2): it asks which network is which. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!-- Launcher apps only: enough to list the apps a login can be tied to, without QUERY_ALL_PACKAGES. -->
     <queries>
@@ -10,6 +12,20 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
+        <!-- The trusted browsers (core TRUSTED_BROWSERS), so their certificates can be read even without a launcher icon. -->
+        <package android:name="com.android.chrome" />
+        <package android:name="com.chrome.beta" />
+        <package android:name="com.chrome.dev" />
+        <package android:name="com.chrome.canary" />
+        <package android:name="org.mozilla.firefox" />
+        <package android:name="org.mozilla.firefox_beta" />
+        <package android:name="org.mozilla.focus" />
+        <package android:name="com.microsoft.emmx" />
+        <package android:name="com.brave.browser" />
+        <package android:name="com.sec.android.app.sbrowser" />
+        <package android:name="com.opera.browser" />
+        <package android:name="com.duckduckgo.mobile.android" />
+        <package android:name="com.vivaldi.browser" />
     </queries>
 
     <!-- allowBackup=false: the vault is encrypted anyway, but it has no business in cloud backups. -->

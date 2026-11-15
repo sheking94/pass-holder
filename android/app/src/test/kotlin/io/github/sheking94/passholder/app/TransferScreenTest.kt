@@ -53,8 +53,20 @@ class TransferScreenTest : ScreenTestBase() {
         compose.runOnIdle { vm.importFrom(file("cp1250.csv", "name,url\nZażółć,https://x.pl\n".toByteArray(charset("windows-1250")))) }
         waitFor("Plik nie jest zapisany w UTF-8")
 
-        // Export, then import the same file: nothing new, the duplicate is reported.
+        // Security review V3-N6: no export without the master password, and a wrong one opens no save dialog.
         val exported = file("passholder.json", ByteArray(0))
+        compose.runOnIdle { vm.exportTo(TransferFormat.PASSHOLDER, exported) }
+        waitFor("Wpisz hasło główne, żeby zapisać plik.")
+        assertEquals(0L, File(dir, "passholder.json").length())
+        var dialogs = 0
+        compose.runOnIdle { vm.confirmExport("nie to hasło") { dialogs++ } }
+        waitFor("Złe hasło główne")
+        assertEquals(0, dialogs)
+
+        // Export, then import the same file: nothing new, the duplicate is reported.
+        compose.runOnIdle { vm.confirmExport(masterPassword) { dialogs++ } }
+        // The check resumes on the main looper, which Robolectric runs only when told to.
+        compose.waitUntil(60_000) { shadowOf(Looper.getMainLooper()).idle(); dialogs == 1 }
         compose.runOnIdle { vm.exportTo(TransferFormat.PASSHOLDER, exported) }
         waitFor("Zapisano plik. Usuń go zaraz po użyciu, zawiera hasła jawnym tekstem.")
         val text = File(dir, "passholder.json").readText()

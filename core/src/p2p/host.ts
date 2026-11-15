@@ -37,6 +37,14 @@ const MAX_BODY_BYTES = 1024 * 1024;
 const SESSION_TTL_MS = 60_000;
 /** Most sessions alive at once; a handshake beyond that gets 503 until some expire or are used. */
 export const MAX_SESSIONS = 32;
+/** Most sessions of one device alive at once, so one device's messages cannot fill the whole table. */
+export const MAX_SESSIONS_PER_DEVICE = 4;
+/**
+ * How many accepted first handshake messages the host remembers (oldest dropped first). A copy of one of them is
+ * refused with 400: the message holds nothing fresh from the host, so without this memory every copy would open a
+ * session. Only messages that passed Noise (made by a paired device) are kept, so nobody else can flood it.
+ */
+export const MAX_SEEN_HANDSHAKES = 4096;
 
 const fail = (status: number, error: string): Reply => ({ status, body: { error } });
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -59,6 +67,8 @@ function decodeBase64(value: unknown): Uint8Array | undefined {
 export class P2pHost {
   readonly #o: P2pHostOptions;
   readonly #sessions = new Map<string, Session>();
+  /** Ephemeral keys (first 32 bytes) of accepted handshakes, in insertion order. */
+  readonly #seen = new Set<string>();
 
   constructor(o: P2pHostOptions) {
     this.#o = o;
@@ -92,10 +102,13 @@ export class P2pHost {
       return fail(400, "malformed request");
     const device = this.#o.devices().find((d) => d.deviceId === body.deviceId);
     if (!device) return fail(403, "device not paired");
-    // handle() already pruned the expired sessions.
-    if (this.#sessions.size >= MAX_SESSIONS) return fail(503, "too many sessions");
     const message = decodeBase64(body.message);
     if (!message) return fail(400, "malformed request");
+    const ephemeral = toBase64(message.subarray(0, 32));
+    if (this.#seen.has(ephemeral)) return fail(400, "replayed handshake");
+    // handle() already pruned the expired sessions.
+    const full = this.#full(device.deviceId);
+    if (full) return full;
     const noise = NoiseKK.responder({
       s: this.#o.staticKey,
       rs: device.staticPublicKey,
@@ -108,6 +121,11 @@ export class P2pHost {
     } catch {
       return fail(400, "handshake failed");
     }
+    // Other calls may have run during the awaits: check again, then record without awaiting in between.
+    if (this.#seen.has(ephemeral)) return fail(400, "replayed handshake");
+    const fullNow = this.#full(device.deviceId);
+    if (fullNow) return fullNow;
+    this.#remember(ephemeral);
     const { send, recv } = noise.split();
     const session = toBase64(randomBytes(16));
     this.#sessions.set(session, {
@@ -118,6 +136,19 @@ export class P2pHost {
       expiresAt: this.#now() + SESSION_TTL_MS,
     });
     return { status: 200, body: { session, message: toBase64(reply) } };
+  }
+
+  /** 503 when the table, or this device's share of it, is full. */
+  #full(deviceId: string): Reply | undefined {
+    if (this.#sessions.size >= MAX_SESSIONS) return fail(503, "too many sessions");
+    let own = 0;
+    for (const s of this.#sessions.values()) if (s.deviceId === deviceId) own++;
+    return own >= MAX_SESSIONS_PER_DEVICE ? fail(503, "too many sessions") : undefined;
+  }
+
+  #remember(ephemeral: string): void {
+    this.#seen.add(ephemeral);
+    if (this.#seen.size > MAX_SEEN_HANDSHAKES) this.#seen.delete(this.#seen.values().next().value as string);
   }
 
   /** Common part of the one-request-per-session paths; `process` returns a reply whose 200 body gets encrypted. */

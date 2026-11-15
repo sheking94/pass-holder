@@ -29,7 +29,7 @@ class SaveLoginTest {
         app.phoneStore.createVault("haslo-glowne-1")
     }
 
-    private fun browser(domain: String) = AppRequest("com.android.chrome", domain, "https")
+    private fun browser(domain: String) = AppRequest("com.android.chrome", domain, "https", browserVerified = true, appVerified = true)
     private fun logins() = app.phoneStore.entries().map { it.id to it.content }
     private fun addGithub() = app.phoneStore.upsertContent(
         "1", EntryContentV3("GitHub", "notatka", LoginFields("jkowalski", "s3cret", urls = listOf("https://github.com")), emptyList()),
@@ -48,16 +48,19 @@ class SaveLoginTest {
 
     @Test
     fun `new login in an app saved under the package`() {
-        assertEquals(SaveOutcome.SAVED, saveLogin(app, SaveData(AppRequest("com.example.bank", null, null), "jan", "pw"), label))
+        app.appSigners = io.github.sheking94.passholder.app.AppSigners { setOf("cc") }
+        assertEquals(SaveOutcome.SAVED, saveLogin(app, SaveData(AppRequest("com.example.bank", null, null, appVerified = true), "jan", "pw"), label))
         val (_, content) = logins().single()
         assertEquals("Bank", content.name)
         assertEquals(listOf("com.example.bank"), (content.fields as LoginFields).androidApps)
+        // V3-S3: the app the login was saved in is the one tied to it.
+        assertEquals(setOf("cc"), app.appTrust.remembered("com.example.bank"))
     }
 
     @Test
     fun `app posing as a site saved under its package`() {
         addGithub()
-        val data = SaveData(AppRequest("com.evil.app", "github.com", "https"), "jkowalski", "other")
+        val data = SaveData(AppRequest("com.evil.app", "github.com", "https", appVerified = true), "jkowalski", "other")
         assertEquals(SaveOutcome.SAVED, saveLogin(app, data, label))
         val all = logins()
         assertEquals(2, all.size)

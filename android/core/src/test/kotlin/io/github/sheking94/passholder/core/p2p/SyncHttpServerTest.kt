@@ -32,7 +32,7 @@ class SyncHttpServerTest {
 
     private fun post(port: Int, path: String, body: String): Raw {
         val len = body.toByteArray().size
-        return send(port, "POST $path HTTP/1.1\r\nHost: 127.0.0.1:$port\r\ncontent-length: $len\r\n\r\n$body")
+        return send(port, "POST $path HTTP/1.1\r\nHost: 127.0.0.1:$port\r\ncontent-type: application/json\r\ncontent-length: $len\r\n\r\n$body")
     }
 
     private inline fun withServer(
@@ -79,7 +79,7 @@ class SyncHttpServerTest {
     @Test
     fun `oversized content length is 413 without reading the body`() = withServer { _, port ->
         val t0 = System.nanoTime()
-        val r = send(port, "POST /x HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 1048577\r\n\r\n")
+        val r = send(port, "POST /x HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\nContent-Length: 1048577\r\n\r\n")
         assertEquals(413, r.status)
         assertEquals("""{"error":"body too large"}""", r.body)
         assertTrue((System.nanoTime() - t0) / 1_000_000 < 1000)
@@ -95,7 +95,7 @@ class SyncHttpServerTest {
     @Test
     fun `malformed content length is 400`() = withServer { _, port ->
         for (v in listOf("abc", "-1", "")) {
-            val r = send(port, "POST /x HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: $v\r\n\r\n")
+            val r = send(port, "POST /x HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\nContent-Length: $v\r\n\r\n")
             assertEquals(400, r.status, v)
             assertEquals("""{"error":"bad request"}""", r.body)
         }
@@ -103,7 +103,7 @@ class SyncHttpServerTest {
 
     @Test
     fun `transfer encoding is 501`() = withServer { _, port ->
-        val r = send(port, "POST /x HTTP/1.1\r\nHost: 127.0.0.1\r\nTransfer-Encoding: chunked\r\nContent-Length: 0\r\n\r\n")
+        val r = send(port, "POST /x HTTP/1.1\r\nHost: 127.0.0.1\r\nTransfer-Encoding: chunked\r\nContent-Type: application/json\r\nContent-Length: 0\r\n\r\n")
         assertEquals(501, r.status)
         assertEquals("""{"error":"not implemented"}""", r.body)
     }
@@ -111,7 +111,7 @@ class SyncHttpServerTest {
     @Test
     fun `headers over 16 KiB are 431`() = withServer { _, port ->
         val big = "a".repeat(17 * 1024)
-        val r = send(port, "POST /x HTTP/1.1\r\nHost: 127.0.0.1\r\nX-Big: $big\r\nContent-Length: 0\r\n\r\n")
+        val r = send(port, "POST /x HTTP/1.1\r\nHost: 127.0.0.1\r\nX-Big: $big\r\nContent-Type: application/json\r\nContent-Length: 0\r\n\r\n")
         assertEquals(431, r.status)
         assertEquals("""{"error":"headers too large"}""", r.body)
     }
@@ -179,7 +179,7 @@ class SyncHttpServerTest {
     @Test
     fun `host that is not an IP literal or localhost is 403`() = withServer { _, port ->
         for (host in listOf("evil.example", "x", "127.0.0.1.evil.example", "300.1.1.1", "[::1]", "")) {
-            val r = send(port, "POST /x HTTP/1.1\r\nHost: $host\r\nContent-Length: 2\r\n\r\n{}")
+            val r = send(port, "POST /x HTTP/1.1\r\nHost: $host\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}")
             assertEquals(403, r.status, host)
             assertEquals("""{"error":"forbidden host"}""", r.body)
         }
@@ -188,14 +188,73 @@ class SyncHttpServerTest {
     @Test
     fun `ip literal and localhost hosts are accepted`() = withServer { _, port ->
         for (host in listOf("127.0.0.1", "192.168.1.20:8787", "localhost", "LOCALHOST:8787", "10.0.0.2")) {
-            val r = send(port, "POST /x HTTP/1.1\r\nHost: $host\r\nContent-Length: 2\r\n\r\n{}")
+            val r = send(port, "POST /x HTTP/1.1\r\nHost: $host\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}")
             assertEquals(200, r.status, host)
+        }
+    }
+
+    // ---- Web pages (Origin, Content-Type) ----
+
+    @Test
+    fun `origin other than an extension is 403`() = withServer { _, port ->
+        for (origin in listOf("https://evil.example", "null", "http://192.168.1.5:8787")) {
+            val r = send(port, "POST /x HTTP/1.1\r\nHost: 127.0.0.1\r\nOrigin: $origin\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}")
+            assertEquals(403, r.status, origin)
+            assertEquals("""{"error":"forbidden origin"}""", r.body)
+        }
+    }
+
+    @Test
+    fun `extension origin or none is accepted`() = withServer { _, port ->
+        val ext = send(port, "POST /x HTTP/1.1\r\nHost: 127.0.0.1\r\nOrigin: chrome-extension://abcdef\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}")
+        assertEquals(200, ext.status)
+        assertEquals(200, post(port, "/x", "{}").status)
+    }
+
+    @Test
+    fun `content type other than json is 415`() = withServer { _, port ->
+        for (type in listOf(null, "text/plain", "application/x-www-form-urlencoded", "multipart/form-data; boundary=x", "application/jsonx")) {
+            val header = if (type == null) "" else "Content-Type: $type\r\n"
+            val r = send(port, "POST /x HTTP/1.1\r\nHost: 127.0.0.1\r\n${header}Content-Length: 2\r\n\r\n{}")
+            assertEquals(415, r.status, type)
+            assertEquals("""{"error":"unsupported media type"}""", r.body)
+        }
+    }
+
+    @Test
+    fun `json content type with parameters is accepted`() = withServer { _, port ->
+        for (type in listOf("application/json", "Application/JSON; charset=utf-8")) {
+            val r = send(port, "POST /x HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: $type\r\nContent-Length: 2\r\n\r\n{}")
+            assertEquals(200, r.status, type)
+        }
+    }
+
+    @Test
+    fun `connection on a refused local address is closed without an answer`() {
+        val handled = AtomicInteger()
+        val server = SyncHttpServer(0, { _, _ -> handled.incrementAndGet(); HostReply(200, "{}") }, allowLocal = { !it.isLoopbackAddress })
+        val port = server.start()
+        try {
+            Socket("127.0.0.1", port).use { s ->
+                s.soTimeout = 5000
+                s.getOutputStream().write("POST /x HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}".toByteArray())
+                s.getOutputStream().flush()
+                val first = try {
+                    s.getInputStream().read()
+                } catch (_: IOException) {
+                    -1
+                }
+                assertEquals(-1, first)
+            }
+            assertEquals(0, handled.get())
+        } finally {
+            server.stop()
         }
     }
 
     @Test
     fun `missing host is 400`() = withServer { _, port ->
-        val r = send(port, "POST /x HTTP/1.1\r\nContent-Length: 2\r\n\r\n{}")
+        val r = send(port, "POST /x HTTP/1.1\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}")
         assertEquals(400, r.status)
         assertEquals("""{"error":"bad request"}""", r.body)
     }
@@ -236,14 +295,14 @@ class SyncHttpServerTest {
     @Test
     fun `slow trickle client is cut off at the total deadline`() = withServer(timeout = 2_000, deadline = 500) { _, port ->
         // Every single read is far under the 2 s read timeout; only the total deadline stops it.
-        val headers = "POST /x HTTP/1.1\r\nHost: 127.0.0.1\r\nX-Pad: ${"a".repeat(200)}\r\nContent-Length: 2\r\n\r\n{}"
+        val headers = "POST /x HTTP/1.1\r\nHost: 127.0.0.1\r\nX-Pad: ${"a".repeat(200)}\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}"
         val ms = trickle(port, headers, gapMs = 20)
         assertTrue(ms in 400..1_800, "cut off after $ms ms")
     }
 
     @Test
     fun `body trickle is also covered by the deadline`() = withServer(timeout = 2_000, deadline = 500) { _, port ->
-        val ms = trickle(port, "POST /x HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 1000\r\n\r\n" + "x".repeat(1000), gapMs = 5)
+        val ms = trickle(port, "POST /x HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\nContent-Length: 1000\r\n\r\n" + "x".repeat(1000), gapMs = 5)
         assertTrue(ms < 1_800, "cut off after $ms ms")
     }
 

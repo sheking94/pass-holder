@@ -115,8 +115,11 @@ Strony dzielą termin przez `storage.session`, więc blokada w jednej blokuje ws
 
 PIN to skrót zamiast hasła głównego, **tylko w tej jednej przeglądarce**. Hasło główne działa zawsze.
 
-- Włączanie: przycisk **PIN** na liście (przy odblokowanym sejfie). PIN to 4-6 cyfr.
-- Po **5 błędnych PIN-ach z rzędu** PIN jest kasowany i trzeba podać hasło główne.
+- Włączanie: przycisk **PIN** na liście (przy odblokowanym sejfie). PIN w pamięci to 4-6 cyfr albo długi PIN
+  (jak niżej); PIN na dysku musi być długi.
+- Po **5 błędnych PIN-ach z rzędu** PIN jest kasowany i trzeba podać hasło główne. Próby z kilku kart wtyczki
+  idą po kolei (`navigator.locks`, blokada `passholder-pin` w `PinStore.unlock`), więc każda się liczy
+  (przegląd V3-N4).
 - Domyślnie PIN jest tylko w pamięci (`chrome.storage.session`): po zamknięciu Chrome albo przeładowaniu
   wtyczki trzeba raz podać hasło główne.
 - **„Pamiętaj PIN po zamknięciu przeglądarki”** zapisuje go na dysku (`chrome.storage.local`). Ten tryb
@@ -138,7 +141,10 @@ głównego, tylko klucz sejfu.
 
 **Przechowywanie** (`pin-store.ts`, `PinStore`): `PinLock` leży albo w `session`, albo w `local`, nigdy w
 obu. `unlock(pin)` odrzuca zły format bez liczenia próby, a licznik zapisuje **przed** sprawdzeniem PIN-u
-(Argon2id trwa ok. 1 s; zamknięcie okienka w trakcie nie daje darmowej próby). Udane hasło główne zeruje
+(Argon2id trwa ok. 1 s; zamknięcie okienka w trakcie nie daje darmowej próby). Odczyt i zapis licznika nie są
+atomowe, więc cała próba biegnie pod blokadą Web Locks `passholder-pin` (`pinAttemptLock`; okienko, karty i
+service worker mają ten sam origin wtyczki); bez `navigator.locks` (testy w Node) kolejka w obrębie jednego
+kontekstu. Parametry KDF z `PinLock` są sprawdzane (`assertKdfParamsAcceptable`, przegląd V3-I5) przed Argon2id. Udane hasło główne zeruje
 licznik. Parowanie przeglądarki (`pairFinish`) i odłączenie kasują PIN; `repair` (inny telefon) go
 zostawia, bo klucz sejfu jest ten sam.
 
@@ -160,7 +166,9 @@ Wszystkie pięć typów wpisów, w trzech formatach. Lista → **Plik** otwiera 
 zamknęłoby okienko).
 
 - **Eksport:** wybierz format (PassHolder JSON, **PassHolder ZIP (wpisy i pliki)**, Bitwarden JSON, NordPass CSV), zaznacz „Rozumiem, plik będzie
-  zawierał hasła jawnym tekstem” (dla ZIP ostrzeżenie mówi też o odszyfrowanych plikach) → **Pobierz plik**
+  zawierał hasła jawnym tekstem” (dla ZIP ostrzeżenie mówi też o odszyfrowanych plikach), wpisz **hasło główne**
+  (przegląd V3-N6: `VaultStore.confirmMasterPassword`; puste → „Wpisz hasło główne, żeby pobrać plik.”, złe →
+  „Złe hasło główne”; pole czyszczone po każdym kliknięciu; PIN nie wystarczy) → **Pobierz plik**
   (`<format>-RRRR-MM-DD.json`, `.csv` albo `.zip`; domyślnie nadal JSON). Wpisy posortowane po
   nazwie (`localeCompare` „pl”), przy równej nazwie w kolejności login, kontakt, karta, notatka, dokument.
   **JSON i CSV nie niosą plików:** gdy sejf je ma, ekran eksportu pisze np. „2 pliki nie zostaną
@@ -238,8 +246,11 @@ sortowania co we wtyczce; pliki przez systemowy wybór pliku (bez uprawnień do 
   „Plik jest za duży (limit 10 MiB)”; plik niebędący UTF-8 (np. Windows-1250 z Excela) → „Plik nie jest zapisany w
   UTF-8”. Podsumowanie jak we wtyczce („Dodano N wpisów (zsynchronizuj, żeby trafiły do wtyczki).”, w NordPass
   „wiersze”); nowe wpisy są lokalne do następnej synchronizacji. Import jest atomowy (jeden zapis `putAll`).
-- **Eksport:** wybór formatu, ostrzeżenie, „Rozumiem…”, **Zapisz plik** (nieaktywny do zaznaczenia zgody) →
-  wybór miejsca; nazwa `passholder-RRRR-MM-DD.json` (NordPass `.csv`). Po zapisie: „Zapisano plik. Usuń go zaraz
+- **Eksport:** wybór formatu, ostrzeżenie, „Rozumiem…”, pole **Hasło główne**, **Zapisz plik** (nieaktywny do
+  zaznaczenia zgody) → sprawdzenie hasła (przegląd V3-N6, także gdy sejf odblokowano odciskiem palca:
+  `AppViewModel.confirmExport` → `PhoneVaultStore.confirmMasterPassword`) → wybór miejsca. Zgoda jest
+  jednorazowa (`exportApproved`): następny powrót z okna zapisu ją zużywa, a eksport bez niej kończy się
+  „Wpisz hasło główne, żeby zapisać plik.”; nazwa `passholder-RRRR-MM-DD.json` (NordPass `.csv`). Po zapisie: „Zapisano plik. Usuń go zaraz
   po użyciu, zawiera hasła jawnym tekstem.”
 - **Okno wyboru pliku (60 s):** wybór pliku wyprowadza z aplikacji, więc zwykła blokada po wyjściu zablokowałaby
   sejf w trakcie. Przy otwieraniu wyboru blokada po pierwszym wyjściu czeka 60 s, nawet gdy opóźnienie jest
@@ -442,13 +453,25 @@ PassHolder jest systemową usługą autouzupełniania (Android 8+). Włączenie:
 - **Podpowiedzi:** pod polem lista (nazwa wpisu i opis: login, `•••• 1234`, imię i nazwisko), najwyżej 10. Na
   Androidzie 11+ z klawiaturą, która to obsługuje (np. Gboard), te same podpowiedzi także w pasku klawiatury.
   Wybór wpisuje wszystkie pola formularza naraz.
-- **Co pasuje:** loginy w aplikacji – te z pakietem aplikacji na liście „Aplikacje” wpisu (po nazwie); w
+- **Co pasuje:** loginy w aplikacji – te z pakietem aplikacji na liście „Aplikacje” wpisu; w
   zaufanej przeglądarce (Chrome, Firefox, Edge, Brave, Samsung Internet, Opera, DuckDuckGo, Vivaldi i ich
   odmiany) – po adresie strony, te same reguły co we wtyczce. Domenę strony podaną przez inną aplikację (np. jej
   WebView) PassHolder pomija, więc obca aplikacja nie dostanie loginu banku. Karty i kontakty: wszystkie, w
   kolejności listy; kartę przeglądarka dostaje tylko na `https` (i `localhost`). Strona, której schematu
   przeglądarka nie podaje (Android 8.0–8.1 zawsze), liczy się jak `http`: bez loginów zapisanych jako `https` (także
   adresów bez schematu) i bez kart; nowy login z takiej strony dostaje adres `http://domena`.
+- **Rozpoznanie po podpisie (przegląd V3-S3):** sama nazwa pakietu nie wystarcza, bo aplikacja spoza sklepu może
+  zająć nazwę nieobecnej przeglądarki albo aplikacji banku.
+  - Przeglądarka liczy się jako zaufana tylko z certyfikatem podpisu z listy (SHA-256, lista Google'a uprzywilejowanych
+    przeglądarek dla kluczy dostępu). Z innym certyfikatem jest zwykłą aplikacją: jej domena się nie liczy.
+  - Aplikacja wpisu: telefon zapamiętuje certyfikat aplikacji (skrót SHA-256, w prywatnych ustawieniach
+    PassHoldera, `app_certs`) przy wyborze z listy „+ Wybierz aplikację”, przy zapisie nowego loginu w tej
+    aplikacji, a dla pakietu wpisanego ręcznie albo przyszłego z wtyczki lub importu – przy pierwszej podpowiedzi
+    (zaufanie przy pierwszym użyciu). Potem loginy dostaje tylko aplikacja z tym certyfikatem (albo jego następcą
+    z historii podpisu po zmianie klucza). Nowy wybór z listy zastępuje zapamiętany certyfikat.
+  - Pakiet, którego PassHolder nie widzi (widoczność pakietów Androida 11+), nie dostaje nic.
+  - Ograniczenie: fałszywa aplikacja zainstalowana **przed** pierwszą podpowiedzią dla ręcznie wpisanego pakietu
+    zostanie zapamiętana jako prawdziwa.
 - **Rodzaj formularza:** pola rozpoznawane jak we wtyczce (`autofillHints`, `autocomplete` z HTML, typ pola,
   identyfikator, podpowiedź, opis; polskie i angielskie słowa). Pole loginu lub hasła → loginy; samo pole
   e-mail (pierwszy krok logowania, np. Google) → też loginy; pola karty → karty; pozostałe pola adresu → kontakty.
@@ -470,9 +493,9 @@ PassHolder jest systemową usługą autouzupełniania (Android 8+). Włączenie:
 
 Kod: `android/core/.../core/autofill/` (`Keywords.kt`, `Fields.kt`, `Values.kt`, `Match.kt`, `PublicSuffix.kt` z
 zasobem `public_suffix_rules.txt`, `Planner.kt`; port
-`core/src/autofill/` plus `matchApp` i `planDatasets`), `android/app/.../app/autofill/` (`ViewNodeReader.kt`,
-`ResponseBuilder.kt`, `PassHolderAutofillService.kt`, `AutofillUnlockActivity.kt`), `ui/AutofillUnlockScreen.kt`,
-`AutofillStatus.kt`, `ui/SettingsScreen.kt`.
+`core/src/autofill/` plus `matchApp`, `verifyApp` i `planDatasets`), `android/app/.../app/autofill/` (`ViewNodeReader.kt`,
+`ResponseBuilder.kt`, `PassHolderAutofillService.kt`, `AutofillUnlockActivity.kt`), `AppTrust.kt` (certyfikaty
+aplikacji), `ui/AutofillUnlockScreen.kt`, `AutofillStatus.kt`, `ui/SettingsScreen.kt`.
 
 ## Pytanie o zapis
 
@@ -575,7 +598,7 @@ przed zapisem; PassHolder zapisuje nowy login albo nowe hasło istniejącego. Ty
   odblokowanie i wraca do podglądu z tym, co wpisano. Wyjście z podglądu (także w tło) blokuje sejf (D1), jeśli to
   ten ekran go odblokował; sejf otwarty wcześniej w aplikacji zostaje otwarty.
   Dane z podglądu żyją tylko w pamięci ekranu.
-- **Co się zapisuje:** w zaufanej przeglądarce (Chrome i pozostałe z listy) nazwa i adres to sama domena, jak w
+- **Co się zapisuje:** w zaufanej przeglądarce (Chrome i pozostałe z listy, rozpoznane po certyfikacie podpisu) nazwa i adres to sama domena, jak w
   Chrome (`github.com`; `http` → `http://domena`). W innej aplikacji wpis dostaje nazwę aplikacji i jej pakiet na
   liście „Aplikacje”; domenę zgłoszoną przez obcą aplikację (WebView) PassHolder pomija. Po zapisie komunikat
   „Zapisano w PassHolder” albo „Zaktualizowano hasło w PassHolder”; błąd to komunikat „Nie udało się zapisać w

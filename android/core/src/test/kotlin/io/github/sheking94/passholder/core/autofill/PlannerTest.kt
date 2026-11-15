@@ -27,8 +27,8 @@ class PlannerTest {
     private fun node(id: String, ac: String = "", type: String = "text", isList: Boolean = false, options: List<FieldOption>? = null) =
         AutofillNode(id, FieldDescriptor(autocomplete = listOfNotNull(ac.ifEmpty { null }), type = type, options = options), isList)
 
-    private val browser = TRUSTED_BROWSERS.first()
-    private val web = AppRequest(browser, "example.com", "https")
+    private val browser = TRUSTED_BROWSERS.keys.first()
+    private val web = AppRequest(browser, "example.com", "https", browserVerified = true)
 
     @Test
     fun `login form gets matching logins with username and password`() {
@@ -83,10 +83,10 @@ class PlannerTest {
         assertEquals(listOf("2", "1"), sets.map { it.entryId })
         assertEquals(listOf("n" to NodeValue.Text("4111111111111111"), "c" to NodeValue.Text("123")), sets[0].values)
 
-        assertTrue(planDatasets(cardPlan, AppRequest(browser, "shop.pl", "http"), entries).isEmpty())
+        assertTrue(planDatasets(cardPlan, AppRequest(browser, "shop.pl", "http", browserVerified = true), entries).isEmpty())
         // No reported scheme (Android 8.0-8.1) counts as http (review V3-N5).
-        assertTrue(planDatasets(cardPlan, AppRequest(browser, "shop.pl", null), entries).isEmpty())
-        assertEquals(2, planDatasets(cardPlan, AppRequest(browser, "localhost", "http"), entries).size)
+        assertTrue(planDatasets(cardPlan, AppRequest(browser, "shop.pl", null, browserVerified = true), entries).isEmpty())
+        assertEquals(2, planDatasets(cardPlan, AppRequest(browser, "localhost", "http", browserVerified = true), entries).size)
         assertEquals(2, planDatasets(cardPlan, AppRequest("com.shop.app", null, null), entries).size)
     }
 

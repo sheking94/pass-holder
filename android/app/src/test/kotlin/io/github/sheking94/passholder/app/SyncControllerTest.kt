@@ -47,4 +47,15 @@ class SyncControllerTest {
         assertFalse(listening(port))
         assertEquals(SyncController.IDLE_STOPPED, controller.state.value.stoppedReason)
     }
+
+    @Test
+    fun `a connection on a local address that is not allowed gets no answer`() {
+        val closed = SyncController(store, 0, addresses = { bound = it; emptyList() }, allowsLocal = { false })
+        try {
+            assertTrue(closed.start())
+            assertFalse(listening(bound))
+        } finally {
+            closed.stop(null)
+        }
+    }
 }

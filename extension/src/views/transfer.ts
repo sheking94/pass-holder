@@ -1,7 +1,7 @@
 import { transfer } from "@passholder/core";
 import { importSummary } from "../import-summary.ts";
 import { entriesNoun, filesNoun, missingFilesSentence, skippedFilesPhrase } from "../plural.ts";
-import { busy, h, setStatus, show, statusLine } from "../ui/dom.ts";
+import { busy, h, passwordField, setStatus, show, statusLine } from "../ui/dom.ts";
 import { downloadFile } from "../ui/download.ts";
 import { showInTab } from "../ui/page.ts";
 import { store } from "../ui/state.ts";
@@ -58,19 +58,26 @@ function exportSection(status: HTMLElement) {
       warning.textContent = chosen().format === "passholder-zip" ? ZIP_WARNING : PLAIN_WARNING;
     });
   }
+  // Security review V3-N6: the master password again, so a moment at an unlocked browser is not enough.
+  const password = h("input", { type: "password", autocomplete: "current-password" });
   const exportButton = h("button", { type: "button", class: "danger" }, "Pobierz plik");
   exportButton.addEventListener("click", () => {
     if (!understood.checked) return setStatus(status, "Najpierw zaznacz, że rozumiesz ryzyko.", true);
+    if (password.value === "") return setStatus(status, "Wpisz hasło główne, żeby pobrać plik.", true);
     const format = chosen();
-    const day = new Date().toISOString().slice(0, 10);
-    if (format.format === "passholder-zip") return void busy(status, "Przygotowuję archiwum…", () => exportZip(status, day));
-    try {
+    const typed = password.value;
+    password.value = "";
+    void busy(status, "Sprawdzam hasło główne…", async () => {
+      await store.confirmMasterPassword(typed);
+      const day = new Date().toISOString().slice(0, 10);
+      if (format.format === "passholder-zip") {
+        setStatus(status, "Przygotowuję archiwum…");
+        return exportZip(status, day);
+      }
       const entries = store.allContents();
       downloadFile(`${format.format}-${day}.${format.ext}`, transfer.exportFile(format.format, entries), format.mime);
       setStatus(status, `Wyeksportowano ${entriesNoun(entries.length)}. Usuń plik, gdy nie będzie już potrzebny.`);
-    } catch (error) {
-      setStatus(status, error instanceof Error ? error.message : String(error), true);
-    }
+    });
   });
 
   const skipped = transfer.countAttachments(store.allContents());
@@ -82,6 +89,8 @@ function exportSection(status: HTMLElement) {
     skipped > 0 && h("p", { class: "hint" }, `${skippedFilesPhrase(skipped)} w formatach JSON i CSV. Wybierz PassHolder ZIP, żeby je zabrać.`),
     warning,
     h("label", { class: "check" }, understood, "Rozumiem, plik będzie zawierał hasła jawnym tekstem"),
+    h("label", {}, "Hasło główne"),
+    passwordField(password).row,
     h("div", { class: "actions" }, exportButton),
   );
 }

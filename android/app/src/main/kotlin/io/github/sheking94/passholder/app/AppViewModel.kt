@@ -28,6 +28,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.util.UUID
@@ -101,7 +103,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val state: StateFlow<UiState> = _state.asStateFlow()
 
     /** A sync may have changed entries: the list must not keep (and the edit form must not save over) older ones. */
-    private val sync = SyncController(store, app.syncPort, { app.clock() }, app.syncAddresses, onSynced = {
+    private val sync = SyncController(store, app.syncPort, { app.clock() }, app.syncAddresses, app.syncAllowsLocal, onSynced = {
         viewModelScope.launch { refresh() }
     })
     /** Sync mode: server, addresses, pairing code, last event, paired devices. */
@@ -573,10 +575,41 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Set by [confirmExport] and used up by the next export callback, whatever it brings ([takeExportApproval]). */
+    @Volatile
+    private var exportApproved = false
+
+    /**
+     * "Zapisz plik": the master password again before a plain-text export (security review V3-N6), also when the
+     * fingerprint unlocks the vault. Only after it opens this vault does [onConfirmed] launch the save dialog.
+     */
+    fun confirmExport(masterPassword: String, onConfirmed: () -> Unit) {
+        if (masterPassword.isEmpty()) return fail(EXPORT_NEEDS_PASSWORD)
+        if (_state.value.busy) return
+        exportApproved = false
+        _state.update { it.copy(busy = true, status = Status("Sprawdzam hasło główne…")) }
+        viewModelScope.launch {
+            val checked = withContext(Dispatchers.IO) { runCatching { store.confirmMasterPassword(masterPassword) } }
+            _state.update { it.copy(busy = false) }
+            locks.onOperationFinished()
+            checked.exceptionOrNull()?.let { e ->
+                if (e is CancellationException) throw e
+                return@launch fail(e.message ?: e.javaClass.simpleName)
+            }
+            exportApproved = true
+            _state.update { it.copy(status = null) }
+            onConfirmed()
+        }
+    }
+
+    private fun takeExportApproval(): Boolean = exportApproved.also { exportApproved = false }
+
     /** The document created for "Zapisz plik", or null when the save dialog was cancelled. */
     fun exportTo(format: TransferFormat, uri: Uri?) {
         endFilePick()
+        val approved = takeExportApproval()
         if (uri == null || !store.isUnlocked) return
+        if (!approved) return fail(EXPORT_NEEDS_PASSWORD)
         launchVaultOperation("Zapisuję plik…") {
             TransferFiles.writeText(app.contentResolver, uri, Transfer.exportFile(format, store.allContents()))
             showStatus("Zapisano plik. Usuń go zaraz po użyciu, zawiera hasła jawnym tekstem.")
@@ -590,7 +623,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun exportArchiveTo(uri: Uri?) {
         endFilePick()
+        val approved = takeExportApproval()
         if (uri == null || !store.isUnlocked) return
+        if (!approved) return fail(EXPORT_NEEDS_PASSWORD)
         launchVaultOperation("Przygotowuję archiwum…") {
             val entries = store.allContents()
             val out = TransferFiles.writeArchive(app.contentResolver, uri) { stream ->
@@ -724,13 +759,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      * Reads the entries off the main thread (decrypting every record). Does nothing if the vault locked meanwhile:
      * decrypted entries never go into the state of a locked screen.
      */
-    private suspend fun refresh() {
-        if (!store.isUnlocked) return
+    private suspend fun refresh() = refreshing.withLock {
+        // One read at a time: an older read finishing last would put a stale list on screen (seen in CI).
+        if (!store.isUnlocked) return@withLock
         val read = withContext(Dispatchers.IO) { runCatching { store.entries() to store.unreadableIds().size } }
         read.onSuccess { (entries, unreadable) ->
             _state.update { if (store.isUnlocked) it.copy(entries = entries, unreadable = unreadable) else it }
         }
     }
+
+    private val refreshing = Mutex()
 
     /** Runs a blocking vault operation off the main thread, with a progress message and errors shown in the status line. */
     private fun launchVaultOperation(progress: String, action: () -> Unit) {
@@ -752,6 +790,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private companion object {
         const val TAG = "AppViewModel"
+        const val EXPORT_NEEDS_PASSWORD = "Wpisz hasło główne, żeby zapisać plik."
         const val SAVED = "Zapisano na telefonie. Wtyczka dostanie zmianę przy następnej synchronizacji."
         const val DELETED = "Usunięto na telefonie. Wtyczka dostanie zmianę przy następnej synchronizacji."
     }

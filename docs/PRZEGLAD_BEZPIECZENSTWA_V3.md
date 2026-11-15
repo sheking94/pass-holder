@@ -103,6 +103,9 @@ utrzymać włączony i zablokować, ale nie odczytać. Testy automatyczne nie po
 
 ### V3-S3. Android: zaufana przeglądarka i aplikacja wpisu rozpoznawane tylko po nazwie pakietu
 
+- **Stan:** naprawione (grupa 3): przeglądarki po certyfikacie SHA-256 z listy, aplikacje wpisu po certyfikacie
+  zapamiętanym przy wyborze z listy, przy zapisie albo przy pierwszej podpowiedzi (`verifyApp`, `AppTrust.kt`;
+  [FUNKCJE.md](FUNKCJE.md#android-1)). Na telefonie do sprawdzenia: T28 w [TESTY.md](TESTY.md).
 - **Waga / pewność:** Średnia / z kodu (zachowanie na telefonie: hipoteza)
 - **Napastnik:** A3 · **Obszar:** Android, autouzupełnianie · **Powiązanie:** trop T7
 - **Miejsce:** `android/core/.../core/autofill/Match.kt:15-29` (`TRUSTED_BROWSERS`), `Match.kt:127-138` (`matchApp`)
@@ -156,6 +159,10 @@ utrzymać włączony i zablokować, ale nie odczytać. Testy automatyczne nie po
   uzgadnianie → 503.
 - **Naprawa:** limit sesji na urządzenie (np. 2) i pamięć skrótów `e` z ostatnich 60 s (powtórzenie → 400). Koszt:
   mały, w TS i Kotlinie. Test: ta sama wiadomość drugi raz → 400; 32 sesje jednego urządzenia nie blokują drugiego.
+- **Stan (2026-11-15, grupa 4):** poprawione w `host.ts` i `P2pHost.kt`. Limit 4 sesji na urządzenie (2 to za mało,
+  gdy wtyczka po zerwanym połączeniu ponawia, a stara sesja żyje jeszcze 60 s). Pamięć `e` dłuższa niż w propozycji:
+  do 4096 przyjętych wiadomości przez cały start trybu, bo przy 60 s napastnik mógłby co minutę odnawiać jedną sesję.
+  Opis: [SYNCHRONIZACJA.md](SYNCHRONIZACJA.md#51-noise-po-http) punkt 5.1 („Powtórzenia uzgadniania”); test ręczny T27.
 
 ### V3-N2. Nieuwierzytelnione żądania utrzymują tryb Synchronizacja i zajmują serwer
 
@@ -180,6 +187,11 @@ utrzymać włączony i zablokować, ale nie odczytać. Testy automatyczne nie po
   nagłówkiem `Origin` innym niż `chrome-extension://…` i bez `Content-Type: application/json` (wtyczka je wysyła);
   wiązać gniazdo tylko z adresami Wi-Fi i Tailscale (bez interfejsu komórkowego). Koszt: mały. Test: ping co
   minutę nie zatrzymuje wyłączenia po 5 min.
+- **Stan (2026-11-15, grupa 4):** poprawione. Aktywność = 200 na sync, plik, `pair/finish` i „Dodaj wtyczkę”
+  (`PhoneRouter`, `SyncController`); 403 dla `Origin` spoza `chrome-extension://`, 415 bez `application/json`
+  (`SyncHttpServer`). Decyzja właściciela: tylko Wi-Fi i Tailscale. Zamiast wiązania gniazda z adresami (zmieniają się
+  w trakcie) serwer zamyka bez odpowiedzi połączenie przyjęte na niedozwolonym adresie lokalnym i nie podaje go
+  wtyczce (`SyncNetworks.kt`, Ethernet też dozwolony). W sieci komórkowej port nadal kończy uzgadnianie TCP. Test ręczny T27.
 
 ### V3-N3. Strona sprawdza po pojawieniu się panelu, czy dany login i hasło są w sejfie
 
@@ -205,6 +217,7 @@ utrzymać włączony i zablokować, ale nie odczytać. Testy automatyczne nie po
 - **Skutek:** więcej niż 5 prób PIN-u przez interfejs. Mały zysk: kto ma narzędzia deweloperskie wtyczki, i tak
   odczyta `PinLock` z `storage.session` i sprawdzi krótki PIN offline (zaakceptowane ograniczenie).
 - **Naprawa:** próby PIN-u w service workerze, kolejno (jak `SaveCandidates.serial`). Koszt: mały.
+- **Stan (grupa 5, PR #54):** poprawione. Cała próba w `PinStore.unlock` biegnie pod blokadą Web Locks `passholder-pin` (`pinAttemptLock`), wspólną dla okienka, kart i service workera (ten sam origin). Zamiast przenosić PIN do service workera: ten sam efekt, mniejsza zmiana. Test: trzy równoległe próby z trzech `VaultStore` zużywają trzy.
 
 ### V3-N5. Android 8.0–8.1: brak schematu strony traktowany jak `https`, zapis bez podglądu
 
@@ -228,6 +241,7 @@ utrzymać włączony i zablokować, ale nie odczytać. Testy automatyczne nie po
 - **Opis:** wystarczy zaznaczyć pole i kliknąć „Pobierz plik”.
 - **Skutek:** kto ma chwilę przy odblokowanym sejfie, wynosi wszystko jednym plikiem zamiast przepisywać wpisy.
 - **Naprawa:** hasło główne (albo odcisk na telefonie) przed eksportem. Koszt: mały. **Decyzja właściciela.**
+- **Stan (grupa 5, PR #54):** poprawione według decyzji właściciela: zawsze hasło główne, bez odcisku i PIN-u. Wtyczka: pole „Hasło główne” i `VaultStore.confirmMasterPassword` przed pobraniem. Telefon: `AppViewModel.confirmExport` → `PhoneVaultStore.confirmMasterPassword` przed oknem zapisu; zgoda jednorazowa, eksport bez niej odrzucony.
 
 ### V3-N7. Wrapper Gradle bez sumy kontrolnej, brak CI
 
@@ -239,6 +253,7 @@ utrzymać włączony i zablokować, ale nie odczytać. Testy automatyczne nie po
   sprawdzana. Testy nie są wymuszane przed scaleniem.
 - **Naprawa:** `distributionSha256Sum` dla 8.14.3 (z gradle.org), opcjonalnie workflow z `gradle/actions/wrapper-validation`
   i `npm test`. Koszt: mały.
+- **Stan (grupa 5, PR #54):** poprawione. `distributionSha256Sum` dla `gradle-8.14.3-bin.zip` (z gradle.org/release-checksums; suma sprawdzona na pobranym pliku), `gradle-wrapper.jar` zgodny z sumą z tej strony. Workflow `.github/workflows/ci.yml`: `wrapper-validation`, `npm ci`, typecheck, testy TS i Androida. Akcje przypięte do wersji głównej (`@v4`), nie do SHA.
 
 ### V3-I1. Zdania w dokumentacji niezgodne z kodem
 
@@ -251,6 +266,7 @@ utrzymać włączony i zablokować, ale nie odczytać. Testy automatyczne nie po
 - Plan przeglądu (krok 1.5) mówi o „HMAC schowka” we wtyczce; wtyczka liczy SHA-256 (HMAC jest tylko na Androidzie,
   zob. V3-I3).
 - **Naprawa:** poprawić zdania razem z poprawkami odpowiednich punktów.
+- **Stan (grupa 5, PR #54):** poprawione SPEC §8 (autouzupełnianie nie jest już poza zakresem) i PIN w FUNKCJE (4-6 cyfr albo długi). Zdania o V3-N2, V3-S3 i V3-S4 poprawiają wątki tych punktów (grupy 1, 3, 4), bo zależą od ich zmian. Zdanie o „HMAC schowka” jest w planie przeglądu (dokument historyczny), nie w opisie kodu: zostaje.
 
 ### V3-I2. Wtyczka przyjmuje od telefonu starszą wersję wpisu niż już znana
 
@@ -262,6 +278,7 @@ utrzymać włączony i zablokować, ale nie odczytać. Testy automatyczne nie po
   zaakceptowane ograniczenie „cofnięcie wykrywane częściowo” obejmuje tylko cały magazyn.
 - **Naprawa (utwardzenie):** odrzucić rekord z HLC mniejszym niż znany dla tego `id` (przy poprawnym działaniu HLC
   na hoście tylko rośnie). Koszt: mały.
+- **Stan (grupa 5, PR #54):** poprawione w `applyResponse`: rekord z HLC mniejszym niż lokalny jest pomijany, wpis zachowuje dawną rewizję; następna edycja trafia na konflikt i wygrywa HLC. Opis: SYNCHRONIZACJA.md §4.3.
 
 ### V3-I3. „Odłącz” zostawia listę „Nigdy”; skrót schowka to SHA-256 bez klucza
 
@@ -271,6 +288,7 @@ utrzymać włączony i zablokować, ale nie odczytać. Testy automatyczne nie po
   `session`. Wtyczka trzyma w `session` (pamięć) zwykły SHA-256 skopiowanego hasła; Android po N6 używa HMAC z
   kluczem procesu.
 - **Naprawa:** kasować `saveNever` i `saveCandidates` przy odłączeniu (albo zapytać); HMAC jak na Androidzie. Koszt: mały.
+- **Stan (grupa 5, PR #54):** „Odłącz” kasuje `saveNever` i `saveCandidates`. HMAC schowka **nie zrobiony**: klucz musiałby leżeć w `storage.session` obok skrótu (service worker może zostać zatrzymany, dokument offscreen nie ma `chrome.storage`), więc nic by nie dodał. Kto czyta `storage.session`, ma tam też `vaultKey` odblokowanego sejfu, a skrót żyje najwyżej minutę.
 
 ### V3-I4. Komunikaty `fill` i `password-copied` przyjmowane też od skryptów treści
 
@@ -291,6 +309,7 @@ utrzymać włączony i zablokować, ale nie odczytać. Testy automatyczne nie po
   zapisu do profilu może osłabić KDF albo zawiesić odblokowanie (1 GiB × 100), tylko że z takim prawem ma też
   prostsze ataki.
 - **Naprawa:** `assertKdfParamsAcceptable` także przy odczycie. Koszt: mały.
+- **Stan (grupa 5, PR #54):** poprawione. Wtyczka: `assertKdfParamsAcceptable` w `unwrapWithPassword` (odblokowanie, `repair`, potwierdzenie eksportu) i w `openPinLock`. Telefon: `Kdf.assertAcceptable` w `PhoneVaultStore.unwrap` (odblokowanie, zmiana hasła, potwierdzenie eksportu).
 
 ## 4. Tropy odrzucone
 
@@ -396,7 +415,7 @@ T1 → V3-N1, T3 i T4 → V3-N2, T5 → V3-S1 i V3-N3, T6 → V3-S2, T7 → V3-S
 - **Podatności Gradle:** baza OSV niedostępna z kontenera (403). Do uruchomienia na Windows, jak w
   [TESTY.md](TESTY.md#zależności-przegląd-bezpieczeństwa-i5), dla wersji z `android/gradle/libs.versions.toml`
   (m.in. Bouncy Castle 1.82, kotlinx-serialization 1.9.0, biometric 1.1.0).
-- **Testy ręczne** T4, T7, T15, T17–T25 z TESTY.md nadal niepotwierdzone.
+- **Testy ręczne** T4, T7, T15, T17–T25 z TESTY.md nadal niepotwierdzone (T27 doszedł z poprawkami grupy 4).
 - Formalny audyt CPace i Noise (poza zakresem, jak w planie).
 
 ## 7. Proponowane grupy poprawek
@@ -407,10 +426,10 @@ Każda grupa to jeden wątek i jeden PR, w tej kolejności:
    pól, nadawca `fill`). **Zrobione** (2026-11-15), zob. „Stan poprawek” niżej.
 2. **Dopasowanie adresów:** V3-S2 i V3-N5 (lista sufiksów publicznych w TS i Kotlinie, skrót tylko przy dokładnym
    dopasowaniu, brak schematu = `http`). **Zrobione** (2026-11-15), zob. „Stan poprawek” niżej.
-3. **Zaufane przeglądarki na Androidzie:** V3-S3 (certyfikaty podpisu).
+3. **Zaufane przeglądarki na Androidzie:** V3-S3 (certyfikaty podpisu). **Zrobione.**
 4. **Serwer telefonu:** V3-N1, V3-N2 (limit sesji na urządzenie, odrzucenie powtórzeń, aktywność po uwierzytelnieniu,
    `Origin`/`Content-Type`, interfejsy).
-5. **Drobne:** V3-N4, V3-N6, V3-N7, V3-I1, V3-I2, V3-I3, V3-I5.
+5. **Drobne:** V3-N4, V3-N6, V3-N7, V3-I1, V3-I2, V3-I3, V3-I5. **Zrobione w PR #54** (bez HMAC schowka z V3-I3).
 
 **Decyzje właściciela** (naprawa zmienia zachowanie):
 
@@ -454,4 +473,4 @@ Każda grupa to jeden wątek i jeden PR, w tej kolejności:
     (i adresów bez schematu), bez kart, nowy login jako `http://domena`. Zapis bez podglądu na 8.x zostaje, ale nie
     zmieni już wpisu `https` ani wpisu domeny nadrzędnej. Na Androidzie 9+ przeglądarka podaje schemat
     (`ViewStructure.setWebDomain` dostaje pełny adres; założenie z kodu Androida), więc bez zmian w działaniu; na
-    prawdziwym telefonie niesprawdzone (T-S2).
+    prawdziwym telefonie niesprawdzone (T30).

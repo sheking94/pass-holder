@@ -96,6 +96,37 @@ describe("p2p sync", () => {
     expect(names(ext)).toEqual(["New"]);
   });
 
+  it("ignores an older version of an entry replayed by the host under a new revision (V3-I2)", async () => {
+    const { sync, store } = setup();
+    const phone = emptyVaultV2();
+    const ext = emptyVaultV2();
+    let t = 1000;
+    const phoneClock = new HlcClock("phone", () => t);
+    const extClock = new HlcClock("ext", () => t);
+
+    upsertEntryV2(phone, phoneClock, "1", entry("Old"));
+    await sync(phone, phoneClock);
+    const old = structuredClone(store.get("1")!);
+    t = 2000;
+    upsertEntryV2(phone, phoneClock, "1", entry("New"));
+    await sync(phone, phoneClock);
+    await sync(ext, extClock);
+    expect(names(ext)).toEqual(["New"]);
+
+    // A host that replays the old ciphertext (old password) under a fresh revision.
+    store.put({ ...old, revision: store.currentRevision() + 1 });
+    await sync(ext, extClock);
+    expect(names(ext)).toEqual(["New"]);
+
+    // The extension's next edit still reaches the host (conflict, won by HLC).
+    t = 3000;
+    upsertEntryV2(ext, extClock, "1", entry("Newest"));
+    await sync(ext, extClock);
+    await sync(phone, phoneClock);
+    expect(names(phone)).toEqual(["Newest"]);
+    expect(ext.entries.get("1")!.dirty).toBe(false);
+  });
+
   it.each([
     ["edit then delete", "delete"],
     ["delete then edit", "edit"],

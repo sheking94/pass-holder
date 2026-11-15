@@ -185,6 +185,7 @@ urządzeniu i nie zmieniają formatu danych ani protokołu: [FUNKCJE.md](FUNKCJE
 
 ## 8. Poza zakresem
 
-Rotacja vaultKey (zmiana hasła głównego tylko ponownie zawija klucz, §2), wiele kont, współdzielenie, liczenie kodów TOTP, autouzupełnianie, synchronizacja wtyczka–wtyczka
+Rotacja vaultKey (zmiana hasła głównego tylko ponownie zawija klucz, §2), wiele kont, współdzielenie, liczenie kodów TOTP, synchronizacja wtyczka–wtyczka
 bez telefonu. Sejf telefonu odtwarza się z wtyczki („Odtwórz z wtyczki”), a import pliku pozwala wgrać wpisy
 do nowego sejfu ([INSTALACJA.md](INSTALACJA.md#kopia-zapasowa)).
+Autouzupełnianie jest w obu aplikacjach od V3 (opis w [FUNKCJE.md](FUNKCJE.md)), ale nie należy do formatu danych.

@@ -272,6 +272,23 @@ class PhoneVaultStore(
         touch()
     }
 
+    /**
+     * Checks [masterPassword] again while unlocked, before a plain-text export (security review V3-N6): someone with
+     * the unlocked phone in hand cannot take the whole vault in one file without knowing it. IllegalArgumentException
+     * "Złe hasło główne" for a password that does not open this vault; IllegalStateException while locked.
+     */
+    @Synchronized
+    fun confirmMasterPassword(masterPassword: String) {
+        val current = requireSession()
+        val s = requireVault()
+        val checked = unwrap(masterPassword, s.kdf!!, s.wrappedVaultKey!!)
+        try {
+            if (!MessageDigest.isEqual(checked, current.vaultKey)) throw IllegalArgumentException("Złe hasło główne")
+        } finally {
+            checked.fill(0)
+        }
+    }
+
     // ---- Locking ----
 
     /** Works offline: everything is on disk. */
@@ -591,14 +608,14 @@ class PhoneVaultStore(
      * phone's current addresses, sent to the extension in pairing and sync answers.
      * A pairing code from an earlier start is dropped: each start of sync mode asks for its own.
      */
-    fun router(onRequest: () -> Unit, addresses: () -> List<String>): PhoneRouter {
+    fun router(onActivity: () -> Unit, addresses: () -> List<String>): PhoneRouter {
         pairing.cancel()
         synchronized(stateLock) {
             this.addresses = addresses
             state = loadState()
             host = null
         }
-        return PhoneRouter(pairing, ::currentHost, onRequest, onError)
+        return PhoneRouter(pairing, ::currentHost, onActivity, onError)
     }
 
     /** A new pairing code; in restore mode while a restore is in progress. */
@@ -774,6 +791,8 @@ class PhoneVaultStore(
     }
 
     private fun unwrap(masterPassword: String, kdf: KdfParams, wrapped: String): ByteArray {
+        // Security review V3-I5: host.json is read from disk, so its KDF gets the same bounds as one from the network.
+        Kdf.assertAcceptable(kdf)
         val keys = Kdf.deriveKeys(masterPassword, kdf)
         return try {
             VaultCrypto.unwrapVaultKey(keys.encKey, wrapped)

@@ -19,6 +19,7 @@ import android.widget.Toast
 import android.view.inputmethod.InlineSuggestionsRequest
 import io.github.sheking94.passholder.app.PassHolderApp
 import io.github.sheking94.passholder.core.autofill.planDatasets
+import io.github.sheking94.passholder.core.p2p.LoginFields
 import io.github.sheking94.passholder.core.autofill.planRequest
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
@@ -27,7 +28,11 @@ import kotlin.concurrent.thread
 fun buildFillResponse(app: PassHolderApp, request: ParsedRequest, inline: InlineSuggestionsRequest?): FillResponse? {
     val plan = planRequest(request.nodes) ?: return saveSpecFor(app, request)?.let(ResponseBuilder::saveOnlyResponse)
     // Entries are decrypted here, per request, and dropped with the response.
-    val specs = planDatasets(plan, request.app, app.phoneStore.entries())
+    val entries = app.phoneStore.entries()
+    val pkg = request.app.packageName
+    // Trust on first use (V3-S3): the first fill for an app tied to a login remembers its certificate.
+    if (entries.any { (it.content.fields as? LoginFields)?.androidApps?.contains(pkg) == true }) app.appTrust.rememberIfNew(pkg)
+    val specs = planDatasets(plan, app.appTrust.verify(request.app), entries)
     return ResponseBuilder.datasets(app, specs, inline, saveSpecFor(app, request))
 }
 
@@ -100,7 +105,7 @@ class PassHolderAutofillService : AutofillService() {
         val app = application as PassHolderApp
         thread(name = "PassHolder-autofill-save") {
             try {
-                val data = readSaveData(request)
+                val data = readSaveData(app, request)
                 if (data != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                     // Every save goes through the review screen (spec 5.4), unlocking first when locked; the
                     // candidate stays in memory (not in the intent) for it.

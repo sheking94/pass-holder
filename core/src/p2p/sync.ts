@@ -165,7 +165,7 @@ function addAddresses(vault: LocalVaultV2, addresses: string[]): void {
 
 /**
  * Applies the phone's answer (same epoch). Conflicts are resolved by HLC: a dirty local change wins only when
- * its HLC is greater. Returns true when something local must be pushed again: a local change won a conflict, or
+ * its HLC is greater, and a remote version older than the local one is never taken. Returns true when something local must be pushed again: a local change won a conflict, or
  * the attachment lists were merged and the merged entry was saved as a new local change (even if the remote won).
  */
 async function applyResponse(
@@ -207,6 +207,11 @@ async function applyResponse(
       // The remote version wins but lacks some local files: keep it with the merged list as a new local change.
       vault.entries.set(record.id, { id: record.id, revision: record.revision, dirty: true, deleted: false, data: merged });
       needsResync = true;
+    } else if (local && compareHlc(remote.data.hlc, local.data.hlc) < 0) {
+      // Security review V3-I2: an older version than the one known here (an old ciphertext replayed under a new
+      // revision) is ignored. Every edit observes the HLC it overwrites, so a real newer version never has a
+      // smaller one. The entry keeps its revision: a later local edit meets a conflict and wins it by HLC.
+      continue;
     } else {
       vault.entries.set(record.id, remote);
     }

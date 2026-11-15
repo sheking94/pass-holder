@@ -45,8 +45,8 @@ class PhoneVaultStoreTest {
         PhoneVaultStore(dir, PlainSecretWrapper, { time }, autoLockMs)
 
     /** Starts a real HTTP server on a free port with the store's router; returns a transport to it. */
-    private fun serve(store: PhoneVaultStore, onRequest: () -> Unit = {}): HttpTestTransport {
-        val server = SyncHttpServer(0, store.router(onRequest) { phoneAddresses }::handle)
+    private fun serve(store: PhoneVaultStore, onActivity: () -> Unit = {}): HttpTestTransport {
+        val server = SyncHttpServer(0, store.router(onActivity) { phoneAddresses }::handle)
         servers.add(server)
         return HttpTestTransport(server.start())
     }
@@ -81,6 +81,8 @@ class PhoneVaultStoreTest {
         assertEquals(PairingMode.PAIR, offer.mode)
         val pair = TestP2pClient.pair(http, offer.code, extIdentity)
         assertEquals(200, pair.finish!!.status, pair.finish!!.body)
+        // Only the finished pairing counts as activity, not hello and start.
+        assertEquals(1, requests)
         val info = pair.phoneVaultInfo!!
         assertEquals(phoneAddresses, info.addresses)
         assertEquals("Telefon", pair.phoneIdentity!!.name)
@@ -107,7 +109,8 @@ class PhoneVaultStoreTest {
         assertEquals(1, pushed.accepted.size)
         assertEquals(listOf("Bank", "Poczta"), store.entries().map { it.credentials.name })
         assertEquals(emptyList<String>(), store.unreadableIds())
-        assertTrue(requests >= 5)
+        // Plus the two syncs; their handshakes do not count.
+        assertEquals(3, requests)
 
         // A new store on the same directory: locked, unlocks with the password, keeps entries and devices.
         servers.forEach { it.stop() }
@@ -188,6 +191,27 @@ class PhoneVaultStoreTest {
         store.createVault("pw")
         store.lock()
         assertThrows<IllegalStateException> { store.changeMasterPassword("pw", "nowe") }
+    }
+
+    @Test
+    fun confirmMasterPasswordChecksThePasswordOfTheOpenVault() {
+        val store = newStore()
+        assertThrows<IllegalStateException> { store.confirmMasterPassword("pw") }
+        store.createVault("pw")
+        store.confirmMasterPassword("pw")
+        assertEquals("Złe hasło główne", assertThrows<IllegalArgumentException> { store.confirmMasterPassword("inne") }.message)
+        assertTrue(store.isUnlocked)
+        store.lock()
+        assertThrows<IllegalStateException> { store.confirmMasterPassword("pw") }
+    }
+
+    @Test
+    fun unlockRefusesKdfParametersOnDiskOutOfBounds() {
+        newStore().createVault("pw")
+        val file = dir.walkTopDown().first { it.name == "host.json" }
+        file.writeText(file.readText().replace(Regex("\"iterations\":\\d+"), "\"iterations\":1000"))
+        val error = assertThrows<IllegalArgumentException> { newStore().unlock("pw") }
+        assertEquals("KDF iterations too high", error.message)
     }
 
     @Test

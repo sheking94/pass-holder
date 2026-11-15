@@ -3,6 +3,7 @@ package io.github.sheking94.passholder.core.autofill
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
@@ -32,6 +33,9 @@ class MatchVectorsTest {
                 r.str("packageName"),
                 r["webDomain"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.content,
                 r["webScheme"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.content,
+                // Cases without the flags stand for a correctly signed app (the phone checked it, verifyApp).
+                browserVerified = r["browserVerified"]?.jsonPrimitive?.boolean ?: (r.str("packageName") in TRUSTED_BROWSERS),
+                appVerified = r["appVerified"]?.jsonPrimitive?.boolean ?: true,
             )
             val logins = (c["logins"] as JsonArray).map { it as JsonObject }
             val actual = matchApp(request, logins) {

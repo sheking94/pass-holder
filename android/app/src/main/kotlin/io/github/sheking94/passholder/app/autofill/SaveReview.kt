@@ -123,6 +123,8 @@ fun saveReviewed(app: PassHolderApp, review: SaveReview, draft: SaveDraft): Save
             val name = draft.name.trim().ifEmpty { review.initialDraft().name }
             val content = newLogin(target, name, draft.username, draft.password).copy(name = name)
             store.upsertContent(UUID.randomUUID().toString(), content)
+            // The app the login was saved in is the one tied to it now (V3-S3).
+            if (target is SaveTarget.App) app.appTrust.rememberIfNew(target.packageName)
             SaveOutcome.SAVED
         }
         is SaveDecision.Update -> {
