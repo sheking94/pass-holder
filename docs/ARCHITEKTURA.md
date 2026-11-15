@@ -71,7 +71,7 @@ osobno przez `fake-indexeddb`). Treść jawna nigdy nie jest zapisywana: odszyfr
 | Plik | Co robi |
 |---|---|
 | `src/popup.ts` | `start()`: wybiera pierwszy widok i włącza automatyczną blokadę strony |
-| `src/vault-store.ts` | `VaultStore`: konto, lokalny sejf, parowanie (`pairStart`, `pairFinish`, `repair`), `sync`, adresy, PIN, import, `exportArchive` / `importArchive` (ZIP: plik po pliku, odszyfrowanie na czas jednego pliku; błąd archiwum albo blokada sejfu usuwa dodane pliki); serce wtyczki. Wpisy każdego typu: `listEntries(typ)`, `getEntry`, `putEntry` (odmowa zapisu pod `id` innego typu); import przez `importContents` (wszystkie typy, jeden zapis), eksport przez `allContents`; starą treść v2 czyta jako login |
+| `src/vault-store.ts` | `VaultStore`: konto, lokalny sejf, parowanie (`pairStart`, `pairFinish`, `repair`: też nowym hasłem z telefonu po zmianie hasła głównego), `sync`, adresy, PIN, import, `exportArchive` / `importArchive` (ZIP: plik po pliku, odszyfrowanie na czas jednego pliku; błąd archiwum albo blokada sejfu usuwa dodane pliki); serce wtyczki. Wpisy każdego typu: `listEntries(typ)`, `getEntry`, `putEntry` (odmowa zapisu pod `id` innego typu); import przez `importContents` (wszystkie typy, jeden zapis), eksport przez `allContents`; starą treść v2 czyta jako login |
 | `src/entry-types.ts` | typy wpisów w kolejności zakładek (`ENTRY_TYPES`, `TYPE_INFO`), rodzaje dokumentu, pusty wpis, opis wiersza (`entrySummary`), wyszukiwanie, sprzątanie przed zapisem (`tidyContent`) i sprawdzanie formatów (`validateContent`) |
 | `src/storage.ts` | klucze `chrome.storage` (`STORAGE_KEYS`), `chromeStore`, `memoryStore` do testów |
 | `src/phone-client.ts` | `PhoneClient`: JSON `POST` do telefonu z limitem 30 s, polskie komunikaty błędów (też „Zaktualizuj aplikację na telefonie”) |
@@ -329,7 +329,7 @@ Raport: [archive/PRZEGLAD_BEZPIECZENSTWA.md](archive/PRZEGLAD_BEZPIECZENSTWA.md)
 | N5 | opcjonalny własny klucz wydania (`android/keystore.properties`, [INSTALACJA.md](INSTALACJA.md#22-instalacja)); domyślnie nadal klucz debug (decyzja właściciela) |
 | N6 | w zadaniu WorkManagera HMAC z kluczem procesu zamiast SHA-256 hasła |
 | N7 | nieaktualne: sesje P2P są jednorazowe, żyją 60 s i nie zależą od blokady sejfu |
-| I1 | zmiana hasła głównego: osobny krok (zmiana na telefonie, wtyczka paruje się od nowa; bez rotacji vaultKey) |
+| I1 | zmiana hasła głównego na telefonie (`PhoneVaultStore.changeMasterPassword`, ekran „Zmień hasło główne”): nowy salt, ten sam vaultKey, telefon zapomina sparowane wtyczki, odcisk palca wyłączony; wtyczka paruje się nowym hasłem (`repair`), PIN wyłączony ([FUNKCJE.md](FUNKCJE.md#zmiana-hasła-głównego)) |
 | I2 | klucz odcisku w StrongBox (gdy jest) i tylko przy odblokowanym telefonie |
 | I3 | ograniczenie platform, bez zmian: hasła jako `String` w JS i Kotlinie nie dają się wyzerować; klucze na Androidzie są zerowane (`fill(0)`), we wtyczce trzymane jako Base64 w `chrome.storage.session` (pamięć przeglądarki) |
 | I4 | `MasterPasswordRules`: 12 znaków i bez oczywistych wzorców |

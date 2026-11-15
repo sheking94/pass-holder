@@ -367,9 +367,14 @@ zwykłe parowanie kończy się błędem bez spalenia kodu.
 
 ### 7.4. Inny telefon i odłączanie
 
-- „Adresy telefonu” → „Sparuj z innym telefonem / odtwórz telefon”: hasło sprawdzane przed siecią, potem
+- „Adresy telefonu” → „Sparuj z innym telefonem / odtwórz telefon”: hasło znane wtyczce sprawdzane przed siecią, potem
   parowanie z tym samym `deviceId` i kluczem. Telefon z sejfem musi mieć **ten sam** klucz sejfu, inaczej
   „To inny sejf…” i nic się nie zmienia. Pusty telefon w trybie `restore`: punkt 8.
+- Po zmianie hasła głównego na telefonie wtyczka nie zna nowego hasła: gdy jej kopia klucza go nie otwiera, wtyczka
+  pyta telefon o tryb (`/pair/hello`; `restore` → „Złe hasło główne” bez zużycia kodu), paruje się i otwiera kopię z
+  `vaultInfo`. Ten sam sejf potwierdza odpieczętowanie jej klucza statycznego (`sealedStaticKey`) tym kluczem. Literówka
+  zużywa wtedy kod. Gdy zmienia się `wrappedVaultKey`, wtyczka zapisuje nową kopię (stare hasło przestaje działać) i
+  wyłącza PIN.
 - „Odłącz tę przeglądarkę” (ekran blokady, drugie kliknięcie potwierdza) usuwa konto, sejf, PIN,
   `pendingPairing` i pliki z IndexedDB. Telefon zachowuje to, co dostał; przeglądarkę usuwa się tam w „Urządzenia”.
 

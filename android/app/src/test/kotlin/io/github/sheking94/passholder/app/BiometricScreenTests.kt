@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -334,5 +335,55 @@ class StaleFingerprintKeysTest : BiometricTestBase() {
         assertFalse(app.biometric.isEnabled)
         assertTrue(gone("Odblokuj odciskiem palca"))
         assertFalse(app.phoneStore.isUnlocked)
+    }
+}
+
+class ChangeMasterPasswordTest : BiometricTestBase() {
+    @Test
+    fun `changing the master password checks both passwords, turns the fingerprint off and the new one unlocks`() {
+        createVaultWithFingerprint()
+        val keyBefore = app.phoneStore.exportUnlockKeys()
+        menu("Ustawienia")
+        click("Zmień hasło główne")
+        waitFor("Obecne hasło główne")
+        assertEquals(Screen.ChangePassword, viewModel().state.value.screen)
+
+        // The new password follows the same rules as a new vault.
+        type("Obecne hasło główne", masterPassword)
+        type("Nowe hasło główne", "krótkie")
+        type("Powtórz nowe hasło", "krótkie")
+        click("Zmień hasło")
+        waitFor("Hasło główne musi mieć co najmniej 12 znaków")
+        type("Nowe hasło główne", "Nowe zdanie na hasło 2027")
+        type("Powtórz nowe hasło", "Nowe zdanie na hasło 2028")
+        click("Zmień hasło")
+        waitFor("Hasła się różnią")
+        type("Powtórz nowe hasło", "Nowe zdanie na hasło 2027")
+        type("Obecne hasło główne", "nie to hasło")
+        click("Zmień hasło")
+        waitFor("Złe hasło główne")
+        assertTrue(app.biometric.isEnabled)
+        type("Obecne hasło główne", masterPassword)
+        shot("64-zmiana-hasla")
+
+        click("Zmień hasło")
+        waitFor("Zmieniono hasło główne", substring = true)
+        assertEquals(Screen.Settings, viewModel().state.value.screen)
+        assertFalse(app.biometric.isEnabled)
+        assertEquals(null, keys.key)
+        assertTrue(app.phoneStore.devices().isEmpty())
+        assertArrayEquals(keyBefore, app.phoneStore.exportUnlockKeys())
+        shot("65-haslo-zmienione")
+
+        click("Wróć")
+        menu("Zablokuj")
+        waitFor("PassHolder jest zablokowany")
+        assertTrue(gone("Odblokuj odciskiem palca"))
+        type("Hasło główne", masterPassword)
+        click("Odblokuj")
+        waitFor("Złe hasło główne")
+        type("Hasło główne", "Nowe zdanie na hasło 2027")
+        click("Odblokuj")
+        waitFor("bank.pl")
     }
 }

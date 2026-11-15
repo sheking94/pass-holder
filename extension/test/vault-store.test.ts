@@ -156,12 +156,73 @@ describe("pairing an existing browser again (repair)", () => {
     expect(await store.repair(PHONE_URL, CODE, PASSWORD)).toEqual({ mode: "paired", skipped: [SECOND_URL], files: NO_FILES });
   }, 60_000);
 
-  it("checks the master password before spending the phone's code", async () => {
-    const { store, phone } = await pairedBrowser();
+  it("refuses a wrong master password and keeps the account (the phone's copy is the last check)", async () => {
+    const { store, phone, local } = await pairedBrowser();
+    const accountBefore = await local.get(STORAGE_KEYS.account);
     phone.offerPairing();
-    const callsBefore = phone.calls.length;
     await expect(store.repair(PHONE_URL, CODE, "wrong password")).rejects.toThrow("Złe hasło główne");
-    expect(phone.calls.slice(callsBefore)).toEqual([]);
+    expect(await local.get(STORAGE_KEYS.account)).toEqual(accountBefore);
+  }, 60_000);
+
+  it("does not spend the code of a phone waiting for a restore when the password does not open this vault", async () => {
+    const { local, session } = await pairedBrowser();
+    const fresh = FakePhone.waitingForRestore([SECOND_URL]);
+    const browser = newBrowser(new Map([[SECOND_URL, fresh]]));
+    const sameStore = new VaultStore(local, session, browser.makeClient);
+    fresh.offerPairing();
+    await expect(sameStore.repair(SECOND_URL, CODE, "wrong password")).rejects.toThrow("Złe hasło główne");
+    expect(fresh.calls).not.toContain("/p2p/v1/pair/start");
+  }, 60_000);
+});
+
+describe("after the master password changed on the phone", () => {
+  const NEW_PASSWORD = "nowe hasło główne 2027";
+
+  it("pairs again with the new password, keeps entries and PIN off, and the old password stops working", async () => {
+    const { store, phone, local, session, makeClient } = await pairedBrowser();
+    await store.upsert("1", { name: "moje.pl", username: "u", password: "p" });
+    await store.sync();
+    await store.enablePin("2468", false);
+    expect(await store.pinStatus()).toBeDefined();
+    const before = (await store.getAccount())!;
+
+    await phone.changePassword(NEW_PASSWORD);
+    // The phone forgot this browser: sync says to pair again.
+    await expect(store.sync()).rejects.toThrow("Telefon nie zna tej przeglądarki");
+
+    phone.offerPairing();
+    expect(await store.repair(PHONE_URL, CODE, NEW_PASSWORD)).toEqual({ mode: "paired", skipped: [], files: NO_FILES });
+    const after = (await store.getAccount())!;
+    expect(after).toMatchObject({ deviceId: before.deviceId, staticPublicKey: before.staticPublicKey, kdf: phone.kdf });
+    expect(after.wrappedVaultKey).not.toBe(before.wrappedVaultKey);
+    expect(await store.pinStatus()).toBeUndefined();
+    expect(names(store)).toEqual(["moje.pl"]);
+    expect(phone.devices).toHaveLength(1);
+
+    const reopened = new VaultStore(local, session, makeClient);
+    await expect(reopened.unlock(PASSWORD)).rejects.toThrow("Złe hasło główne");
+    await reopened.unlock(NEW_PASSWORD);
+    expect(names(reopened)).toEqual(["moje.pl"]);
+  }, 90_000);
+
+  it("the old password still opens this browser but not the phone's new copy: a clear error, nothing changes", async () => {
+    const { store, phone, local } = await pairedBrowser();
+    await phone.changePassword(NEW_PASSWORD);
+    const accountBefore = await local.get(STORAGE_KEYS.account);
+    phone.offerPairing();
+    await expect(store.repair(PHONE_URL, CODE, PASSWORD)).rejects.toThrow("nowe hasło");
+    expect(await local.get(STORAGE_KEYS.account)).toEqual(accountBefore);
+  }, 60_000);
+
+  it("refuses a new password that opens another phone's vault, not this browser's", async () => {
+    const { local, session } = await pairedBrowser();
+    const other = await FakePhone.withVault(NEW_PASSWORD, [SECOND_URL]);
+    const browser = newBrowser(new Map([[SECOND_URL, other]]));
+    const sameStore = new VaultStore(local, session, browser.makeClient);
+    const accountBefore = await local.get(STORAGE_KEYS.account);
+    other.offerPairing();
+    await expect(sameStore.repair(SECOND_URL, CODE, NEW_PASSWORD)).rejects.toThrow("To inny sejf");
+    expect(await local.get(STORAGE_KEYS.account)).toEqual(accountBefore);
   }, 60_000);
 });
 

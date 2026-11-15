@@ -38,8 +38,11 @@ wrappedVaultKey = seal(encKey, vaultKey, aad="passholder/v1/vault-key")
 - **`authKey`** służył do logowania na serwerze Pi (serwer trzymał `SHA-256(authKey)`). Od planu 4 nikt go
   nie używa, ale nadal jest wyprowadzany: podział `masterKey` na dwa klucze to część formatu danych i jego
   zmiana dałaby inny `encKey`, czyli nieczytelne istniejące sejfy.
-- Zmiana hasła głównego wymagałaby tylko ponownego zawinięcia vaultKey, bez przeszyfrowania wpisów (poza
-  zakresem).
+- **Zmiana hasła głównego** (tylko na telefonie, przegląd bezpieczeństwa I1): nowe `kdf` z nowym saltem i
+  `wrappedVaultKey = wrap(encKey(nowe hasło), ten sam vaultKey)`. Wpisy, pliki, `keyCheck` i epoka bez zmian; vaultKey
+  nie jest rotowany. Telefon usuwa wszystkie sparowane urządzenia, więc każda wtyczka paruje się od nowa i dostaje nową
+  kopię klucza w `vaultInfo`. Ograniczenie: kto ma stare hasło **i** starą kopię `wrappedVaultKey` (np. z pliku wtyczki
+  sprzed zmiany), nadal wyliczy vaultKey; na to pomogłaby dopiero rotacja vaultKey z przeszyfrowaniem wpisów.
 
 ## 3. Format szyfrogramu
 
@@ -182,6 +185,6 @@ urządzeniu i nie zmieniają formatu danych ani protokołu: [FUNKCJE.md](FUNKCJE
 
 ## 8. Poza zakresem
 
-Zmiana hasła głównego, wiele kont, współdzielenie, liczenie kodów TOTP, autouzupełnianie, synchronizacja wtyczka–wtyczka
+Rotacja vaultKey (zmiana hasła głównego tylko ponownie zawija klucz, §2), wiele kont, współdzielenie, liczenie kodów TOTP, autouzupełnianie, synchronizacja wtyczka–wtyczka
 bez telefonu. Sejf telefonu odtwarza się z wtyczki („Odtwórz z wtyczki”), a import pliku pozwala wgrać wpisy
 do nowego sejfu ([INSTALACJA.md](INSTALACJA.md#kopia-zapasowa)).
