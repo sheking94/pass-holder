@@ -18,6 +18,7 @@ import io.github.sheking94.passholder.core.p2p.PhoneSync
 import io.github.sheking94.passholder.core.p2p.PhoneVaultStore
 import io.github.sheking94.passholder.core.p2p.SecretWrapper
 import kotlinx.serialization.json.Json
+import java.net.InetAddress
 
 /** Lives as long as the app process. Holds the one PhoneVaultStore, so the vault stays unlocked across screen rotations. */
 class PassHolderApp : Application() {
@@ -36,8 +37,12 @@ class PassHolderApp : Application() {
      * One clock for both, so the code's expiry time (set by the store) and the countdown agree.
      */
     var clock: () -> Long = System::currentTimeMillis
+    /** Which networks sync mode answers on (Wi-Fi, Ethernet, Tailscale; not cellular). */
+    private val syncNetworks by lazy { SyncNetworks(this) }
     /** The phone's addresses shown in sync mode, for the port actually bound; tests use loopback only. */
-    var syncAddresses: (boundPort: Int) -> List<String> = { LocalAddresses.list(it) }
+    var syncAddresses: (boundPort: Int) -> List<String> = { LocalAddresses.format(syncNetworks.addresses(), it) }
+    /** Whether sync mode serves a connection that came in on this local address; tests allow all. */
+    var syncAllowsLocal: (InetAddress) -> Boolean = { syncNetworks.allows(it) }
     lateinit var settings: Settings
         private set
     /** Replaced in tests: Robolectric has neither the Android Keystore nor a fingerprint reader. */

@@ -3,6 +3,8 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Sync mode answers only on Wi-Fi, Ethernet and Tailscale (security review V3-N2): it asks which network is which. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!-- Launcher apps only: enough to list the apps a login can be tied to, without QUERY_ALL_PACKAGES. -->
     <queries>

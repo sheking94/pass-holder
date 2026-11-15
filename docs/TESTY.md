@@ -155,11 +155,12 @@ Playwright z Chromium nie jest zależnością repozytorium: w kontenerze w chmur
 |---|---|
 | `CryptoTest`, `GeneratorTest`, `VectorsTest`, `KdfBoundsTest` | szyfrowanie, generator, `v1.json`, granice KDF i NFC |
 | `p2p/P2pVectorsTest`, `P2pVectorsV3Test`, `Ristretto255Test`, `CpaceTest`, `NoiseTest`, `PairingTest`, `HlcTest`, `P2pJsonTest`, `EntryV3Test`, `FramesTest` | te same wektory bit w bit, `safeLong`, ramki |
-| `HostSyncTest`, `P2pHostTest`, `PhoneVaultTest` | rewizje, stronicowanie (500 zmian i 512 KiB), cięcie konfliktów, 410 dla starych ścieżek, odmowa nadpisania wpisu innego typu, cofnięty telefon, kody HTTP, sesje (60 s, 32), wiele wątków |
-| `SyncHttpServerTest`, `FileSyncStoreTest`, `HostStateTest`, `PairingHostTest`, `PhoneRouterTest`, `LocalAddressesTest`, `PhoneVaultStoreTest` | serwer HTTP i limity, `Host`, trwała baza, parowanie po HTTP, sejf telefonu; `changeMasterPassword` (ten sam klucz, nowy salt, urządzenia i kod parowania usunięte, 403 dla starej wtyczki, wymaga odblokowania) |
+| `HostSyncTest`, `P2pHostTest`, `PhoneVaultTest` | rewizje, stronicowanie (500 zmian i 512 KiB), cięcie konfliktów, 410 dla starych ścieżek, odmowa nadpisania wpisu innego typu, cofnięty telefon, kody HTTP, sesje (60 s, 32, ≤ 4 na urządzenie), kopia pierwszej wiadomości → 400 (też po 60 s i równolegle), nieudane uzgadnianie nie jest zapamiętywane, wiele wątków |
+| `SyncHttpServerTest`, `FileSyncStoreTest`, `HostStateTest`, `PairingHostTest`, `PhoneRouterTest`, `LocalAddressesTest`, `PhoneVaultStoreTest` | serwer HTTP i limity, `Host`, `Origin` (403), `Content-Type` (415), połączenie na niedozwolonym adresie lokalnym bez odpowiedzi, aktywność tylko po 200 na sync/plik/`pair/finish`, trwała baza, parowanie po HTTP, sejf telefonu; `changeMasterPassword` (ten sam klucz, nowy salt, urządzenia i kod parowania usunięte, 403 dla starej wtyczki, wymaga odblokowania) |
 | `files/AttachmentTest`, `FileChunksTest`, `FilesVectorsTest`, `FileHostTest`, `DiskFileStoreTest` | załączniki we wpisie v3, szyfrowanie kawałkami, wektory `files/files.json` 1:1, `/p2p/v2/file` (400/404/409/507), magazyn na dysku (kawałek `.tmp` po przerwaniu, wątki, 507 przy < 50 MB) |
 | `P2pInteropTest`, `PhoneInteropTest` (opcjonalne) | prawdziwy klient wtyczki w Node przeciw hostowi w Kotlinie: wpisy w obie strony, 1300/1200 wpisów, odtworzenie, plik 3 kawałki w górę i plik z telefonu w dół (`syncFiles`, ten sam SHA-256) |
-| `ScreenTests`, `SyncScreenTests`, `SyncControllerTest`, `CorruptHostStateTest` (app) | ekrany, tryb Synchronizacja, odświeżenie po synchronizacji, uszkodzony stan |
+| `ScreenTests`, `SyncScreenTests`, `SyncControllerTest`, `CorruptHostStateTest` (app) | ekrany, tryb Synchronizacja (ping nie przedłuża 5 min, „Dodaj wtyczkę” przedłuża), odświeżenie po synchronizacji, uszkodzony stan; `SyncControllerTest`: niedozwolony adres lokalny bez odpowiedzi |
+| `SyncNetworksTest` (app) | Wi-Fi i Ethernet tak, komórkowa nie (też z adresem 100.64/10 operatora), VPN tylko z adresami Tailscale, zakres `100.64.0.0/10` |
 | `BiometricScreenTests` (app) | odcisk palca, blokada po wyjściu, opóźnienie 60 s (zegar Robolectric); `ChangeMasterPasswordTest`: zmiana hasła głównego (reguły, złe obecne hasło, odcisk wyłączony, urządzenia zapomniane, ten sam klucz, odblokowanie nowym hasłem) |
 | `EntryTypesTest` (app) | opisy wierszy, wyszukiwanie, `tidy`, walidacja (te same reguły co `entry-types.ts`) |
 | `ListTabsScreenTest`, `SettingsScreenTests` (app) | pięć zakładek, wyszukiwanie czyszczone przy zmianie zakładki, „+ Dodaj” typu zakładki, górny pasek i Ustawienia |
@@ -411,7 +412,15 @@ elementu `data-passholder-save`). (3) **Kontakt (S4):** strona z formularzem: wi
 wypełniony tylko e-mail. (4) **I4:** popup „Wypełnij” i Kopiuj hasło działają jak wcześniej. Sprawdzone automatycznie w
 Chromium (Playwright, 2026-11-15): (1), (2), (3) i zamknięcie okna z odznaką.
 
-**T-S3. Zaufane aplikacje na telefonie (przegląd V3-S3).** Aplikacja zainstalowana, usługa autouzupełniania
+**T27. Serwer telefonu (przegląd V3-N1, V3-N2).** (1) Telefon w Wi-Fi, Synchronizacja: wtyczka synchronizuje jak dotąd
+(sprawdza `Origin` i `Content-Type` prawdziwego Chrome). (2) Wyłącz Wi-Fi, zostaw dane komórkowe, włącz Synchronizacja:
+ekran nie pokazuje adresu komórkowego („Telefon nie ma adresu w sieci…”, chyba że działa Tailscale). (3) Z Tailscale
+na obu urządzeniach i bez Wi-Fi na telefonie: adres `100.x.y.z` widoczny, synchronizacja działa. (4) W Wi-Fi z komputera:
+`curl -X POST -H 'Content-Type: application/json' -d '{}' http://<IP>:8787/p2p/v1/ping` co minutę przez 6 min: tryb
+wyłącza się po 5 min mimo pingów. (5) `curl -X POST -H 'Origin: https://example.com' -H 'Content-Type: application/json'
+-d '{}' http://<IP>:8787/p2p/v1/ping` → 403; bez `Content-Type` → 415. Zapisz wynik, model telefonu i wersję Androida.
+
+**T28. Zaufane aplikacje na telefonie (przegląd V3-S3).** Aplikacja zainstalowana, usługa autouzupełniania
 włączona, w sejfie login z adresem `https://github.com` i login z aplikacją wybraną przez „+ Wybierz aplikację”.
 (1) Chrome na `github.com/login`: podpowiedź loginu jest (Chrome rozpoznany po podpisie). (2) W aplikacji z
 wpisu: podpowiedź jest. (3) Opcjonalnie, z Android Studio: aplikacja testowa z pakietem nieobecnej przeglądarki
