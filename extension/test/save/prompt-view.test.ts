@@ -72,6 +72,14 @@ describe("promptView", () => {
     const { el } = setup({ decision: "update", entryName: "Sklep" });
     expect(el.querySelector("h1")?.textContent).toBe("Zmiana hasła: Sklep");
     expect(input(el, "Nazwa").closest("div")!.hidden).toBe(true);
+    const hint = [...el.querySelectorAll<HTMLElement>(".hint")].find((d) => d.textContent?.includes("Poprzednie hasło"));
+    expect(hint?.hidden).toBe(false);
+  });
+
+  it("a new login does not show the replace hint", () => {
+    const { el } = setup({ decision: "create" });
+    const hint = [...el.querySelectorAll<HTMLElement>(".hint")].find((d) => d.textContent?.includes("Poprzednie hasło"));
+    expect(hint?.hidden).toBe(true);
   });
 
   it("typing asks for a preview and updates the header", async () => {

@@ -72,7 +72,14 @@ class SaveLoginTest {
         assertEquals(SaveOutcome.UPDATED, saveLogin(app, SaveData(browser("github.com"), " JKowalski ", "new"), label))
         val (id, content) = logins().single()
         assertEquals("1", id)
-        assertEquals(EntryContentV3("GitHub", "notatka", LoginFields("jkowalski", "new", urls = listOf("https://github.com")), emptyList()), content)
+        // Group 1 of the V3 review: the old password is kept in a hidden custom field.
+        assertEquals(
+            EntryContentV3(
+                "GitHub", "notatka", LoginFields("jkowalski", "new", urls = listOf("https://github.com")),
+                listOf(io.github.sheking94.passholder.core.p2p.CustomField(io.github.sheking94.passholder.core.save.PREVIOUS_PASSWORD_LABEL, "s3cret", true)),
+            ),
+            content,
+        )
     }
 
     @Test

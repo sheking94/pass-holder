@@ -403,7 +403,11 @@ sejfu w polach innych aplikacji i przeglądarek ([niżej](#android-1)).
 - **Jak wpisuje:** pola rozpoznaje po `autocomplete`, typie, nazwie, etykiecie i placeholderze (polskie i
   angielskie słowa); wpisuje przez setter prototypu i wysyła `input` oraz `change`, więc działa z React/Vue. Pomija
   pola ukryte, wyłączone, tylko do odczytu i `type=hidden`; pusta wartość nie nadpisuje pola; `new-password`
-  (rejestracja) zostaje puste. Pomija też pola niewidoczne (`opacity: 0`, zerowy rozmiar, poza ekranem). Formularz z dokładnie jednym widocznym polem hasła dostaje login i hasło; w przeciwnym razie (logowanie dwuetapowe, ale też rejestracja z dwoma polami hasła) wypełniane jest tylko pierwsze widoczne pole loginu, a gdy go nie ma, pierwsze pole e-mail.
+  (rejestracja) zostaje puste. Pomija też pola niewidoczne (`opacity: 0`, zerowy rozmiar, poza ekranem). Kontakt i
+  karta (każda strona może o nie poprosić) wypełniają tylko formularz pola z kursorem (bez kursora: formularz
+  pierwszego pola, które da się wypełnić) i tylko pola naprawdę widoczne: nie przycięte `clip-path`/`clip`, co
+  najmniej 10 × 10 px, nie ucięte przez rodzica z `overflow`, nie przykryte innym elementem (etykieta pola nad nim
+  się nie liczy; pole poniżej ekranu tak). Formularz z dokładnie jednym widocznym polem hasła dostaje login i hasło; w przeciwnym razie (logowanie dwuetapowe, ale też rejestracja z dwoma polami hasła) wypełniane jest tylko pierwsze widoczne pole loginu, a gdy go nie ma, pierwsze pole e-mail.
 - **Komunikaty:** „Nie znaleziono pól logowania”, „Nie znaleziono pól karty (mogą być w ramce operatora
   płatności), skopiuj dane ręcznie”, „Nie znaleziono pól adresu”; ponadto zablokowany sejf, strona niepasująca do
   loginu, karta na stronie bez https i strona, na której Chrome nie pozwala wstrzykiwać skryptów (np. `chrome://`).
@@ -414,7 +418,8 @@ sejfu w polach innych aplikacji i przeglądarek ([niżej](#android-1)).
   `autofill-content.js` jest wstrzykiwany dopiero przy wypełnianiu, w czynnej karcie.
 - Do strony trafia tylko plan wypełnienia (`FillPlan`: pola jednego wpisu), nigdy klucze ani inne wpisy.
 - Service worker sam sprawdza stronę (adres pobrany z karty przez `tabs.get`, `matchLogins` dla loginu, https dla
-  karty) i przyjmuje komunikat tylko z kontekstów tego rozszerzenia (`sender.id`: jego strony i wstrzyknięty skrypt; to nie dowodzi, że nadawcą jest okienko). Okienku nie ufa.
+  karty) i przyjmuje komunikat `fill` (oraz `password-copied`) tylko ze stron wtyczki (`sender.id` i `sender.url`
+  `chrome-extension://<id>/`), nie od skryptów wtyczki w stronie. Okienku nie ufa.
 - Wypełniane są tylko ramki z tym samym origin co górna ramka, a origin sprawdzonej strony jest przypięty przy
   wstrzyknięciu (po nawigacji karty nic się nie wpisze). Ramki płatnicze z innego origin zostają puste.
 
@@ -483,33 +488,43 @@ istniejącego. Tylko loginy.
   wszystkich stron (`https://*/*` i `http://*/*`); odmowa zostawia przełącznik wyłączony. Domyślnie wyłączone.
   Przełącznik to samo uprawnienie `https://*/*` (bez osobnej flagi): odebranie go w `chrome://extensions` też
   wyłącza pytanie. Wyłączenie zabiera uprawnienie; `http://*/*` zostaje, gdy któryś adres telefonu jest `http`.
-- **Kiedy pyta:** po wysłaniu formularza z widocznym, niepustym polem hasła (submit, Enter w polu hasła, klik
-  przycisku w tym samym formularzu albo kontenerze), także formularza z danymi kontaktowymi i hasłem oraz z
+- **Kiedy pyta:** po wysłaniu formularza przez użytkownika z widocznym, niepustym polem hasła (submit, Enter w
+  polu hasła, klik przycisku w tym samym formularzu albo kontenerze; zdarzenia wywołane skryptem strony się nie
+  liczą), także formularza z danymi kontaktowymi i hasłem oraz z
   samym polem „nowe hasło”. Hasło: pole „nowe hasło” (rejestracja, zmiana hasła), inaczej
   hasło; login: pole loginu, inaczej e-mail przed hasłem. Pyta, gdy nie ma wpisu z tym loginem (**Zapisz**) albo
-  jest z innym hasłem (nagłówek „Zmiana hasła: <wpis>”, **Zapisz** zmienia tylko hasło); to samo hasło: cisza. Login porównywany bez
+  jest z innym hasłem (nagłówek „Zmiana hasła: <wpis>”, **Zapisz** zmienia hasło, a stare zostaje w ukrytym polu
+  własnym „Poprzednie hasło” wpisu, tylko ostatnie); to samo hasło: cisza. Login porównywany bez
   wielkości liter i spacji na brzegach. Decyzja liczona jest od nowa przy każdym pytaniu i odpowiedzi.
 - **Co się zapisuje:** nazwa i adres to sama domena (`github.com`, bez `www.` i ścieżki); strona `http` →
   `http://domena`, port niestandardowy zostaje.
-- **Panel (podgląd z edycją):** w prawym górnym rogu strony; nagłówek na żywo: „Nowy login”, „Zmiana hasła:
+- **Okno (podgląd z edycją):** osobne małe okno wtyczki (380 × 420, przy prawym górnym rogu okna Chrome), a na
+  ikonie wtyczki w tej karcie odznaka „?”. Nagłówek na żywo: „Nowy login”, „Zmiana hasła:
   <wpis>” albo „Ten login jest już zapisany”. Pola **Nazwa** (tylko nowy login; puste = domena), **Login**,
   **Hasło** (Pokaż/Ukryj, bez Kopiuj), „Strona: <host>”. Przyciski **Zapisz** (nieaktywny bez hasła i gdy login już jest),
   **Nie teraz** (×: to samo), **Nigdy dla tej strony**. Zmiana loginu albo hasła przelicza decyzję (nowy /
-  zmiana hasła / już jest); zmiana hasła zmienia tylko hasło. Po zapisie „Zapisano” i panel znika po 2 s. Kandydat (login i hasło)
-  żyje w pamięci sesji Chrome do 2 minut albo do decyzji, jeden na kartę, i panel wraca po przeładowaniu
-  strony (przekierowania po logowaniu).
+  zmiana hasła / już jest); przy zmianie hasła okno mówi, że obecne trafi do „Poprzednie hasło”. Po zapisie
+  „Zapisano” i okno zamyka się po 2 s. Kandydat (login i hasło) żyje w pamięci sesji Chrome do 2 minut albo do
+  decyzji, jeden na kartę; nowy login w tej samej karcie przełącza otwarte okno na siebie.
+- **Zamknięcie okna jego własnym przyciskiem systemowym** (nie ×): pytanie zostaje za odznaką; klik w ikonę
+  wtyczki pokazuje je w okienku. Okno nie otwiera się samo ponownie w tej karcie, dopóki nie przyjdzie nowy login.
 - **„Nigdy”:** host trafia na listę w **Zapis** → „Nigdy dla tych stron” (**Usuń** przywraca pytanie).
-- **Zablokowany sejf:** panel nie ma pól ani hasła, tylko host, login i **Odblokuj i zapisz** → otwiera
-  okienko; po odblokowaniu (hasło albo PIN) okienko najpierw pokazuje ten sam podgląd z bieżącej karty, potem pokazuje listę. Czytanie sejfu na potrzeby pytania nie
+- **Zablokowany sejf:** okno nie ma pól ani hasła, tylko host, login i **Odblokuj i zapisz** → przełącza na kartę
+  i otwiera nad nią okienko wtyczki; po odblokowaniu (hasło albo PIN) okienko najpierw pokazuje ten sam podgląd z bieżącej karty, potem pokazuje listę. Czytanie sejfu na potrzeby pytania nie
   przedłuża automatycznej blokady.
 - **Złe hasło:** gdy po wysłaniu strona (ten sam origin) znów pokazuje ten sam pusty formularz logowania,
-  panel się nie pokazuje; kandydat czeka na następne wysłanie.
+  okno się zamyka (odznaka zostaje); kandydat czeka na następne wysłanie.
 
 **Ograniczenia:**
 
 - Karty otwarte przed włączeniem wymagają przeładowania.
 - Logowanie w ramce z innym origin niż strona nie jest zgłaszane.
-- Złe hasło bez przeładowania strony (SPA) i tak pokazuje panel.
+- Złe hasło bez przeładowania strony (SPA) i tak pokazuje okno.
+- Okno kradnie fokus stronie; strona to widzi (`blur`) i może się domyślić, że login nie był zapisany z tym
+  hasłem. Wymaga prawdziwego wysłania formularza przez użytkownika, więc nie da się tak sprawdzać haseł seriami.
+- Strona może wysłać formularz skryptem w ciągu kilku sekund po dowolnym kliknięciu użytkownika (aktywacja
+  użytkownika): wtedy okno pyta o login i hasło podsunięte przez stronę. Zapis wymaga kliknięcia **Zapisz** w
+  osobnym oknie, a stare hasło zostaje w „Poprzednie hasło”.
 - Lista „Nigdy” jest jawna w `chrome.storage.local` (działa przy zablokowanym sejfie): kto ma dostęp do profilu
   Chrome, zobaczy te hosty.
 
@@ -517,18 +532,22 @@ istniejącego. Tylko loginy.
 
 - Skrypt `save-watch.js` widzi pola formularzy na wszystkich stronach, dlatego uprawnienie jest opcjonalne i
   domyślnie wyłączone. Wysyła do tła tylko login, hasło i podpis formularza, bez adresu.
+- Skrypt liczy tylko zdarzenia użytkownika: `click` i `keydown` z `isTrusted`, `submit` z `isTrusted` i aktywną
+  aktywacją użytkownika (`navigator.userActivation.isActive`), bo Chrome oznacza jako zaufany też `submit` z
+  `form.requestSubmit()` skryptu.
 - Service worker bierze adres z `sender.url` (ramka, która wysłała), sprawdza, że ma ten sam origin co karta, i
   przyjmuje wiadomości tylko od własnych skryptów (`sender.id`); pytania i odpowiedzi tylko ze stron wtyczki.
   Strona nie podszyje się pod inną domenę.
-- Panel to strona wtyczki w `<iframe>` w zamkniętym Shadow DOM (inny origin: strona nie czyta jego treści) i
-  dostaje `{id, host, username, password, decision, entryName, locked}`: hasło kandydata, żeby dało się je
-  poprawić (przy zablokowanym sejfie bez hasła). Strona go nie czyta; hasło nie trafia do skryptu strony ani do
-  `chrome.storage.local`. Haseł innych wpisów sejfu panel nie dostaje.
-- Panel ukrywa service worker: od razu po „Nie teraz” i „Nigdy”, 2 s po zapisie.
+- Pytanie jest w osobnym oknie (`chrome.windows.create`, `type: "popup"`), nie w stronie: strona go nie widzi,
+  nie przykryje i nie podsunie pod kliknięcie. `save-prompt.html` nie jest już `web_accessible_resources`, więc
+  strona nie może go osadzić u siebie. Okno dostaje `{id, host, username, password, decision, entryName, locked}`:
+  hasło kandydata, żeby dało się je poprawić (przy zablokowanym sejfie bez hasła). Hasło nie trafia do skryptu
+  strony ani do `chrome.storage.local`. Haseł innych wpisów sejfu okno nie dostaje.
+- Okno zamyka service worker: od razu po „Nie teraz” i „Nigdy”, 2 s po zapisie, po wygaśnięciu kandydata.
 
 Kod: `core/src/save/` (`url.ts`: `saveUrl`, `saveName`; `decide.ts`: `decideSave`, `newLogin`, `withPassword`;
 wektory `core/test-vectors/save/`), `extension/src/save/` (`read-form.ts`, `watch.ts`, `candidates.ts`,
-`registration.ts`, `messages.ts`, `prompt-view.ts`: podgląd z edycją), `save-watch.ts`, `save-prompt.ts`, `views/save-settings.ts`,
+`registration.ts`, `messages.ts`, `prompt-view.ts`: podgląd z edycją, `prompt-window.ts`: okno i odznaka), `save-watch.ts`, `save-prompt.ts`, `views/save-settings.ts`,
 `views/save-question.ts`, `background.ts`.
 
 ### Android
@@ -543,7 +562,8 @@ przed zapisem; PassHolder zapisuje nowy login albo nowe hasło istniejącego. Ty
 - **Kiedy pyta:** system pyta, gdy ekran z polem hasła (także „nowe hasło”) znika po wpisaniu danych: logowanie,
   rejestracja, formularz z danymi kontaktowymi i hasłem, zmiana hasła. Login może być pusty (uzupełnisz go w podglądzie).
   Hasło: pole „nowe hasło”, inaczej hasło; login: pole loginu, inaczej ostatni e-mail przed hasłem. Decyzja jak w
-  Chrome: brak wpisu z tym loginem → nowy; jest z innym hasłem → zmiana samego hasła; to samo hasło: nic.
+  Chrome: brak wpisu z tym loginem → nowy; jest z innym hasłem → zmiana hasła (stare w ukrytym polu
+  „Poprzednie hasło”); to samo hasło: nic.
   Login porównywany bez wielkości liter i spacji na brzegach. Pytanie dotyczy także ekranu logowania, na którym
   nie było pasujących wpisów (usługa zwraca wtedy odpowiedź tylko z prośbą o zapis, nie „nic”).
 - **Podgląd przed zapisem (Android 9+):** ekran „Zapisz w PassHolder” z polami **Nazwa** (tylko nowy wpis),

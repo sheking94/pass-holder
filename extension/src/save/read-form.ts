@@ -10,7 +10,7 @@ const NON_DATA_TYPES = new Set(["hidden", "submit", "button", "reset", "image"])
 const VISIBLE_PASSWORD = "input[type=password]";
 
 function hasVisiblePassword(scope: ParentNode): boolean {
-  return Array.from(scope.querySelectorAll<HTMLInputElement>(VISIBLE_PASSWORD)).some(isVisible);
+  return Array.from(scope.querySelectorAll<HTMLInputElement>(VISIBLE_PASSWORD)).some((el) => isVisible(el));
 }
 
 /** The form of the element, otherwise the nearest ancestor (up to body) holding a visible password field. */
