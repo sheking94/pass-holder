@@ -132,7 +132,7 @@ describe("PhoneClient", () => {
 
 describe("phone that only speaks v1", () => {
   it("asks to update the phone app when the v2 handshake is 404", async () => {
-    const { store, phone, local, session } = await pairedBrowser();
+    const { phone, local, session } = await pairedBrowser();
     const oldPhone: typeof fetch = (async (input: string | URL | Request, init?: RequestInit) => {
       const path = new URL(String(input)).pathname;
       const reply = path === "/p2p/v2/handshake" ? { status: 404, body: { error: "not found" } } : await phone.handle(path, JSON.parse(String(init?.body ?? "{}")));

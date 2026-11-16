@@ -4,7 +4,6 @@ import * as autofill from "@passholder/core/autofill";
 type FieldElement = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
 
 declare global {
-  // eslint-disable-next-line no-var
   var passholderFill: typeof fillPage | undefined;
 }
 

@@ -8,7 +8,7 @@ export type TransferFormat = "passholder" | "bitwarden" | "nordpass";
 
 /** Recognises the format from the file's content (JSON starts with "{", anything else is read as NordPass CSV) and parses it. */
 export function parseImportFile(text: string): { format: TransferFormat; parsed: ParsedImport } {
-  const body = text.replace(/^﻿/, "").trim();
+  const body = text.replace(/^\uFEFF/, "").trim();
   if (body === "") throw new Error("Plik jest pusty");
   if (!body.startsWith("{")) return { format: "nordpass", parsed: parseNordPassCsv(text) };
   let value: unknown;
