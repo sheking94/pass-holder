@@ -5,13 +5,13 @@ import io.github.sheking94.passholder.core.files.Attachments
 import io.github.sheking94.passholder.core.p2p.EntryContentV3
 import io.github.sheking94.passholder.core.p2p.EntryV3
 import io.github.sheking94.passholder.core.p2p.ImportResult
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import java.io.FilterOutputStream
 import java.io.OutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 
 /** What [PassHolderZip.export] wrote: [files] files in the archive, [missing] left out (waiting for sync, damaged). */
 data class ExportedArchive(val files: Int, val missing: Int)
@@ -56,7 +56,12 @@ object PassHolderZip {
 
     private class Planned(val attachment: Attachment, val path: String, val size: Int)
 
-    internal fun export(entries: List<EntryContentV3>, out: OutputStream, readFile: (Attachment) -> ByteArray?, time: Long): ExportedArchive {
+    internal fun export(
+        entries: List<EntryContentV3>,
+        out: OutputStream,
+        readFile: (Attachment) -> ByteArray?,
+        time: Long,
+    ): ExportedArchive {
         var numbered = 0
         var missing = 0
         val plan = sortForExport(entries).map { e ->

@@ -66,7 +66,10 @@ class TransferScreenTest : ScreenTestBase() {
         // Export, then import the same file: nothing new, the duplicate is reported.
         compose.runOnIdle { vm.confirmExport(masterPassword) { dialogs++ } }
         // The check resumes on the main looper, which Robolectric runs only when told to.
-        compose.waitUntil(60_000) { shadowOf(Looper.getMainLooper()).idle(); dialogs == 1 }
+        compose.waitUntil(60_000) {
+            shadowOf(Looper.getMainLooper()).idle()
+            dialogs == 1
+        }
         compose.runOnIdle { vm.exportTo(TransferFormat.PASSHOLDER, exported) }
         waitFor("Zapisano plik. Usuń go zaraz po użyciu, zawiera hasła jawnym tekstem.")
         val text = File(dir, "passholder.json").readText()

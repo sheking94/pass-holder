@@ -18,12 +18,16 @@ import org.junit.jupiter.api.Test
 
 class AttachmentTest {
     private fun att(n: Int) = Attachment(
-        "00000000-0000-4000-8000-%012d".format(n), "a$n.txt", "text/plain", 10, 1,
-        "a".repeat(64), "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=",
+        "00000000-0000-4000-8000-%012d".format(n),
+        "a$n.txt",
+        "text/plain",
+        10,
+        1,
+        "a".repeat(64),
+        "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=",
     )
 
-    private fun content(vararg a: Attachment) =
-        EntryContentV3("n", "", LoginFields("", ""), emptyList(), a.toList())
+    private fun content(vararg a: Attachment) = EntryContentV3("n", "", LoginFields("", ""), emptyList(), a.toList())
 
     private fun payload(sizeText: String) =
         EntryV3.serialize(EntryDataV3(content(att(1)), Hlc(5, 1, "dev"))).replace("\"size\":10", "\"size\":$sizeText")

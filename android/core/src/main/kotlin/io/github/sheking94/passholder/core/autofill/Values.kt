@@ -13,8 +13,15 @@ sealed interface FillPlan {
     data class Login(val username: String, val password: String) : FillPlan
     data class Card(val holder: String, val number: String, val expiry: String, val cvc: String) : FillPlan
     data class Contact(
-        val firstName: String, val lastName: String, val email: String, val tel: String,
-        val street: String, val postalCode: String, val city: String, val country: String, val bday: String,
+        val firstName: String,
+        val lastName: String,
+        val email: String,
+        val tel: String,
+        val street: String,
+        val postalCode: String,
+        val city: String,
+        val country: String,
+        val bday: String,
     ) : FillPlan
 }
 
@@ -34,7 +41,9 @@ private fun validBirthDate(s: String): String {
 
 fun planFor(entry: EntryContentV3): FillPlan? = when (val f = entry.fields) {
     is LoginFields -> FillPlan.Login(f.username, f.password)
+
     is CardFields -> FillPlan.Card(f.holder, f.number, f.expiry, f.cvc)
+
     is ContactFields -> {
         val a = f.addresses.firstOrNull()
         FillPlan.Contact(
@@ -44,6 +53,7 @@ fun planFor(entry: EntryContentV3): FillPlan? = when (val f = entry.fields) {
             validBirthDate(f.birthDate),
         )
     }
+
     else -> null
 }
 
@@ -69,6 +79,7 @@ private fun candidates(plan: FillPlan, kind: FieldKind, field: FieldDescriptor, 
             kind == FieldKind.EMAIL && !hasUsernameField -> listOf(plan.username)
             else -> emptyList()
         }
+
         is FillPlan.Card -> {
             val m = EXPIRY.matchEntire(plan.expiry)
             val month = m?.groupValues?.get(1)
@@ -76,26 +87,33 @@ private fun candidates(plan: FillPlan, kind: FieldKind, field: FieldDescriptor, 
             val isSelect = field.type.lowercase(Locale.ROOT) == "select"
             return when (kind) {
                 FieldKind.CC_NAME -> listOf(plan.holder)
+
                 FieldKind.CC_NUMBER -> listOf(plan.number.replace(Regex("\\s+"), ""))
+
                 FieldKind.CC_CSC -> listOf(plan.cvc)
+
                 FieldKind.CC_EXP -> {
                     if (month == null || year2 == null) return emptyList()
                     val long = (field.maxLength ?: 0) >= 7 ||
                         Regex("rrrr|yyyy", RegexOption.IGNORE_CASE).containsMatchIn(field.placeholder)
                     listOf("$month/${if (long) "20" else ""}$year2")
                 }
+
                 FieldKind.CC_EXP_MONTH -> {
                     if (month == null) return emptyList()
                     if (isSelect) listOf(month, month.toInt().toString()) else listOf(month)
                 }
+
                 FieldKind.CC_EXP_YEAR -> {
                     if (year2 == null) return emptyList()
                     val full = "20$year2"
                     if (isSelect) listOf(full, year2) else listOf(if (field.maxLength == 2) year2 else full)
                 }
+
                 else -> emptyList()
             }
         }
+
         is FillPlan.Contact -> return when (kind) {
             FieldKind.GIVEN_NAME -> listOf(plan.firstName)
             FieldKind.FAMILY_NAME -> listOf(plan.lastName)

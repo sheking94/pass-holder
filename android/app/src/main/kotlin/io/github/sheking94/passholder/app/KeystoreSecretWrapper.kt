@@ -49,8 +49,7 @@ class KeystoreSecretWrapper(private val alias: String = "passholder-p2p-wrap") :
         return Cipher.getInstance(TRANSFORMATION).apply { init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, iv)) }.doFinal(ct)
     }
 
-    private fun existingKey(): SecretKey? =
-        KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }.getKey(alias, null) as SecretKey?
+    private fun existingKey(): SecretKey? = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }.getKey(alias, null) as SecretKey?
 
     @Synchronized
     private fun newKey(): SecretKey = existingKey() ?: run {

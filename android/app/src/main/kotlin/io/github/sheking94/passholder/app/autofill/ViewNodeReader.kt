@@ -32,14 +32,21 @@ private fun nativeType(inputType: Int): String {
         InputType.TYPE_CLASS_TEXT -> when (variation) {
             InputType.TYPE_TEXT_VARIATION_PASSWORD,
             InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD,
-            InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD -> "password"
+            InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD,
+            -> "password"
+
             InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS,
-            InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS -> "email"
+            InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS,
+            -> "email"
+
             else -> "text"
         }
+
         InputType.TYPE_CLASS_NUMBER ->
             if (variation == InputType.TYPE_NUMBER_VARIATION_PASSWORD) "password" else "text"
+
         InputType.TYPE_CLASS_PHONE -> "tel"
+
         else -> "text"
     }
 }
@@ -48,7 +55,9 @@ fun describeNode(a: NodeAttrs): FieldDescriptor {
     val tokens = a.htmlAttrs["autocomplete"].orEmpty().trim().split(WHITESPACE).filter { it.isNotEmpty() }
     val type = when {
         a.htmlTag.equals("select", ignoreCase = true) -> "select"
+
         !a.htmlAttrs["type"].isNullOrBlank() -> a.htmlAttrs.getValue("type").trim()
+
         // An HTML input without a type: the browser's inputType still tells a password field.
         else -> nativeType(a.inputType)
     }
@@ -68,9 +77,8 @@ fun describeNode(a: NodeAttrs): FieldDescriptor {
  * A node whose subtree is not read: not VISIBLE (hidden fields are not filled), or a frame of another origin
  * than the page (spec 6: [requestDomain] is the first web domain of the window, null until one is seen).
  */
-fun skipSubtree(visibility: Int, nodeDomain: String?, requestDomain: String?): Boolean =
-    visibility != View.VISIBLE ||
-        (!nodeDomain.isNullOrEmpty() && requestDomain != null && !nodeDomain.equals(requestDomain, ignoreCase = true))
+fun skipSubtree(visibility: Int, nodeDomain: String?, requestDomain: String?): Boolean = visibility != View.VISIBLE ||
+    (!nodeDomain.isNullOrEmpty() && requestDomain != null && !nodeDomain.equals(requestDomain, ignoreCase = true))
 
 class ParsedRequest(val app: AppRequest, val nodes: List<AutofillNode<AutofillId>>)
 

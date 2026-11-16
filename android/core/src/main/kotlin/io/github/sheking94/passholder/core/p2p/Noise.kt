@@ -204,11 +204,9 @@ class NoiseKK private constructor(
     }
 
     companion object {
-        fun initiator(s: KeyPair, rs: ByteArray, prologue: ByteArray, e: KeyPair? = null): NoiseKK =
-            NoiseKK(true, s, rs, prologue, e)
+        fun initiator(s: KeyPair, rs: ByteArray, prologue: ByteArray, e: KeyPair? = null): NoiseKK = NoiseKK(true, s, rs, prologue, e)
 
-        fun responder(s: KeyPair, rs: ByteArray, prologue: ByteArray, e: KeyPair? = null): NoiseKK =
-            NoiseKK(false, s, rs, prologue, e)
+        fun responder(s: KeyPair, rs: ByteArray, prologue: ByteArray, e: KeyPair? = null): NoiseKK = NoiseKK(false, s, rs, prologue, e)
     }
 
     @Synchronized

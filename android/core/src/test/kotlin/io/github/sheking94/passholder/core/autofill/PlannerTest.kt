@@ -9,17 +9,23 @@ import io.github.sheking94.passholder.core.p2p.LabeledValue
 import io.github.sheking94.passholder.core.p2p.LoginFields
 import io.github.sheking94.passholder.core.p2p.PhoneEntry
 import io.github.sheking94.passholder.core.p2p.PostalAddress
-import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
 
 class PlannerTest {
     private fun entry(id: String, name: String, fields: io.github.sheking94.passholder.core.p2p.EntryFieldsV3) =
         PhoneEntry(id, 1, EntryDataV3(EntryContentV3(name, "", fields, emptyList()), Hlc(1, 0, "d")))
 
-    private fun login(id: String, name: String, user: String, pass: String = "pw", urls: List<String> = emptyList(), apps: List<String> = emptyList()) =
-        entry(id, name, LoginFields(user, pass, "", urls, apps))
+    private fun login(
+        id: String,
+        name: String,
+        user: String,
+        pass: String = "pw",
+        urls: List<String> = emptyList(),
+        apps: List<String> = emptyList(),
+    ) = entry(id, name, LoginFields(user, pass, "", urls, apps))
 
     private fun card(id: String, name: String, number: String = "4111 1111 1111 1111", expiry: String = "07/29") =
         entry(id, name, CardFields("Jan Kowalski", number, expiry, "123", ""))
@@ -61,10 +67,14 @@ class PlannerTest {
     @Test
     fun `entry without any value is skipped`() {
         val loginPlan = planRequest(listOf(node("u", "username")))!!
-        val sets = planDatasets(loginPlan, web, listOf(
-            login("1", "A", "", urls = listOf("https://example.com")),
-            login("2", "B", "bob", urls = listOf("https://example.com")),
-        ))
+        val sets = planDatasets(
+            loginPlan,
+            web,
+            listOf(
+                login("1", "A", "", urls = listOf("https://example.com")),
+                login("2", "B", "bob", urls = listOf("https://example.com")),
+            ),
+        )
         assertEquals(listOf("2"), sets.map { it.entryId })
 
         val cardPlan = planRequest(listOf(node("m", "cc-exp-month"), node("y", "cc-exp-year")))!!
@@ -93,16 +103,28 @@ class PlannerTest {
     @Test
     fun `contact form fills names, address and first phone`() {
         val fields = listOf(
-            node("g", "given-name"), node("f", "family-name"), node("s", "street-address"),
-            node("z", "postal-code"), node("c", "address-level2"), node("t", "tel"),
+            node("g", "given-name"),
+            node("f", "family-name"),
+            node("s", "street-address"),
+            node("z", "postal-code"),
+            node("c", "address-level2"),
+            node("t", "tel"),
         )
         assertEquals(FillGroup.LOGIN, planRequest(fields + node("p", "current-password"))!!.group) // password wins
         val cp = planRequest(fields)!!
         assertEquals(FillGroup.CONTACT, cp.group)
-        val contact = entry("k", "Jan", ContactFields(
-            "Jan", "Kowalski", "", listOf(LabeledValue("a", "111"), LabeledValue("b", "222")), emptyList(),
-            listOf(PostalAddress("h", "Długa 1", "00-001", "Gdańsk", "Polska")),
-        ))
+        val contact = entry(
+            "k",
+            "Jan",
+            ContactFields(
+                "Jan",
+                "Kowalski",
+                "",
+                listOf(LabeledValue("a", "111"), LabeledValue("b", "222")),
+                emptyList(),
+                listOf(PostalAddress("h", "Długa 1", "00-001", "Gdańsk", "Polska")),
+            ),
+        )
         val sets = planDatasets(cp, web, listOf(contact, login("l", "L", "u")))
         assertEquals(
             listOf("g" to "Jan", "f" to "Kowalski", "s" to "Długa 1", "z" to "00-001", "c" to "Gdańsk", "t" to "111")
@@ -141,6 +163,5 @@ class PlannerTest {
         val kp = planRequest(listOf(node("g", "given-name")))!!
         val contact = entry("k", "Jan", ContactFields("Jan", "Kowalski", "", emptyList(), emptyList(), emptyList()))
         assertEquals("Jan Kowalski", planDatasets(kp, web, listOf(contact)).single().subtitle)
-        
     }
 }

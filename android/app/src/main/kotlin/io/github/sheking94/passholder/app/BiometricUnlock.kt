@@ -95,6 +95,7 @@ class BiometricKeyLostException : Exception(MESSAGE) {
 /** Makes the ciphers. [KeystoreKeyProtector] on the phone; tests use a plain software key (Robolectric has no Keystore). */
 interface UnlockKeyProtector {
     fun newEncryptCipher(): Cipher
+
     /** Null when there is no key. */
     fun decryptCipher(iv: ByteArray): Cipher?
     fun deleteKey()
@@ -107,7 +108,15 @@ class KeystoreKeyProtector : UnlockKeyProtector {
         // Generating under the same alias replaces the old key. StrongBox (a separate secure chip) where the phone
         // has one; otherwise the usual hardware-backed Keystore (security review I2).
         val key = runCatching { generateKey(strongBox = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) }
-            .recover { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && it is StrongBoxUnavailableException) generateKey(strongBox = false) else throw it }
+            .recover {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
+                    it is StrongBoxUnavailableException
+                ) {
+                    generateKey(strongBox = false)
+                } else {
+                    throw it
+                }
+            }
             .getOrThrow()
         // The Keystore picks the nonce itself; it is read back from cipher.iv after encrypting.
         return Cipher.getInstance(TRANSFORMATION).apply { init(Cipher.ENCRYPT_MODE, key) }
@@ -168,7 +177,13 @@ object SystemFingerprintPrompt : FingerprintPrompt {
         else -> BiometricAvailability.Unsupported
     }
 
-    override fun authenticate(activity: FragmentActivity, title: String, cipher: Cipher, onSuccess: (Cipher) -> Unit, onError: (String?) -> Unit) {
+    override fun authenticate(
+        activity: FragmentActivity,
+        title: String,
+        cipher: Cipher,
+        onSuccess: (Cipher) -> Unit,
+        onError: (String?) -> Unit,
+    ) {
         val callback = object : BiometricPrompt.AuthenticationCallback() {
             override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                 result.cryptoObject?.cipher?.let(onSuccess) ?: onError("Brak klucza po weryfikacji odcisku")
@@ -187,6 +202,10 @@ object SystemFingerprintPrompt : FingerprintPrompt {
             .setNegativeButtonText("Użyj hasła głównego")
             .setAllowedAuthenticators(BIOMETRIC_STRONG)
             .build()
-        BiometricPrompt(activity, ContextCompat.getMainExecutor(activity), callback).authenticate(info, BiometricPrompt.CryptoObject(cipher))
+        BiometricPrompt(
+            activity,
+            ContextCompat.getMainExecutor(activity),
+            callback,
+        ).authenticate(info, BiometricPrompt.CryptoObject(cipher))
     }
 }

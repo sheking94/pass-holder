@@ -5,13 +5,6 @@ import io.github.sheking94.passholder.core.files.FileChunks
 import io.github.sheking94.passholder.core.transfer.ArchiveImportResult
 import io.github.sheking94.passholder.core.transfer.ImportSkip
 import io.github.sheking94.passholder.core.transfer.PassHolderZip
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
-import java.io.File
-import java.io.FilterInputStream
-import java.io.InputStream
-import java.util.zip.ZipEntry
-import java.util.zip.ZipOutputStream
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -19,6 +12,13 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.io.TempDir
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FilterInputStream
+import java.io.InputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 class PhoneVaultStoreArchiveTest {
     @TempDir
@@ -32,12 +32,21 @@ class PhoneVaultStoreArchiveTest {
     private val bodies = mapOf("skan?.pdf" to scan, "zdjęcie.jpg" to photo)
 
     private fun descriptor(name: String, n: Int) = Attachment(
-        "00000000-0000-4000-8000-00000000000$n", name, "application/octet-stream", bodies.getValue(name).size.toLong(), 1,
-        FileChunks.sha256Hex(bodies.getValue(name)), "A".repeat(43) + "=",
+        "00000000-0000-4000-8000-00000000000$n",
+        name,
+        "application/octet-stream",
+        bodies.getValue(name).size.toLong(),
+        1,
+        FileChunks.sha256Hex(bodies.getValue(name)),
+        "A".repeat(43) + "=",
     )
 
     private val withFiles = EntryContentV3(
-        "Umowa", "z plikami", LoginFields("jan", "tajne"), emptyList(), listOf(descriptor("skan?.pdf", 1), descriptor("zdjęcie.jpg", 2)),
+        "Umowa",
+        "z plikami",
+        LoginFields("jan", "tajne"),
+        emptyList(),
+        listOf(descriptor("skan?.pdf", 1), descriptor("zdjęcie.jpg", 2)),
     )
     private val plain = EntryContentV3("Adres", "ul. Polna 1", NoteFields, emptyList())
 
@@ -99,7 +108,8 @@ class PhoneVaultStoreArchiveTest {
         val (_, result) = store.importArchive(ByteArrayInputStream(out.toByteArray()))
         assertEquals(
             ArchiveImportResult(
-                ImportResult(1, 0, 0), 1,
+                ImportResult(1, 0, 0),
+                1,
                 listOf(ImportSkip("wpis 1, brak.txt", "brak w archiwum"), ImportSkip("wpis 1, inny.txt", "inny rozmiar niż w opisie")),
             ),
             result,
@@ -115,8 +125,9 @@ class PhoneVaultStoreArchiveTest {
         // Same content (files aside); the first copy's 40 file descriptors push it past the entry size limit.
         val head = """"type":"note","name":"Długa","note":"${"x".repeat(45_000)}","fields":{},"custom":[]"""
         fun described(n: Int) = """{"name":"p$n.txt","mime":"text/plain","size":1,"path":"files/$n-p$n.txt"}"""
-        val index = """{"format":"passholder","version":3,"entries":[{$head,"attachments":[${(1..40).joinToString(",") { described(it) }}]},""" +
-            """{$head,"attachments":[${described(41)}]}]}"""
+        val index =
+            """{"format":"passholder","version":3,"entries":[{$head,"attachments":[${(1..40).joinToString(",") { described(it) }}]},""" +
+                """{$head,"attachments":[${described(41)}]}]}"""
         val out = ByteArrayOutputStream()
         ZipOutputStream(out).use { z ->
             z.putNextEntry(ZipEntry("passholder.json"))

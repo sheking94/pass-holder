@@ -1,8 +1,8 @@
 package io.github.sheking94.passholder.app
 
-import io.github.sheking94.passholder.app.entries.EntryType
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.onNodeWithText
+import io.github.sheking94.passholder.app.entries.EntryType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull

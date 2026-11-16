@@ -17,8 +17,7 @@ private fun file(n: Int) = Attachment(
     key = Encoding.toBase64(ByteArray(32)),
 )
 
-private fun login(name: String, files: Int) =
-    EntryContentV3(name, "", LoginFields("jan", "pw"), emptyList(), (1..files).map(::file))
+private fun login(name: String, files: Int) = EntryContentV3(name, "", LoginFields("jan", "pw"), emptyList(), (1..files).map(::file))
 
 class AttachmentsListScreenTest : ScreenTestBase() {
     @Test

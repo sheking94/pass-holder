@@ -71,9 +71,13 @@ object NordPassCsv {
                     skipped.add(ImportSkip(at, "typ „$declared” nie jest obsługiwany"))
                     null
                 } ?: continue
+
                 filled(get("cardnumber")) -> "card"
+
                 listOf("full_name", "phone_number", "email", "address1").any { filled(get(it)) } -> "contact"
+
                 index.keys.all { it in NOTE_COLUMNS || !filled(get(it)) } -> "note"
+
                 else -> "login"
             }
 
@@ -88,16 +92,33 @@ object NordPassCsv {
             entries.add(
                 when (kind) {
                     "login" -> EntryContentV3(
-                        name, note,
-                        LoginFields(get("username"), get("password"), get("totp"), if (url != "") listOf(url) else emptyList(), emptyList()),
+                        name,
+                        note,
+                        LoginFields(
+                            get("username"),
+                            get("password"),
+                            get("totp"),
+                            if (url !=
+                                ""
+                            ) {
+                                listOf(url)
+                            } else {
+                                emptyList()
+                            },
+                            emptyList(),
+                        ),
                         emptyList(),
                     )
+
                     "note" -> EntryContentV3(name, note, NoteFields, emptyList())
+
                     "card" -> EntryContentV3(
-                        name, note,
+                        name,
+                        note,
                         CardFields(get("cardholdername"), get("cardnumber"), get("expirydate"), get("cvc"), ""),
                         if (filled(get("zipcode"))) listOf(extra("Kod pocztowy", get("zipcode"))) else emptyList(),
                     )
+
                     else -> {
                         val fullName = get("full_name").jsTrim()
                         val space = fullName.indexOf(' ')
@@ -105,7 +126,8 @@ object NordPassCsv {
                         val address = PostalAddress("", street, get("zipcode"), get("city"), get("country"))
                         val hasAddress = listOf("address1", "address2", "zipcode", "city", "country").any { filled(get(it)) }
                         EntryContentV3(
-                            name, note,
+                            name,
+                            note,
                             ContactFields(
                                 firstName = if (space < 0) fullName else fullName.substring(0, space),
                                 lastName = if (space < 0) "" else fullName.substring(space + 1).jsTrim(),
@@ -139,6 +161,7 @@ object NordPassCsv {
                 f.urls.drop(1).forEach { lines += line("Adres strony", it) }
                 f.androidApps.forEach { lines += line("Aplikacja Androida", it) }
             }
+
             is CardFields -> {
                 v["cardholdername"] = f.holder
                 v["cardnumber"] = f.number
@@ -146,6 +169,7 @@ object NordPassCsv {
                 v["expirydate"] = f.expiry
                 lines += line("PIN", f.pin)
             }
+
             is ContactFields -> {
                 v["full_name"] = "${f.firstName} ${f.lastName}".jsTrim()
                 v["phone_number"] = f.phones.firstOrNull()?.value ?: ""
@@ -161,7 +185,9 @@ object NordPassCsv {
                 f.addresses.drop(1).forEach { lines += line(labelled("Adres", it.label), addressLine(it)) }
                 lines += line("Data urodzenia", f.birthDate)
             }
+
             is NoteFields -> {}
+
             is DocumentFields -> {
                 lines += line("Rodzaj dokumentu", DOCUMENT_KIND_NAMES[f.kind] ?: "")
                 lines += line("Numer", f.number)

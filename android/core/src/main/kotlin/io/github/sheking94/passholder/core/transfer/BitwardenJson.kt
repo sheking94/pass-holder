@@ -43,8 +43,13 @@ object BitwardenJson {
         if (v is JsonPrimitive && !v.isString && v !is JsonNull) v.content.toDoubleOrNull() else null
 
     /** JS String(number): integers without a fraction, otherwise Kotlin's shortest representation. */
-    private fun numText(d: Double): String =
-        if (d == Math.rint(d) && Math.abs(d) < 1e21) (if (d == 0.0) "0" else java.math.BigDecimal(d).toBigInteger().toString()) else d.toString()
+    private fun numText(d: Double): String = if (d == Math.rint(d) &&
+        Math.abs(d) < 1e21
+    ) {
+        (if (d == 0.0) "0" else java.math.BigDecimal(d).toBigInteger().toString())
+    } else {
+        d.toString()
+    }
 
     /** null, booleans, arrays, objects and absent values become "". */
     private fun s(v: JsonElement?): String = when {
@@ -91,7 +96,9 @@ object BitwardenJson {
         val address = PostalAddress(
             label = "",
             street = listOf(s(id["address1"]), s(id["address2"]), s(id["address3"])).filter { it != "" }.joinToString(", "),
-            postalCode = s(id["postalCode"]), city = s(id["city"]), country = s(id["country"]),
+            postalCode = s(id["postalCode"]),
+            city = s(id["city"]),
+            country = s(id["country"]),
         )
         val hasAddress = listOf(address.label, address.street, address.postalCode, address.city, address.country).any { it != "" }
         val passport = s(id["passportNumber"])
@@ -104,16 +111,20 @@ object BitwardenJson {
         val usesPassport = !usesLicense && passport != ""
         val numberFromIdentity = if (usesLicense) license else passport
         val extras = mutableListOf(
-            "Tytuł" to s(id["title"]), "Drugie imię" to s(id["middleName"]), "Firma" to s(id["company"]),
+            "Tytuł" to s(id["title"]),
+            "Drugie imię" to s(id["middleName"]),
+            "Firma" to s(id["company"]),
             "Numer SSN" to s(id["ssn"]),
             "Numer paszportu" to (if (isDocument && usesPassport) "" else passport),
             "Numer prawa jazdy" to (if (isDocument && usesLicense) "" else license),
-            "Nazwa użytkownika" to s(id["username"]), "Województwo/stan" to s(id["state"]),
+            "Nazwa użytkownika" to s(id["username"]),
+            "Województwo/stan" to s(id["state"]),
         )
         if (isDocument) {
             extras.addAll(
                 listOf(
-                    "E-mail" to s(id["email"]), "Telefon" to s(id["phone"]),
+                    "E-mail" to s(id["email"]),
+                    "Telefon" to s(id["phone"]),
                     "Adres" to (if (hasAddress) addressLine(address) else ""),
                     "Imię" to (if (hasFullName) s(id["firstName"]) else ""),
                     "Nazwisko" to (if (hasFullName) s(id["lastName"]) else ""),
@@ -140,9 +151,12 @@ object BitwardenJson {
         val email = s(id["email"])
         val phone = s(id["phone"])
         return EntryContentV3(
-            name, note,
+            name,
+            note,
             ContactFields(
-                firstName = s(id["firstName"]), lastName = s(id["lastName"]), birthDate = "",
+                firstName = s(id["firstName"]),
+                lastName = s(id["lastName"]),
+                birthDate = "",
                 phones = if (phone != "") listOf(LabeledValue("", phone)) else emptyList(),
                 emails = if (email != "") listOf(LabeledValue("", email)) else emptyList(),
                 addresses = if (hasAddress) listOf(address) else emptyList(),
@@ -169,9 +183,16 @@ object BitwardenJson {
                     if (uri == "") continue
                     if (uri.startsWith(ANDROID_PREFIX)) androidApps.add(uri.removePrefix(ANDROID_PREFIX)) else urls.add(uri)
                 }
-                EntryContentV3(name, note, LoginFields(s(login["username"]), s(login["password"]), s(login["totp"]), urls, androidApps), fields)
+                EntryContentV3(
+                    name,
+                    note,
+                    LoginFields(s(login["username"]), s(login["password"]), s(login["totp"]), urls, androidApps),
+                    fields,
+                )
             }
+
             2.0 -> EntryContentV3(name, note, NoteFields, fields)
+
             3.0 -> {
                 val card = obj(item["card"]) ?: JsonObject(emptyMap())
                 val brand = s(card["brand"])
@@ -179,10 +200,13 @@ object BitwardenJson {
                 val pinIdx = rest.indexOfFirst { it.label == L_PIN }
                 val pin = if (pinIdx < 0) "" else rest.removeAt(pinIdx).value
                 EntryContentV3(
-                    name, note, importCard(card, pin),
+                    name,
+                    note,
+                    importCard(card, pin),
                     (if (brand != "") listOf(custom("Marka karty", brand)) else emptyList()) + rest,
                 )
             }
+
             else -> importIdentity(name, note, obj(item["identity"]) ?: JsonObject(emptyMap()), fields)
         }
     }
@@ -244,14 +268,18 @@ object BitwardenJson {
                         f.urls.map { jo("match" to JsonNull, "uri" to JsonPrimitive(it)) } +
                             f.androidApps.map { jo("match" to JsonNull, "uri" to JsonPrimitive(ANDROID_PREFIX + it)) },
                     ),
-                    "username" to nn(f.username), "password" to nn(f.password), "totp" to nn(f.totp),
+                    "username" to nn(f.username),
+                    "password" to nn(f.password),
+                    "totp" to nn(f.totp),
                 )
             }
+
             is NoteFields -> {
                 type = 2
                 bodyKey = "secureNote"
                 body = jo("type" to JsonPrimitive(0))
             }
+
             is CardFields -> {
                 val m = EXPIRY.matchEntire(f.expiry)
                 type = 3
@@ -259,12 +287,15 @@ object BitwardenJson {
                 if (f.pin != "") extra.add(field(L_PIN, f.pin, true))
                 if (m == null && f.expiry != "") extra.add(field("Ważność", f.expiry))
                 body = jo(
-                    "cardholderName" to nn(f.holder), "brand" to JsonNull, "number" to nn(f.number),
+                    "cardholderName" to nn(f.holder),
+                    "brand" to JsonNull,
+                    "number" to nn(f.number),
                     "expMonth" to (if (m != null) JsonPrimitive(m.groupValues[1].toInt().toString()) else JsonNull),
                     "expYear" to (if (m != null) JsonPrimitive("20${m.groupValues[2]}") else JsonNull),
                     "code" to nn(f.cvc),
                 )
             }
+
             is ContactFields -> {
                 val phone = f.phones.firstOrNull()
                 val mail = f.emails.firstOrNull()
@@ -276,7 +307,8 @@ object BitwardenJson {
                 f.addresses.drop(1).forEach { extra.add(field(labelled("Adres", it.label), addressLine(it))) }
                 if (f.birthDate != "") extra.add(field("Data urodzenia", f.birthDate))
                 body = identity(
-                    "firstName" to nn(f.firstName), "lastName" to nn(f.lastName),
+                    "firstName" to nn(f.firstName),
+                    "lastName" to nn(f.lastName),
                     "phone" to (if (phone != null) nn(phone.value) else JsonNull),
                     "email" to (if (mail != null) nn(mail.value) else JsonNull),
                     "address1" to (if (addr != null) nn(addr.street) else JsonNull),
@@ -285,6 +317,7 @@ object BitwardenJson {
                     "country" to (if (addr != null) nn(addr.country) else JsonNull),
                 )
             }
+
             is DocumentFields -> {
                 type = 4
                 bodyKey = "identity"
@@ -292,7 +325,12 @@ object BitwardenJson {
                 if (f.kind != DocumentKind.PASSPORT && f.kind != DocumentKind.DRIVING_LICENSE && f.number != "") {
                     extra.add(field(L_NUMBER, f.number))
                 }
-                for ((label, value) in listOf(L_FULL_NAME to f.fullName, L_ISSUE to f.issueDate, L_EXPIRY to f.expiryDate, L_ISSUER to f.issuer)) {
+                for ((label, value) in listOf(
+                    L_FULL_NAME to f.fullName,
+                    L_ISSUE to f.issueDate,
+                    L_EXPIRY to f.expiryDate,
+                    L_ISSUER to f.issuer,
+                )) {
                     if (value != "") extra.add(field(label, value))
                 }
                 body = identity(
@@ -303,14 +341,19 @@ object BitwardenJson {
         }
         val fields = extra + e.custom.map { field(it.label, it.value, it.hidden) }
         return jo(
-            "type" to JsonPrimitive(type), "name" to JsonPrimitive(e.name), "notes" to nn(e.note),
-            "favorite" to JsonPrimitive(false), "fields" to JsonArray(fields), bodyKey to body,
+            "type" to JsonPrimitive(type),
+            "name" to JsonPrimitive(e.name),
+            "notes" to nn(e.note),
+            "favorite" to JsonPrimitive(false),
+            "fields" to JsonArray(fields),
+            bodyKey to body,
         )
     }
 
     fun export(entries: List<EntryContentV3>): String {
         val doc = jo(
-            "encrypted" to JsonPrimitive(false), "folders" to JsonArray(emptyList()),
+            "encrypted" to JsonPrimitive(false),
+            "folders" to JsonArray(emptyList()),
             "items" to JsonArray(sortForExport(entries).map(::exportItem)),
         )
         return JsonText.stringify(doc) + "\n"

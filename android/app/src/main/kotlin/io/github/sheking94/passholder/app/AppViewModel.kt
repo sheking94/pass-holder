@@ -21,7 +21,6 @@ import io.github.sheking94.passholder.core.transfer.Transfer
 import io.github.sheking94.passholder.core.transfer.TransferFormat
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import javax.crypto.Cipher
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -33,6 +32,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.util.UUID
+import javax.crypto.Cipher
 
 sealed interface Screen {
     /** The screens that show what is in the vault: they must not stay on screen once it locks. */
@@ -44,30 +44,37 @@ sealed interface Screen {
     data object List : Screen {
         override val showsVault get() = true
     }
+
     /** [id] is null for a new entry of [type]. */
     data class Edit(val id: String?, val type: EntryType) : Screen {
         override val showsVault get() = true
     }
+
     /** "Ustawienia": fingerprint unlock and the lock delay. */
     data object Settings : Screen {
         override val showsVault get() = true
     }
+
     /** "Zmień hasło główne", opened from Ustawienia. */
     data object ChangePassword : Screen {
         override val showsVault get() = true
     }
+
     /** "Import i eksport": files of PassHolder, Bitwarden and NordPass. */
     data object Transfer : Screen {
         override val showsVault get() = true
     }
+
     /** Sync mode: the phone serves the extension. */
     data object Sync : Screen {
         override val showsVault get() = true
     }
+
     /** Paired extensions. */
     data object Devices : Screen {
         override val showsVault get() = true
     }
+
     /** "Odtwórz z wtyczki" in progress: the server runs and waits for the extension to send the vault. */
     data object Restore : Screen
 }
@@ -106,6 +113,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val sync = SyncController(store, app.syncPort, { app.clock() }, app.syncAddresses, app.syncAllowsLocal, onSynced = {
         viewModelScope.launch { refresh() }
     })
+
     /** Sync mode: server, addresses, pairing code, last event, paired devices. */
     val syncState: StateFlow<SyncUiState> = sync.state
 
@@ -128,10 +136,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val timesLeftApp: StateFlow<Int> = locks.timesLeftApp
 
     private val _lockDelay = MutableStateFlow(app.settings.lockDelay)
+
     /** "Blokuj dopiero po 60 s poza aplikacją" is on. */
     val lockDelay: StateFlow<Boolean> = _lockDelay.asStateFlow()
 
     private val _askToSave = MutableStateFlow(app.settings.askToSave)
+
     /** "Pytaj o zapis haseł" is on. */
     val askToSave: StateFlow<Boolean> = _askToSave.asStateFlow()
 
@@ -169,9 +179,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         locks.onReturn()
         if (_state.value.screen == Screen.Restore) startRestoreSync()
         // Unlocked outside this screen (the autofill unlock screen) while the app showed the locked screen.
-        if (_state.value.screen == Screen.Locked && !_state.value.busy && store.isUnlocked) showListUnlockedElsewhere()
-        // The autofill service may have saved a login in the background; an edit form already open is not reloaded.
-        else if (store.isUnlocked) viewModelScope.launch { refresh() }
+        if (_state.value.screen == Screen.Locked && !_state.value.busy && store.isUnlocked) {
+            showListUnlockedElsewhere()
+        } // The autofill service may have saved a login in the background; an edit form already open is not reloaded.
+        else if (store.isUnlocked) {
+            viewModelScope.launch { refresh() }
+        }
     }
 
     /** Every 15 s and on return: the 5-minute idle stop of sync mode, then the 15-minute auto-lock. */
@@ -633,7 +646,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
             showStatus(
                 listOfNotNull(
-                    if (out.files > 0) "Wyeksportowano ${entriesNoun(entries.size)} i ${filesNoun(out.files)}." else "Wyeksportowano ${entriesNoun(entries.size)}.",
+                    if (out.files >
+                        0
+                    ) {
+                        "Wyeksportowano ${entriesNoun(entries.size)} i ${filesNoun(out.files)}."
+                    } else {
+                        "Wyeksportowano ${entriesNoun(entries.size)}."
+                    },
                     if (out.missing > 0) missingFilesSentence(out.missing) else null,
                     "Usuń archiwum, gdy nie będzie już potrzebne.",
                 ).joinToString(" "),
@@ -719,7 +738,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     var generatorOptions: GeneratorOptions
         get() = app.settings.generatorOptions
-        set(value) { app.settings.generatorOptions = value }
+        set(value) {
+            app.settings.generatorOptions = value
+        }
 
     /** Drops the status line when it shows an error, so a fixed field does not keep its stale message. */
     fun clearError() = _state.update { if (it.status?.isError == true) it.copy(status = null) else it }

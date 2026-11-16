@@ -34,7 +34,12 @@ class CommonTest {
         val input = listOf(note("Łódź"), note("Lublin"), note("Same"), login("Same"), note("Zebra"))
         val copy = input.toList()
         val out = sortForExport(input)
-        assertEquals(listOf("Lublin/note", "Łódź/note", "Same/login", "Same/note", "Zebra/note"), out.map { "${it.name}/${it.fields.type}" })
+        assertEquals(
+            listOf("Lublin/note", "Łódź/note", "Same/login", "Same/note", "Zebra/note"),
+            out.map {
+                "${it.name}/${it.fields.type}"
+            },
+        )
         assertEquals(copy, input)
         assertEquals(listOf("login", "contact", "card", "note", "document"), ENTRY_TYPE_ORDER)
     }

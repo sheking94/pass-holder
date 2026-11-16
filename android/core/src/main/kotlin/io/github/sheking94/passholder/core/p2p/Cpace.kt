@@ -93,14 +93,12 @@ object Cpace {
         sha512(generatorString(prs, ci, sid)).copyOf(2 * FIELD_SIZE_BYTES)
 
     /** G_Ristretto255.calculate_generator (draft 8.3). */
-    internal fun calculateGenerator(prs: ByteArray, ci: ByteArray, sid: ByteArray): ByteArray =
-        generator(prs, ci, sid).encode()
+    internal fun calculateGenerator(prs: ByteArray, ci: ByteArray, sid: ByteArray): ByteArray = generator(prs, ci, sid).encode()
 
     private fun generator(prs: ByteArray, ci: ByteArray, sid: ByteArray): RistrettoPoint =
         RistrettoPoint.fromUniformBytes(generatorHash(prs, ci, sid))
 
-    private fun bytesToScalarLE(bytes: ByteArray): BigInteger =
-        BigInteger(1, bytes.reversedArray()).mod(RistrettoPoint.L)
+    private fun bytesToScalarLE(bytes: ByteArray): BigInteger = BigInteger(1, bytes.reversedArray()).mod(RistrettoPoint.L)
 
     /** G.sample_scalar (draft 8.3): 32 random bytes, bits above 252 cleared, little-endian. */
     private fun sampleScalar(): BigInteger {

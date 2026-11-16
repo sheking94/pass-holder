@@ -37,9 +37,12 @@ fun SaveSpec.toClientState(): Bundle = Bundle().apply {
 }
 
 // Bundle.getParcelable(String, Class) exists only from API 33.
-private fun Bundle.autofillId(key: String): AutofillId? =
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) getParcelable(key, AutofillId::class.java)
-    else @Suppress("DEPRECATION") getParcelable(key)
+private fun Bundle.autofillId(key: String): AutofillId? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+    getParcelable(key, AutofillId::class.java)
+} else {
+    @Suppress("DEPRECATION")
+    getParcelable(key)
+}
 
 fun Bundle.saveSpecIds(): SavedIds? {
     val password = autofillId(KEY_PASSWORD) ?: return null

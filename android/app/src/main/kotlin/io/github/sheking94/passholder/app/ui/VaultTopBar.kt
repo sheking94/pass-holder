@@ -33,14 +33,33 @@ fun VaultTopBar(state: UiState, vm: AppViewModel) {
         actions = {
             TextButton(onClick = vm::openSync, enabled = !state.busy) { Text("Synchronizacja") }
             Box {
-                IconButton(onClick = { menuOpen = true }, enabled = !state.busy, modifier = Modifier.semantics { contentDescription = "Więcej" }) {
+                IconButton(
+                    onClick = { menuOpen = true },
+                    enabled = !state.busy,
+                    modifier = Modifier.semantics {
+                        contentDescription =
+                            "Więcej"
+                    },
+                ) {
                     Text("⋮", style = MaterialTheme.typography.titleLarge)
                 }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    DropdownMenuItem(text = { Text("Urządzenia") }, enabled = !state.busy, onClick = { menuOpen = false; vm.openDevices() })
-                    DropdownMenuItem(text = { Text("Ustawienia") }, enabled = !state.busy, onClick = { menuOpen = false; vm.openSettings() })
-                    DropdownMenuItem(text = { Text("Import i eksport") }, enabled = !state.busy, onClick = { menuOpen = false; vm.openTransfer() })
-                    DropdownMenuItem(text = { Text("Zablokuj") }, enabled = !state.busy, onClick = { menuOpen = false; vm.lock() })
+                    DropdownMenuItem(text = { Text("Urządzenia") }, enabled = !state.busy, onClick = {
+                        menuOpen = false
+                        vm.openDevices()
+                    })
+                    DropdownMenuItem(text = { Text("Ustawienia") }, enabled = !state.busy, onClick = {
+                        menuOpen = false
+                        vm.openSettings()
+                    })
+                    DropdownMenuItem(text = { Text("Import i eksport") }, enabled = !state.busy, onClick = {
+                        menuOpen = false
+                        vm.openTransfer()
+                    })
+                    DropdownMenuItem(text = { Text("Zablokuj") }, enabled = !state.busy, onClick = {
+                        menuOpen = false
+                        vm.lock()
+                    })
                 }
             }
         },

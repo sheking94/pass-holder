@@ -27,7 +27,9 @@ internal fun autofillId(n: Int): AutofillId =
     ReflectionHelpers.callConstructor(AutofillId::class.java, ClassParameter.from(Int::class.javaPrimitiveType, n))
 
 private fun spec(n: Int) = DatasetSpec(
-    "e$n", "Wpis $n", if (n % 2 == 0) "jan$n" else "",
+    "e$n",
+    "Wpis $n",
+    if (n % 2 == 0) "jan$n" else "",
     listOf(autofillId(1) to NodeValue.Text("jan$n"), autofillId(2) to NodeValue.ListIndex(n)),
 )
 

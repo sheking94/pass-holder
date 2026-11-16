@@ -6,14 +6,6 @@ import io.github.sheking94.passholder.core.p2p.EntryContentV3
 import io.github.sheking94.passholder.core.p2p.EntryV3
 import io.github.sheking94.passholder.core.p2p.LoginFields
 import io.github.sheking94.passholder.core.p2p.NoteFields
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
-import java.io.File
-import java.util.zip.CRC32
-import java.util.zip.Deflater
-import java.util.zip.ZipEntry
-import java.util.zip.ZipInputStream
-import java.util.zip.ZipOutputStream
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -23,6 +15,14 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.util.zip.CRC32
+import java.util.zip.Deflater
+import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
 
 class PassHolderZipTest {
     private val notArchive = "Archiwum nie jest eksportem PassHolder"
@@ -41,18 +41,29 @@ class PassHolderZipTest {
     private val bodies = mapOf("Zażółć ?.txt" to text, "a:b?.jpg" to photo)
 
     private fun descriptor(name: String, mime: String, n: Int) = Attachment(
-        "00000000-0000-4000-8000-00000000000$n", name, mime, bodies.getValue(name).size.toLong(), 1,
-        FileChunks.sha256Hex(bodies.getValue(name)), "A".repeat(43) + "=",
+        "00000000-0000-4000-8000-00000000000$n",
+        name,
+        mime,
+        bodies.getValue(name).size.toLong(),
+        1,
+        FileChunks.sha256Hex(bodies.getValue(name)),
+        "A".repeat(43) + "=",
     )
 
     private val login = EntryContentV3(
-        "Bank", "Pliki w archiwum", LoginFields("jan", "tajne hasło", "", listOf("https://bank.example")), emptyList(),
+        "Bank",
+        "Pliki w archiwum",
+        LoginFields("jan", "tajne hasło", "", listOf("https://bank.example")),
+        emptyList(),
         listOf(descriptor("Zażółć ?.txt", "text/plain", 1), descriptor("a:b?.jpg", "image/jpeg", 2)),
     )
     private val note = EntryContentV3("Adres", "ul. Polna 1", NoteFields, emptyList())
     private val readAll: (Attachment) -> ByteArray? = { a -> bodies[a.name]?.copyOf() }
 
-    private fun exportBytes(entries: List<EntryContentV3>, readFile: (Attachment) -> ByteArray? = readAll): Pair<ExportedArchive, ByteArray> {
+    private fun exportBytes(
+        entries: List<EntryContentV3>,
+        readFile: (Attachment) -> ByteArray? = readAll,
+    ): Pair<ExportedArchive, ByteArray> {
         val out = ByteArrayOutputStream()
         val result = PassHolderZip.export(entries, out, readFile)
         return result to out.toByteArray()
@@ -112,7 +123,9 @@ class PassHolderZipTest {
             val files = (e["files"] as JsonArray).map {
                 val f = it as JsonObject
                 ArchivedFile(
-                    f["name"]!!.jsonPrimitive.content, f["mime"]!!.jsonPrimitive.content, f["size"]!!.jsonPrimitive.content.toInt(),
+                    f["name"]!!.jsonPrimitive.content,
+                    f["mime"]!!.jsonPrimitive.content,
+                    f["size"]!!.jsonPrimitive.content.toInt(),
                     f["path"]!!.jsonPrimitive.content,
                 ) to f["sha256"]!!.jsonPrimitive.content
             }
@@ -227,9 +240,19 @@ class PassHolderZipTest {
     @Test
     fun refusesAnIndexThatIsNotPassHolderJson() {
         val zip = zipOf("passholder.json" to """{"format":"other"}""".toByteArray())
-        assertEquals(notArchive, assertThrows<IllegalArgumentException> { ArchiveReader(ByteArrayInputStream(zip)).use { it.readIndex() } }.message)
+        assertEquals(
+            notArchive,
+            assertThrows<IllegalArgumentException> {
+                ArchiveReader(ByteArrayInputStream(zip)).use { it.readIndex() }
+            }.message,
+        )
         val empty = zipOf()
-        assertEquals(notArchive, assertThrows<IllegalArgumentException> { ArchiveReader(ByteArrayInputStream(empty)).use { it.readIndex() } }.message)
+        assertEquals(
+            notArchive,
+            assertThrows<IllegalArgumentException> {
+                ArchiveReader(ByteArrayInputStream(empty)).use { it.readIndex() }
+            }.message,
+        )
     }
 
     @Test
@@ -241,7 +264,8 @@ class PassHolderZipTest {
     @Test
     fun skipsAFileThatInflatesPastTheLimitWithoutKeepingIt() {
         val zip = zipOf(
-            "passholder.json" to index("{$bareNote,\"attachments\":[${file("files/1-bomb.bin", 1000, "bomb.bin")},${file("files/2-a.txt")}]}"),
+            "passholder.json" to
+                index("{$bareNote,\"attachments\":[${file("files/1-bomb.bin", 1000, "bomb.bin")},${file("files/2-a.txt")}]}"),
             "files/1-bomb.bin" to ByteArray(11 * 1024 * 1024),
             "files/2-a.txt" to "abc".toByteArray(),
         )
@@ -378,11 +402,20 @@ class PassHolderZipTest {
 
     private fun fixture(name: String) = File(System.getProperty("passholder.repoRoot"), "core/test-vectors/transfer/$name").readBytes()
 
-    private fun assertInvalid(zip: ByteArray) = assertEquals(zipInvalid, assertThrows<IllegalArgumentException> { readThrough(zip) }.message)
+    private fun assertInvalid(zip: ByteArray) = assertEquals(
+        zipInvalid,
+        assertThrows<IllegalArgumentException> {
+            readThrough(zip)
+        }.message,
+    )
 
     @Test
     fun refusesAnArchiveWhoseEndIsCutShortOrFollowedByMoreBytes() {
-        for (zip in listOf(fixture("archive.passholder.zip"), fixture("archive-kotlin.passholder.zip"), exportBytes(listOf(login, note)).second)) {
+        for (zip in listOf(
+            fixture("archive.passholder.zip"),
+            fixture("archive-kotlin.passholder.zip"),
+            exportBytes(listOf(login, note)).second,
+        )) {
             readThrough(zip)
             for (cut in listOf(1, 5, 22, 30)) assertInvalid(zip.copyOf(zip.size - cut))
             assertInvalid(zip + byteArrayOf(0))
@@ -474,7 +507,13 @@ class PassHolderZipTest {
             """{"type":"note","name":"Drugi","note":"","fields":{},"custom":[],"attachments":[$other]}""",
         )
         assertEquals(listOf(2, 3).map { ImportSkip("wpis $it", "zły format wpisu") }, r.skipped)
-        assertEquals(listOf(1 to listOf("files/1-a.txt"), 4 to listOf("files/2-b.txt")), r.entries.map { e -> e.position to e.files.map { it.path } })
+        assertEquals(
+            listOf(1 to listOf("files/1-a.txt"), 4 to listOf("files/2-b.txt")),
+            r.entries.map { e ->
+                e.position to
+                    e.files.map { it.path }
+            },
+        )
     }
 
     @Test

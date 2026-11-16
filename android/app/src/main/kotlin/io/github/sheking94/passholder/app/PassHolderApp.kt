@@ -25,42 +25,56 @@ class PassHolderApp : Application() {
     /** The vault the phone owns (and serves to the extension). Tests replace it with [replacePhoneStore]. */
     lateinit var phoneStore: PhoneVaultStore
         private set
+
     /**
      * Wraps the phone's identity key on disk. Replaced in tests (Robolectric has no Android Keystore); the store
      * reads this property on every use, so replacing it after onCreate works.
      */
     var secretWrapper: SecretWrapper = KeystoreSecretWrapper()
+
     /** The port of sync mode; tests set 0 (any free port). */
     var syncPort: Int = PhoneSync.PORT
+
     /**
      * The clock of the vault store and of sync mode (idle stop, code expiry and countdown); tests move it forward.
      * One clock for both, so the code's expiry time (set by the store) and the countdown agree.
      */
     var clock: () -> Long = System::currentTimeMillis
+
     /** Which networks sync mode answers on (Wi-Fi, Ethernet, Tailscale; not cellular). */
     private val syncNetworks by lazy { SyncNetworks(this) }
+
     /** The phone's addresses shown in sync mode, for the port actually bound; tests use loopback only. */
     var syncAddresses: (boundPort: Int) -> List<String> = { LocalAddresses.format(syncNetworks.addresses(), it) }
+
     /** Whether sync mode serves a connection that came in on this local address; tests allow all. */
     var syncAllowsLocal: (InetAddress) -> Boolean = { syncNetworks.allows(it) }
     lateinit var settings: Settings
         private set
+
     /** Replaced in tests: Robolectric has neither the Android Keystore nor a fingerprint reader. */
     lateinit var biometric: BiometricUnlock
+
     /** Locks the vault 60 s after leaving the app, when the delay is on in the settings. */
     lateinit var leaveLock: LeaveLock
+
     /** Signing certificates of installed apps; tests replace it (Robolectric installs no real browsers). */
     var appSigners: AppSigners = SystemAppSigners(this)
+
     /** Browsers and the apps of a login, recognized by their certificates (security review V3-S3). */
     lateinit var appTrust: AppTrust
         private set
+
     /** The launcher apps a login can be tied to; tests replace it. */
     var installedApps: InstalledApps = SystemInstalledApps(this)
     var fingerprintPrompt: FingerprintPrompt = SystemFingerprintPrompt
+
     /** Whether PassHolder is the autofill service, shown in "Ustawienia"; tests replace it. */
     var autofillStatus: AutofillStatus = SystemAutofillStatus(this)
+
     /** The login waiting for the unlock of a locked vault (in memory only, 2 minutes). */
     val pendingSave = PendingSave { clock() }
+
     /** The fill request behind the autofill unlock screen; tests give one without a real AssistStructure. */
     var autofillRequest: (Intent) -> ParsedRequest? = { it.assistStructure()?.let(::readRequest) }
 
@@ -112,7 +126,8 @@ class Settings(context: Context) {
     private val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
 
     var generatorOptions: GeneratorOptions
-        get() = prefs.getString("generator", null)?.let { runCatching { Json.decodeFromString<GeneratorOptions>(it) }.getOrNull() } ?: GeneratorOptions()
+        get() = prefs.getString("generator", null)?.let { runCatching { Json.decodeFromString<GeneratorOptions>(it) }.getOrNull() }
+            ?: GeneratorOptions()
         set(value) = prefs.edit { putString("generator", Json.encodeToString(value)) }
 
     /** Leaving the app locks the vault after 60 s instead of at once. On by default. */

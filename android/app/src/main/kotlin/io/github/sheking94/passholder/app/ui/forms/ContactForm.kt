@@ -17,7 +17,9 @@ fun ContactForm(fields: ContactFields, onChange: (ContactFields) -> Unit, vm: Ap
     PlainField(fields.firstName, { onChange(fields.copy(firstName = it)) }, "Imię")
     PlainField(fields.lastName, { onChange(fields.copy(lastName = it)) }, "Nazwisko")
     PlainField(fields.birthDate, { onChange(fields.copy(birthDate = it)) }, "Data urodzenia", placeholder = "RRRR-MM-DD")
-    ListEditor("Telefony", fields.phones, { onChange(fields.copy(phones = it)) }, "Dodaj telefon", { LabeledValue("", "") }) { phone, update ->
+    ListEditor("Telefony", fields.phones, {
+        onChange(fields.copy(phones = it))
+    }, "Dodaj telefon", { LabeledValue("", "") }) { phone, update ->
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             PlainField(phone.label, { update(phone.copy(label = it)) }, "Etykieta telefonu")
             PlainField(phone.value, { update(phone.copy(value = it)) }, "Telefon", keyboardType = KeyboardType.Phone)
@@ -29,7 +31,9 @@ fun ContactForm(fields: ContactFields, onChange: (ContactFields) -> Unit, vm: Ap
             PlainField(mail.value, { update(mail.copy(value = it)) }, "E-mail", keyboardType = KeyboardType.Email)
         }
     }
-    ListEditor("Adresy", fields.addresses, { onChange(fields.copy(addresses = it)) }, "Dodaj adres", { PostalAddress("", "", "", "", "") }) { a, update ->
+    ListEditor("Adresy", fields.addresses, {
+        onChange(fields.copy(addresses = it))
+    }, "Dodaj adres", { PostalAddress("", "", "", "", "") }) { a, update ->
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             PlainField(a.label, { update(a.copy(label = it)) }, "Etykieta adresu")
             PlainField(a.street, { update(a.copy(street = it)) }, "Ulica")

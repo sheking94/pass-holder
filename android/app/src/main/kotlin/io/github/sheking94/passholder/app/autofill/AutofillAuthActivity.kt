@@ -3,8 +3,8 @@ package io.github.sheking94.passholder.app.autofill
 import android.content.Intent
 import android.os.Bundle
 import android.view.WindowManager
-import androidx.activity.compose.setContent
 import androidx.activity.addCallback
+import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
@@ -57,11 +57,14 @@ abstract class AutofillAuthActivity : FragmentActivity() {
 
     private var busy by mutableStateOf(false)
     private var status by mutableStateOf<Status?>(null)
+
     /** The fingerprint dialog opens by itself once, on the first resume (not again after a rotation). */
     private var fingerprintOffered = false
     private var delivered = false
+
     /** The vault was already open at the start and [skipsUnlockWhenOpen]: [afterUnlock] runs, no unlock screen. */
     private var skipping by mutableStateOf(false)
+
     /**
      * onStop already started D1 for the vault this screen opened (the 60 s timer runs): closing must not start it
      * again, which would move the deadline (or lock a vault reopened in the app meanwhile).
@@ -122,8 +125,10 @@ abstract class AutofillAuthActivity : FragmentActivity() {
                     Box(Modifier.safeDrawingPadding()) {
                         when {
                             unlocked.relock != null -> UnlockedContent()
+
                             // Blank for the moment afterUnlock takes.
                             skipping -> {}
+
                             else -> AutofillUnlockScreen(busy, status, fingerprint, ::unlockWithPassword, ::unlockWithFingerprint, ::cancel)
                         }
                     }
@@ -269,6 +274,7 @@ abstract class AutofillAuthActivity : FragmentActivity() {
             }
             when (next) {
                 is AfterUnlock.Deliver -> deliver(next.data, relock = !wasUnlocked)
+
                 AfterUnlock.Stay -> {
                     busy = false
                     status = null

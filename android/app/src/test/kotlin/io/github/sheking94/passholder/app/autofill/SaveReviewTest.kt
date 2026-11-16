@@ -34,7 +34,8 @@ class SaveReviewTest {
     private fun browser(domain: String) = AppRequest("com.android.chrome", domain, "https", browserVerified = true, appVerified = true)
     private fun review(data: SaveData, label: String = "Chrome") = SaveReview(data, app.phoneStore.entries(), label)
     private fun addGithub() = app.phoneStore.upsertContent(
-        "1", EntryContentV3("GitHub", "", LoginFields("jkowalski", "s3cret", urls = listOf("https://github.com")), emptyList()),
+        "1",
+        EntryContentV3("GitHub", "", LoginFields("jkowalski", "s3cret", urls = listOf("https://github.com")), emptyList()),
     )
 
     @Test
@@ -130,7 +131,9 @@ class SaveReviewTest {
         assertEquals("1", entry.id)
         assertEquals(
             EntryContentV3(
-                "GitHub", "", LoginFields("jkowalski", "newer", urls = listOf("https://github.com")),
+                "GitHub",
+                "",
+                LoginFields("jkowalski", "newer", urls = listOf("https://github.com")),
                 listOf(CustomField(PREVIOUS_PASSWORD_LABEL, "s3cret", true)),
             ),
             entry.content,

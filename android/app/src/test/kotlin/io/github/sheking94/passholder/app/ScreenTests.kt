@@ -230,7 +230,9 @@ class FullFlowScreensTest : ScreenTestBase() {
         assertEquals(2, records.lines().count { it.isNotBlank() })
         assertFalse(records.contains("bank.pl") || records.contains("jan.kowalski"))
 
-        compose.onAllNodes(hasText("Hasło") and SemanticsMatcher.keyIsDefined(androidx.compose.ui.semantics.SemanticsActions.OnClick))[0].performClick()
+        compose.onAllNodes(
+            hasText("Hasło") and SemanticsMatcher.keyIsDefined(androidx.compose.ui.semantics.SemanticsActions.OnClick),
+        )[0].performClick()
         waitFor("Skopiowano hasło", substring = true)
         val clipboard = app.getSystemService(ClipboardManager::class.java)
         assertEquals(generated, clipboard.primaryClip!!.getItemAt(0).text.toString())
@@ -315,9 +317,12 @@ class RemoveVaultTest : ScreenTestBase() {
 class RemoveVaultKeystoreFailureTest : ScreenTestBase() {
     /** A Keystore that refuses to delete the fingerprint key. */
     override fun beforeLaunch(app: PassHolderApp) {
-        app.biometric = BiometricUnlock(app, object : UnlockKeyProtector by SoftwareKeyProtector() {
-            override fun deleteKey() = throw IllegalStateException("Keystore niedostępny")
-        })
+        app.biometric = BiometricUnlock(
+            app,
+            object : UnlockKeyProtector by SoftwareKeyProtector() {
+                override fun deleteKey() = throw IllegalStateException("Keystore niedostępny")
+            },
+        )
     }
 
     @Test
@@ -368,7 +373,15 @@ class BackgroundSaveRefreshTest : ScreenTestBase() {
         createVault()
         val store = ApplicationProvider.getApplicationContext<PassHolderApp>().phoneStore
         // As the autofill service does: straight into the store, without the view model.
-        store.upsertContent("bg", EntryContentV3("tlo.example", "", io.github.sheking94.passholder.core.p2p.LoginFields("jan", "nowe", urls = listOf("tlo.example")), emptyList()))
+        store.upsertContent(
+            "bg",
+            EntryContentV3(
+                "tlo.example",
+                "",
+                io.github.sheking94.passholder.core.p2p.LoginFields("jan", "nowe", urls = listOf("tlo.example")),
+                emptyList(),
+            ),
+        )
         assertTrue(gone("tlo.example"))
         scenario.onActivity { viewModel().onReturn() }
         waitFor("tlo.example")

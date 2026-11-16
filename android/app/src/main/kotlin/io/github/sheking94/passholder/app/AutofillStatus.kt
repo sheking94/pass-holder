@@ -9,6 +9,5 @@ fun interface AutofillStatus {
 }
 
 class SystemAutofillStatus(private val context: Context) : AutofillStatus {
-    override fun isEnabled(): Boolean =
-        context.getSystemService(AutofillManager::class.java)?.hasEnabledAutofillServices() == true
+    override fun isEnabled(): Boolean = context.getSystemService(AutofillManager::class.java)?.hasEnabledAutofillServices() == true
 }

@@ -8,12 +8,7 @@ import java.math.BigInteger
  * NOT constant time: plain BigInteger arithmetic and data-dependent branches leak timing.
  * Acceptable here only because it runs on the phone for short PAKE exchanges; do not reuse for long-term keys.
  */
-internal class RistrettoPoint private constructor(
-    val X: BigInteger,
-    val Y: BigInteger,
-    val Z: BigInteger,
-    val T: BigInteger,
-) {
+internal class RistrettoPoint private constructor(val X: BigInteger, val Y: BigInteger, val Z: BigInteger, val T: BigInteger) {
     /** RFC 9496 §4.3.2: canonical 32-byte little-endian encoding. */
     fun encode(): ByteArray {
         val u1 = (Z + Y) * (Z - Y) % P

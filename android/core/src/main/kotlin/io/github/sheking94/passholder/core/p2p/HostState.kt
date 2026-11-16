@@ -45,7 +45,10 @@ data class HostState(
 fun StoredDevice.toPairedDevice(): PairedDevice = PairedDevice(deviceId, name, Encoding.fromBase64(staticPublicKey))
 
 class HostStateStore(private val file: File, private val wrapper: SecretWrapper) {
-    private val json = Json { encodeDefaults = true; ignoreUnknownKeys = false }
+    private val json = Json {
+        encodeDefaults = true
+        ignoreUnknownKeys = false
+    }
 
     /** The saved state, or null when there is no file. Throws IllegalStateException for content that is not a host state. */
     fun load(): HostState? {

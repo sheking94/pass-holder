@@ -1,8 +1,8 @@
 package io.github.sheking94.passholder.core.p2p
 
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
@@ -24,7 +24,10 @@ class HlcTest {
     fun keepsGrowingWhenWallClockGoesBackwards() {
         var t = 1000L
         val clock = HlcClock("A", { t })
-        val a = clock.tick(); t = 500; val b = clock.tick(); val c = clock.tick()
+        val a = clock.tick()
+        t = 500
+        val b = clock.tick()
+        val c = clock.tick()
         assertEquals(Hlc(1000, 0, "A"), a)
         assertEquals(Hlc(1000, 1, "A"), b)
         assertTrue(b < c)
@@ -41,7 +44,9 @@ class HlcTest {
     fun resetsCounterWhenWallClockMovesForward() {
         var t = 10L
         val clock = HlcClock("A", { t })
-        clock.tick(); clock.tick(); t = 11
+        clock.tick()
+        clock.tick()
+        t = 11
         assertEquals(Hlc(11, 0, "A"), clock.tick())
     }
 
@@ -69,6 +74,9 @@ class HlcTest {
             assertEquals("Invalid HLC", assertThrows(IllegalArgumentException::class.java) { parseHlc(v) }.message)
         }
         assertEquals(Hlc(1, 2, "a"), parseHlc(parse("""{"ms":1,"c":2,"d":"a","extra":1}""")))
-        assertEquals(Hlc(P2pJson.MAX_SAFE_INTEGER, 0, "x".repeat(64)), parseHlc(parse("""{"ms":9007199254740991,"c":0,"d":"${"x".repeat(64)}"}""")))
+        assertEquals(
+            Hlc(P2pJson.MAX_SAFE_INTEGER, 0, "x".repeat(64)),
+            parseHlc(parse("""{"ms":9007199254740991,"c":0,"d":"${"x".repeat(64)}"}""")),
+        )
     }
 }

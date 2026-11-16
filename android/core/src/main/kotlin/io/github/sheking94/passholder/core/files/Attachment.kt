@@ -65,8 +65,7 @@ object Attachments {
     fun canAdd(count: Int): Boolean = count < MAX_ATTACHMENTS_PER_ENTRY
 
     /** 1..255 UTF-16 units, no slashes or control characters. */
-    fun isName(name: String): Boolean =
-        name.length in 1..MAX_NAME_LENGTH && name.none { it == '/' || it == '\\' || isControl(it) }
+    fun isName(name: String): Boolean = name.length in 1..MAX_NAME_LENGTH && name.none { it == '/' || it == '\\' || isControl(it) }
 
     /** At most 127 UTF-16 units, no control characters. */
     fun isMime(mime: String): Boolean = mime.length <= MAX_MIME_LENGTH && mime.none(::isControl)

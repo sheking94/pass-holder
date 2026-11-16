@@ -78,8 +78,7 @@ object FileHost {
 
     private val MALFORMED = fail(400, "malformed file request")
 
-    private fun isUuid(v: JsonElement?): Boolean =
-        v is JsonPrimitive && v.isString && Attachments.UUID_V4.matches(v.content)
+    private fun isUuid(v: JsonElement?): Boolean = v is JsonPrimitive && v.isString && Attachments.UUID_V4.matches(v.content)
 
     private fun string(v: JsonElement?): String? = (v as? JsonPrimitive)?.takeIf { it.isString }?.content
 
@@ -107,6 +106,7 @@ object FileHost {
                     FileReply(200, JsonObject(mapOf("files" to JsonArray(files))))
                 }
             }
+
             "put" -> {
                 if (!isUuid(request["id"])) return MALFORMED
                 val chunks = jsonInt(request["chunks"], 1, max) ?: return MALFORMED
@@ -128,6 +128,7 @@ object FileHost {
                     FileReply(200, JsonObject(mapOf("have" to JsonPrimitive(store.have(id).size))))
                 }
             }
+
             "get" -> {
                 if (!isUuid(request["id"])) return MALFORMED
                 val index = jsonInt(request["index"], 0, max - 1) ?: return MALFORMED
@@ -140,6 +141,7 @@ object FileHost {
                     FileReply(200, JsonObject(mapOf("chunks" to JsonPrimitive(chunks), "blob" to JsonPrimitive(blob))))
                 }
             }
+
             else -> MALFORMED
         }
     }
@@ -156,10 +158,9 @@ object FileHost {
     )
 
     /** Ids of stored files that no live entry uses and whose first chunk is older than ORPHAN_FILE_AGE_MS. */
-    fun orphanIds(store: FileStore, used: Set<String>, now: Long): List<String> =
-        synchronized(store) {
-            store.ids().filter { id ->
-                id !in used && store.createdAt(id)?.let { now - it > Attachments.ORPHAN_FILE_AGE_MS } == true
-            }
+    fun orphanIds(store: FileStore, used: Set<String>, now: Long): List<String> = synchronized(store) {
+        store.ids().filter { id ->
+            id !in used && store.createdAt(id)?.let { now - it > Attachments.ORPHAN_FILE_AGE_MS } == true
         }
+    }
 }

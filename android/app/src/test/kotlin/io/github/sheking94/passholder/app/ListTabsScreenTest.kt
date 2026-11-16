@@ -1,5 +1,6 @@
 package io.github.sheking94.passholder.app
 
+import androidx.compose.ui.test.performTextReplacement
 import io.github.sheking94.passholder.core.p2p.CardFields
 import io.github.sheking94.passholder.core.p2p.ContactFields
 import io.github.sheking94.passholder.core.p2p.DocumentFields
@@ -8,7 +9,6 @@ import io.github.sheking94.passholder.core.p2p.EntryContentV3
 import io.github.sheking94.passholder.core.p2p.LabeledValue
 import io.github.sheking94.passholder.core.p2p.LoginFields
 import io.github.sheking94.passholder.core.p2p.NoteFields
-import androidx.compose.ui.test.performTextReplacement
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -21,7 +21,14 @@ class ListTabsScreenTest : ScreenTestBase() {
         createVault()
         putEntry(EntryContentV3("bank.pl", "", LoginFields("jan", "pw"), emptyList()))
         putEntry(EntryContentV3("Visa", "", CardFields("Jan", "4111111111111234", "", "", ""), emptyList()))
-        putEntry(EntryContentV3("Ala", "", ContactFields("Ala", "", "", listOf(LabeledValue("dom", "600 100 200")), emptyList(), emptyList()), emptyList()))
+        putEntry(
+            EntryContentV3(
+                "Ala",
+                "",
+                ContactFields("Ala", "", "", listOf(LabeledValue("dom", "600 100 200")), emptyList(), emptyList()),
+                emptyList(),
+            ),
+        )
         putEntry(EntryContentV3("Zakupy", "\nmleko\njajka", NoteFields, emptyList()))
         putEntry(EntryContentV3("Paszport Jana", "", DocumentFields(DocumentKind.PASSPORT, "", "", "", "", ""), emptyList()))
 

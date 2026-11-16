@@ -5,11 +5,26 @@ import java.util.Locale
 
 /** Port of core/src/autofill/keywords.ts. */
 enum class FieldKind(val json: String) {
-    USERNAME("username"), PASSWORD("password"), NEW_PASSWORD("newPassword"),
-    CC_NAME("ccName"), CC_NUMBER("ccNumber"), CC_EXP("ccExp"), CC_EXP_MONTH("ccExpMonth"),
-    CC_EXP_YEAR("ccExpYear"), CC_CSC("ccCsc"),
-    GIVEN_NAME("givenName"), FAMILY_NAME("familyName"), FULL_NAME("fullName"), EMAIL("email"), TEL("tel"),
-    STREET("street"), POSTAL_CODE("postalCode"), CITY("city"), COUNTRY("country"), BDAY("bday");
+    USERNAME("username"),
+    PASSWORD("password"),
+    NEW_PASSWORD("newPassword"),
+    CC_NAME("ccName"),
+    CC_NUMBER("ccNumber"),
+    CC_EXP("ccExp"),
+    CC_EXP_MONTH("ccExpMonth"),
+    CC_EXP_YEAR("ccExpYear"),
+    CC_CSC("ccCsc"),
+    GIVEN_NAME("givenName"),
+    FAMILY_NAME("familyName"),
+    FULL_NAME("fullName"),
+    EMAIL("email"),
+    TEL("tel"),
+    STREET("street"),
+    POSTAL_CODE("postalCode"),
+    CITY("city"),
+    COUNTRY("country"),
+    BDAY("bday"),
+    ;
 
     companion object {
         fun fromJson(s: String): FieldKind = entries.first { it.json == s }

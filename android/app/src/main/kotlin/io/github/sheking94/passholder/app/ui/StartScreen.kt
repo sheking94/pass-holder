@@ -33,7 +33,9 @@ fun StartScreen(state: UiState, vm: AppViewModel) {
         Text("PassHolder", style = MaterialTheme.typography.headlineSmall)
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
             listOf(false to "Nowy sejf", true to "Odtwórz z wtyczki").forEachIndexed { i, (value, label) ->
-                SegmentedButton(selected = restore == value, onClick = { restore = value }, shape = SegmentedButtonDefaults.itemShape(i, 2)) { Text(label) }
+                SegmentedButton(selected = restore == value, onClick = {
+                    restore = value
+                }, shape = SegmentedButtonDefaults.itemShape(i, 2)) { Text(label) }
             }
         }
 
@@ -82,7 +84,12 @@ private fun CorruptVault(state: UiState, vm: AppViewModel) {
         AlertDialog(
             onDismissRequest = { askDisconnect = false },
             text = { Text("Usunąć sejf z tego telefonu? Wpisy zostaną tylko na sparowanych wtyczkach.") },
-            confirmButton = { TextButton(onClick = { askDisconnect = false; vm.disconnect() }) { Text("Usuń", color = MaterialTheme.colorScheme.error) } },
+            confirmButton = {
+                TextButton(onClick = {
+                    askDisconnect = false
+                    vm.disconnect()
+                }) { Text("Usuń", color = MaterialTheme.colorScheme.error) }
+            },
             dismissButton = { TextButton(onClick = { askDisconnect = false }) { Text("Anuluj") } },
         )
     }

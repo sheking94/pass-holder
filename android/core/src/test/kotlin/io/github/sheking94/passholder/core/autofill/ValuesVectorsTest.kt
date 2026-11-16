@@ -15,7 +15,9 @@ import org.junit.jupiter.api.TestFactory
 class ValuesVectorsTest {
     private fun plan(o: kotlinx.serialization.json.JsonObject): FillPlan = when (o.str("kind")) {
         "login" -> FillPlan.Login(o.str("username"), o.str("password"))
+
         "card" -> FillPlan.Card(o.str("holder"), o.str("number"), o.str("expiry"), o.str("cvc"))
+
         else -> FillPlan.Contact(
             o.str("firstName"), o.str("lastName"), o.str("email"), o.str("tel"),
             o.str("street"), o.str("postalCode"), o.str("city"), o.str("country"), o.str("bday"),

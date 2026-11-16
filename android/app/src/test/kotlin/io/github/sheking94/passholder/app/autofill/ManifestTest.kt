@@ -20,7 +20,8 @@ class ManifestTest {
     fun `autofill service is registered behind the bind permission`() {
         val app = ApplicationProvider.getApplicationContext<PassHolderApp>()
         val services = app.packageManager.queryIntentServices(
-            Intent(AutofillService.SERVICE_INTERFACE).setPackage(app.packageName), PackageManager.GET_META_DATA,
+            Intent(AutofillService.SERVICE_INTERFACE).setPackage(app.packageName),
+            PackageManager.GET_META_DATA,
         )
         val service = services.single().serviceInfo
         assertEquals(PassHolderAutofillService::class.java.name, service.name)
@@ -29,11 +30,13 @@ class ManifestTest {
         assertEquals(true, service.metaData?.containsKey(AutofillService.SERVICE_META_DATA))
 
         val unlock = app.packageManager.getActivityInfo(
-            android.content.ComponentName(app, AutofillUnlockActivity::class.java), 0,
+            android.content.ComponentName(app, AutofillUnlockActivity::class.java),
+            0,
         )
         assertFalse(unlock.exported)
         val save = app.packageManager.getActivityInfo(
-            android.content.ComponentName(app, AutofillSaveActivity::class.java), 0,
+            android.content.ComponentName(app, AutofillSaveActivity::class.java),
+            0,
         )
         assertFalse(save.exported)
     }

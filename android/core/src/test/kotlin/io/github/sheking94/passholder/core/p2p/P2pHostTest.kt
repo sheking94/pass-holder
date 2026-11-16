@@ -36,8 +36,7 @@ class P2pHostTest {
             return key
         }
 
-        fun client(deviceId: String, key: KeyPair = addDevice(deviceId)) =
-            TestP2pClient(deviceId, key, hostKey.publicKey, host)
+        fun client(deviceId: String, key: KeyPair = addDevice(deviceId)) = TestP2pClient(deviceId, key, hostKey.publicKey, host)
 
         fun post(path: String, body: String) = host.handle(path, body.toByteArray())
 
@@ -333,7 +332,13 @@ class P2pHostTest {
         val key = s.addDevice("a")
         val errors = ArrayList<Throwable>()
         val failing = P2pHost(
-            s.hostKey, { s.devices.toList() }, s.store, s.epoch, { error("boom") }, { s.time }, onError = { errors.add(it) },
+            s.hostKey,
+            { s.devices.toList() },
+            s.store,
+            s.epoch,
+            { error("boom") },
+            { s.time },
+            onError = { errors.add(it) },
         )
         val client = TestP2pClient("a", key, s.hostKey.publicKey, failing)
         assertError(500, "internal error", client.sync(s.emptyRequest()))
@@ -460,7 +465,11 @@ class P2pHostTest {
         val key = NoiseKeys.generate()
         val synced = ArrayList<String>()
         val host = P2pHost(
-            hostKey, { listOf(PairedDevice("a", "a", key.publicKey)) }, store, epoch, { emptyList() },
+            hostKey,
+            { listOf(PairedDevice("a", "a", key.publicKey)) },
+            store,
+            epoch,
+            { emptyList() },
             onSynced = { synced.add(it) },
         )
         val client = TestP2pClient("a", key, hostKey.publicKey, host)
@@ -480,7 +489,11 @@ class P2pHostTest {
         val hostKey = NoiseKeys.generate()
         val key = NoiseKeys.generate()
         val host = P2pHost(
-            hostKey, { listOf(PairedDevice("a", "a", key.publicKey)) }, store, epoch, { emptyList() },
+            hostKey,
+            { listOf(PairedDevice("a", "a", key.publicKey)) },
+            store,
+            epoch,
+            { emptyList() },
             onSynced = { throw IllegalStateException("disk full") },
             onError = { errors.add(it) },
         )
@@ -576,8 +589,13 @@ class P2pHostTest {
         val key = NoiseKeys.generate()
         val synced = ArrayList<String>()
         val host = P2pHost(
-            hostKey, { listOf(PairedDevice("a", "a", key.publicKey)) }, MemorySyncStore(), epoch, { emptyList() },
-            onSynced = { synced.add(it) }, files = MemoryFileStore(),
+            hostKey,
+            { listOf(PairedDevice("a", "a", key.publicKey)) },
+            MemorySyncStore(),
+            epoch,
+            { emptyList() },
+            onSynced = { synced.add(it) },
+            files = MemoryFileStore(),
         )
         val res = TestP2pClient("a", key, hostKey.publicKey, host).file("""{"op":"status","epoch":"$epoch","ids":[]}""")
         assertEquals(HostReply(200, """{"files":[]}"""), res)
@@ -593,8 +611,13 @@ class P2pHostTest {
         val hostKey = NoiseKeys.generate()
         val key = NoiseKeys.generate()
         val host = P2pHost(
-            hostKey, { listOf(PairedDevice("a", "a", key.publicKey)) }, MemorySyncStore(), "e", { emptyList() },
-            onError = { errors.add(it) }, files = broken,
+            hostKey,
+            { listOf(PairedDevice("a", "a", key.publicKey)) },
+            MemorySyncStore(),
+            "e",
+            { emptyList() },
+            onError = { errors.add(it) },
+            files = broken,
         )
         val enc = FileChunks.encrypt(ByteArray(10) { 1 }, "a.txt", "text/plain")
         val res = TestP2pClient("a", key, hostKey.publicKey, host)

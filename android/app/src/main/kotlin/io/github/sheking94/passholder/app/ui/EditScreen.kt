@@ -42,8 +42,12 @@ fun EditScreen(id: String?, type: EntryType, state: UiState, vm: AppViewModel) {
     val original = remember(id, type) { state.editing?.takeIf { it.id == id }?.content }
     // remember, not rememberSaveable: entry secrets stay out of the saved instance state.
     var content by remember(id, type) { mutableStateOf(original ?: emptyContent(type)) }
+
     // Any edit drops an error status (e.g. "Ważność: wpisz MM/RR") left by an earlier save attempt.
-    fun edit(updated: EntryContentV3) { content = updated; vm.clearError() }
+    fun edit(updated: EntryContentV3) {
+        content = updated
+        vm.clearError()
+    }
     var askDelete by remember { mutableStateOf(false) }
 
     // Stays enabled while busy (backToList ignores it then): a disabled handler would let Back close the app mid-operation.
@@ -55,9 +59,13 @@ fun EditScreen(id: String?, type: EntryType, state: UiState, vm: AppViewModel) {
 
         when (val fields = content.fields) {
             is LoginFields -> LoginForm(fields, { edit(content.copy(fields = it)) }, vm)
+
             is ContactFields -> ContactForm(fields, { edit(content.copy(fields = it)) }, vm)
+
             is CardFields -> CardForm(fields, { edit(content.copy(fields = it)) }, vm)
+
             is DocumentFields -> DocumentForm(fields, { edit(content.copy(fields = it)) }, vm)
+
             // A note has no fields of its own: its text is "Treść" below.
             NoteFields -> {}
         }
@@ -86,7 +94,12 @@ fun EditScreen(id: String?, type: EntryType, state: UiState, vm: AppViewModel) {
             onDismissRequest = { askDelete = false },
             title = { Text("Usunąć wpis?") },
             text = { Text("Po synchronizacji zniknie też z wtyczek.") },
-            confirmButton = { TextButton(onClick = { askDelete = false; vm.delete(id) }) { Text("Usuń", color = MaterialTheme.colorScheme.error) } },
+            confirmButton = {
+                TextButton(onClick = {
+                    askDelete = false
+                    vm.delete(id)
+                }) { Text("Usuń", color = MaterialTheme.colorScheme.error) }
+            },
             dismissButton = { TextButton(onClick = { askDelete = false }) { Text("Anuluj") } },
         )
     }

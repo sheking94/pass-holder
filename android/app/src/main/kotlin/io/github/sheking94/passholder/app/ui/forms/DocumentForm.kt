@@ -35,7 +35,10 @@ fun DocumentForm(fields: DocumentFields, onChange: (DocumentFields) -> Unit, vm:
         )
         ExposedDropdownMenu(expanded, { expanded = false }) {
             for ((kind, label) in DOCUMENT_KIND_LABELS) {
-                DropdownMenuItem(text = { Text(label) }, onClick = { onChange(fields.copy(kind = kind)); expanded = false })
+                DropdownMenuItem(text = { Text(label) }, onClick = {
+                    onChange(fields.copy(kind = kind))
+                    expanded = false
+                })
             }
         }
     }

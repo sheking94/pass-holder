@@ -18,10 +18,12 @@ import java.io.IOException
 class AttachmentFilesTest {
     private val limit = 10_485_760
 
-    private fun tooLarge(size: Long?, bytes: Int, opened: IntArray) =
-        assertThrows(IllegalArgumentException::class.java) {
-            AttachmentFiles.read("a.bin", "", size) { opened[0]++; ByteArrayInputStream(ByteArray(bytes)) }
+    private fun tooLarge(size: Long?, bytes: Int, opened: IntArray) = assertThrows(IllegalArgumentException::class.java) {
+        AttachmentFiles.read("a.bin", "", size) {
+            opened[0]++
+            ByteArrayInputStream(ByteArray(bytes))
         }
+    }
 
     @Test
     fun `a known size over the limit is refused without opening the stream`() {
@@ -45,7 +47,10 @@ class AttachmentFilesTest {
     fun `an empty file is refused, by known size or by reading`() {
         val opened = intArrayOf(0)
         val bySize = assertThrows(IllegalArgumentException::class.java) {
-            AttachmentFiles.read("a", "", 0L) { opened[0]++; null }
+            AttachmentFiles.read("a", "", 0L) {
+                opened[0]++
+                null
+            }
         }
         assertEquals("Plik jest pusty", bySize.message)
         assertEquals(0, opened[0])
@@ -73,7 +78,9 @@ class AttachmentFilesTest {
 
     @Test
     fun `provider failures become the read error`() {
-        listOf<() -> java.io.InputStream?>({ throw SecurityException("no") }, { throw IOException("io") }, { throw IllegalStateException("x") }, { null }).forEach { open ->
+        listOf<() -> java.io.InputStream?>({
+            throw SecurityException("no")
+        }, { throw IOException("io") }, { throw IllegalStateException("x") }, { null }).forEach { open ->
             val e = assertThrows(IOException::class.java) { AttachmentFiles.read("a", "", null, open) }
             assertEquals("Nie udało się odczytać pliku.", e.message)
         }

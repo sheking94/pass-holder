@@ -45,6 +45,7 @@ class PhoneVault(
             val existing = store.get(id)?.takeIf { !it.deleted }?.let(::readData)
             val content = when (val old = existing?.content) {
                 null -> EntryContentV3(credentials.name, "", LoginFields(credentials.username, credentials.password), emptyList())
+
                 else -> {
                     val fields = old.fields as? LoginFields ?: throw EntryTypeMismatchException()
                     old.copy(

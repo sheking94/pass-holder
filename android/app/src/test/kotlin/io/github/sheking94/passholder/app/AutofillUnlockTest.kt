@@ -26,7 +26,6 @@ import io.github.sheking94.passholder.core.autofill.FieldDescriptor
 import io.github.sheking94.passholder.core.p2p.EntryContentV3
 import io.github.sheking94.passholder.core.p2p.LoginFields
 import org.junit.After
-import java.time.Duration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -39,6 +38,7 @@ import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import java.time.Duration
 
 /**
  * The unlock screen of the "Odblokuj PassHolder" suggestion, started like the system starts it. The fill request
@@ -72,7 +72,8 @@ abstract class AutofillUnlockTestBase {
         app.settings.lockDelay = lockDelay
         app.phoneStore.createVault(masterPassword)
         app.phoneStore.upsertContent(
-            "1", EntryContentV3("Bank", "", LoginFields("jan.kowalski", "s3cret-haslo", androidApps = listOf("com.example.bank")), emptyList()),
+            "1",
+            EntryContentV3("Bank", "", LoginFields("jan.kowalski", "s3cret-haslo", androidApps = listOf("com.example.bank")), emptyList()),
         )
         beforeLaunch()
         app.phoneStore.lock()
@@ -90,13 +91,11 @@ abstract class AutofillUnlockTestBase {
         app.leaveLock.cancel()
     }
 
-    protected fun type(label: String, text: String) =
-        compose.onNode(hasSetTextAction() and hasText(label)).performTextReplacement(text)
+    protected fun type(label: String, text: String) = compose.onNode(hasSetTextAction() and hasText(label)).performTextReplacement(text)
 
     protected fun click(text: String) = compose.onNodeWithText(text).performClick()
 
-    protected fun waitFor(text: String) =
-        compose.waitUntil(30_000) { compose.onAllNodes(hasText(text)).fetchSemanticsNodes().isNotEmpty() }
+    protected fun waitFor(text: String) = compose.waitUntil(30_000) { compose.onAllNodes(hasText(text)).fetchSemanticsNodes().isNotEmpty() }
 
     protected fun waitForResult(): Instrumentation.ActivityResult {
         compose.waitUntil(30_000) { finishing() }

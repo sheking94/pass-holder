@@ -23,7 +23,13 @@ class SystemAppSigners(private val context: Context) : AppSigners {
         val pm = context.packageManager
         val signatures: Array<Signature>? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             val info = pm.getPackageInfo(packageName, PackageManager.GET_SIGNING_CERTIFICATES).signingInfo
-            if (info == null) null else if (info.hasMultipleSigners()) info.apkContentsSigners else info.signingCertificateHistory
+            if (info == null) {
+                null
+            } else if (info.hasMultipleSigners()) {
+                info.apkContentsSigners
+            } else {
+                info.signingCertificateHistory
+            }
         } else {
             @Suppress("DEPRECATION")
             pm.getPackageInfo(packageName, PackageManager.GET_SIGNATURES).signatures
@@ -34,8 +40,7 @@ class SystemAppSigners(private val context: Context) : AppSigners {
     }
 }
 
-internal fun sha256Hex(bytes: ByteArray): String =
-    MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+internal fun sha256Hex(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 
 /**
  * Who the phone trusts to ask for logins (security review V3-S3): browsers by their known certificates, the apps of
@@ -46,8 +51,7 @@ class AppTrust(context: Context, private val signers: () -> AppSigners) {
     private val prefs = context.getSharedPreferences("app_certs", Context.MODE_PRIVATE)
 
     /** [request] with the flags set from the installed app (read anew on every call). */
-    fun verify(request: AppRequest): AppRequest =
-        verifyApp(request, signers().certs(request.packageName), remembered(request.packageName))
+    fun verify(request: AppRequest): AppRequest = verifyApp(request, signers().certs(request.packageName), remembered(request.packageName))
 
     fun remembered(packageName: String): Set<String>? = prefs.getStringSet(packageName, null)?.toSet()
 

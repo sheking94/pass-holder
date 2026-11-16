@@ -80,14 +80,20 @@ class ImportSummaryTest {
     fun `an archive adds files after the entry sentences`() {
         assertEquals(
             "Dodano 1 wpis (zsynchronizuj, żeby trafiły do wtyczki). Dodano 3 pliki. $end",
-            importSummary(ParsedArchive(emptyList(), emptyList()), ImportResult(1, 0, 0), TransferFormat.PASSHOLDER, ArchiveFiles(3, emptyList())),
+            importSummary(
+                ParsedArchive(emptyList(), emptyList()),
+                ImportResult(1, 0, 0),
+                TransferFormat.PASSHOLDER,
+                ArchiveFiles(3, emptyList()),
+            ),
         )
     }
 
     @Test
     fun `skipped files are listed up to five, no sentence for zero added files`() {
         val six = (1..6).map { ImportSkip("wpis $it, a$it.pdf", "uszkodzony") }
-        val text = importSummary(ParsedArchive(emptyList(), emptyList()), ImportResult(6, 0, 0), TransferFormat.PASSHOLDER, ArchiveFiles(1, six))
+        val text =
+            importSummary(ParsedArchive(emptyList(), emptyList()), ImportResult(6, 0, 0), TransferFormat.PASSHOLDER, ArchiveFiles(1, six))
         assertEquals(
             "Dodano 6 wpisów (zsynchronizuj, żeby trafiły do wtyczki). Dodano 1 plik. Pominięto 6 plików: " +
                 "wpis 1, a1.pdf: uszkodzony; wpis 2, a2.pdf: uszkodzony; wpis 3, a3.pdf: uszkodzony; wpis 4, a4.pdf: uszkodzony; " +
@@ -95,7 +101,9 @@ class ImportSummaryTest {
             text,
         )
         val one = importSummary(
-            ParsedArchive(emptyList(), listOf(ImportSkip("wpis 2", "brak nazwy"))), ImportResult(1, 1, 0), TransferFormat.PASSHOLDER,
+            ParsedArchive(emptyList(), listOf(ImportSkip("wpis 2", "brak nazwy"))),
+            ImportResult(1, 1, 0),
+            TransferFormat.PASSHOLDER,
             ArchiveFiles(0, listOf(ImportSkip("wpis 1, a1.pdf", "uszkodzony"))),
         )
         assertEquals(

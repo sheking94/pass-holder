@@ -59,7 +59,10 @@ fun DevicesScreen(state: UiState, vm: AppViewModel) {
             onDismissRequest = { toRemove = null },
             text = { Text("Usunąć urządzenie ${device.name}? Nie będzie mogło się synchronizować.") },
             confirmButton = {
-                TextButton(onClick = { toRemove = null; vm.removeDevice(device.deviceId) }) { Text("Usuń", color = MaterialTheme.colorScheme.error) }
+                TextButton(onClick = {
+                    toRemove = null
+                    vm.removeDevice(device.deviceId)
+                }) { Text("Usuń", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = { TextButton(onClick = { toRemove = null }) { Text("Anuluj") } },
         )

@@ -39,8 +39,7 @@ class PhoneRouter(
         val ACTIVITY_PATHS = setOf("/p2p/v2/sync", "/p2p/v2/file", "/p2p/v1/pair/finish")
     }
 
-    private fun fail(status: Int, error: String) =
-        HostReply(status, buildJsonObject { put("error", error) }.toString())
+    private fun fail(status: Int, error: String) = HostReply(status, buildJsonObject { put("error", error) }.toString())
 
     fun handle(path: String, body: ByteArray): HostReply {
         if (path != PING && path !in SYNC_PATHS && path !in PAIRING_PATHS) return fail(404, "not found")

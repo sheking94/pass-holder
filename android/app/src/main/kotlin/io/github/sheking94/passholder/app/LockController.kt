@@ -46,6 +46,7 @@ class LockController(
     private var offerFingerprint = true
 
     private val _timesLeftApp = MutableStateFlow(0)
+
     /** Goes up each time the app leaves the screen; the locked screen then offers the fingerprint dialog again. */
     val timesLeftApp: StateFlow<Int> = _timesLeftApp.asStateFlow()
 
@@ -75,6 +76,7 @@ class LockController(
         when {
             // The timer may have locked already; the locked screen still says why.
             expired && picking -> lockNow(Status(FILE_PICK_TOO_LONG))
+
             expired && store.isUnlocked -> lockNow()
         }
         showLockedIfLocked()

@@ -92,7 +92,13 @@ fun PasswordField(
         label = { Text(label) },
         singleLine = true,
         modifier = modifier.fillMaxWidth(),
-        textStyle = if (monospace) MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace) else MaterialTheme.typography.bodyLarge,
+        textStyle = if (monospace) {
+            MaterialTheme.typography.bodyLarge.copy(
+                fontFamily = FontFamily.Monospace,
+            )
+        } else {
+            MaterialTheme.typography.bodyLarge
+        },
         visualTransformation = if (shown) VisualTransformation.None else PasswordVisualTransformation(),
         keyboardOptions = KeyboardOptions(
             keyboardType = KeyboardType.Password,
@@ -137,7 +143,10 @@ fun SecretField(
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType, autoCorrectEnabled = false, imeAction = ImeAction.Next),
         trailingIcon = {
             Row {
-                TextButton(onClick = { localRevealed = !shown; onRevealedChange?.invoke(!shown) }) { Text(if (shown) "Ukryj" else "Pokaż") }
+                TextButton(onClick = {
+                    localRevealed = !shown
+                    onRevealedChange?.invoke(!shown)
+                }) { Text(if (shown) "Ukryj" else "Pokaż") }
                 TextButton(onClick = onCopy) { Text("Kopiuj") }
             }
         },

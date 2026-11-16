@@ -3,13 +3,13 @@ package io.github.sheking94.passholder.core.transfer
 import io.github.sheking94.passholder.core.p2p.EntryContentV3
 import io.github.sheking94.passholder.core.p2p.EntryV3
 import io.github.sheking94.passholder.core.p2p.PostalAddress
-import java.text.Collator
-import java.text.RuleBasedCollator
-import java.util.Locale
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import java.text.Collator
+import java.text.RuleBasedCollator
+import java.util.Locale
 
 /** An entry or row an importer did not take. [at] is ready to show, e.g. "wiersz 3" (CSV, header is row 1) or "wpis 2" (JSON, from 1). */
 data class ImportSkip(val at: String, val reason: String)
@@ -49,11 +49,10 @@ internal val POLISH_COLLATOR: Collator = run {
  * A copy sorted by name ([POLISH_COLLATOR], default strength), then by type in [ENTRY_TYPE_ORDER].
  * Differs from the plain JDK collator only in not ignoring spaces and punctuation (see [POLISH_COLLATOR]).
  */
-fun sortForExport(entries: List<EntryContentV3>): List<EntryContentV3> =
-    entries.sortedWith { a, b ->
-        val byName = POLISH_COLLATOR.compare(a.name, b.name)
-        if (byName != 0) byName else ENTRY_TYPE_ORDER.indexOf(a.fields.type) - ENTRY_TYPE_ORDER.indexOf(b.fields.type)
-    }
+fun sortForExport(entries: List<EntryContentV3>): List<EntryContentV3> = entries.sortedWith { a, b ->
+    val byName = POLISH_COLLATOR.compare(a.name, b.name)
+    if (byName != 0) byName else ENTRY_TYPE_ORDER.indexOf(a.fields.type) - ENTRY_TYPE_ORDER.indexOf(b.fields.type)
+}
 
 /** "Telefon (etykieta)", or just "Telefon" when the label is empty. Used for extra phones, e-mails and addresses on export. */
 fun labelled(name: String, label: String): String = if (label == "") name else "$name ($label)"

@@ -2,8 +2,8 @@ package io.github.sheking94.passholder.core.p2p
 
 import io.github.sheking94.passholder.core.Aead
 import io.github.sheking94.passholder.core.Encoding
-import io.github.sheking94.passholder.core.files.Attachments
 import io.github.sheking94.passholder.core.files.Attachment
+import io.github.sheking94.passholder.core.files.Attachments
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -95,29 +95,40 @@ object EntryV3 {
         val sb = StringBuilder()
         sb.append("{\"v\":3,\"type\":")
         str(sb, c.fields.type)
-        sb.append(",\"name\":"); str(sb, c.name)
-        sb.append(",\"note\":"); str(sb, c.note)
-        sb.append(",\"fields\":"); fields(sb, c.fields)
+        sb.append(",\"name\":")
+        str(sb, c.name)
+        sb.append(",\"note\":")
+        str(sb, c.note)
+        sb.append(",\"fields\":")
+        fields(sb, c.fields)
         sb.append(",\"custom\":")
         array(sb, c.custom) { s, f ->
-            s.append("{\"label\":"); str(s, f.label)
-            s.append(",\"value\":"); str(s, f.value)
+            s.append("{\"label\":")
+            str(s, f.label)
+            s.append(",\"value\":")
+            str(s, f.value)
             s.append(",\"hidden\":").append(f.hidden).append('}')
         }
         if (c.attachments.isNotEmpty()) {
             sb.append(",\"attachments\":")
             array(sb, c.attachments) { s, a ->
-                s.append("{\"id\":"); str(s, a.id)
-                s.append(",\"name\":"); str(s, a.name)
-                s.append(",\"mime\":"); str(s, a.mime)
+                s.append("{\"id\":")
+                str(s, a.id)
+                s.append(",\"name\":")
+                str(s, a.name)
+                s.append(",\"mime\":")
+                str(s, a.mime)
                 s.append(",\"size\":").append(a.size)
                 s.append(",\"chunks\":").append(a.chunks)
-                s.append(",\"sha256\":"); str(s, a.sha256)
-                s.append(",\"key\":"); str(s, a.key)
+                s.append(",\"sha256\":")
+                str(s, a.sha256)
+                s.append(",\"key\":")
+                str(s, a.key)
                 s.append('}')
             }
         }
-        sb.append(",\"hlc\":"); hlc(sb, data.hlc)
+        sb.append(",\"hlc\":")
+        hlc(sb, data.hlc)
         return sb.append('}').toString()
     }
 
@@ -136,54 +147,86 @@ object EntryV3 {
     private fun fields(sb: StringBuilder, f: EntryFieldsV3) {
         when (f) {
             is LoginFields -> {
-                sb.append("{\"username\":"); str(sb, f.username)
-                sb.append(",\"password\":"); str(sb, f.password)
-                sb.append(",\"totp\":"); str(sb, f.totp)
-                sb.append(",\"urls\":"); array(sb, f.urls, ::str)
-                sb.append(",\"androidApps\":"); array(sb, f.androidApps, ::str)
+                sb.append("{\"username\":")
+                str(sb, f.username)
+                sb.append(",\"password\":")
+                str(sb, f.password)
+                sb.append(",\"totp\":")
+                str(sb, f.totp)
+                sb.append(",\"urls\":")
+                array(sb, f.urls, ::str)
+                sb.append(",\"androidApps\":")
+                array(sb, f.androidApps, ::str)
                 sb.append('}')
             }
+
             is ContactFields -> {
-                sb.append("{\"firstName\":"); str(sb, f.firstName)
-                sb.append(",\"lastName\":"); str(sb, f.lastName)
-                sb.append(",\"birthDate\":"); str(sb, f.birthDate)
-                sb.append(",\"phones\":"); array(sb, f.phones, ::labeled)
-                sb.append(",\"emails\":"); array(sb, f.emails, ::labeled)
+                sb.append("{\"firstName\":")
+                str(sb, f.firstName)
+                sb.append(",\"lastName\":")
+                str(sb, f.lastName)
+                sb.append(",\"birthDate\":")
+                str(sb, f.birthDate)
+                sb.append(",\"phones\":")
+                array(sb, f.phones, ::labeled)
+                sb.append(",\"emails\":")
+                array(sb, f.emails, ::labeled)
                 sb.append(",\"addresses\":")
                 array(sb, f.addresses) { s, a ->
-                    s.append("{\"label\":"); str(s, a.label)
-                    s.append(",\"street\":"); str(s, a.street)
-                    s.append(",\"postalCode\":"); str(s, a.postalCode)
-                    s.append(",\"city\":"); str(s, a.city)
-                    s.append(",\"country\":"); str(s, a.country)
+                    s.append("{\"label\":")
+                    str(s, a.label)
+                    s.append(",\"street\":")
+                    str(s, a.street)
+                    s.append(",\"postalCode\":")
+                    str(s, a.postalCode)
+                    s.append(",\"city\":")
+                    str(s, a.city)
+                    s.append(",\"country\":")
+                    str(s, a.country)
                     s.append('}')
                 }
                 sb.append('}')
             }
+
             is CardFields -> {
-                sb.append("{\"holder\":"); str(sb, f.holder)
-                sb.append(",\"number\":"); str(sb, f.number)
-                sb.append(",\"expiry\":"); str(sb, f.expiry)
-                sb.append(",\"cvc\":"); str(sb, f.cvc)
-                sb.append(",\"pin\":"); str(sb, f.pin)
+                sb.append("{\"holder\":")
+                str(sb, f.holder)
+                sb.append(",\"number\":")
+                str(sb, f.number)
+                sb.append(",\"expiry\":")
+                str(sb, f.expiry)
+                sb.append(",\"cvc\":")
+                str(sb, f.cvc)
+                sb.append(",\"pin\":")
+                str(sb, f.pin)
                 sb.append('}')
             }
+
             NoteFields -> sb.append("{}")
+
             is DocumentFields -> {
-                sb.append("{\"kind\":"); str(sb, f.kind.json)
-                sb.append(",\"number\":"); str(sb, f.number)
-                sb.append(",\"fullName\":"); str(sb, f.fullName)
-                sb.append(",\"issueDate\":"); str(sb, f.issueDate)
-                sb.append(",\"expiryDate\":"); str(sb, f.expiryDate)
-                sb.append(",\"issuer\":"); str(sb, f.issuer)
+                sb.append("{\"kind\":")
+                str(sb, f.kind.json)
+                sb.append(",\"number\":")
+                str(sb, f.number)
+                sb.append(",\"fullName\":")
+                str(sb, f.fullName)
+                sb.append(",\"issueDate\":")
+                str(sb, f.issueDate)
+                sb.append(",\"expiryDate\":")
+                str(sb, f.expiryDate)
+                sb.append(",\"issuer\":")
+                str(sb, f.issuer)
                 sb.append('}')
             }
         }
     }
 
     private fun labeled(sb: StringBuilder, l: LabeledValue) {
-        sb.append("{\"label\":"); str(sb, l.label)
-        sb.append(",\"value\":"); str(sb, l.value)
+        sb.append("{\"label\":")
+        str(sb, l.label)
+        sb.append(",\"value\":")
+        str(sb, l.value)
         sb.append('}')
     }
 
@@ -202,17 +245,27 @@ object EntryV3 {
         for ((i, ch) in s.withIndex()) {
             when {
                 ch == '"' -> sb.append("\\\"")
+
                 ch == '\\' -> sb.append("\\\\")
+
                 ch == '\b' -> sb.append("\\b")
+
                 ch == '\u000C' -> sb.append("\\f")
+
                 ch == '\n' -> sb.append("\\n")
+
                 ch == '\r' -> sb.append("\\r")
+
                 ch == '\t' -> sb.append("\\t")
+
                 ch < ' ' -> sb.append("\\u").append(String.format("%04x", ch.code))
+
                 ch.isHighSurrogate() && !(i + 1 < s.length && s[i + 1].isLowSurrogate()) ->
                     sb.append("\\u").append(String.format("%04x", ch.code))
+
                 ch.isLowSurrogate() && !(i > 0 && s[i - 1].isHighSurrogate()) ->
                     sb.append("\\u").append(String.format("%04x", ch.code))
+
                 else -> sb.append(ch)
             }
         }
@@ -226,8 +279,7 @@ object EntryV3 {
 
     fun encrypt(vaultKey: ByteArray, id: String, data: EntryDataV3): String = sealChecked(vaultKey, id, serialize(data))
 
-    fun encryptTombstone(vaultKey: ByteArray, id: String, data: TombstoneData): String =
-        sealChecked(vaultKey, id, serializeTombstone(data))
+    fun encryptTombstone(vaultKey: ByteArray, id: String, data: TombstoneData): String = sealChecked(vaultKey, id, serializeTombstone(data))
 
     /** [nonce] is only for test vectors; [json] is the exact plaintext. */
     internal fun encryptJson(vaultKey: ByteArray, id: String, json: String, nonce: ByteArray): String =
@@ -295,26 +347,35 @@ object EntryV3 {
             val o = record(raw, "username", "password", "totp", "urls", "androidApps")
             LoginFields(str(o["username"]), str(o["password"]), str(o["totp"]), strings(o["urls"]), strings(o["androidApps"]))
         }
+
         "contact" -> {
             val o = record(raw, "firstName", "lastName", "birthDate", "phones", "emails", "addresses")
             ContactFields(
-                str(o["firstName"]), str(o["lastName"]), str(o["birthDate"]),
-                list(o["phones"], ::labeled), list(o["emails"], ::labeled), list(o["addresses"], ::address),
+                str(o["firstName"]),
+                str(o["lastName"]),
+                str(o["birthDate"]),
+                list(o["phones"], ::labeled),
+                list(o["emails"], ::labeled),
+                list(o["addresses"], ::address),
             )
         }
+
         "card" -> {
             val o = record(raw, "holder", "number", "expiry", "cvc", "pin")
             CardFields(str(o["holder"]), str(o["number"]), str(o["expiry"]), str(o["cvc"]), str(o["pin"]))
         }
+
         "note" -> {
             record(raw)
             NoteFields
         }
+
         "document" -> {
             val o = record(raw, "kind", "number", "fullName", "issueDate", "expiryDate", "issuer")
             val kind = DocumentKind.entries.firstOrNull { it.json == str(o["kind"]) } ?: fail()
             DocumentFields(kind, str(o["number"]), str(o["fullName"]), str(o["issueDate"]), str(o["expiryDate"]), str(o["issuer"]))
         }
+
         else -> fail()
     }
 
@@ -340,11 +401,13 @@ object EntryV3 {
         return EntryDataV3(contentOf(o), strictHlc(o["hlc"], INVALID_ENTRY))
     }
 
-    private fun contentOf(o: JsonObject): EntryContentV3 =
-        EntryContentV3(
-            str(o["name"]), str(o["note"]), parseFields(str(o["type"]), o["fields"]), list(o["custom"], ::customField),
-            if (o.containsKey("attachments")) Attachments.parseList(o["attachments"]) else emptyList(),
-        )
+    private fun contentOf(o: JsonObject): EntryContentV3 = EntryContentV3(
+        str(o["name"]),
+        str(o["note"]),
+        parseFields(str(o["type"]), o["fields"]),
+        list(o["custom"], ::customField),
+        if (o.containsKey("attachments")) Attachments.parseList(o["attachments"]) else emptyList(),
+    )
 
     /** Entry content without the sync metadata: exactly type, name, note, fields and custom, validated as strictly as [parse]. */
     fun parseContent(value: JsonElement): EntryContentV3 = contentOf(record(value, "type", "name", "note", "fields", "custom"))
@@ -370,29 +433,49 @@ object EntryV3 {
 
     private fun fieldsJson(f: EntryFieldsV3): JsonObject = when (f) {
         is LoginFields -> obj(
-            "username" to JsonPrimitive(f.username), "password" to JsonPrimitive(f.password), "totp" to JsonPrimitive(f.totp),
-            "urls" to strs(f.urls), "androidApps" to strs(f.androidApps),
+            "username" to JsonPrimitive(f.username),
+            "password" to JsonPrimitive(f.password),
+            "totp" to JsonPrimitive(f.totp),
+            "urls" to strs(f.urls),
+            "androidApps" to strs(f.androidApps),
         )
+
         is ContactFields -> obj(
-            "firstName" to JsonPrimitive(f.firstName), "lastName" to JsonPrimitive(f.lastName), "birthDate" to JsonPrimitive(f.birthDate),
-            "phones" to JsonArray(f.phones.map(::labeledJson)), "emails" to JsonArray(f.emails.map(::labeledJson)),
+            "firstName" to JsonPrimitive(f.firstName),
+            "lastName" to JsonPrimitive(f.lastName),
+            "birthDate" to JsonPrimitive(f.birthDate),
+            "phones" to JsonArray(f.phones.map(::labeledJson)),
+            "emails" to JsonArray(f.emails.map(::labeledJson)),
             "addresses" to JsonArray(
                 f.addresses.map {
                     obj(
-                        "label" to JsonPrimitive(it.label), "street" to JsonPrimitive(it.street), "postalCode" to JsonPrimitive(it.postalCode),
-                        "city" to JsonPrimitive(it.city), "country" to JsonPrimitive(it.country),
+                        "label" to JsonPrimitive(it.label),
+                        "street" to JsonPrimitive(it.street),
+                        "postalCode" to JsonPrimitive(it.postalCode),
+                        "city" to JsonPrimitive(it.city),
+                        "country" to JsonPrimitive(it.country),
                     )
                 },
             ),
         )
+
         is CardFields -> obj(
-            "holder" to JsonPrimitive(f.holder), "number" to JsonPrimitive(f.number), "expiry" to JsonPrimitive(f.expiry),
-            "cvc" to JsonPrimitive(f.cvc), "pin" to JsonPrimitive(f.pin),
+            "holder" to JsonPrimitive(f.holder),
+            "number" to JsonPrimitive(f.number),
+            "expiry" to JsonPrimitive(f.expiry),
+            "cvc" to JsonPrimitive(f.cvc),
+            "pin" to JsonPrimitive(f.pin),
         )
+
         NoteFields -> obj()
+
         is DocumentFields -> obj(
-            "kind" to JsonPrimitive(f.kind.json), "number" to JsonPrimitive(f.number), "fullName" to JsonPrimitive(f.fullName),
-            "issueDate" to JsonPrimitive(f.issueDate), "expiryDate" to JsonPrimitive(f.expiryDate), "issuer" to JsonPrimitive(f.issuer),
+            "kind" to JsonPrimitive(f.kind.json),
+            "number" to JsonPrimitive(f.number),
+            "fullName" to JsonPrimitive(f.fullName),
+            "issueDate" to JsonPrimitive(f.issueDate),
+            "expiryDate" to JsonPrimitive(f.expiryDate),
+            "issuer" to JsonPrimitive(f.issuer),
         )
     }
 

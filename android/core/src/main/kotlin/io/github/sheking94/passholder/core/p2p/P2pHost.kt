@@ -66,18 +66,21 @@ class P2pHost(
     /** Ephemeral keys (first 32 bytes, Base64) of accepted handshakes, oldest first. Guarded by the sessions lock. */
     private val seen = LinkedHashSet<String>()
 
-    private fun fail(status: Int, error: String) =
-        HostReply(status, buildJsonObject { put("error", error) }.toString())
+    private fun fail(status: Int, error: String) = HostReply(status, buildJsonObject { put("error", error) }.toString())
 
     fun handle(path: String, body: ByteArray): HostReply {
         if (body.size > MAX_BODY_BYTES) return fail(413, "body too large")
         synchronized(sessions) { prune() }
         return when (path) {
             "/p2p/v2/handshake" -> handshake(body)
+
             "/p2p/v2/sync" -> sync(body)
+
             "/p2p/v2/file" -> if (files != null) file(files, body) else fail(404, "not found")
+
             // The v1 sync protocol is gone; tell old clients to update instead of pretending the path is unknown.
             "/p2p/v1/handshake", "/p2p/v1/sync" -> fail(410, "update required")
+
             else -> fail(404, "not found")
         }
     }
@@ -133,7 +136,11 @@ class P2pHost(
         }
         val id = Encoding.toBase64(Encoding.randomBytes(16))
         val session = Session(
-            device.deviceId, device.staticPublicKey.copyOf(), ciphers.send, ciphers.recv, now() + SESSION_TTL_MS,
+            device.deviceId,
+            device.staticPublicKey.copyOf(),
+            ciphers.send,
+            ciphers.recv,
+            now() + SESSION_TTL_MS,
         )
         synchronized(sessions) {
             // Concurrent handshakes may have filled the map or used the same message since the check above.

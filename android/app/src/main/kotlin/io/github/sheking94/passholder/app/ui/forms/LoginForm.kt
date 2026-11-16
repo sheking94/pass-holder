@@ -4,28 +4,30 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.platform.LocalContext
-import io.github.sheking94.passholder.app.InstalledApp
-import io.github.sheking94.passholder.app.PassHolderApp
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import io.github.sheking94.passholder.app.AppViewModel
+import io.github.sheking94.passholder.app.InstalledApp
+import io.github.sheking94.passholder.app.PassHolderApp
 import io.github.sheking94.passholder.app.ui.PlainField
 import io.github.sheking94.passholder.app.ui.SecretField
 import io.github.sheking94.passholder.core.p2p.LoginFields
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Login section: login, password with the generator, TOTP, web addresses and Android apps. */
 @Composable
 fun LoginForm(fields: LoginFields, onChange: (LoginFields) -> Unit, vm: AppViewModel) {
     var passwordShown by remember { mutableStateOf(false) }
-    PlainField(fields.username, { onChange(fields.copy(username = it)) }, "Login", onCopy = { vm.copy("login", fields.username, sensitive = false) })
+    PlainField(fields.username, {
+        onChange(fields.copy(username = it))
+    }, "Login", onCopy = { vm.copy("login", fields.username, sensitive = false) })
     SecretField(
         fields.password,
         { onChange(fields.copy(password = it)) },
@@ -39,7 +41,9 @@ fun LoginForm(fields: LoginFields, onChange: (LoginFields) -> Unit, vm: AppViewM
         onChange(fields.copy(password = it))
         passwordShown = true
     }
-    SecretField(fields.totp, { onChange(fields.copy(totp = it)) }, "TOTP", onCopy = { vm.copy("kod TOTP", fields.totp, sensitive = true) }, monospace = true)
+    SecretField(fields.totp, {
+        onChange(fields.copy(totp = it))
+    }, "TOTP", onCopy = { vm.copy("kod TOTP", fields.totp, sensitive = true) }, monospace = true)
     ListEditor("Adresy stron", fields.urls, { onChange(fields.copy(urls = it)) }, "Dodaj adres", { "" }) { url, update ->
         PlainField(url, update, "Adres strony", keyboardType = KeyboardType.Uri, placeholder = "https://")
     }

@@ -1,10 +1,10 @@
 package io.github.sheking94.passholder.app
 
 import android.content.Intent
-import android.content.pm.ResolveInfo
 import android.content.pm.ActivityInfo
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
+import android.content.pm.ResolveInfo
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
@@ -21,14 +21,23 @@ class InstalledAppsTest {
         val app = ApplicationProvider.getApplicationContext<PassHolderApp>()
         val pm = shadowOf(app.packageManager)
         fun launcher(label: String, pkg: String) {
-            val appInfo = ApplicationInfo().apply { packageName = pkg; nonLocalizedLabel = label }
+            val appInfo = ApplicationInfo().apply {
+                packageName = pkg
+                nonLocalizedLabel = label
+            }
             val activity = ActivityInfo().apply {
                 packageName = pkg
                 name = "$pkg.Main"
                 nonLocalizedLabel = label
                 applicationInfo = appInfo
             }
-            pm.installPackage(PackageInfo().apply { packageName = pkg; applicationInfo = appInfo; activities = arrayOf(activity) })
+            pm.installPackage(
+                PackageInfo().apply {
+                    packageName = pkg
+                    applicationInfo = appInfo
+                    activities = arrayOf(activity)
+                },
+            )
             pm.addResolveInfoForIntent(
                 Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER),
                 ResolveInfo().apply { activityInfo = activity },
@@ -43,4 +52,3 @@ class InstalledAppsTest {
         )
     }
 }
-

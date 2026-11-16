@@ -48,7 +48,12 @@ class TransferFilesTest {
             private val bytes = byteArrayOf(0x50, 0x4B, 0x03, 0x04)
             private var i = 0
             override fun read() = if (i < bytes.size) bytes[i++].toInt() else -1
-            override fun read(b: ByteArray, off: Int, len: Int): Int = if (i < bytes.size) { b[off] = bytes[i++]; 1 } else -1
+            override fun read(b: ByteArray, off: Int, len: Int): Int = if (i < bytes.size) {
+                b[off] = bytes[i++]
+                1
+            } else {
+                -1
+            }
         }
         assertTrue(TransferFiles.isZip { trickle })
         assertFalse(TransferFiles.isZip { ByteArrayInputStream("{\"format\":\"passholder\"}".toByteArray()) })
@@ -64,7 +69,11 @@ class TransferFilesTest {
             { throw java.io.FileNotFoundException("open failed: ENOENT") },
             { throw SecurityException("Permission Denial") },
             { null },
-            { object : java.io.InputStream() { override fun read() = throw java.io.IOException("EIO") } },
+            {
+                object : java.io.InputStream() {
+                    override fun read() = throw java.io.IOException("EIO")
+                }
+            },
         )) {
             val e = assertThrows(java.io.IOException::class.java) { TransferFiles.isZip(failure) }
             assertEquals("Nie udało się odczytać pliku.", e.message)
@@ -81,7 +90,11 @@ class TransferFilesTest {
             val e = assertThrows(java.io.IOException::class.java) { TransferFiles.openArchive(failure) }
             assertEquals("Nie udało się odczytać pliku.", e.message)
         }
-        val broken = TransferFiles.openArchive { object : java.io.InputStream() { override fun read() = throw java.io.IOException("EIO") } }
+        val broken = TransferFiles.openArchive {
+            object : java.io.InputStream() {
+                override fun read() = throw java.io.IOException("EIO")
+            }
+        }
         assertEquals("Nie udało się odczytać pliku.", assertThrows(java.io.IOException::class.java) { broken.read(ByteArray(4)) }.message)
         assertArrayEquals(byteArrayOf(1, 2), TransferFiles.openArchive { ByteArrayInputStream(byteArrayOf(1, 2)) }.readBytes())
     }
@@ -93,7 +106,11 @@ class TransferFilesTest {
             { throw java.io.FileNotFoundException("open failed") },
             { throw SecurityException("Permission Denial") },
             { null },
-            { object : java.io.OutputStream() { override fun write(b: Int) = throw java.io.IOException("ENOSPC") } },
+            {
+                object : java.io.OutputStream() {
+                    override fun write(b: Int) = throw java.io.IOException("ENOSPC")
+                }
+            },
         )) {
             val e = assertThrows(java.io.IOException::class.java) { TransferFiles.writeArchive(failure) { it.write(ByteArray(10)) } }
             assertEquals(expected, e.message)
@@ -112,7 +129,13 @@ class TransferFilesTest {
         }
         assertEquals("bug", bug.message)
         val out = java.io.ByteArrayOutputStream()
-        assertEquals(7, TransferFiles.writeArchive({ out }) { it.write(byteArrayOf(1, 2, 3)); 7 })
+        assertEquals(
+            7,
+            TransferFiles.writeArchive({ out }) {
+                it.write(byteArrayOf(1, 2, 3))
+                7
+            },
+        )
         assertArrayEquals(byteArrayOf(1, 2, 3), out.toByteArray())
     }
 
@@ -122,7 +145,11 @@ class TransferFilesTest {
             { throw java.io.FileNotFoundException("open failed: ENOENT") },
             { throw SecurityException("Permission Denial") },
             { null },
-            { object : java.io.InputStream() { override fun read() = throw java.io.IOException("EIO") } },
+            {
+                object : java.io.InputStream() {
+                    override fun read() = throw java.io.IOException("EIO")
+                }
+            },
         )) {
             val e = assertThrows(java.io.IOException::class.java) { TransferFiles.readText(failure) }
             assertEquals("Nie udało się odczytać pliku.", e.message)
@@ -144,7 +171,11 @@ class TransferFilesTest {
             { throw java.io.FileNotFoundException("open failed") },
             { throw SecurityException("Permission Denial") },
             { null },
-            { object : java.io.OutputStream() { override fun write(b: Int) = throw java.io.IOException("ENOSPC") } },
+            {
+                object : java.io.OutputStream() {
+                    override fun write(b: Int) = throw java.io.IOException("ENOSPC")
+                }
+            },
         )) {
             val e = assertThrows(java.io.IOException::class.java) { TransferFiles.writeText("x", failure) }
             assertEquals(expected, e.message)

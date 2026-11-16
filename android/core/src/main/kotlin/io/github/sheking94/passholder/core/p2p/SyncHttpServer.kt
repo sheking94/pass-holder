@@ -44,7 +44,8 @@ class SyncHttpServer(
         const val MAX_ACCEPT_FAILURES = 20
         const val ACCEPT_BACKOFF_MS = 50L
 
-        private val ALLOWED_HOST = Regex("""^(?:(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})|localhost)(?::\d{1,5})?$""", RegexOption.IGNORE_CASE)
+        private val ALLOWED_HOST =
+            Regex("""^(?:(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})|localhost)(?::\d{1,5})?$""", RegexOption.IGNORE_CASE)
 
         /** An IPv4 literal (each part 0..255) or localhost, with an optional port. */
         internal fun isAllowedHost(host: String): Boolean {

@@ -71,7 +71,13 @@ object ResponseBuilder {
     }
 
     /** One "Odblokuj PassHolder" suggestion over [ids]; choosing it starts [auth]. */
-    fun locked(context: Context, ids: List<AutofillId>, auth: IntentSender, inline: InlineSuggestionsRequest?, save: SaveSpec?): FillResponse {
+    fun locked(
+        context: Context,
+        ids: List<AutofillId>,
+        auth: IntentSender,
+        inline: InlineSuggestionsRequest?,
+        save: SaveSpec?,
+    ): FillResponse {
         val presentation = presentation(context, UNLOCK_TITLE, null)
         val response = FillResponse.Builder()
         val inlinePresentation = if (inline != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -122,7 +128,10 @@ object ResponseBuilder {
         if (UiVersions.INLINE_UI_VERSION_1 !in UiVersions.getVersions(spec.style)) return null
         // A long press on the suggestion opens the app.
         val attribution = PendingIntent.getActivity(
-            context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE,
+            context,
+            0,
+            Intent(context, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE,
         )
         val content = InlineSuggestionUi.newContentBuilder(attribution)
             .setTitle(title)

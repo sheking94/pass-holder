@@ -12,6 +12,7 @@ import javax.crypto.Cipher
  */
 class BiometricController(private val biometric: BiometricUnlock) {
     private val _enabled = MutableStateFlow(biometric.isEnabled)
+
     /** Fingerprint unlock is turned on (the encrypted keys are on the phone). */
     val enabled: StateFlow<Boolean> = _enabled.asStateFlow()
 

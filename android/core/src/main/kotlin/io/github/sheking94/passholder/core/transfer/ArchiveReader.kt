@@ -123,9 +123,12 @@ class ArchiveReader internal constructor(private val input: InputStream, private
                 } finally {
                     d.bytes.fill(0)
                 }
+
                 // The index describes no file past the limit, so a described one that passes it has another size.
                 Data.TooLarge -> onSkip(e.name, if (e.name in declared) "inny rozmiar niż w opisie" else "za duży")
+
                 Data.Corrupt -> onSkip(e.name, "uszkodzony")
+
                 Data.Skipped -> Unit
             }
         }
@@ -146,11 +149,13 @@ class ArchiveReader internal constructor(private val input: InputStream, private
         val at = offset()
         when (val sig = u32()) {
             LOCAL_SIG -> Unit
+
             CENTRAL_SIG, END_SIG -> {
                 ending = sig
                 endingAt = at
                 return null
             }
+
             else -> invalid()
         }
         skip(2)
