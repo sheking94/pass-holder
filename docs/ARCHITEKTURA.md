@@ -25,6 +25,9 @@ danych opisuje [SPEC.md](SPEC.md), protokół [SYNCHRONIZACJA.md](SYNCHRONIZACJA
   klientem własnego sejfu (zmiany z telefonu idą prosto do tej samej bazy).
 - Wtyczka działa offline na swojej kopii i synchronizuje się tylko z telefonem.
 
+Formatowanie i lint dla całego repo: `.editorconfig`, `.prettierrc.json`, `.prettierignore`,
+`eslint.config.mjs` i plugin ktlint w `android/build.gradle.kts` (opis w [TESTY.md](TESTY.md#formatowanie-i-lint-przegląd-czystości-v3-cn1)).
+
 ## `core/` (TypeScript, wspólny)
 
 | Plik | Co robi |

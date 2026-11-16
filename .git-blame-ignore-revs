@@ -1,0 +1,8 @@
+# Formatting-only commits (clean code review V3, group G1). Use with:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+# Prettier: TypeScript, CSS and JSON
+44c5909d572f5fb622fa042ec4753555e6f734dc
+# ktlint: Kotlin
+a23368e9109ef6bd605ad98f2b12338dc8b0fba2
+# Prettier: second pass
+6ffbbd5c9e8eccccc937c5c2d150ee1c7eef0d79

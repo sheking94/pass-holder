@@ -554,7 +554,7 @@ Każda grupa to jeden wątek i jeden PR, w tej kolejności.
 
 | Nr | Grupa | Znaleziska | Moduły | Rozmiar |
 |---|---|---|---|---|
-| G1 | Formater i linter (po decyzji D1) | CN1 | wszystkie | mały, duży diff |
+| G1 | Formater i linter (po decyzji D1) — **zrobione** (Prettier, ESLint, ktlint, CI) | CN1 | wszystkie | mały, duży diff |
 | G2 | Martwy kod i kod tylko dla testów (po decyzji D2) | CW3 | wszystkie | średni |
 | G3 | Nazwy (po decyzji D3) | CW12, CS16, CN3, CN4 | wszystkie | średni |
 | G4 | Błędy z kodami: TypeScript | CW1, CS7, CS8, CS12, CS13 (część TS) | core, wtyczka | duży |
