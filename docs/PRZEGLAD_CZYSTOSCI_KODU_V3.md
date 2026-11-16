@@ -554,9 +554,9 @@ Każda grupa to jeden wątek i jeden PR, w tej kolejności.
 
 | Nr | Grupa | Znaleziska | Moduły | Rozmiar |
 |---|---|---|---|---|
-| G1 | Formater i linter (po decyzji D1) — **zrobione** (Prettier, ESLint, ktlint, CI) | CN1 | wszystkie | mały, duży diff |
-| G2 | Martwy kod i kod tylko dla testów (po decyzji D2) | CW3 | wszystkie | średni |
-| G3 | Nazwy (po decyzji D3) | CW12, CS16, CN3, CN4 | wszystkie | średni |
+| G1 | Formater i linter (D1: tak) — **zrobione** (Prettier, ESLint, ktlint, CI) | CN1 | wszystkie | mały, duży diff |
+| G2 | Martwy kod i kod tylko dla testów (D2: tak) | CW3 | wszystkie | średni |
+| G3 | Nazwy (D3: tak) | CW12, CS16, CN3, CN4 | wszystkie | średni |
 | G4 | Błędy z kodami: TypeScript | CW1, CS7, CS8, CS12, CS13 (część TS) | core, wtyczka | duży |
 | G5 | Błędy z kodami: Kotlin | CW1, CS7, CS8 (część Kotlin) | android | duży |
 | G6 | Wspólne pomocniki | CW2, CS6 | core, android | średni |
@@ -582,11 +582,13 @@ Największy zysk przy najmniejszym ryzyku dają G2, G4, G5, G6 i G7. Największe
 
 ## 10. Decyzje właściciela
 
-| Nr | Pytanie | Moja rekomendacja |
-|---|---|---|
-| D1 | Czy dodać formater i linter (Prettier i ESLint dla TS, ktlint dla Kotlina) ze sprawdzeniem w CI? | Tak, jako pierwszy PR. Koszt: jeden duży commit z samym formatowaniem. |
-| D2 | Czy usunąć stare API „tylko login” i przepisać 81 wywołań w testach? | Tak. |
-| D3 | Czy usunąć przyrostki `V2`/`V3` z nazw (`LocalVault`, `upsertEntry`, `EntryContent`)? | Tak. Wersja zostaje w danych. |
-| D4 | Polskie teksty w rdzeniu: (a) rdzeń zgłasza kody, teksty w warstwie UI, czy (b) teksty zostają w rdzeniu, ale w jednym pliku? | (a). Więcej pracy, ale rozwiązuje CW1, CS4 i CS8 naraz. |
-| D5 | Długie listy parametrów w funkcjach Compose: poprawiać? | Nie, poza `SaveReviewScreen` (9 parametrów). |
-| D6 | Zakres: wszystkie 14 grup czy tylko część? | Wszystkie, po kolei. Można przerwać po każdej grupie bez szkody. |
+Decyzje zapadły 2026-11-16: właściciel przyjął wszystkie rekomendacje. Poprawki zaczynają się od grupy G1.
+
+| Nr | Pytanie | Rekomendacja | Decyzja |
+|---|---|---|---|
+| D1 | Czy dodać formater i linter (Prettier i ESLint dla TS, ktlint dla Kotlina) ze sprawdzeniem w CI? | Tak, jako pierwszy PR. Koszt: jeden duży commit z samym formatowaniem. | Tak |
+| D2 | Czy usunąć stare API „tylko login” i przepisać 81 wywołań w testach? | Tak. | Tak |
+| D3 | Czy usunąć przyrostki `V2`/`V3` z nazw (`LocalVault`, `upsertEntry`, `EntryContent`)? | Tak. Wersja zostaje w danych. | Tak |
+| D4 | Polskie teksty w rdzeniu: (a) rdzeń zgłasza kody, teksty w warstwie UI, czy (b) teksty zostają w rdzeniu, ale w jednym pliku? | (a). Więcej pracy, ale rozwiązuje CW1, CS4 i CS8 naraz. | (a) |
+| D5 | Długie listy parametrów w funkcjach Compose: poprawiać? | Nie, poza `SaveReviewScreen` (9 parametrów). | Nie, poza `SaveReviewScreen` |
+| D6 | Zakres: wszystkie 14 grup czy tylko część? | Wszystkie, po kolei. Można przerwać po każdej grupie bez szkody. | Wszystkie, po kolei |
