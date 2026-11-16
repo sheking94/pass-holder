@@ -1,6 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { AUTO_LOCK_ALARM, IDLE_CHECK_INTERVAL_MS, onAutoLockAlarm, scheduleAutoLock, watchIdle, type AlarmApi } from "../src/auto-lock.ts";
-import { ACTIVITY_WRITE_INTERVAL_MS, AUTO_LOCK_MS, memoryStore, STORAGE_KEYS, VaultStore } from "../src/vault-store.ts";
+import {
+  AUTO_LOCK_ALARM,
+  IDLE_CHECK_INTERVAL_MS,
+  onAutoLockAlarm,
+  scheduleAutoLock,
+  watchIdle,
+  type AlarmApi,
+} from "../src/auto-lock.ts";
+import {
+  ACTIVITY_WRITE_INTERVAL_MS,
+  AUTO_LOCK_MS,
+  memoryStore,
+  STORAGE_KEYS,
+  VaultStore,
+} from "../src/vault-store.ts";
 import { pairedBrowser } from "./fake-phone.ts";
 
 function fakeAlarms() {
@@ -27,7 +40,9 @@ describe("VaultStore auto-lock while a page is open (S1)", () => {
     clock.now += AUTO_LOCK_MS;
     expect(store.isUnlocked()).toBe(false);
     expect(() => store.entries()).toThrow("Sejf jest zablokowany");
-    await expect(store.upsert("1", { name: "a", username: "b", password: "c" })).rejects.toThrow("Sejf jest zablokowany");
+    await expect(store.upsert("1", { name: "a", username: "b", password: "c" })).rejects.toThrow(
+      "Sejf jest zablokowany",
+    );
   }, 30_000);
 
   it("lockIfIdle locks the page and removes the keys from session storage once the deadline passes", async () => {
@@ -51,7 +66,9 @@ describe("VaultStore auto-lock while a page is open (S1)", () => {
     clock.now += AUTO_LOCK_MS - ACTIVITY_WRITE_INTERVAL_MS;
     await store.noteActivity();
     expect(store.unlockedUntil()).toBe(clock.now + AUTO_LOCK_MS);
-    expect((await session.get<{ unlockedUntil: number }>(STORAGE_KEYS.sessionKeys))!.unlockedUntil).toBe(clock.now + AUTO_LOCK_MS);
+    expect(
+      (await session.get<{ unlockedUntil: number }>(STORAGE_KEYS.sessionKeys))!.unlockedUntil,
+    ).toBe(clock.now + AUTO_LOCK_MS);
 
     clock.now += AUTO_LOCK_MS;
     await store.noteActivity();
@@ -101,12 +118,19 @@ describe("watchIdle (S1)", () => {
     let interval = 0;
     const page = {
       addEventListener: (type: string, listener: () => void) => void listeners.set(type, listener),
-      setInterval: (h: () => void, ms: number) => { tick = h; interval = ms; },
+      setInterval: (h: () => void, ms: number) => {
+        tick = h;
+        interval = ms;
+      },
     };
     let idle = false;
     let activity = 0;
     let locked = 0;
-    watchIdle({ lockIfIdle: async () => idle, noteActivity: async () => void activity++ }, page, () => locked++);
+    watchIdle(
+      { lockIfIdle: async () => idle, noteActivity: async () => void activity++ },
+      page,
+      () => locked++,
+    );
 
     expect(interval).toBe(IDLE_CHECK_INTERVAL_MS);
     listeners.get("pointerdown")!();

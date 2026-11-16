@@ -76,7 +76,8 @@ export class PinStore {
    * local storage, on disk, where a copy can be guessed offline: that needs a long PIN (isLongPin).
    */
   async enable(pin: string, keys: UnlockKeys, rememberAfterRestart: boolean): Promise<void> {
-    if (!isValidPin(pin, rememberAfterRestart)) throw new Error(invalidPinMessage(rememberAfterRestart));
+    if (!isValidPin(pin, rememberAfterRestart))
+      throw new Error(invalidPinMessage(rememberAfterRestart));
     const lock = await createPinLock(pin, keys);
     await this.disable();
     await (rememberAfterRestart ? this.local : this.session).set(STORAGE_KEYS.pinLock, lock);
@@ -112,7 +113,9 @@ export class PinStore {
       if (!(error instanceof WrongPinError)) throw error;
       if (attempts >= MAX_PIN_ATTEMPTS) {
         await this.disable();
-        throw new Error("Zły PIN. To była ostatnia próba: PIN został wyłączony, odblokuj hasłem głównym.");
+        throw new Error(
+          "Zły PIN. To była ostatnia próba: PIN został wyłączony, odblokuj hasłem głównym.",
+        );
       }
       throw new Error(`Zły PIN. Pozostało prób: ${MAX_PIN_ATTEMPTS - attempts}.`);
     }
@@ -131,7 +134,10 @@ export class PinStore {
   async resetAttempts(): Promise<void> {
     const found = await this.find();
     if (found && found.lock.failedAttempts > 0) {
-      await found.area.set(STORAGE_KEYS.pinLock, { ...found.lock, failedAttempts: 0 } satisfies PinLock);
+      await found.area.set(STORAGE_KEYS.pinLock, {
+        ...found.lock,
+        failedAttempts: 0,
+      } satisfies PinLock);
     }
   }
 

@@ -1,6 +1,13 @@
 import { concat, fromBase64, randomBytes, toBase64, toHex } from "../encoding.ts";
 import { open, seal } from "../cipher.ts";
-import { FILE_CHUNK_SIZE, MAX_FILE_SIZE, chunkCount, isAttachmentMime, isAttachmentName, type Attachment } from "./attachment.ts";
+import {
+  FILE_CHUNK_SIZE,
+  MAX_FILE_SIZE,
+  chunkCount,
+  isAttachmentMime,
+  isAttachmentName,
+  type Attachment,
+} from "./attachment.ts";
 
 export const FILE_TOO_LARGE = "File too large";
 export const EMPTY_FILE = "Empty file";
@@ -37,7 +44,8 @@ export async function encryptFile(
   const id = fixed?.id ?? crypto.randomUUID();
   const key = fixed?.key ?? randomBytes(32);
   const chunks = chunkCount(bytes.length);
-  if (fixed && fixed.nonces.length !== chunks) throw new Error("Nonce count must equal chunk count");
+  if (fixed && fixed.nonces.length !== chunks)
+    throw new Error("Nonce count must equal chunk count");
   const blobs: string[] = [];
   for (let i = 0; i < chunks; i++) {
     const part = bytes.subarray(i * FILE_CHUNK_SIZE, (i + 1) * FILE_CHUNK_SIZE);
@@ -56,7 +64,11 @@ export async function encryptFile(
   return { attachment, blobs };
 }
 
-export async function decryptChunk(a: Attachment, index: number, blob: string): Promise<Uint8Array> {
+export async function decryptChunk(
+  a: Attachment,
+  index: number,
+  blob: string,
+): Promise<Uint8Array> {
   if (!Number.isInteger(index) || index < 0 || index >= a.chunks) throw new Error(FILE_CORRUPTED);
   try {
     return await open(fromBase64(a.key), blob, fileChunkAad(a.id, index, a.chunks));

@@ -73,7 +73,9 @@ export class MemorySyncStore implements SyncStore {
   }
 
   listSince(revision: number) {
-    return [...this.records.values()].filter((r) => r.revision > revision).sort((a, b) => a.revision - b.revision);
+    return [...this.records.values()]
+      .filter((r) => r.revision > revision)
+      .sort((a, b) => a.revision - b.revision);
   }
 
   currentRevision() {

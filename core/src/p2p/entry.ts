@@ -6,10 +6,29 @@ import { parseHlc, type Hlc } from "./hlc.ts";
 export type EntryType = "login" | "contact" | "card" | "note" | "document";
 export type DocumentKind = "id_card" | "passport" | "driving_license" | "student_id" | "other";
 
-export interface LabeledValue { label: string; value: string }
-export interface PostalAddress { label: string; street: string; postalCode: string; city: string; country: string }
-export interface CustomField { label: string; value: string; hidden: boolean }
-export interface LoginFields { username: string; password: string; totp: string; urls: string[]; androidApps: string[] }
+export interface LabeledValue {
+  label: string;
+  value: string;
+}
+export interface PostalAddress {
+  label: string;
+  street: string;
+  postalCode: string;
+  city: string;
+  country: string;
+}
+export interface CustomField {
+  label: string;
+  value: string;
+  hidden: boolean;
+}
+export interface LoginFields {
+  username: string;
+  password: string;
+  totp: string;
+  urls: string[];
+  androidApps: string[];
+}
 export interface ContactFields {
   firstName: string;
   lastName: string;
@@ -18,7 +37,13 @@ export interface ContactFields {
   emails: LabeledValue[];
   addresses: PostalAddress[];
 }
-export interface CardFields { holder: string; number: string; expiry: string; cvc: string; pin: string }
+export interface CardFields {
+  holder: string;
+  number: string;
+  expiry: string;
+  cvc: string;
+  pin: string;
+}
 export type NoteFields = Record<string, never>;
 export interface DocumentFields {
   kind: DocumentKind;
@@ -29,7 +54,12 @@ export interface DocumentFields {
   issuer: string;
 }
 
-export type EntryContentV3 = { name: string; note: string; custom: CustomField[]; attachments?: Attachment[] } & (
+export type EntryContentV3 = {
+  name: string;
+  note: string;
+  custom: CustomField[];
+  attachments?: Attachment[];
+} & (
   | { type: "login"; fields: LoginFields }
   | { type: "contact"; fields: ContactFields }
   | { type: "card"; fields: CardFields }
@@ -49,7 +79,13 @@ export const ENTRY_TOO_LARGE_TO_SYNC = "Entry too large to sync";
 
 const INVALID_ENTRY = "Invalid entry payload";
 const INVALID_TOMBSTONE = "Invalid tombstone payload";
-const DOCUMENT_KINDS: readonly string[] = ["id_card", "passport", "driving_license", "student_id", "other"];
+const DOCUMENT_KINDS: readonly string[] = [
+  "id_card",
+  "passport",
+  "driving_license",
+  "student_id",
+  "other",
+];
 
 export function entryAadV2(id: string): string {
   return `passholder/v2/entry/${id}`;
@@ -63,7 +99,13 @@ function fieldsJson(data: EntryContentV3): unknown {
   switch (data.type) {
     case "login": {
       const f = data.fields;
-      return { username: f.username, password: f.password, totp: f.totp, urls: f.urls, androidApps: f.androidApps };
+      return {
+        username: f.username,
+        password: f.password,
+        totp: f.totp,
+        urls: f.urls,
+        androidApps: f.androidApps,
+      };
     }
     case "contact": {
       const f = data.fields;
@@ -74,7 +116,11 @@ function fieldsJson(data: EntryContentV3): unknown {
         phones: f.phones.map((p) => ({ label: p.label, value: p.value })),
         emails: f.emails.map((e) => ({ label: e.label, value: e.value })),
         addresses: f.addresses.map((a) => ({
-          label: a.label, street: a.street, postalCode: a.postalCode, city: a.city, country: a.country,
+          label: a.label,
+          street: a.street,
+          postalCode: a.postalCode,
+          city: a.city,
+          country: a.country,
         })),
       };
     }
@@ -87,8 +133,12 @@ function fieldsJson(data: EntryContentV3): unknown {
     case "document": {
       const f = data.fields;
       return {
-        kind: f.kind, number: f.number, fullName: f.fullName,
-        issueDate: f.issueDate, expiryDate: f.expiryDate, issuer: f.issuer,
+        kind: f.kind,
+        number: f.number,
+        fullName: f.fullName,
+        issueDate: f.issueDate,
+        expiryDate: f.expiryDate,
+        issuer: f.issuer,
       };
     }
   }
@@ -105,7 +155,9 @@ export function serializeEntryData(data: EntryDataV3 | TombstoneDataV2): string 
     fields: fieldsJson(data),
     custom: data.custom.map((c) => ({ label: c.label, value: c.value, hidden: c.hidden })),
     // Only a non-empty list is written, so entries without files keep their exact bytes.
-    ...(data.attachments && data.attachments.length > 0 ? { attachments: data.attachments.map(attachmentJson) } : {}),
+    ...(data.attachments && data.attachments.length > 0
+      ? { attachments: data.attachments.map(attachmentJson) }
+      : {}),
     hlc: hlcJson(data.hlc),
   });
 }
@@ -134,7 +186,11 @@ export function encryptPayloadV2(
   return seal(vaultKey, utf8(serializeEntryData(data)), entryAadV2(id), nonce);
 }
 
-export async function decryptPayloadV2(vaultKey: Uint8Array, id: string, blob: string): Promise<unknown> {
+export async function decryptPayloadV2(
+  vaultKey: Uint8Array,
+  id: string,
+  blob: string,
+): Promise<unknown> {
   return JSON.parse(fromUtf8(await open(vaultKey, blob, entryAadV2(id))));
 }
 
@@ -181,7 +237,11 @@ function labeled(value: unknown): LabeledValue {
 function address(value: unknown): PostalAddress {
   const o = record(value, ["label", "street", "postalCode", "city", "country"]);
   return {
-    label: str(o.label), street: str(o.street), postalCode: str(o.postalCode), city: str(o.city), country: str(o.country),
+    label: str(o.label),
+    street: str(o.street),
+    postalCode: str(o.postalCode),
+    city: str(o.city),
+    country: str(o.country),
   };
 }
 
@@ -196,23 +256,41 @@ function parseContent(type: string, raw: unknown): { type: EntryType; fields: un
     case "login": {
       const o = record(raw, ["username", "password", "totp", "urls", "androidApps"]);
       const fields: LoginFields = {
-        username: str(o.username), password: str(o.password), totp: str(o.totp),
-        urls: strings(o.urls), androidApps: strings(o.androidApps),
+        username: str(o.username),
+        password: str(o.password),
+        totp: str(o.totp),
+        urls: strings(o.urls),
+        androidApps: strings(o.androidApps),
       };
       return { type, fields };
     }
     case "contact": {
-      const o = record(raw, ["firstName", "lastName", "birthDate", "phones", "emails", "addresses"]);
+      const o = record(raw, [
+        "firstName",
+        "lastName",
+        "birthDate",
+        "phones",
+        "emails",
+        "addresses",
+      ]);
       const fields: ContactFields = {
-        firstName: str(o.firstName), lastName: str(o.lastName), birthDate: str(o.birthDate),
-        phones: list(o.phones, labeled), emails: list(o.emails, labeled), addresses: list(o.addresses, address),
+        firstName: str(o.firstName),
+        lastName: str(o.lastName),
+        birthDate: str(o.birthDate),
+        phones: list(o.phones, labeled),
+        emails: list(o.emails, labeled),
+        addresses: list(o.addresses, address),
       };
       return { type, fields };
     }
     case "card": {
       const o = record(raw, ["holder", "number", "expiry", "cvc", "pin"]);
       const fields: CardFields = {
-        holder: str(o.holder), number: str(o.number), expiry: str(o.expiry), cvc: str(o.cvc), pin: str(o.pin),
+        holder: str(o.holder),
+        number: str(o.number),
+        expiry: str(o.expiry),
+        cvc: str(o.cvc),
+        pin: str(o.pin),
       };
       return { type, fields };
     }
@@ -224,8 +302,12 @@ function parseContent(type: string, raw: unknown): { type: EntryType; fields: un
       const kind = str(o.kind);
       if (!DOCUMENT_KINDS.includes(kind)) fail();
       const fields: DocumentFields = {
-        kind: kind as DocumentKind, number: str(o.number), fullName: str(o.fullName),
-        issueDate: str(o.issueDate), expiryDate: str(o.expiryDate), issuer: str(o.issuer),
+        kind: kind as DocumentKind,
+        number: str(o.number),
+        fullName: str(o.fullName),
+        issueDate: str(o.issueDate),
+        expiryDate: str(o.expiryDate),
+        issuer: str(o.issuer),
       };
       return { type, fields };
     }
@@ -245,13 +327,28 @@ export function parseEntryData(value: unknown): EntryDataV3 {
       type: "login",
       name: str(o.name),
       note: "",
-      fields: { username: str(o.username), password: str(o.password), totp: "", urls: [], androidApps: [] },
+      fields: {
+        username: str(o.username),
+        password: str(o.password),
+        totp: "",
+        urls: [],
+        androidApps: [],
+      },
       custom: [],
       hlc: strictHlc(o.hlc, INVALID_ENTRY),
     };
   }
   const withAttachments = Object.hasOwn(obj, "attachments");
-  const o = record(value, ["v", "type", "name", "note", "fields", "custom", ...(withAttachments ? ["attachments"] : []), "hlc"]);
+  const o = record(value, [
+    "v",
+    "type",
+    "name",
+    "note",
+    "fields",
+    "custom",
+    ...(withAttachments ? ["attachments"] : []),
+    "hlc",
+  ]);
   if (o.v !== 3) fail();
   const content = contentOf(o);
   if (withAttachments) content.attachments = parseAttachments(o.attachments);
@@ -276,7 +373,8 @@ export function parseEntryContent(value: unknown): EntryContentV3 {
 }
 
 export function parseTombstoneData(value: unknown): TombstoneDataV2 {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error(INVALID_TOMBSTONE);
+  if (typeof value !== "object" || value === null || Array.isArray(value))
+    throw new Error(INVALID_TOMBSTONE);
   const keys = Object.keys(value);
   if (keys.length !== 1 || keys[0] !== "hlc") throw new Error(INVALID_TOMBSTONE);
   return { hlc: strictHlc((value as Record<string, unknown>).hlc, INVALID_TOMBSTONE) };

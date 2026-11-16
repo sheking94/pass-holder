@@ -4,7 +4,14 @@ import { MAX_FILE_SIZE, type Attachment } from "../files/attachment.ts";
 import type { EntryContentV3 } from "../p2p/entry.ts";
 import { sortForExport } from "./common.ts";
 import { parseArchiveIndex, type ArchivedFile, type ParsedArchive } from "./passholder-json.ts";
-import { ZIP_ENTRY_TOO_LARGE, ZIP_INVALID, ZipWriter, readZipEntry, readZipIndex, type ZipEntry } from "./zip.ts";
+import {
+  ZIP_ENTRY_TOO_LARGE,
+  ZIP_INVALID,
+  ZipWriter,
+  readZipEntry,
+  readZipIndex,
+  type ZipEntry,
+} from "./zip.ts";
 
 export const MAX_ZIP_BYTES = 268435456;
 export const ARCHIVE_INDEX = "passholder.json";
@@ -44,7 +51,9 @@ export async function exportPassHolderZip(
       await zip.add(path, bytes);
       described.push({ name: a.name, mime: a.mime, size: bytes.length, path });
     }
-    index.push((described.length > 0 ? { ...content, attachments: described } : content) as EntryContentV3);
+    index.push(
+      (described.length > 0 ? { ...content, attachments: described } : content) as EntryContentV3,
+    );
   }
   const json = JSON.stringify({ format: "passholder", version: 3, entries: index }, null, 2) + "\n";
   // The index is written first, so a reader that streams the archive (the phone) meets it before the files.
@@ -65,11 +74,15 @@ export async function openPassHolderZip(
   if (indexEntry === undefined) throw new Error(NOT_ARCHIVE);
   let parsed: ParsedArchive;
   try {
-    const text = new TextDecoder("utf-8", { fatal: true }).decode(await readZipEntry(bytes, indexEntry, MAX_INDEX_BYTES));
+    const text = new TextDecoder("utf-8", { fatal: true }).decode(
+      await readZipEntry(bytes, indexEntry, MAX_INDEX_BYTES),
+    );
     parsed = parseArchiveIndex(text);
   } catch (err) {
     // A damaged index means a damaged archive; anything else (too large, not UTF-8, not PassHolder JSON) is not ours.
-    throw new Error(err instanceof Error && err.message === ZIP_INVALID ? ZIP_INVALID : NOT_ARCHIVE);
+    throw new Error(
+      err instanceof Error && err.message === ZIP_INVALID ? ZIP_INVALID : NOT_ARCHIVE,
+    );
   }
   return {
     parsed,
@@ -80,7 +93,9 @@ export async function openPassHolderZip(
       try {
         return await readZipEntry(bytes, e, MAX_FILE_SIZE);
       } catch (err) {
-        throw new Error(err instanceof Error && err.message === ZIP_ENTRY_TOO_LARGE ? "za duży" : "uszkodzony");
+        throw new Error(
+          err instanceof Error && err.message === ZIP_ENTRY_TOO_LARGE ? "za duży" : "uszkodzony",
+        );
       }
     },
   };

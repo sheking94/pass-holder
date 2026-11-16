@@ -14,7 +14,9 @@ interface VectorMessage {
   payload: string;
   ciphertext: string;
 }
-const raw = JSON.parse(readFileSync(new URL("../../test-vectors/noise-kk.json", import.meta.url), "utf8")) as {
+const raw = JSON.parse(
+  readFileSync(new URL("../../test-vectors/noise-kk.json", import.meta.url), "utf8"),
+) as {
   protocol_name: string;
   init_prologue: string;
   init_static: string;
@@ -69,7 +71,11 @@ describe("Noise_KK_25519_AESGCM_SHA256", () => {
       e: keyPairFromPrivateKey(fromHex(raw.resp_ephemeral)),
     });
 
-    const [h1, h2, ...transport] = raw.messages as [VectorMessage, VectorMessage, ...VectorMessage[]];
+    const [h1, h2, ...transport] = raw.messages as [
+      VectorMessage,
+      VectorMessage,
+      ...VectorMessage[],
+    ];
     const m1 = await init.writeMessage(fromHex(h1.payload));
     expect(toHex(m1)).toBe(h1.ciphertext);
     expect(toHex(await resp.readMessage(m1))).toBe(h1.payload);
@@ -179,7 +185,9 @@ describe("Noise_KK_25519_AESGCM_SHA256", () => {
     await init.readMessage(await resp.writeMessage(new Uint8Array(0)));
     await expect(init.writeMessage(utf8("x"))).rejects.toThrow();
     const { send } = init.split();
-    await expect(send.encrypt(new Uint8Array(0), new Uint8Array(65535 - 16 + 1))).rejects.toThrow(/65535/);
+    await expect(send.encrypt(new Uint8Array(0), new Uint8Array(65535 - 16 + 1))).rejects.toThrow(
+      /65535/,
+    );
   });
 });
 

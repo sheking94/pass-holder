@@ -4,7 +4,10 @@ import { exportFile, type TransferFormat } from "../../src/transfer/index.ts";
 
 const dir = new URL("../../test-vectors/transfer/", import.meta.url);
 const read = (name: string): string => readFileSync(new URL(name, dir), "utf8");
-const entries = [...JSON.parse(read("passholder.expected.json")).entries, ...JSON.parse(read("bitwarden.expected.json")).entries];
+const entries = [
+  ...JSON.parse(read("passholder.expected.json")).entries,
+  ...JSON.parse(read("bitwarden.expected.json")).entries,
+];
 
 describe("shared transfer vectors", () => {
   const files: [TransferFormat, string][] = [

@@ -31,13 +31,21 @@ export async function openEditTab(type: p2p.EntryType, id?: string): Promise<voi
 /** Button shown only in the popup: switches to a PassHolder tab (opens one if needed). */
 export function openInTabButton() {
   if (IN_TAB) return undefined;
-  return h("div", { class: "topbar" }, h("button", {
-    type: "button",
-    class: "small",
-    title: "Karta nie zamyka się po kliknięciu na stronie, więc wpisane dane nie znikają",
-    onclick: async () => {
-      await openInTab(chromeTabApi(), chrome.runtime.getURL(PAGE));
-      window.close();
-    },
-  }, "Otwórz w karcie ↗"));
+  return h(
+    "div",
+    { class: "topbar" },
+    h(
+      "button",
+      {
+        type: "button",
+        class: "small",
+        title: "Karta nie zamyka się po kliknięciu na stronie, więc wpisane dane nie znikają",
+        onclick: async () => {
+          await openInTab(chromeTabApi(), chrome.runtime.getURL(PAGE));
+          window.close();
+        },
+      },
+      "Otwórz w karcie ↗",
+    ),
+  );
 }

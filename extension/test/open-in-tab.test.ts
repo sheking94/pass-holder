@@ -36,7 +36,8 @@ describe("pageMode", () => {
 
   it("counts every tab as a tab, also the CSV one, but only tab and setup as the main tab", () => {
     expect(isInTab("popup")).toBe(false);
-    for (const mode of ["tab", "setup", "addresses", "transfer", "edit"] as const) expect(isInTab(mode)).toBe(true);
+    for (const mode of ["tab", "setup", "addresses", "transfer", "edit"] as const)
+      expect(isInTab(mode)).toBe(true);
     expect(isMainTab("tab")).toBe(true);
     expect(isMainTab("setup")).toBe(true);
     expect(isMainTab("addresses")).toBe(false);
@@ -74,7 +75,9 @@ describe("openInTab", () => {
   });
 
   it("ignores other extension pages", async () => {
-    const { api, calls } = fakeApi([{ tabId: 9, windowId: 1, url: "chrome-extension://abc/offscreen.html" }]);
+    const { api, calls } = fakeApi([
+      { tabId: 9, windowId: 1, url: "chrome-extension://abc/offscreen.html" },
+    ]);
     await openInTab(api, PAGE);
     expect(calls).toEqual([`create ${PAGE}?tab`]);
   });

@@ -47,9 +47,11 @@ export const MAX_SESSIONS_PER_DEVICE = 4;
 export const MAX_SEEN_HANDSHAKES = 4096;
 
 const fail = (status: number, error: string): Reply => ({ status, body: { error } });
-const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
 
-const sameBytes = (a: Uint8Array, b: Uint8Array) => a.length === b.length && a.every((x, i) => x === b[i]);
+const sameBytes = (a: Uint8Array, b: Uint8Array) =>
+  a.length === b.length && a.every((x, i) => x === b[i]);
 
 function decodeBase64(value: unknown): Uint8Array | undefined {
   if (typeof value !== "string") return undefined;
@@ -75,16 +77,20 @@ export class P2pHost {
   }
 
   async handle(path: string, body: unknown): Promise<Reply> {
-    if (utf8(JSON.stringify(body) ?? "").length > MAX_BODY_BYTES) return fail(413, "body too large");
+    if (utf8(JSON.stringify(body) ?? "").length > MAX_BODY_BYTES)
+      return fail(413, "body too large");
     this.#prune();
     if (path === P2P_HANDSHAKE_PATH) return this.#handshake(body);
     if (path === P2P_SYNC_PATH) return this.#session(body, (request) => this.#processSync(request));
     if (path === P2P_FILE_PATH && this.#o.files) {
       const files = this.#o.files;
-      return this.#session(body, (request) => processP2pFile(files, this.#o.epoch, request, this.#now()));
+      return this.#session(body, (request) =>
+        processP2pFile(files, this.#o.epoch, request, this.#now()),
+      );
     }
     // The v1 sync protocol is gone; tell old clients to update instead of pretending the path is unknown.
-    if (path === "/p2p/v1/handshake" || path === "/p2p/v1/sync") return fail(410, "update required");
+    if (path === "/p2p/v1/handshake" || path === "/p2p/v1/sync")
+      return fail(410, "update required");
     return fail(404, "not found");
   }
 
@@ -148,7 +154,8 @@ export class P2pHost {
 
   #remember(ephemeral: string): void {
     this.#seen.add(ephemeral);
-    if (this.#seen.size > MAX_SEEN_HANDSHAKES) this.#seen.delete(this.#seen.values().next().value as string);
+    if (this.#seen.size > MAX_SEEN_HANDSHAKES)
+      this.#seen.delete(this.#seen.values().next().value as string);
   }
 
   /** Common part of the one-request-per-session paths; `process` returns a reply whose 200 body gets encrypted. */
@@ -165,11 +172,15 @@ export class P2pHost {
     const session = this.#sessions.get(body.session);
     // One attempt per session, whatever the outcome.
     this.#sessions.delete(body.session);
-    if (!session || session.expiresAt <= this.#now()) return fail(401, "unknown or expired session");
+    if (!session || session.expiresAt <= this.#now())
+      return fail(401, "unknown or expired session");
     // The device may have been removed (or re-paired with another key) after the handshake.
-    const stillPaired = this.#o.devices().some(
-      (d) => d.deviceId === session.deviceId && sameBytes(d.staticPublicKey, session.staticPublicKey),
-    );
+    const stillPaired = this.#o
+      .devices()
+      .some(
+        (d) =>
+          d.deviceId === session.deviceId && sameBytes(d.staticPublicKey, session.staticPublicKey),
+      );
     if (!stillPaired) return fail(403, "device not paired");
     let request: unknown;
     try {
@@ -190,6 +201,9 @@ export class P2pHost {
     const sync = request as P2pSyncRequest;
     const invalid = validateP2pSyncRequest(this.#o.store, this.#o.epoch, sync);
     if (invalid !== undefined) return fail(400, invalid);
-    return { status: 200, body: processP2pSync(this.#o.store, this.#o.epoch, this.#o.addresses(), sync) };
+    return {
+      status: 200,
+      body: processP2pSync(this.#o.store, this.#o.epoch, this.#o.addresses(), sync),
+    };
   }
 }

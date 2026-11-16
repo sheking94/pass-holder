@@ -6,10 +6,14 @@ import { IdbFileStore } from "../src/files/idb-file-store.ts";
 // The store builds key ranges with the global IDBKeyRange, which Node lacks.
 globalThis.IDBKeyRange = IDBKeyRange;
 
-const sample = (length: number, seed = 7) => Uint8Array.from({ length }, (_, i) => (i * 31 + seed) & 0xff);
+const sample = (length: number, seed = 7) =>
+  Uint8Array.from({ length }, (_, i) => (i * 31 + seed) & 0xff);
 const newStore = () => new IdbFileStore(new IDBFactory());
 const threeChunks = () =>
-  files.encryptFile(sample(files.FILE_CHUNK_SIZE * 2 + 10), { name: "scan.pdf", mime: "application/pdf" });
+  files.encryptFile(sample(files.FILE_CHUNK_SIZE * 2 + 10), {
+    name: "scan.pdf",
+    mime: "application/pdf",
+  });
 
 describe("IdbFileStore", () => {
   it("stores a complete, not yet uploaded file", async () => {
@@ -17,7 +21,11 @@ describe("IdbFileStore", () => {
     const store = newStore();
     await files.storeEncryptedFile(store, f);
     expect(await store.state(f.attachment.id)).toEqual({
-      id: f.attachment.id, chunks: 3, have: [0, 1, 2], complete: true, uploadedEpoch: null,
+      id: f.attachment.id,
+      chunks: 3,
+      have: [0, 1, 2],
+      complete: true,
+      uploadedEpoch: null,
     });
     expect(await store.ids()).toEqual([f.attachment.id]);
     expect(await store.getChunk(f.attachment.id, 1)).toBe(f.blobs[1]);
@@ -27,14 +35,32 @@ describe("IdbFileStore", () => {
   it("tracks chunks put one by one and forgets a deleted file", async () => {
     const store = newStore();
     await store.putChunk("x", 1, 2, "B");
-    expect(await store.state("x")).toEqual({ id: "x", chunks: 2, have: [1], complete: false, uploadedEpoch: null });
+    expect(await store.state("x")).toEqual({
+      id: "x",
+      chunks: 2,
+      have: [1],
+      complete: false,
+      uploadedEpoch: null,
+    });
     await store.putChunk("x", 0, 2, "A");
     expect((await store.state("x"))!.have).toEqual([0, 1]);
     await store.markComplete("x");
     await store.markUploaded("x", "E");
-    expect(await store.state("x")).toEqual({ id: "x", chunks: 2, have: [0, 1], complete: true, uploadedEpoch: "E" });
+    expect(await store.state("x")).toEqual({
+      id: "x",
+      chunks: 2,
+      have: [0, 1],
+      complete: true,
+      uploadedEpoch: "E",
+    });
     await store.markIncomplete("x", [1]);
-    expect(await store.state("x")).toEqual({ id: "x", chunks: 2, have: [1], complete: false, uploadedEpoch: "E" });
+    expect(await store.state("x")).toEqual({
+      id: "x",
+      chunks: 2,
+      have: [1],
+      complete: false,
+      uploadedEpoch: "E",
+    });
     await store.delete("x");
     expect(await store.state("x")).toBeUndefined();
     expect(await store.getChunk("x", 0)).toBeUndefined();
@@ -48,7 +74,13 @@ describe("IdbFileStore", () => {
     await store.markComplete("x");
     await store.markUploaded("x", "E");
     await store.putChunk("x", 0, 3, "C");
-    expect(await store.state("x")).toEqual({ id: "x", chunks: 3, have: [0], complete: false, uploadedEpoch: null });
+    expect(await store.state("x")).toEqual({
+      id: "x",
+      chunks: 3,
+      have: [0],
+      complete: false,
+      uploadedEpoch: null,
+    });
     expect(await store.getChunk("x", 0)).toBe("C");
     expect(await store.getChunk("x", 1)).toBeUndefined();
   });
@@ -97,7 +129,13 @@ describe("IdbFileStore", () => {
     await first.putChunk("x", 0, 2, "A");
     await first.markUploaded("x", "E");
     const second = new IdbFileStore(factory);
-    expect(await second.state("x")).toEqual({ id: "x", chunks: 2, have: [0], complete: false, uploadedEpoch: "E" });
+    expect(await second.state("x")).toEqual({
+      id: "x",
+      chunks: 2,
+      have: [0],
+      complete: false,
+      uploadedEpoch: "E",
+    });
     expect(await second.getChunk("x", 0)).toBe("A");
     expect(await new IdbFileStore(factory, "other").ids()).toEqual([]);
   });
@@ -108,7 +146,12 @@ describe("IdbFileStore", () => {
     const hostKey = p2p.generateKeyPair();
     const devices: p2p.PairedDevice[] = [];
     const host = new p2p.P2pHost({
-      staticKey: hostKey, devices: () => devices, store: new MemorySyncStore(), epoch, addresses: () => [], files: phoneFiles,
+      staticKey: hostKey,
+      devices: () => devices,
+      store: new MemorySyncStore(),
+      epoch,
+      addresses: () => [],
+      files: phoneFiles,
     });
     const post: p2p.FetchJson = async (url, body) =>
       structuredClone(await host.handle(new URL(url).pathname, structuredClone(body)));
@@ -116,29 +159,51 @@ describe("IdbFileStore", () => {
       const key = p2p.generateKeyPair();
       devices.push({ deviceId, name: deviceId, staticPublicKey: key.publicKey });
       return files.noiseFileTransport({
-        baseUrl: "http://phone/", deviceId, staticKey: key, peerPublicKey: hostKey.publicKey, post,
+        baseUrl: "http://phone/",
+        deviceId,
+        staticKey: key,
+        peerPublicKey: hostKey.publicKey,
+        post,
       });
     };
 
     const f = await threeChunks();
     const vault = p2p.emptyVaultV2();
     p2p.applyVaultInfo(vault, { epoch, addresses: [] });
-    p2p.upsertEntryV2(vault, new p2p.HlcClock("dev"), "e1", { ...p2p.emptyLogin("e"), attachments: [f.attachment] });
+    p2p.upsertEntryV2(vault, new p2p.HlcClock("dev"), "e1", {
+      ...p2p.emptyLogin("e"),
+      attachments: [f.attachment],
+    });
 
     const a = newStore();
     await files.storeEncryptedFile(a, f);
-    expect(await files.syncFiles(vault, a, plugin("a"))).toEqual({ uploaded: 1, downloaded: 0, pending: 0, corrupted: [], corruptedIds: [] });
+    expect(await files.syncFiles(vault, a, plugin("a"))).toEqual({
+      uploaded: 1,
+      downloaded: 0,
+      pending: 0,
+      corrupted: [],
+      corruptedIds: [],
+    });
     expect(phoneFiles.have(f.attachment.id)).toEqual([0, 1, 2]);
     expect((await a.state(f.attachment.id))!.uploadedEpoch).toBe(epoch);
 
     const b = newStore();
     const progress: [number, number][] = [];
     expect(await files.syncFiles(vault, b, plugin("b"), (d, t) => progress.push([d, t]))).toEqual({
-      uploaded: 0, downloaded: 1, pending: 0, corrupted: [], corruptedIds: [],
+      uploaded: 0,
+      downloaded: 1,
+      pending: 0,
+      corrupted: [],
+      corruptedIds: [],
     });
-    expect(progress).toEqual([[0, 1], [1, 1]]);
+    expect(progress).toEqual([
+      [0, 1],
+      [1, 1],
+    ]);
     const blobs = await Promise.all([0, 1, 2].map((i) => b.getChunk(f.attachment.id, i)));
-    expect(await files.decryptFile(f.attachment, blobs as string[])).toEqual(sample(files.FILE_CHUNK_SIZE * 2 + 10));
+    expect(await files.decryptFile(f.attachment, blobs as string[])).toEqual(
+      sample(files.FILE_CHUNK_SIZE * 2 + 10),
+    );
     expect(await b.state(f.attachment.id)).toMatchObject({ complete: true, have: [0, 1, 2] });
   });
 });

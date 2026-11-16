@@ -7,12 +7,20 @@ type Content = p2p.EntryContentV3;
 /** Entry types in tab order (logins first). */
 export const ENTRY_TYPES: readonly EntryType[] = ["login", "contact", "card", "note", "document"];
 
-export const TYPE_INFO: Record<EntryType, { icon: string; tab: string; newTitle: string; editTitle: string }> = {
+export const TYPE_INFO: Record<
+  EntryType,
+  { icon: string; tab: string; newTitle: string; editTitle: string }
+> = {
   login: { icon: "🔑", tab: "Loginy", newTitle: "Nowy login", editTitle: "Edytuj login" },
   contact: { icon: "👤", tab: "Kontakty", newTitle: "Nowy kontakt", editTitle: "Edytuj kontakt" },
   card: { icon: "💳", tab: "Karty", newTitle: "Nowa karta", editTitle: "Edytuj kartę" },
   note: { icon: "📝", tab: "Notatki", newTitle: "Nowa notatka", editTitle: "Edytuj notatkę" },
-  document: { icon: "🪪", tab: "Dokumenty", newTitle: "Nowy dokument", editTitle: "Edytuj dokument" },
+  document: {
+    icon: "🪪",
+    tab: "Dokumenty",
+    newTitle: "Nowy dokument",
+    editTitle: "Edytuj dokument",
+  },
 };
 
 export const DOCUMENT_KIND_LABELS: Record<DocumentKind, string> = {
@@ -31,13 +39,35 @@ export function emptyContent(type: EntryType): Content {
     case "login":
       return p2p.emptyLogin();
     case "contact":
-      return { ...base, type, fields: { firstName: "", lastName: "", birthDate: "", phones: [], emails: [], addresses: [] } };
+      return {
+        ...base,
+        type,
+        fields: {
+          firstName: "",
+          lastName: "",
+          birthDate: "",
+          phones: [],
+          emails: [],
+          addresses: [],
+        },
+      };
     case "card":
       return { ...base, type, fields: { holder: "", number: "", expiry: "", cvc: "", pin: "" } };
     case "note":
       return { ...base, type, fields: {} };
     case "document":
-      return { ...base, type, fields: { kind: "id_card", number: "", fullName: "", issueDate: "", expiryDate: "", issuer: "" } };
+      return {
+        ...base,
+        type,
+        fields: {
+          kind: "id_card",
+          number: "",
+          fullName: "",
+          issueDate: "",
+          expiryDate: "",
+          issuer: "",
+        },
+      };
   }
 }
 
@@ -78,8 +108,14 @@ export function tidyContent(content: Content): Content {
       ...out.fields,
       phones: out.fields.phones.filter((p) => p.label !== "" || p.value !== ""),
       emails: out.fields.emails.filter((e) => e.label !== "" || e.value !== ""),
-      addresses: out.fields.addresses.filter((a) =>
-        a.label !== "" || a.street !== "" || a.postalCode !== "" || a.city !== "" || a.country !== ""),
+      addresses: out.fields.addresses.filter(
+        (a) =>
+          a.label !== "" ||
+          a.street !== "" ||
+          a.postalCode !== "" ||
+          a.city !== "" ||
+          a.country !== "",
+      ),
     };
   }
   return out;
@@ -114,13 +150,16 @@ export function validateContent(content: Content, original?: Content): string | 
     }
     case "contact": {
       const o = before?.fields as p2p.ContactFields | undefined;
-      if (!validDate(content.fields.birthDate, o?.birthDate)) return "Data urodzenia: wpisz datę RRRR-MM-DD";
+      if (!validDate(content.fields.birthDate, o?.birthDate))
+        return "Data urodzenia: wpisz datę RRRR-MM-DD";
       return undefined;
     }
     case "document": {
       const o = before?.fields as p2p.DocumentFields | undefined;
-      if (!validDate(content.fields.issueDate, o?.issueDate)) return "Data wydania: wpisz datę RRRR-MM-DD";
-      if (!validDate(content.fields.expiryDate, o?.expiryDate)) return "Data ważności: wpisz datę RRRR-MM-DD";
+      if (!validDate(content.fields.issueDate, o?.issueDate))
+        return "Data wydania: wpisz datę RRRR-MM-DD";
+      if (!validDate(content.fields.expiryDate, o?.expiryDate))
+        return "Data ważności: wpisz datę RRRR-MM-DD";
       return undefined;
     }
     case "card": {

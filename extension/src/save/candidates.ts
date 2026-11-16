@@ -3,7 +3,13 @@ import { LOCKED } from "../autofill/fill-tab.ts";
 import { STORAGE_KEYS, type KeyValueStore } from "../storage.ts";
 import type { VaultStore } from "../vault-store.ts";
 import type {
-  SaveAnswerMessage, SaveCandidateMessage, SaveInfoMessage, SavePendingMessage, SavePreviewMessage, SavePreviewResponse, SavePromptInfo,
+  SaveAnswerMessage,
+  SaveCandidateMessage,
+  SaveInfoMessage,
+  SavePendingMessage,
+  SavePreviewMessage,
+  SavePreviewResponse,
+  SavePromptInfo,
   SaveUnlockMessage,
 } from "./messages.ts";
 
@@ -11,7 +17,11 @@ export const SAVE_TTL_MS = 120_000;
 export const SAVED_HIDE_MS = 2000;
 export const SAVE_ALARM_PREFIX = "save-expire:";
 
-export interface Sender { id?: string; url?: string; tab?: { id?: number; url?: string } }
+export interface Sender {
+  id?: string;
+  url?: string;
+  tab?: { id?: number; url?: string };
+}
 
 /** Where the question is shown: PromptWindows (its own window and a badge) in the extension, a fake in tests. */
 export interface SavePrompt {
@@ -32,7 +42,10 @@ export interface SaveDeps {
   local: KeyValueStore;
   selfId: string;
   prompt: SavePrompt;
-  alarms: { create(name: string, info: { when: number }): Promise<void>; clear(name: string): Promise<boolean> };
+  alarms: {
+    create(name: string, info: { when: number }): Promise<void>;
+    clear(name: string): Promise<boolean>;
+  };
   now(): number;
   newId(): string;
   later(ms: number, fn: () => void): void;
@@ -150,25 +163,58 @@ export class SaveCandidates {
    * Saved logins for the candidate's address; null when the vault is locked. Only `exact` (same host) may be updated
    * (review V3-S2); `related` (subdomain matches) only tell that the login is saved already.
    */
-  private async matching(store: VaultStore, c: Candidate, touch: boolean): Promise<{ exact: SavedLogin[]; related: SavedLogin[] } | null> {
+  private async matching(
+    store: VaultStore,
+    c: Candidate,
+    touch: boolean,
+  ): Promise<{ exact: SavedLogin[]; related: SavedLogin[] } | null> {
     if (!(await store.resume({ touch }))) return null;
     const entries = store.listEntries("login");
-    const candidate = (e: (typeof entries)[number]) => ({ name: e.data.name, urls: e.data.type === "login" ? e.data.fields.urls : [] });
-    const exactIds = new Set(autofill.matchLogins(c.url, entries, candidate, { exactOnly: true }).map((e) => e.id));
-    const all = autofill.matchLogins(c.url, entries, candidate).flatMap((e) => (e.data.type === "login"
-      ? [{ id: e.id, entryName: e.data.name, username: e.data.fields.username, password: e.data.fields.password }]
-      : []));
-    return { exact: all.filter((l) => exactIds.has(l.id)), related: all.filter((l) => !exactIds.has(l.id)) };
+    const candidate = (e: (typeof entries)[number]) => ({
+      name: e.data.name,
+      urls: e.data.type === "login" ? e.data.fields.urls : [],
+    });
+    const exactIds = new Set(
+      autofill.matchLogins(c.url, entries, candidate, { exactOnly: true }).map((e) => e.id),
+    );
+    const all = autofill
+      .matchLogins(c.url, entries, candidate)
+      .flatMap((e) =>
+        e.data.type === "login"
+          ? [
+              {
+                id: e.id,
+                entryName: e.data.name,
+                username: e.data.fields.username,
+                password: e.data.fields.password,
+              },
+            ]
+          : [],
+      );
+    return {
+      exact: all.filter((l) => exactIds.has(l.id)),
+      related: all.filter((l) => !exactIds.has(l.id)),
+    };
   }
 
   /** What to do with the given login and password; null when the vault is locked. */
-  private async decideFor(store: VaultStore, c: Candidate, username: string, password: string, touch: boolean): Promise<save.SaveDecision | null> {
+  private async decideFor(
+    store: VaultStore,
+    c: Candidate,
+    username: string,
+    password: string,
+    touch: boolean,
+  ): Promise<save.SaveDecision | null> {
     const logins = await this.matching(store, c, touch);
     return logins && save.decideSave(username, password, logins.exact, logins.related);
   }
 
   /** What to do with the candidate; null when the vault is locked. */
-  private decide(store: VaultStore, c: Candidate, touch: boolean): Promise<save.SaveDecision | null> {
+  private decide(
+    store: VaultStore,
+    c: Candidate,
+    touch: boolean,
+  ): Promise<save.SaveDecision | null> {
     return this.decideFor(store, c, c.username, c.password, touch);
   }
 
@@ -200,9 +246,17 @@ export class SaveCandidates {
     // One submission fires several reports (click, Enter, submit): the same login keeps its id, so the panel
     // already on the page stays valid.
     const prev = await this.forTab(from.tabId);
-    const same = prev?.username === m.username && prev.password === m.password && prev.formSignature === formSignature;
+    const same =
+      prev?.username === m.username &&
+      prev.password === m.password &&
+      prev.formSignature === formSignature;
     const c: Candidate = {
-      id: same ? prev.id : this.deps.newId(), tabId: from.tabId, url, username: m.username, password: m.password, at: now,
+      id: same ? prev.id : this.deps.newId(),
+      tabId: from.tabId,
+      url,
+      username: m.username,
+      password: m.password,
+      at: now,
       formSignature,
     };
     if ((await this.decide(this.deps.store(), c, false))?.kind === "none") return;
@@ -224,7 +278,10 @@ export class SaveCandidates {
     const c = await this.forTab(from.tabId);
     if (!c) return {};
     // The same login form again, empty: the login most likely failed, so do not ask about it on this page.
-    if (from.frame.origin === candidateOrigin(c) && m.emptyLoginForms.some((sig) => `${from.frame.origin}|${sig}` === c.formSignature)) {
+    if (
+      from.frame.origin === candidateOrigin(c) &&
+      m.emptyLoginForms.some((sig) => `${from.frame.origin}|${sig}` === c.formSignature)
+    ) {
       await this.deps.prompt.closeWindow(from.tabId);
       return {};
     }
@@ -242,7 +299,12 @@ export class SaveCandidates {
 
   private async doInfo(m: SaveInfoMessage, s: Sender): Promise<SavePromptInfo | undefined> {
     if (!this.fromExtensionPage(s)) return undefined;
-    const c = m.candidateId !== undefined ? await this.byId(m.candidateId) : m.tabId !== undefined ? await this.forTab(m.tabId) : undefined;
+    const c =
+      m.candidateId !== undefined
+        ? await this.byId(m.candidateId)
+        : m.tabId !== undefined
+          ? await this.forTab(m.tabId)
+          : undefined;
     if (!c) return undefined;
     const decision = await this.decide(this.deps.store(), c, false);
     if (decision?.kind === "none") {
@@ -253,7 +315,12 @@ export class SaveCandidates {
     if (decision === null) return { ...base, password: "", decision: null, locked: true };
     const info = { ...base, password: c.password, decision: decision.kind, locked: false };
     if (decision.kind !== "update") return info;
-    return { ...info, entryName: (await this.matching(this.deps.store(), c, false))?.exact.find((l) => l.id === decision.id)?.entryName };
+    return {
+      ...info,
+      entryName: (await this.matching(this.deps.store(), c, false))?.exact.find(
+        (l) => l.id === decision.id,
+      )?.entryName,
+    };
   }
 
   preview(m: SavePreviewMessage, s: Sender): Promise<SavePreviewResponse> {
@@ -270,11 +337,16 @@ export class SaveCandidates {
     const wanted = m.username.trim().toLowerCase();
     const sameLogin = logins.exact.find((l) => l.username.trim().toLowerCase() === wanted);
     const decision =
-      m.password !== "" ? save.decideSave(m.username, m.password, logins.exact, logins.related)
-      : sameLogin ? { kind: "update" as const, id: sameLogin.id }
-      : { kind: "create" as const };
+      m.password !== ""
+        ? save.decideSave(m.username, m.password, logins.exact, logins.related)
+        : sameLogin
+          ? { kind: "update" as const, id: sameLogin.id }
+          : { kind: "create" as const };
     if (decision.kind !== "update") return { decision: decision.kind };
-    return { decision: "update", entryName: logins.exact.find((l) => l.id === decision.id)?.entryName };
+    return {
+      decision: "update",
+      entryName: logins.exact.find((l) => l.id === decision.id)?.entryName,
+    };
   }
 
   answer(m: SaveAnswerMessage, s: Sender): Promise<Answer> {
@@ -291,7 +363,8 @@ export class SaveCandidates {
       if (m.answer === "never") {
         const never = await neverList(this.deps.local);
         const host = save.saveName(c.url);
-        if (!never.includes(host)) await this.deps.local.set(STORAGE_KEYS.saveNever, [...never, host]);
+        if (!never.includes(host))
+          await this.deps.local.set(STORAGE_KEYS.saveNever, [...never, host]);
       }
       await this.remove(c.tabId);
       await this.hide(c.tabId);
@@ -314,7 +387,10 @@ export class SaveCandidates {
       await store.putEntry(decision.id, save.withPassword(entry.data, draft.password));
     } else if (decision.kind === "create") {
       const name = draft.name.trim() || save.saveName(c.url);
-      await store.putEntry(this.deps.newId(), { ...save.newLogin(c.url, draft.username, draft.password), name });
+      await store.putEntry(this.deps.newId(), {
+        ...save.newLogin(c.url, draft.username, draft.password),
+        name,
+      });
     }
     if (decision.kind !== "none") {
       // The window shows "Zapisano" by itself; it is closed a moment later.
@@ -359,6 +435,8 @@ export class SaveCandidates {
 
   /** The tab of the candidate the question window asks to unlock for; undefined for a foreign sender or none. */
   unlockTab(m: SaveUnlockMessage, s: Sender): Promise<number | undefined> {
-    return this.serial(async () => (this.fromExtensionPage(s) ? (await this.byId(m.candidateId))?.tabId : undefined));
+    return this.serial(async () =>
+      this.fromExtensionPage(s) ? (await this.byId(m.candidateId))?.tabId : undefined,
+    );
   }
 }

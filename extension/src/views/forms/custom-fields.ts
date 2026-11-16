@@ -12,17 +12,38 @@ export function customFieldsEditor(
     empty: () => ({ label: "", value: "", hidden: false }),
     addLabel: "Dodaj pole",
     row: (item) => {
-      const label = h("input", { type: "text", placeholder: "Etykieta", "aria-label": "Etykieta", value: item.label, autocomplete: "off" });
-      const value = h("input", { type: "text", placeholder: "Wartość", "aria-label": "Wartość", value: item.value, autocomplete: "off" });
+      const label = h("input", {
+        type: "text",
+        placeholder: "Etykieta",
+        "aria-label": "Etykieta",
+        value: item.label,
+        autocomplete: "off",
+      });
+      const value = h("input", {
+        type: "text",
+        placeholder: "Wartość",
+        "aria-label": "Wartość",
+        value: item.value,
+        autocomplete: "off",
+      });
       const field = secretField(value, "wartość pola", status);
       const hidden = h("input", { type: "checkbox", checked: item.hidden });
       field.setSecret(item.hidden);
       hidden.addEventListener("change", () => field.setSecret(hidden.checked));
       return {
-        node: h("div", { class: "custom-field" }, label, field.row, h("label", { class: "check" }, hidden, "ukryte")),
+        node: h(
+          "div",
+          { class: "custom-field" },
+          label,
+          field.row,
+          h("label", { class: "check" }, hidden, "ukryte"),
+        ),
         read: () => ({ ...item, label: label.value, value: value.value, hidden: hidden.checked }),
       };
     },
   });
-  return { node: h("fieldset", {}, h("legend", {}, "Własne pola"), editor.node), read: editor.read };
+  return {
+    node: h("fieldset", {}, h("legend", {}, "Własne pola"), editor.node),
+    read: editor.read,
+  };
 }

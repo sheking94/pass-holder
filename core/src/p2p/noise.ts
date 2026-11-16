@@ -85,7 +85,10 @@ export class CipherState {
     this.#key =
       key === null
         ? null
-        : crypto.subtle.importKey("raw", key.slice() as BufferSource, "AES-GCM", false, ["encrypt", "decrypt"]);
+        : crypto.subtle.importKey("raw", key.slice() as BufferSource, "AES-GCM", false, [
+            "encrypt",
+            "decrypt",
+          ]);
     this.#n = n;
   }
 
@@ -95,7 +98,8 @@ export class CipherState {
 
   async encrypt(ad: Uint8Array, plaintext: Uint8Array): Promise<Uint8Array> {
     if (this.#key === null) return plaintext.slice();
-    if (plaintext.length + TAGLEN > MAX_MESSAGE) throw new Error("Noise: message exceeds 65535 bytes");
+    if (plaintext.length + TAGLEN > MAX_MESSAGE)
+      throw new Error("Noise: message exceeds 65535 bytes");
     return this.#run(async (key, nonce) => {
       const ct = await crypto.subtle.encrypt(
         { name: "AES-GCM", iv: nonce as BufferSource, additionalData: ad as BufferSource },
@@ -239,7 +243,8 @@ export class NoiseKK {
 
   async writeMessage(payload: Uint8Array): Promise<Uint8Array> {
     const expected = this.#initiator ? "write1" : "write2";
-    if (DHLEN + payload.length + TAGLEN > MAX_MESSAGE) throw new Error("Noise: message exceeds 65535 bytes");
+    if (DHLEN + payload.length + TAGLEN > MAX_MESSAGE)
+      throw new Error("Noise: message exceeds 65535 bytes");
     return this.#guard(expected, async () => {
       // Token "e".
       const e = this.#e ?? generateKeyPair();
@@ -284,7 +289,8 @@ export class NoiseKK {
 
   /** Transport ciphers after both handshake messages; callable once. */
   split(): { send: CipherState; recv: CipherState } {
-    if (this.#busy || this.#step !== "done") throw new Error("Noise: split() before the handshake finished");
+    if (this.#busy || this.#step !== "done")
+      throw new Error("Noise: split() before the handshake finished");
     const [c1, c2] = this.#ss.split();
     this.#step = "split";
     // c1 encrypts initiator -> responder, c2 responder -> initiator.
@@ -293,14 +299,16 @@ export class NoiseKK {
 
   /** Final handshake hash h, for channel binding; available once the handshake has finished. */
   get handshakeHash(): Uint8Array {
-    if (this.#step !== "done" && this.#step !== "split") throw new Error("Noise: handshake not finished");
+    if (this.#step !== "done" && this.#step !== "split")
+      throw new Error("Noise: handshake not finished");
     return this.#ss.h.slice();
   }
 
   /** Runs one handshake step; input-size errors above leave the state intact, any later error fails it. */
   async #guard(expected: Step, op: () => Promise<Uint8Array>): Promise<Uint8Array> {
     if (this.#busy) throw new Error("Noise: concurrent handshake use");
-    if (this.#step !== expected) throw new Error(`Noise: unexpected handshake step (state ${this.#step})`);
+    if (this.#step !== expected)
+      throw new Error(`Noise: unexpected handshake step (state ${this.#step})`);
     this.#busy = true;
     try {
       const out = await op();

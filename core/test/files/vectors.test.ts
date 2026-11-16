@@ -68,7 +68,12 @@ interface Vectors {
     merge?: { winner: string; loser: string; hlc: Hlc };
   }[];
   rejected: { description: string; payload: string; error: string }[];
-  merge: { description: string; winner: Attachment[] | null; loser: Attachment[] | null; expected: Attachment[] }[];
+  merge: {
+    description: string;
+    winner: Attachment[] | null;
+    loser: Attachment[] | null;
+    expected: Attachment[];
+  }[];
   host: {
     epoch: string;
     now: number;
@@ -82,9 +87,12 @@ interface Vectors {
   };
 }
 
-const v = JSON.parse(readFileSync(new URL("../../test-vectors/files/files.json", import.meta.url), "utf8")) as Vectors;
+const v = JSON.parse(
+  readFileSync(new URL("../../test-vectors/files/files.json", import.meta.url), "utf8"),
+) as Vectors;
 
-const patternBytes = (size: number) => Uint8Array.from({ length: size }, (_, i) => (i * 31 + 7) & 0xff);
+const patternBytes = (size: number) =>
+  Uint8Array.from({ length: size }, (_, i) => (i * 31 + 7) & 0xff);
 const expand = (step: HostStep): unknown =>
   step.expand
     ? {
@@ -132,11 +140,15 @@ describe("test-vectors/files/files.json", () => {
       const bytes = f.content !== undefined ? fromHex(f.content) : patternBytes(f.size);
       if (f.content === undefined) expect(f.contentRule).toBe("byte[i] = (i * 31 + 7) & 0xff");
       expect(bytes.length).toBe(f.size);
-      const enc = await encryptFile(bytes, { name: f.name, mime: f.mime }, {
-        id: f.id,
-        key: fromHex(f.key),
-        nonces: f.nonces.map(fromHex),
-      });
+      const enc = await encryptFile(
+        bytes,
+        { name: f.name, mime: f.mime },
+        {
+          id: f.id,
+          key: fromHex(f.key),
+          nonces: f.nonces.map(fromHex),
+        },
+      );
       expect(enc.attachment).toEqual(f.attachment);
       expect(f.aads).toEqual(enc.blobs.map((_, i) => fileChunkAad(f.id, i, enc.blobs.length)));
       expect(await Promise.all(enc.blobs.map((b) => sha256Hex(utf8(b))))).toEqual(f.blobSha256);
@@ -151,11 +163,17 @@ describe("test-vectors/files/files.json", () => {
       const data = parseEntryData(JSON.parse(e.payload));
       expect(data).toEqual(e.parsed);
       expect(serializeEntryData(data)).toBe(e.canonicalPayload ?? e.payload);
-      expect(await seal(fromHex(e.vaultKey), utf8(e.payload), entryAadV2(e.id), fromHex(e.nonce))).toBe(e.blob);
+      expect(
+        await seal(fromHex(e.vaultKey), utf8(e.payload), entryAadV2(e.id), fromHex(e.nonce)),
+      ).toBe(e.blob);
       if (e.merge) {
         const winner = parseEntryData(JSON.parse(e.merge.winner));
         const loser = parseEntryData(JSON.parse(e.merge.loser));
-        const merged = { ...winner, attachments: mergeAttachments(winner.attachments, loser.attachments), hlc: e.merge.hlc };
+        const merged = {
+          ...winner,
+          attachments: mergeAttachments(winner.attachments, loser.attachments),
+          hlc: e.merge.hlc,
+        };
         expect(serializeEntryData(merged)).toBe(e.canonicalPayload ?? e.payload);
       }
     });
@@ -186,6 +204,7 @@ describe("test-vectors/files/files.json", () => {
     const store = new MemoryFileStore();
     for (const f of v.host.orphan.files) store.put(f.id, 0, 1, "AAAA", f.createdAt);
     const used = new Set(v.host.orphan.files.filter((f) => f.used).map((f) => f.id));
-    for (const c of v.host.orphan.cases) expect(orphanFileIds(store, used, c.now).sort(), String(c.now)).toEqual(c.expected);
+    for (const c of v.host.orphan.cases)
+      expect(orphanFileIds(store, used, c.now).sort(), String(c.now)).toEqual(c.expected);
   });
 });

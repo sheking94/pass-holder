@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { disableSavePrompt, syncSaveWatch, type SaveWatchApi } from "../../src/save/registration.ts";
+import {
+  disableSavePrompt,
+  syncSaveWatch,
+  type SaveWatchApi,
+} from "../../src/save/registration.ts";
 
 function fakeApi(granted: string[], registeredNow: boolean) {
   const calls: string[] = [];
@@ -59,7 +63,12 @@ describe("syncSaveWatch, overlapping calls", () => {
 
   it("a failed call does not stop the next one", async () => {
     const { api, calls } = fakeApi(["https://*/*"], false);
-    const failing: SaveWatchApi = { ...api, register: async () => { throw new Error("Duplicate script ID"); } };
+    const failing: SaveWatchApi = {
+      ...api,
+      register: async () => {
+        throw new Error("Duplicate script ID");
+      },
+    };
     await expect(syncSaveWatch(failing)).rejects.toThrow("Duplicate script ID");
     await syncSaveWatch(api);
     expect(calls).toEqual(["register"]);

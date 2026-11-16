@@ -60,24 +60,38 @@ export function passwordField(input: HTMLInputElement) {
   };
   toggle.addEventListener("click", () => setVisible(input.type === "password"));
   setVisible(false);
-  return { row: h("div", { class: "row" }, h("div", { class: "grow" }, input), toggle), setVisible };
+  return {
+    row: h("div", { class: "row" }, h("div", { class: "grow" }, input), toggle),
+    setVisible,
+  };
 }
 
 /**
  * A field with „Kopiuj” (unless options.copy is false) and, while secret, hidden behind „Pokaż/Ukryj”; copying a secret clears the
  * clipboard after a minute. setSecret(false) makes it a plain field (e.g. a custom field not marked hidden).
  */
-export function secretField(input: HTMLInputElement, what: string, status: HTMLElement, options: { copy?: boolean } = {}) {
+export function secretField(
+  input: HTMLInputElement,
+  what: string,
+  status: HTMLElement,
+  options: { copy?: boolean } = {},
+) {
   let secret = true;
   const toggle = h("button", { type: "button", title: `Pokaż lub ukryj: ${what}` });
-  const copy = h("button", {
-    type: "button",
-    title: `Kopiuj: ${what}`,
-    onclick: () => {
-      if (input.value === "") return setStatus(status, "Pole jest puste");
-      void (secret ? copySecret : copyText)(input.value, what, status).catch((error: Error) => setStatus(status, error.message, true));
+  const copy = h(
+    "button",
+    {
+      type: "button",
+      title: `Kopiuj: ${what}`,
+      onclick: () => {
+        if (input.value === "") return setStatus(status, "Pole jest puste");
+        void (secret ? copySecret : copyText)(input.value, what, status).catch((error: Error) =>
+          setStatus(status, error.message, true),
+        );
+      },
     },
-  }, "Kopiuj");
+    "Kopiuj",
+  );
   const setVisible = (visible: boolean) => {
     input.type = visible || !secret ? "text" : "password";
     toggle.textContent = visible ? "Ukryj" : "Pokaż";
@@ -90,7 +104,17 @@ export function secretField(input: HTMLInputElement, what: string, status: HTMLE
   };
   toggle.addEventListener("click", () => setVisible(input.type === "password"));
   setSecret(true);
-  return { row: h("div", { class: "row" }, h("div", { class: "grow" }, input), toggle, ...(options.copy === false ? [] : [copy])), setVisible, setSecret };
+  return {
+    row: h(
+      "div",
+      { class: "row" },
+      h("div", { class: "grow" }, input),
+      toggle,
+      ...(options.copy === false ? [] : [copy]),
+    ),
+    setVisible,
+    setSecret,
+  };
 }
 
 /** A PIN input: 4-6 digits, or with long=true a long PIN (letters too, see pin-lock.ts). */
@@ -113,12 +137,16 @@ export function setPinShape(input: HTMLInputElement, long: boolean) {
  * Other buttons inside must have type "button", or Enter would click them too.
  */
 export function form(onSubmit: () => void, ...children: Child[]) {
-  return h("form", {
-    onsubmit: (event: Event) => {
-      event.preventDefault();
-      onSubmit();
+  return h(
+    "form",
+    {
+      onsubmit: (event: Event) => {
+        event.preventDefault();
+        onSubmit();
+      },
     },
-  }, ...children);
+    ...children,
+  );
 }
 
 /** A button that asks "Na pewno?" on the first click and runs action on the second. */
@@ -129,17 +157,21 @@ export function confirmButton(
   confirmLabel = "Na pewno? Kliknij ponownie",
 ) {
   let confirmed = false;
-  const button = h("button", {
-    ...props,
-    onclick: () => {
-      if (!confirmed) {
-        confirmed = true;
-        button.textContent = confirmLabel;
-        return;
-      }
-      action();
+  const button = h(
+    "button",
+    {
+      ...props,
+      onclick: () => {
+        if (!confirmed) {
+          confirmed = true;
+          button.textContent = confirmLabel;
+          return;
+        }
+        action();
+      },
     },
-  }, label);
+    label,
+  );
   return button;
 }
 
@@ -155,7 +187,18 @@ export function confirmBox(text: string, confirmLabel: string, onConfirm: () => 
     h(
       "div",
       { class: "actions" },
-      h("button", { type: "button", class: "primary", onclick: () => { box.remove(); onConfirm(); } }, confirmLabel),
+      h(
+        "button",
+        {
+          type: "button",
+          class: "primary",
+          onclick: () => {
+            box.remove();
+            onConfirm();
+          },
+        },
+        confirmLabel,
+      ),
       h("button", { type: "button", onclick: () => box.remove() }, "Anuluj"),
     ),
   );

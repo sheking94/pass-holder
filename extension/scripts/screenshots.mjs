@@ -26,9 +26,12 @@ await build({
   logLevel: "warning",
 });
 copyFileSync(join(root, "static/popup.css"), join(pageDir, "popup.css"));
-writeFileSync(join(pageDir, "index.html"), `<!doctype html>
+writeFileSync(
+  join(pageDir, "index.html"),
+  `<!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><title>PassHolder</title><link rel="stylesheet" href="popup.css"></head>
-<body><main id="app"></main><script src="harness.js"></script></body></html>`);
+<body><main id="app"></main><script src="harness.js"></script></body></html>`,
+);
 
 const SHOTS = [
   ["01-loginy.png", (s) => s.show("login")],
@@ -40,7 +43,13 @@ const SHOTS = [
   ["07-formularz-kontakt.png", (s) => s.openForm("contact")],
   ["08-formularz-karta.png", (s) => s.openForm("card")],
   ["09-formularz-dokument.png", (s) => s.openForm("document")],
-  ["10-pole-ukryte-pokazane.png", async (s) => { await s.openForm("login"); s.revealCustom(); }],
+  [
+    "10-pole-ukryte-pokazane.png",
+    async (s) => {
+      await s.openForm("login");
+      s.revealCustom();
+    },
+  ],
   ["11-import-eksport.png", (s) => s.openTransfer()],
   ["12-pasujace.png", (s) => s.show("login")],
   ["13-karta-wypelnij.png", (s) => s.show("card")],
@@ -52,14 +61,21 @@ const SHOTS = [
   ["19-import-zip.png", (s) => s.importZip()],
 ];
 // The save panel is an iframe of exactly 360 × 340: shot at that size, its content must fit without scrolling.
-const PANEL_SHOTS = new Set(["14-panel-zapisz.png", "15-panel-aktualizuj.png", "16-panel-zablokowany.png"]);
+const PANEL_SHOTS = new Set([
+  "14-panel-zapisz.png",
+  "15-panel-aktualizuj.png",
+  "16-panel-zablokowany.png",
+]);
 const PANEL_HEIGHT = 340;
 
 mkdirSync(resolve(outDir), { recursive: true });
 const browser = await chromium.launch();
 const problems = [];
 try {
-  const page = await browser.newPage({ viewport: { width: 360, height: 640 }, deviceScaleFactor: 2 });
+  const page = await browser.newPage({
+    viewport: { width: 360, height: 640 },
+    deviceScaleFactor: 2,
+  });
   page.on("pageerror", (error) => problems.push(`page error: ${error.message}`));
   page.on("console", (m) => m.type() === "error" && problems.push(`console: ${m.text()}`));
   await page.goto(pathToFileURL(join(pageDir, "index.html")).href);
@@ -74,22 +90,29 @@ try {
     const check = await page.evaluate(() => ({
       overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       tabRows: new Set([...document.querySelectorAll(".tabs button")].map((b) => b.offsetTop)).size,
-      clippedTabs: [...document.querySelectorAll(".tabs button")].filter((b) => b.scrollWidth > b.clientWidth).map((b) => b.title),
+      clippedTabs: [...document.querySelectorAll(".tabs button")]
+        .filter((b) => b.scrollWidth > b.clientWidth)
+        .map((b) => b.title),
       // A secret field still masked shows „Pokaż”; one shown as text while its toggle says „Pokaż” is a bug.
       revealed: [...document.querySelectorAll(".row")].filter((row) => {
-        const toggle = [...row.children].find((c) => c.tagName === "BUTTON" && !c.hidden && /^(Pokaż|Ukryj)$/.test(c.textContent));
+        const toggle = [...row.children].find(
+          (c) => c.tagName === "BUTTON" && !c.hidden && /^(Pokaż|Ukryj)$/.test(c.textContent),
+        );
         return toggle && row.querySelector("input")?.type !== "password";
       }).length,
     }));
     if (panel) {
       const height = await page.evaluate(() => document.documentElement.scrollHeight);
-      if (height > PANEL_HEIGHT) problems.push(`${file}: panel content ${height} px high, the iframe is ${PANEL_HEIGHT} px`);
+      if (height > PANEL_HEIGHT)
+        problems.push(`${file}: panel content ${height} px high, the iframe is ${PANEL_HEIGHT} px`);
     }
     if (check.overflow > 0) problems.push(`${file}: horizontal scroll of ${check.overflow} px`);
-    if (check.clippedTabs.length) problems.push(`${file}: tab labels cut off: ${check.clippedTabs.join(", ")}`);
+    if (check.clippedTabs.length)
+      problems.push(`${file}: tab labels cut off: ${check.clippedTabs.join(", ")}`);
     if (check.tabRows > 1) problems.push(`${file}: tabs in ${check.tabRows} rows`);
     const expectRevealed = file.startsWith("10-") ? 1 : 0;
-    if (check.revealed !== expectRevealed) problems.push(`${file}: ${check.revealed} secret field(s) shown, expected ${expectRevealed}`);
+    if (check.revealed !== expectRevealed)
+      problems.push(`${file}: ${check.revealed} secret field(s) shown, expected ${expectRevealed}`);
     await page.screenshot({ path: join(resolve(outDir), file), fullPage: true });
     console.log(`${file}`);
   }

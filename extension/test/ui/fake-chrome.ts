@@ -46,7 +46,8 @@ let clipboardDescriptor: { saved: PropertyDescriptor | undefined } | undefined;
 export function teardownPopup(): void {
   vi.unstubAllGlobals();
   if (clipboardDescriptor) {
-    if (clipboardDescriptor.saved) Object.defineProperty(navigator, "clipboard", clipboardDescriptor.saved);
+    if (clipboardDescriptor.saved)
+      Object.defineProperty(navigator, "clipboard", clipboardDescriptor.saved);
     else delete (navigator as unknown as Record<string, unknown>).clipboard;
     clipboardDescriptor = undefined;
   }
@@ -84,7 +85,8 @@ export async function setupPopup(
   const held = options.permissions?.held;
   const permissions = { requests: [] as string[][], removed: [] as string[][] };
   const permissionsApi = {
-    contains: async ({ origins = [] }: { origins?: string[] }) => !held || origins.every((o) => held.includes(o)),
+    contains: async ({ origins = [] }: { origins?: string[] }) =>
+      !held || origins.every((o) => held.includes(o)),
     request: (request: { origins?: string[] }, callback?: (granted: boolean) => void) => {
       permissions.requests.push(request.origins ?? []);
       const granted = options.permissions?.requestResult ?? true;
@@ -93,33 +95,37 @@ export async function setupPopup(
     },
     remove: async ({ origins = [] }: { origins?: string[] }) => {
       permissions.removed.push(origins);
-      if (held) for (const o of origins) held.splice(0, held.length, ...held.filter((x) => x !== o));
+      if (held)
+        for (const o of origins) held.splice(0, held.length, ...held.filter((x) => x !== o));
       return true;
     },
   };
-  vi.stubGlobal("chrome", strict("chrome", {
-    storage: strict("chrome.storage", { local, session }),
-    runtime: strict("chrome.runtime", {
-      sendMessage: async (message: unknown) => {
-        messages.push(message);
-        const type = (message as { type?: string }).type;
-        if (type === "fill") return options.fillResult ?? { ok: true };
-        if (type === "save-info") {
-          if (options.saveInfo instanceof Error) throw options.saveInfo;
-          return options.saveInfo;
-        }
-        if (type === "save-answer") return options.saveAnswer ?? { ok: true };
-        return undefined;
-      },
-      getURL: (path: string) => `chrome-extension://passholder/${path}`,
-      lastError: undefined,
+  vi.stubGlobal(
+    "chrome",
+    strict("chrome", {
+      storage: strict("chrome.storage", { local, session }),
+      runtime: strict("chrome.runtime", {
+        sendMessage: async (message: unknown) => {
+          messages.push(message);
+          const type = (message as { type?: string }).type;
+          if (type === "fill") return options.fillResult ?? { ok: true };
+          if (type === "save-info") {
+            if (options.saveInfo instanceof Error) throw options.saveInfo;
+            return options.saveInfo;
+          }
+          if (type === "save-answer") return options.saveAnswer ?? { ok: true };
+          return undefined;
+        },
+        getURL: (path: string) => `chrome-extension://passholder/${path}`,
+        lastError: undefined,
+      }),
+      tabs: strict("chrome.tabs", {
+        query: async () => (options.activeTab ? [options.activeTab] : []),
+        create: async ({ url }: { url: string }) => void createdTabs.push(url),
+      }),
+      permissions: strict("chrome.permissions", permissionsApi),
     }),
-    tabs: strict("chrome.tabs", {
-      query: async () => (options.activeTab ? [options.activeTab] : []),
-      create: async ({ url }: { url: string }) => void createdTabs.push(url),
-    }),
-    permissions: strict("chrome.permissions", permissionsApi),
-  }));
+  );
   const close = vi.fn();
   vi.stubGlobal("close", close);
   clipboardDescriptor ??= { saved: Object.getOwnPropertyDescriptor(navigator, "clipboard") };
@@ -133,7 +139,11 @@ export async function setupPopup(
   const fetchFn = networkFetch(network);
   // The views' store builds its PhoneClients with the global fetch.
   vi.stubGlobal("fetch", fetchFn);
-  const pairing = new VaultStore(chromeStore(local), chromeStore(session), (url) => new PhoneClient(url, fetchFn));
+  const pairing = new VaultStore(
+    chromeStore(local),
+    chromeStore(session),
+    (url) => new PhoneClient(url, fetchFn),
+  );
   phone.offerPairing();
   await pairing.pairStart(PHONE_URL, CODE, "Chrome (Linux)");
   await pairing.pairFinish(PASSWORD);
@@ -156,11 +166,14 @@ export async function click(el: Element): Promise<void> {
 
 /** Waits until predicate returns something truthy (and does not throw); fails after timeout ms. */
 export async function settle<T>(predicate: () => T, timeout = 5_000): Promise<T> {
-  return vi.waitFor(() => {
-    const value = predicate();
-    if (!value) throw new Error("settle: not yet");
-    return value;
-  }, { timeout, interval: 5 });
+  return vi.waitFor(
+    () => {
+      const value = predicate();
+      if (!value) throw new Error("settle: not yet");
+      return value;
+    },
+    { timeout, interval: 5 },
+  );
 }
 
 /**
@@ -168,8 +181,9 @@ export async function settle<T>(predicate: () => T, timeout = 5_000): Promise<T>
  * throws when there is none.
  */
 export function byText(root: Element, text: string, index = 0): HTMLElement {
-  const found = [...root.querySelectorAll<HTMLElement>("button, label")]
-    .filter((el) => !el.closest("[hidden]") && el.textContent?.trim() === text)[index];
+  const found = [...root.querySelectorAll<HTMLElement>("button, label")].filter(
+    (el) => !el.closest("[hidden]") && el.textContent?.trim() === text,
+  )[index];
   if (!found) throw new Error(`No button or label „${text}” #${index}`);
   return found;
 }

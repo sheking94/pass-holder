@@ -18,10 +18,7 @@
     "scripting",
     "unlimitedStorage"
   ],
-  "optional_host_permissions": [
-    "https://*/*",
-    "http://*/*"
-  ],
+  "optional_host_permissions": ["https://*/*", "http://*/*"],
   "commands": {
     "fill-login": {
       "suggested_key": {

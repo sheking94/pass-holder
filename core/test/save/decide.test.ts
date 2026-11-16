@@ -1,9 +1,25 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { decideSave, newLogin, PREVIOUS_PASSWORD_LABEL, withPassword, type SaveDecision, type SavedLogin } from "../../src/save/decide.ts";
+import {
+  decideSave,
+  newLogin,
+  PREVIOUS_PASSWORD_LABEL,
+  withPassword,
+  type SaveDecision,
+  type SavedLogin,
+} from "../../src/save/decide.ts";
 
-const vectors = JSON.parse(readFileSync(new URL("../../test-vectors/save/decide.json", import.meta.url), "utf8")) as {
-  cases: { username: string; password: string; logins: SavedLogin[]; related?: SavedLogin[]; expected: SaveDecision; why: string }[];
+const vectors = JSON.parse(
+  readFileSync(new URL("../../test-vectors/save/decide.json", import.meta.url), "utf8"),
+) as {
+  cases: {
+    username: string;
+    password: string;
+    logins: SavedLogin[];
+    related?: SavedLogin[];
+    expected: SaveDecision;
+    why: string;
+  }[];
 };
 
 describe("decideSave vectors", () => {
@@ -19,7 +35,13 @@ describe("newLogin", () => {
     const e = newLogin("http://localhost:3000", "a", "b");
     expect(e.type).toBe("login");
     expect(e.name).toBe("localhost");
-    expect(e.fields).toEqual({ username: "a", password: "b", totp: "", urls: ["http://localhost:3000"], androidApps: [] });
+    expect(e.fields).toEqual({
+      username: "a",
+      password: "b",
+      totp: "",
+      urls: ["http://localhost:3000"],
+      androidApps: [],
+    });
     expect(e.note).toBe("");
     expect(e.custom).toEqual([]);
   });
@@ -33,7 +55,10 @@ describe("withPassword", () => {
     const u = withPassword(e, "c");
     expect(u.fields.password).toBe("c");
     expect(u.note).toBe("n");
-    expect(u.custom).toEqual([{ label: "k", value: "v", hidden: false }, { label: PREVIOUS_PASSWORD_LABEL, value: "b", hidden: true }]);
+    expect(u.custom).toEqual([
+      { label: "k", value: "v", hidden: false },
+      { label: PREVIOUS_PASSWORD_LABEL, value: "b", hidden: true },
+    ]);
     expect(u.fields.urls).toEqual(["github.com"]);
     expect(e.fields.password).toBe("b");
     expect(e.custom).toHaveLength(1);

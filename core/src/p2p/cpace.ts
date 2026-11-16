@@ -14,7 +14,8 @@ const Point = ristretto255.Point;
 const Fn = Point.Fn;
 /** RFC 9496 element derivation (one-way map from 64 uniform bytes). */
 const deriveToCurve = ristretto255_hasher.deriveToCurve;
-if (deriveToCurve === undefined) throw new Error("CPace: ristretto255 element derivation unavailable");
+if (deriveToCurve === undefined)
+  throw new Error("CPace: ristretto255 element derivation unavailable");
 const elementDerivation: (uniformBytes: Uint8Array) => InstanceType<typeof Point> = deriveToCurve;
 
 const DSI = utf8("CPaceRistretto255");
@@ -168,5 +169,6 @@ export const _cpaceInternals = {
   calculateGenerator: (prs: Uint8Array, ci: Uint8Array, sid: Uint8Array): Uint8Array =>
     calculateGenerator(prs, ci, sid).toBytes(),
   /** K = scalar_mult_vfy(y, Y_peer), with y as 32 little-endian bytes. */
-  sharedPoint: (y: Uint8Array, peer: Uint8Array): Uint8Array => scalarMultVfy(bytesToScalarLE(y), peer),
+  sharedPoint: (y: Uint8Array, peer: Uint8Array): Uint8Array =>
+    scalarMultVfy(bytesToScalarLE(y), peer),
 };

@@ -25,8 +25,12 @@ interface Deadline {
 }
 
 /** Keeps the alarm on the current deadline; no keys (locked) means no alarm. */
-export async function scheduleAutoLock(alarms: AlarmApi, keys: Deadline | undefined): Promise<void> {
-  if (keys && Number.isFinite(keys.unlockedUntil)) await alarms.create(AUTO_LOCK_ALARM, { when: keys.unlockedUntil });
+export async function scheduleAutoLock(
+  alarms: AlarmApi,
+  keys: Deadline | undefined,
+): Promise<void> {
+  if (keys && Number.isFinite(keys.unlockedUntil))
+    await alarms.create(AUTO_LOCK_ALARM, { when: keys.unlockedUntil });
   else await alarms.clear(AUTO_LOCK_ALARM);
 }
 
@@ -34,7 +38,11 @@ export async function scheduleAutoLock(alarms: AlarmApi, keys: Deadline | undefi
  * The alarm fired. Activity may have moved the deadline after the alarm was set (and Chrome may fire
  * alarms late, never early on purpose), so check again: lock if it has passed, otherwise wait for the new one.
  */
-export async function onAutoLockAlarm(session: KeyValueStore, alarms: AlarmApi, now = Date.now()): Promise<void> {
+export async function onAutoLockAlarm(
+  session: KeyValueStore,
+  alarms: AlarmApi,
+  now = Date.now(),
+): Promise<void> {
   const keys = await session.get<Deadline>(STORAGE_KEYS.sessionKeys);
   if (!keys) return;
   if (keys.unlockedUntil <= now) await session.remove(STORAGE_KEYS.sessionKeys);
@@ -73,5 +81,6 @@ export function watchIdle(store: IdleWatched, page: PageEvents, onLocked: () => 
   page.addEventListener("visibilitychange", () => void check());
   page.addEventListener("focus", () => void check());
   // Capture phase: the deadline moves before the click handler asks the store for the vault.
-  for (const type of ["pointerdown", "keydown"]) page.addEventListener(type, () => void store.noteActivity(), { capture: true });
+  for (const type of ["pointerdown", "keydown"])
+    page.addEventListener(type, () => void store.noteActivity(), { capture: true });
 }

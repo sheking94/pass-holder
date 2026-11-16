@@ -46,13 +46,16 @@ export function parseCsv(text: string): { line: number; fields: string[] }[] {
       field += c;
     }
   }
-  if (quoted) throw new Error(`Plik CSV jest uszkodzony: niezamknięty cudzysłów (wiersz ${rowStartLine})`);
+  if (quoted)
+    throw new Error(`Plik CSV jest uszkodzony: niezamknięty cudzysłów (wiersz ${rowStartLine})`);
   if (field !== "" || fields.length > 0) endRow();
   return rows;
 }
 
 function csvField(value: string): string {
-  return /[",\r\n]/.test(value) || value !== value.trim() ? `"${value.replaceAll('"', '""')}"` : value;
+  return /[",\r\n]/.test(value) || value !== value.trim()
+    ? `"${value.replaceAll('"', '""')}"`
+    : value;
 }
 
 export function toCsv(rows: readonly (readonly string[])[]): string {

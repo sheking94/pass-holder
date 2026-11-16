@@ -7,7 +7,11 @@ export function newVaultKey(): Uint8Array {
   return randomBytes(32);
 }
 
-export function wrapVaultKey(encKey: Uint8Array, vaultKey: Uint8Array, nonce?: Uint8Array): Promise<string> {
+export function wrapVaultKey(
+  encKey: Uint8Array,
+  vaultKey: Uint8Array,
+  nonce?: Uint8Array,
+): Promise<string> {
   return seal(encKey, vaultKey, VAULT_KEY_AAD, nonce);
 }
 

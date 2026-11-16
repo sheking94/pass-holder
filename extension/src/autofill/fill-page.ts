@@ -11,7 +11,8 @@ function labelText(el: FieldElement): string {
   const doc = el.ownerDocument;
   const parts: string[] = [];
   if (el.id) {
-    for (const l of doc.querySelectorAll("label")) if (l.htmlFor === el.id) parts.push(l.textContent ?? "");
+    for (const l of doc.querySelectorAll("label"))
+      if (l.htmlFor === el.id) parts.push(l.textContent ?? "");
   }
   const wrapping = el.closest("label");
   if (wrapping) parts.push(wrapping.textContent ?? "");
@@ -20,7 +21,10 @@ function labelText(el: FieldElement): string {
   for (const id of (el.getAttribute("aria-labelledby") ?? "").split(/\s+/)) {
     if (id) parts.push(doc.getElementById(id)?.textContent ?? "");
   }
-  return parts.map((p) => p.trim()).filter((p) => p !== "").join(" ");
+  return parts
+    .map((p) => p.trim())
+    .filter((p) => p !== "")
+    .join(" ");
 }
 
 export function describeField(el: FieldElement): autofill.FieldDescriptor {
@@ -34,7 +38,8 @@ export function describeField(el: FieldElement): autofill.FieldDescriptor {
     placeholder: isSelect ? "" : el.placeholder,
   };
   if (!isSelect && el.maxLength > 0) descriptor.maxLength = el.maxLength;
-  if (isSelect) descriptor.options = Array.from(el.options, (o) => ({ value: o.value, text: o.text }));
+  if (isSelect)
+    descriptor.options = Array.from(el.options, (o) => ({ value: o.value, text: o.text }));
   return descriptor;
 }
 
@@ -59,7 +64,12 @@ function isClipped(el: Element, view: Window): boolean {
     const clipPath = style.getPropertyValue("clip-path");
     if (clipPath !== "" && clipPath !== "none") return true;
     const clip = style.getPropertyValue("clip");
-    if (clip !== "" && clip !== "auto" && (style.position === "absolute" || style.position === "fixed")) return true;
+    if (
+      clip !== "" &&
+      clip !== "auto" &&
+      (style.position === "absolute" || style.position === "fixed")
+    )
+      return true;
   }
   return false;
 }
@@ -73,7 +83,11 @@ const CLIPS = new Set(["hidden", "clip", "auto", "scroll"]);
 function isCoveredOrCut(el: Element, rect: DOMRect, view: Window): boolean {
   const x = rect.left + rect.width / 2;
   const y = rect.top + rect.height / 2;
-  for (let node = el.parentElement; node && node !== el.ownerDocument.documentElement; node = node.parentElement) {
+  for (
+    let node = el.parentElement;
+    node && node !== el.ownerDocument.documentElement;
+    node = node.parentElement
+  ) {
     const style = view.getComputedStyle(node);
     if (![style.overflowX, style.overflowY, style.overflow].some((v) => CLIPS.has(v))) continue;
     const box = node.getBoundingClientRect();
@@ -94,7 +108,8 @@ export function isVisible(el: Element, strict = false): boolean {
   const view = el.ownerDocument.defaultView;
   if (!view) return false;
   // Chrome 121+: covers display, visibility, opacity of the element and its ancestors, content-visibility.
-  if (el.checkVisibility?.({ opacityProperty: true, visibilityProperty: true }) === false) return false;
+  if (el.checkVisibility?.({ opacityProperty: true, visibilityProperty: true }) === false)
+    return false;
   for (let node: Element | null = el; node; node = node.parentElement) {
     if (node.hasAttribute("hidden")) return false;
     const style = view.getComputedStyle(node);
@@ -112,7 +127,9 @@ export function isVisible(el: Element, strict = false): boolean {
 }
 
 const isField = (el: Element | null): el is FieldElement =>
-  el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement;
+  el instanceof HTMLInputElement ||
+  el instanceof HTMLSelectElement ||
+  el instanceof HTMLTextAreaElement;
 
 function isFillable(el: FieldElement, strict = false): boolean {
   if (el.disabled || (!(el instanceof HTMLSelectElement) && el.readOnly)) return false;
@@ -120,7 +137,11 @@ function isFillable(el: FieldElement, strict = false): boolean {
   return isVisible(el, strict);
 }
 
-interface Candidate { el: FieldElement; descriptor: autofill.FieldDescriptor; kind: autofill.FieldKind | null }
+interface Candidate {
+  el: FieldElement;
+  descriptor: autofill.FieldDescriptor;
+  kind: autofill.FieldKind | null;
+}
 
 function candidatesIn(root: ParentNode, strict = false): Candidate[] {
   const out: Candidate[] = [];
@@ -134,14 +155,22 @@ function candidatesIn(root: ParentNode, strict = false): Candidate[] {
 
 /** Sets the value with the prototype setter (frameworks shadow the instance one) and notifies listeners. */
 function setValue(el: FieldElement, value: string): void {
-  const proto = el instanceof HTMLSelectElement ? HTMLSelectElement.prototype
-    : el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+  const proto =
+    el instanceof HTMLSelectElement
+      ? HTMLSelectElement.prototype
+      : el instanceof HTMLTextAreaElement
+        ? HTMLTextAreaElement.prototype
+        : HTMLInputElement.prototype;
   Object.getOwnPropertyDescriptor(proto, "value")!.set!.call(el, value);
   el.dispatchEvent(new Event("input", { bubbles: true }));
   el.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
-function fillCandidates(plan: autofill.FillPlan, cands: Candidate[], hasUsernameField: boolean): number {
+function fillCandidates(
+  plan: autofill.FillPlan,
+  cands: Candidate[],
+  hasUsernameField: boolean,
+): number {
   let filled = 0;
   for (const { el, descriptor, kind } of cands) {
     if (!kind) continue;
@@ -160,7 +189,8 @@ function fillLogin(plan: autofill.FillPlan, doc: Document): number {
   const scopes: ParentNode[] = [...doc.forms, doc];
   for (const scope of scopes) {
     const cands = candidatesIn(scope);
-    if (cands.filter(isPasswordInput).length === 1) return fillCandidates(plan, cands, hasUsername(cands));
+    if (cands.filter(isPasswordInput).length === 1)
+      return fillCandidates(plan, cands, hasUsername(cands));
   }
   // No login form: the first visible username/email field (two-step login) gets the login only.
   const cands = candidatesIn(doc);
@@ -180,7 +210,11 @@ function fillOther(plan: autofill.FillPlan, doc: Document): number {
     scope = active.form ?? doc;
   } else {
     const all = candidatesIn(doc, true);
-    const first = all.find((c) => c.kind && autofill.fillValue(plan, c.kind, c.descriptor, { hasUsernameField: false }) !== undefined);
+    const first = all.find(
+      (c) =>
+        c.kind &&
+        autofill.fillValue(plan, c.kind, c.descriptor, { hasUsernameField: false }) !== undefined,
+    );
     scope = first?.el.form ?? doc;
   }
   const cands = candidatesIn(scope, true);
@@ -204,7 +238,11 @@ function topOrigin(doc: Document): string | undefined {
  * Fills the page, but only when this frame is same-origin with the top frame and that origin is
  * expectedOrigin (the one the service worker checked the plan against; the tab may have navigated since).
  */
-export function fillPage(plan: autofill.FillPlan, expectedOrigin: string, doc: Document = document): { filled: number } {
+export function fillPage(
+  plan: autofill.FillPlan,
+  expectedOrigin: string,
+  doc: Document = document,
+): { filled: number } {
   if (topOrigin(doc) !== expectedOrigin) return { filled: 0 };
   if (plan.kind === "login") return { filled: fillLogin(plan, doc) };
   return { filled: fillOther(plan, doc) };

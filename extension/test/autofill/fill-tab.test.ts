@@ -2,20 +2,54 @@ import { describe, expect, it } from "vitest";
 import type { p2p } from "@passholder/core";
 import type { FillPlan } from "@passholder/core/autofill";
 import {
-  CANNOT_FILL_ENTRY, CARD_NEEDS_HTTPS, fillTab, LOCKED, NO_FIELDS, NOT_MATCHING, onFillCommand, UNSUPPORTED_PAGE, type TabApi,
+  CANNOT_FILL_ENTRY,
+  CARD_NEEDS_HTTPS,
+  fillTab,
+  LOCKED,
+  NO_FIELDS,
+  NOT_MATCHING,
+  onFillCommand,
+  UNSUPPORTED_PAGE,
+  type TabApi,
 } from "../../src/autofill/fill-tab.ts";
 import { STORAGE_KEYS } from "../../src/storage.ts";
 import { pairedBrowser } from "../fake-phone.ts";
 
 function login(name: string, urls: string[]): p2p.EntryContentV3 {
-  return { type: "login", name, note: "", custom: [], fields: { username: "jan", password: "s3cret", totp: "", urls, androidApps: [] } };
+  return {
+    type: "login",
+    name,
+    note: "",
+    custom: [],
+    fields: { username: "jan", password: "s3cret", totp: "", urls, androidApps: [] },
+  };
 }
 const card: p2p.EntryContentV3 = {
-  type: "card", name: "Visa", note: "", custom: [], fields: { holder: "Jan", number: "4111 1111 1111 1111", expiry: "12/30", cvc: "123", pin: "1234" },
+  type: "card",
+  name: "Visa",
+  note: "",
+  custom: [],
+  fields: {
+    holder: "Jan",
+    number: "4111 1111 1111 1111",
+    expiry: "12/30",
+    cvc: "123",
+    pin: "1234",
+  },
 };
 const contact: p2p.EntryContentV3 = {
-  type: "contact", name: "Anna", note: "", custom: [],
-  fields: { firstName: "Anna", lastName: "Nowak", birthDate: "", phones: [], emails: [], addresses: [] },
+  type: "contact",
+  name: "Anna",
+  note: "",
+  custom: [],
+  fields: {
+    firstName: "Anna",
+    lastName: "Nowak",
+    birthDate: "",
+    phones: [],
+    emails: [],
+    addresses: [],
+  },
 };
 
 function fakeTabs(url: string | undefined, filled = 1) {
@@ -23,7 +57,11 @@ function fakeTabs(url: string | undefined, filled = 1) {
   const origins: string[] = [];
   const api: TabApi = {
     get: async (id) => ({ id, url }),
-    inject: async (_id, plan, origin) => { injected.push(plan); origins.push(origin); return filled; },
+    inject: async (_id, plan, origin) => {
+      injected.push(plan);
+      origins.push(origin);
+      return filled;
+    },
   };
   return { api, injected, origins };
 }
@@ -87,7 +125,12 @@ describe("fillTab", () => {
 
   it("reports an unsupported page when injection throws", async () => {
     const { store } = await setup();
-    const api: TabApi = { get: async (id) => ({ id, url: "https://bank.pl/" }), inject: async () => { throw new Error("no access"); } };
+    const api: TabApi = {
+      get: async (id) => ({ id, url: "https://bank.pl/" }),
+      inject: async () => {
+        throw new Error("no access");
+      },
+    };
     expect(await fillTab(store, api, 7, "l1")).toEqual({ ok: false, error: UNSUPPORTED_PAGE });
   }, 30_000);
 
@@ -108,7 +151,13 @@ describe("fillTab", () => {
 
   it("refuses an entry type that has no fill plan (note)", async () => {
     const { store } = await setup();
-    await store.putEntry("n1", { type: "note", name: "Notka", note: "tekst", custom: [], fields: {} } as p2p.EntryContentV3);
+    await store.putEntry("n1", {
+      type: "note",
+      name: "Notka",
+      note: "tekst",
+      custom: [],
+      fields: {},
+    } as p2p.EntryContentV3);
     const { api, injected } = fakeTabs("https://bank.pl/");
     expect(await fillTab(store, api, 7, "n1")).toEqual({ ok: false, error: CANNOT_FILL_ENTRY });
     expect(injected).toEqual([]);
@@ -124,7 +173,10 @@ describe("fillTab", () => {
 });
 
 describe("onFillCommand", () => {
-  const popup = () => { const calls = { n: 0 }; return { calls, open: async () => void calls.n++ }; };
+  const popup = () => {
+    const calls = { n: 0 };
+    return { calls, open: async () => void calls.n++ };
+  };
 
   it("fills the only matching login", async () => {
     const { store } = await setup();
@@ -179,7 +231,12 @@ describe("onFillCommand", () => {
     expect(unknown.calls.n).toBe(1);
 
     const failing = popup();
-    await onFillCommand(store, fakeTabs("https://bank.pl/", 0).api, { id: 7, url: "https://bank.pl/" }, failing.open);
+    await onFillCommand(
+      store,
+      fakeTabs("https://bank.pl/", 0).api,
+      { id: 7, url: "https://bank.pl/" },
+      failing.open,
+    );
     expect(failing.calls.n).toBe(1);
 
     await session.remove(STORAGE_KEYS.sessionKeys);

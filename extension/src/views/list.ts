@@ -26,7 +26,8 @@ export function skippedNote(skipped: readonly string[]): string {
  */
 export function filesNote(f: FilesOutcome): { text: string; error: boolean } {
   let text = "";
-  if (f.uploaded + f.downloaded > 0) text += ` Pliki: wysłano ${f.uploaded}, pobrano ${f.downloaded}.`;
+  if (f.uploaded + f.downloaded > 0)
+    text += ` Pliki: wysłano ${f.uploaded}, pobrano ${f.downloaded}.`;
   if (f.pending > 0) text += ` Nie wszystkie pliki zsynchronizowane (${f.pending} czeka).`;
   if (f.error) text += ` Nie wszystkie pliki zsynchronizowane: ${f.error}.`;
   if (f.corrupted.length > 0) text += ` Uszkodzone pliki: ${f.corrupted.join(", ")}.`;
@@ -48,21 +49,40 @@ function fillEntry(entryId: string, status: HTMLElement) {
 }
 
 function fillButton(e: StoredEntry, status: HTMLElement) {
-  return h("button", { title: `Wypełnij: ${e.data.name}`, onclick: () => void fillEntry(e.id, status) }, "Wypełnij");
+  return h(
+    "button",
+    { title: `Wypełnij: ${e.data.name}`, onclick: () => void fillEntry(e.id, status) },
+    "Wypełnij",
+  );
 }
 
 /** One row: the whole entry opens on click; a login also gets its copy buttons (unless copyable is false, as in the matches section), a card or contact „Wypełnij” (popup only). */
-function entryRow(e: StoredEntry, status: HTMLElement, fillable = !IN_TAB && (e.data.type === "card" || e.data.type === "contact"), copyable = true) {
+function entryRow(
+  e: StoredEntry,
+  status: HTMLElement,
+  fillable = !IN_TAB && (e.data.type === "card" || e.data.type === "contact"),
+  copyable = true,
+) {
   const summary = entrySummary(e.data);
   const clips = e.data.attachments?.length ?? 0;
   const open = h(
     "button",
-    { class: "entry-open grow", title: `Otwórz: ${e.data.name}`, onclick: () => editView(e.data.type, e.id) },
+    {
+      class: "entry-open grow",
+      title: `Otwórz: ${e.data.name}`,
+      onclick: () => editView(e.data.type, e.id),
+    },
     h("span", { class: "icon", "aria-hidden": "true" }, TYPE_INFO[e.data.type].icon),
     h(
       "span",
       { class: "text" },
-      h("span", { class: "name" }, e.data.name, clips > 0 && h("span", { class: "clip", title: `Załączniki: ${clips}` }, ` 📎 ${clips}`), e.dirty ? " •" : ""),
+      h(
+        "span",
+        { class: "name" },
+        e.data.name,
+        clips > 0 && h("span", { class: "clip", title: `Załączniki: ${clips}` }, ` 📎 ${clips}`),
+        e.dirty ? " •" : "",
+      ),
       h("span", { class: "user", title: summary }, summary),
     ),
   );
@@ -71,9 +91,31 @@ function entryRow(e: StoredEntry, status: HTMLElement, fillable = !IN_TAB && (e.
     "li",
     {},
     open,
-    fields && h("button", { title: "Kopiuj login", onclick: () => copyText(fields.username, "login", status).catch((err: Error) => setStatus(status, err.message, true)) }, "Login"),
+    fields &&
+      h(
+        "button",
+        {
+          title: "Kopiuj login",
+          onclick: () =>
+            copyText(fields.username, "login", status).catch((err: Error) =>
+              setStatus(status, err.message, true),
+            ),
+        },
+        "Login",
+      ),
     fillable && fillButton(e, status),
-    fields && h("button", { title: "Kopiuj hasło", onclick: () => copySecret(fields.password, "hasło", status).catch((err: Error) => setStatus(status, err.message, true)) }, "Hasło"),
+    fields &&
+      h(
+        "button",
+        {
+          title: "Kopiuj hasło",
+          onclick: () =>
+            copySecret(fields.password, "hasło", status).catch((err: Error) =>
+              setStatus(status, err.message, true),
+            ),
+        },
+        "Hasło",
+      ),
   );
 }
 
@@ -94,7 +136,9 @@ export function listView(message = "", isError = false, type?: p2p.EntryType) {
     ),
   );
   const markTab = () =>
-    tabButtons.forEach((b, i) => b.setAttribute("aria-pressed", String(ENTRY_TYPES[i] === currentType)));
+    tabButtons.forEach((b, i) =>
+      b.setAttribute("aria-pressed", String(ENTRY_TYPES[i] === currentType)),
+    );
 
   // Logins matching the page the popup was opened over (Loginy tab only); filled in once the tab is known.
   const matches = h("div", { class: "matches" });
@@ -114,13 +158,18 @@ export function listView(message = "", isError = false, type?: p2p.EntryType) {
     matches.replaceChildren(
       ...(shown.length === 0
         ? []
-        : [h("h2", {}, "Pasujące do tej strony"), h("ul", { class: "entries" }, ...shown.map((e) => entryRow(e, status, true, false)))]),
+        : [
+            h("h2", {}, "Pasujące do tej strony"),
+            h("ul", { class: "entries" }, ...shown.map((e) => entryRow(e, status, true, false))),
+          ]),
     );
   };
 
   const renderList = () => {
     const query = search.value.trim();
-    const rows = store.listEntries(currentType).filter((e) => !query || matchesQuery(e.data, query));
+    const rows = store
+      .listEntries(currentType)
+      .filter((e) => !query || matchesQuery(e.data, query));
     list.replaceChildren(
       ...(rows.length === 0
         ? [h("li", { class: "empty" }, query ? "Nic nie pasuje." : "Brak wpisów. Dodaj pierwszy.")]
@@ -144,32 +193,77 @@ export function listView(message = "", isError = false, type?: p2p.EntryType) {
   show(
     openInTabButton(),
     h("div", { class: "tabs", role: "group", "aria-label": "Typ wpisu" }, ...tabButtons),
-    h("div", { class: "row" }, h("div", { class: "grow" }, search), h("button", { class: "primary", onclick: () => editView(currentType) }, "+ Dodaj")),
+    h(
+      "div",
+      { class: "row" },
+      h("div", { class: "grow" }, search),
+      h("button", { class: "primary", onclick: () => editView(currentType) }, "+ Dodaj"),
+    ),
     matches,
     list,
     h(
       "div",
       { class: "actions" },
-      h("button", {
-        onclick: () =>
-          busy(status, "Synchronizuję…", async () => {
-            const result = await store.sync((done, total) => setStatus(status, `Pliki: ${done} z ${total}`));
-            renderList();
-            void renderMatches();
-            const note = filesNote(result.files);
-            setStatus(status, `Zsynchronizowano z telefonem ${new Date().toLocaleTimeString("pl")}.` + skippedNote(result.skipped) + note.text, note.error);
-          }),
-      }, "Synchronizuj"),
+      h(
+        "button",
+        {
+          onclick: () =>
+            busy(status, "Synchronizuję…", async () => {
+              const result = await store.sync((done, total) =>
+                setStatus(status, `Pliki: ${done} z ${total}`),
+              );
+              renderList();
+              void renderMatches();
+              const note = filesNote(result.files);
+              setStatus(
+                status,
+                `Zsynchronizowano z telefonem ${new Date().toLocaleTimeString("pl")}.` +
+                  skippedNote(result.skipped) +
+                  note.text,
+                note.error,
+              );
+            }),
+        },
+        "Synchronizuj",
+      ),
       h("button", { title: "Logowanie PIN-em", onclick: () => void pinSettingsView() }, "PIN"),
-      h("button", { title: "Pytanie o zapis haseł", onclick: () => void saveSettingsView() }, "Zapis"),
-      h("button", { onclick: async () => { await store.lock(); await showLocked(); } }, "Zablokuj"),
-      h("button", { title: "Adresy telefonu (np. w domu i przez Tailscale), parowanie z innym telefonem", onclick: () => void openAddresses() }, "Adresy telefonu"),
-      h("button", { title: "Import i eksport (PassHolder JSON, Bitwarden JSON, NordPass CSV)", onclick: () => void openTransfer() }, "Plik"),
+      h(
+        "button",
+        { title: "Pytanie o zapis haseł", onclick: () => void saveSettingsView() },
+        "Zapis",
+      ),
+      h(
+        "button",
+        {
+          onclick: async () => {
+            await store.lock();
+            await showLocked();
+          },
+        },
+        "Zablokuj",
+      ),
+      h(
+        "button",
+        {
+          title: "Adresy telefonu (np. w domu i przez Tailscale), parowanie z innym telefonem",
+          onclick: () => void openAddresses(),
+        },
+        "Adresy telefonu",
+      ),
+      h(
+        "button",
+        {
+          title: "Import i eksport (PassHolder JSON, Bitwarden JSON, NordPass CSV)",
+          onclick: () => void openTransfer(),
+        },
+        "Plik",
+      ),
     ),
     status,
   );
   const pending = store.pendingCount();
-  if (!message && pending > 0) setStatus(status, `Niezsynchronizowane zmiany: ${pending} (oznaczone •).`);
+  if (!message && pending > 0)
+    setStatus(status, `Niezsynchronizowane zmiany: ${pending} (oznaczone •).`);
   renderList();
   void renderMatches();
   search.focus();

@@ -1,8 +1,18 @@
 import { busy, form, h, passwordField, setStatus, show, statusLine } from "../ui/dom.ts";
 import { IN_TAB, showInTab } from "../ui/page.ts";
-import { originPattern, requestHostPermission, requestOptionalHostPermission, phoneUrlFields } from "../ui/phone-url-fields.ts";
+import {
+  originPattern,
+  requestHostPermission,
+  requestOptionalHostPermission,
+  phoneUrlFields,
+} from "../ui/phone-url-fields.ts";
 import { store } from "../ui/state.ts";
-import { pairingCancelledMessage, pairingExpiredMessage, PairedButSyncFailed, type PendingPairingInfo } from "../vault-store.ts";
+import {
+  pairingCancelledMessage,
+  pairingExpiredMessage,
+  PairedButSyncFailed,
+  type PendingPairingInfo,
+} from "../vault-store.ts";
 import { listView, skippedNote } from "./list.ts";
 
 const PAIRED =
@@ -10,7 +20,8 @@ const PAIRED =
 
 /** "Chrome (Windows)", "Chrome (macOS)"…; the user can change it before pairing. */
 function defaultDeviceName(): string {
-  const platform = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform;
+  const platform = (navigator as Navigator & { userAgentData?: { platform?: string } })
+    .userAgentData?.platform;
   return `Chrome (${platform || "komputer"})`;
 }
 
@@ -24,10 +35,22 @@ export async function showConnect() {
   const waiting = await store.hasPendingPairing();
   show(
     h("h1", {}, "PassHolder: sparuj z telefonem"),
-    h("p", {}, waiting
-      ? "Parowanie czeka na hasło główne. Dokończ je w karcie ustawień."
-      : "Wtyczka synchronizuje hasła z aplikacją PassHolder na telefonie. Parowanie ustawia się w osobnej karcie, bo Chrome zamyka to okienko, gdy pyta o zgodę na dostęp do telefonu."),
-    h("div", { class: "actions" }, h("button", { class: "primary", onclick: () => void showInTab("setup", connectView) }, waiting ? "Dokończ parowanie" : "Sparuj z telefonem")),
+    h(
+      "p",
+      {},
+      waiting
+        ? "Parowanie czeka na hasło główne. Dokończ je w karcie ustawień."
+        : "Wtyczka synchronizuje hasła z aplikacją PassHolder na telefonie. Parowanie ustawia się w osobnej karcie, bo Chrome zamyka to okienko, gdy pyta o zgodę na dostęp do telefonu.",
+    ),
+    h(
+      "div",
+      { class: "actions" },
+      h(
+        "button",
+        { class: "primary", onclick: () => void showInTab("setup", connectView) },
+        waiting ? "Dokończ parowanie" : "Sparuj z telefonem",
+      ),
+    ),
   );
 }
 
@@ -41,7 +64,14 @@ async function connectView(message = "") {
 /** Step 1: the phone's address and the one-time code from its "Synchronizacja" screen. */
 function codeStep(message = "") {
   const addresses = phoneUrlFields();
-  const code = h("input", { type: "text", class: "mono", inputmode: "numeric", autocomplete: "off", maxLength: 9, placeholder: "12345678" });
+  const code = h("input", {
+    type: "text",
+    class: "mono",
+    inputmode: "numeric",
+    autocomplete: "off",
+    maxLength: 9,
+    placeholder: "12345678",
+  });
   const name = h("input", { type: "text", value: defaultDeviceName(), maxLength: 64 });
   const status = statusLine();
   setStatus(status, message, Boolean(message));
@@ -61,9 +91,19 @@ function codeStep(message = "") {
 
   show(
     h("h1", {}, "PassHolder: sparuj z telefonem"),
-    h("ol", { class: "steps" },
-      h("li", {}, "W aplikacji PassHolder na telefonie otwórz Synchronizacja i wybierz „Dodaj wtyczkę”."),
-      h("li", {}, "Przepisz tu adres i 8-cyfrowy kod z ekranu telefonu. Kod jest ważny 2 minuty i działa raz."),
+    h(
+      "ol",
+      { class: "steps" },
+      h(
+        "li",
+        {},
+        "W aplikacji PassHolder na telefonie otwórz Synchronizacja i wybierz „Dodaj wtyczkę”.",
+      ),
+      h(
+        "li",
+        {},
+        "Przepisz tu adres i 8-cyfrowy kod z ekranu telefonu. Kod jest ważny 2 minuty i działa raz.",
+      ),
     ),
     form(
       submit,
@@ -107,30 +147,44 @@ function passwordStep(pending: PendingPairingInfo, message = "") {
           if (error instanceof PairedButSyncFailed) return listView(error.message, true);
           password.value = "";
           // The pairing is gone (expired, or cancelled in another tab): the phone still lists this browser.
-          if (!(await store.hasPendingPairing())) return codeStep(pairingExpiredMessage(pending.deviceName));
+          if (!(await store.hasPendingPairing()))
+            return codeStep(pairingExpiredMessage(pending.deviceName));
           throw error;
         }
       });
     });
   };
 
-  const cancel = h("button", {
-    type: "button",
-    onclick: async () => {
-      // Also when it expired meanwhile: the phone lists the browser either way.
-      codeStep(pairingCancelledMessage((await store.cancelPairing()) ?? pending.deviceName));
+  const cancel = h(
+    "button",
+    {
+      type: "button",
+      onclick: async () => {
+        // Also when it expired meanwhile: the phone lists the browser either way.
+        codeStep(pairingCancelledMessage((await store.cancelPairing()) ?? pending.deviceName));
+      },
     },
-  }, "Anuluj parowanie");
+    "Anuluj parowanie",
+  );
 
   show(
     h("h1", {}, "PassHolder: hasło główne"),
     h("p", { class: "ok" }, `Połączono z telefonem „${pending.phoneName}”.`),
-    h("p", {}, "Wpisz hasło główne sejfu z telefonu. Jeśli się pomylisz, spróbuj jeszcze raz: nowy kod nie jest potrzebny."),
+    h(
+      "p",
+      {},
+      "Wpisz hasło główne sejfu z telefonu. Jeśli się pomylisz, spróbuj jeszcze raz: nowy kod nie jest potrzebny.",
+    ),
     form(
       submit,
       h("label", {}, "Hasło główne"),
       passwordField(password).row,
-      h("div", { class: "actions" }, h("button", { type: "submit", class: "primary" }, "Odblokuj i synchronizuj"), cancel),
+      h(
+        "div",
+        { class: "actions" },
+        h("button", { type: "submit", class: "primary" }, "Odblokuj i synchronizuj"),
+        cancel,
+      ),
     ),
     status,
   );

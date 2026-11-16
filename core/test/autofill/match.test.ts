@@ -2,7 +2,9 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { matchLogins, matchUrl } from "../../src/autofill/match.ts";
 
-const vectors = JSON.parse(readFileSync(new URL("../../test-vectors/autofill/match.json", import.meta.url), "utf8")) as {
+const vectors = JSON.parse(
+  readFileSync(new URL("../../test-vectors/autofill/match.json", import.meta.url), "utf8"),
+) as {
   cases: { page: string; saved: string; expected: "exact" | "subdomain" | null; why: string }[];
 };
 
@@ -23,7 +25,10 @@ describe("matchLogins", () => {
       { name: "A", urls: ["google.com"] },
       { name: "C", urls: ["x.pl"] },
     ];
-    expect(matchLogins("https://mail.google.com", items, id).map((x) => x.name)).toEqual(["B", "A"]);
+    expect(matchLogins("https://mail.google.com", items, id).map((x) => x.name)).toEqual([
+      "B",
+      "A",
+    ]);
   });
 
   it("sorts by name within a group using Polish collation", () => {
@@ -32,7 +37,11 @@ describe("matchLogins", () => {
       { name: "Łoś", urls: ["a.pl"] },
       { name: "Lis", urls: ["a.pl"] },
     ];
-    expect(matchLogins("https://a.pl", items, id).map((x) => x.name)).toEqual(["Lis", "Łoś", "Zebra"]);
+    expect(matchLogins("https://a.pl", items, id).map((x) => x.name)).toEqual([
+      "Lis",
+      "Łoś",
+      "Zebra",
+    ]);
   });
 
   it("uses the best match among several addresses", () => {
@@ -40,7 +49,10 @@ describe("matchLogins", () => {
       { name: "Multi", urls: ["google.com", "mail.google.com"] },
       { name: "Aaa", urls: ["google.com"] },
     ];
-    expect(matchLogins("https://mail.google.com", items, id).map((x) => x.name)).toEqual(["Multi", "Aaa"]);
+    expect(matchLogins("https://mail.google.com", items, id).map((x) => x.name)).toEqual([
+      "Multi",
+      "Aaa",
+    ]);
   });
 
   it("returns an empty list for non-http pages", () => {
@@ -56,7 +68,9 @@ describe("matchLogins exactOnly", () => {
       { name: "Domain", urls: ["example.com"] },
       { name: "Host", urls: ["x.example.com"] },
     ];
-    expect(matchLogins("https://x.example.com", items, id, { exactOnly: true }).map((x) => x.name)).toEqual(["Host"]);
+    expect(
+      matchLogins("https://x.example.com", items, id, { exactOnly: true }).map((x) => x.name),
+    ).toEqual(["Host"]);
     expect(matchLogins("https://y.example.com", items, id, { exactOnly: true })).toEqual([]);
   });
 });

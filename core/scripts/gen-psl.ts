@@ -38,7 +38,10 @@ writeFileSync(
   `${header.map((h) => `// ${h}`).join("\n")}\n// Do not edit by hand.\n\n/** Public suffix rules, one per line ("*." wildcard, "!" exception), ASCII. */\nexport const PSL_RULES = ${JSON.stringify(unique.join("\n"))};\n`,
 );
 writeFileSync(
-  new URL("android/core/src/main/resources/io/github/sheking94/passholder/core/autofill/public_suffix_rules.txt", root),
+  new URL(
+    "android/core/src/main/resources/io/github/sheking94/passholder/core/autofill/public_suffix_rules.txt",
+    root,
+  ),
   `${header.map((h) => `// ${h}`).join("\n")}\n${unique.join("\n")}\n`,
 );
 console.log(`${unique.length} rules`);

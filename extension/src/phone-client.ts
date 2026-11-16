@@ -29,12 +29,16 @@ export function phoneErrorInPolish(error: unknown): unknown {
   if (!(error instanceof Error) || error instanceof ApiError) return error;
   const message = error.message;
   if (message === p2p.PHONE_UPDATE_REQUIRED) return new Error(PHONE_UPDATE_REQUIRED_PL);
-  if (message === "P2P host returned 403: device not paired") return new Error(PHONE_FORGOT_BROWSER);
+  if (message === "P2P host returned 403: device not paired")
+    return new Error(PHONE_FORGOT_BROWSER);
   // A bad shape, or a Noise message that does not open: either way the answer is not what a PassHolder phone sends.
-  if (message === "P2P host returned a malformed response" || message.startsWith("Noise:")) return new Error(PHONE_MALFORMED);
+  if (message === "P2P host returned a malformed response" || message.startsWith("Noise:"))
+    return new Error(PHONE_MALFORMED);
   const tooLarge = `${p2p.ENTRY_TOO_LARGE_TO_SYNC}: `;
   if (message.startsWith(tooLarge)) {
-    return new Error(`Wpis „${message.slice(tooLarge.length)}” jest za duży (ponad 64 KiB) i nie może zostać zsynchronizowany. Skróć go.`);
+    return new Error(
+      `Wpis „${message.slice(tooLarge.length)}” jest za duży (ponad 64 KiB) i nie może zostać zsynchronizowany. Skróć go.`,
+    );
   }
   const status = /^P2P host returned (\d+): (.*)$/.exec(message);
   if (status) return new Error(`Telefon odpowiedział błędem ${status[1]} (${status[2]}).`);
@@ -63,7 +67,11 @@ export class PhoneClient {
     return p2p.pingPhone(this.baseUrl, (url, body) => this.request(url, body, timeoutMs));
   }
 
-  private async request(url: string, body: unknown, timeoutMs: number): Promise<{ status: number; body: unknown }> {
+  private async request(
+    url: string,
+    body: unknown,
+    timeoutMs: number,
+  ): Promise<{ status: number; body: unknown }> {
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     // A plain setTimeout (not AbortSignal.timeout) so a fetch or a body that ignores the signal still gives up.

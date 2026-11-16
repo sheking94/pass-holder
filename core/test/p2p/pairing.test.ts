@@ -30,7 +30,13 @@ const identity = (): DeviceIdentity => ({
 
 const vaultInfo = (): VaultInfo => ({
   epoch: toBase64(randomBytes(16)),
-  kdf: { alg: "argon2id", salt: toBase64(randomBytes(16)), memoryKiB: 65536, iterations: 3, parallelism: 4 },
+  kdf: {
+    alg: "argon2id",
+    salt: toBase64(randomBytes(16)),
+    memoryKiB: 65536,
+    iterations: 3,
+    parallelism: 4,
+  },
   wrappedVaultKey: toBase64(randomBytes(60)),
   addresses: ["192.168.1.5:8443"],
 });
@@ -52,9 +58,30 @@ describe("pairing", () => {
     const phoneId = identity();
     const extId = { ...identity(), deviceId: "ext-1", name: "Chrome" };
     const info = vaultInfo();
-    expect(await openPairingMessage(ext, "identity", "responder", await sealPairingMessage(phone, "identity", "responder", phoneId))).toEqual(phoneId);
-    expect(await openPairingMessage(ext, "vault-info", "responder", await sealPairingMessage(phone, "vault-info", "responder", info))).toEqual(info);
-    expect(await openPairingMessage(phone, "identity", "initiator", await sealPairingMessage(ext, "identity", "initiator", extId))).toEqual(extId);
+    expect(
+      await openPairingMessage(
+        ext,
+        "identity",
+        "responder",
+        await sealPairingMessage(phone, "identity", "responder", phoneId),
+      ),
+    ).toEqual(phoneId);
+    expect(
+      await openPairingMessage(
+        ext,
+        "vault-info",
+        "responder",
+        await sealPairingMessage(phone, "vault-info", "responder", info),
+      ),
+    ).toEqual(info);
+    expect(
+      await openPairingMessage(
+        phone,
+        "identity",
+        "initiator",
+        await sealPairingMessage(ext, "identity", "initiator", extId),
+      ),
+    ).toEqual(extId);
   });
 
   it("the wrong code makes the first message fail to open", async () => {
@@ -75,7 +102,9 @@ describe("pairing", () => {
     await expect(openPairingMessage(phone, "identity", "responder", blob)).rejects.toThrow();
     // A reflected message: the initiator gets back its own message.
     await expect(openPairingMessage(ext, "identity", "responder", blob)).rejects.toThrow();
-    expect(await openPairingMessage(phone, "identity", "initiator", blob)).toMatchObject({ name: "Pixel" });
+    expect(await openPairingMessage(phone, "identity", "initiator", blob)).toMatchObject({
+      name: "Pixel",
+    });
     expect(pairingAad("vault-info", "responder")).toBe("passholder/v2/pair/vault-info/responder");
   });
 
@@ -104,10 +133,24 @@ describe("pairing", () => {
       await expect(openPairingMessage(ext, "vault-info", "responder", blob)).rejects.toThrow();
     }
     const ok = { ...vaultInfo(), addresses: Array.from({ length: 16 }, () => "a".repeat(256)) };
-    expect(await openPairingMessage(ext, "vault-info", "responder", await sealPairingMessage(phone, "vault-info", "responder", ok))).toEqual(ok);
+    expect(
+      await openPairingMessage(
+        ext,
+        "vault-info",
+        "responder",
+        await sealPairingMessage(phone, "vault-info", "responder", ok),
+      ),
+    ).toEqual(ok);
     for (const bad of [{ deviceId: "x".repeat(65) }, { name: "" }, { name: "n".repeat(65) }]) {
       const id = { ...identity(), ...bad };
-      await expect(openPairingMessage(ext, "identity", "responder", await sealPairingMessage(phone, "identity", "responder", id))).rejects.toThrow();
+      await expect(
+        openPairingMessage(
+          ext,
+          "identity",
+          "responder",
+          await sealPairingMessage(phone, "identity", "responder", id),
+        ),
+      ).rejects.toThrow();
     }
   });
 });

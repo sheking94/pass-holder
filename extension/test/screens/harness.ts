@@ -28,17 +28,172 @@ const base = { note: "", custom: [] as p2p.CustomField[] };
 
 /** Obviously fake sample data, two or three entries per type. */
 const SAMPLES: { id: string; content: p2p.EntryContentV3 }[] = [
-  { id: "l1", content: { ...base, type: "login", name: "Przykładowy sklep", custom: [{ label: "Pytanie kontrolne", value: "Burek z przykładu", hidden: true }], fields: { username: "jan.testowy@example.com", password: "Haslo-Przykladowe-123", totp: "JBSWY3DPEHPK3PXP", urls: ["https://sklep.example.com"], androidApps: ["com.example.shop"] } } },
-  { id: "l2", content: { ...base, type: "login", name: "Poczta testowa", fields: { username: "anna.przyklad", password: "nie-prawdziwe", totp: "", urls: ["https://poczta.example.org"], androidApps: [] } } },
-  { id: "l3", content: { ...base, type: "login", name: "Forum demo", fields: { username: "demo_user", password: "demo", totp: "", urls: [], androidApps: [] } } },
-  { id: "k1", content: { ...base, type: "contact", name: "Jan Testowy", note: "Kolega z przykładu.", fields: { firstName: "Jan", lastName: "Testowy", birthDate: "1990-01-01", phones: [{ label: "komórka", value: "+48 000 000 001" }, { label: "praca", value: "+48 000 000 003" }], emails: [{ label: "dom", value: "jan@example.com" }], addresses: [{ label: "dom", street: "Przykładowa 1", postalCode: "00-000", city: "Testowo", country: "Polska" }] } } },
-  { id: "k2", content: { ...base, type: "contact", name: "Anna Przykładowa", fields: { firstName: "Anna", lastName: "Przykładowa", birthDate: "", phones: [{ label: "praca", value: "+48 000 000 002" }], emails: [], addresses: [] } } },
-  { id: "c1", content: { ...base, type: "card", name: "Karta testowa Visa", fields: { holder: "JAN TESTOWY", number: "4111 1111 1111 1111", expiry: "12/30", cvc: "123", pin: "0000" } } },
-  { id: "c2", content: { ...base, type: "card", name: "Karta demo", fields: { holder: "ANNA PRZYKLADOWA", number: "5500 0000 0000 0004", expiry: "01/29", cvc: "999", pin: "" } } },
-  { id: "n1", content: { ...base, type: "note", name: "Lista zakupów (przykład)", note: "Mleko\nChleb\nMasło", fields: {} } },
-  { id: "n2", content: { ...base, type: "note", name: "Kod do furtki (fikcyjny)", note: "\nKod: 0000 (przykład)", fields: {} } },
-  { id: "d1", content: { ...base, type: "document", name: "Dowód Jana", fields: { kind: "id_card", number: "ABC000000", fullName: "Jan Testowy", issueDate: "2020-01-01", expiryDate: "2030-01-01", issuer: "Urząd Przykładowy" } } },
-  { id: "d2", content: { ...base, type: "document", name: "Paszport Anny", fields: { kind: "passport", number: "XX0000000", fullName: "Anna Przykładowa", issueDate: "2021-05-05", expiryDate: "2031-05-05", issuer: "Wojewoda Testowy" } } },
+  {
+    id: "l1",
+    content: {
+      ...base,
+      type: "login",
+      name: "Przykładowy sklep",
+      custom: [{ label: "Pytanie kontrolne", value: "Burek z przykładu", hidden: true }],
+      fields: {
+        username: "jan.testowy@example.com",
+        password: "Haslo-Przykladowe-123",
+        totp: "JBSWY3DPEHPK3PXP",
+        urls: ["https://sklep.example.com"],
+        androidApps: ["com.example.shop"],
+      },
+    },
+  },
+  {
+    id: "l2",
+    content: {
+      ...base,
+      type: "login",
+      name: "Poczta testowa",
+      fields: {
+        username: "anna.przyklad",
+        password: "nie-prawdziwe",
+        totp: "",
+        urls: ["https://poczta.example.org"],
+        androidApps: [],
+      },
+    },
+  },
+  {
+    id: "l3",
+    content: {
+      ...base,
+      type: "login",
+      name: "Forum demo",
+      fields: { username: "demo_user", password: "demo", totp: "", urls: [], androidApps: [] },
+    },
+  },
+  {
+    id: "k1",
+    content: {
+      ...base,
+      type: "contact",
+      name: "Jan Testowy",
+      note: "Kolega z przykładu.",
+      fields: {
+        firstName: "Jan",
+        lastName: "Testowy",
+        birthDate: "1990-01-01",
+        phones: [
+          { label: "komórka", value: "+48 000 000 001" },
+          { label: "praca", value: "+48 000 000 003" },
+        ],
+        emails: [{ label: "dom", value: "jan@example.com" }],
+        addresses: [
+          {
+            label: "dom",
+            street: "Przykładowa 1",
+            postalCode: "00-000",
+            city: "Testowo",
+            country: "Polska",
+          },
+        ],
+      },
+    },
+  },
+  {
+    id: "k2",
+    content: {
+      ...base,
+      type: "contact",
+      name: "Anna Przykładowa",
+      fields: {
+        firstName: "Anna",
+        lastName: "Przykładowa",
+        birthDate: "",
+        phones: [{ label: "praca", value: "+48 000 000 002" }],
+        emails: [],
+        addresses: [],
+      },
+    },
+  },
+  {
+    id: "c1",
+    content: {
+      ...base,
+      type: "card",
+      name: "Karta testowa Visa",
+      fields: {
+        holder: "JAN TESTOWY",
+        number: "4111 1111 1111 1111",
+        expiry: "12/30",
+        cvc: "123",
+        pin: "0000",
+      },
+    },
+  },
+  {
+    id: "c2",
+    content: {
+      ...base,
+      type: "card",
+      name: "Karta demo",
+      fields: {
+        holder: "ANNA PRZYKLADOWA",
+        number: "5500 0000 0000 0004",
+        expiry: "01/29",
+        cvc: "999",
+        pin: "",
+      },
+    },
+  },
+  {
+    id: "n1",
+    content: {
+      ...base,
+      type: "note",
+      name: "Lista zakupów (przykład)",
+      note: "Mleko\nChleb\nMasło",
+      fields: {},
+    },
+  },
+  {
+    id: "n2",
+    content: {
+      ...base,
+      type: "note",
+      name: "Kod do furtki (fikcyjny)",
+      note: "\nKod: 0000 (przykład)",
+      fields: {},
+    },
+  },
+  {
+    id: "d1",
+    content: {
+      ...base,
+      type: "document",
+      name: "Dowód Jana",
+      fields: {
+        kind: "id_card",
+        number: "ABC000000",
+        fullName: "Jan Testowy",
+        issueDate: "2020-01-01",
+        expiryDate: "2030-01-01",
+        issuer: "Urząd Przykładowy",
+      },
+    },
+  },
+  {
+    id: "d2",
+    content: {
+      ...base,
+      type: "document",
+      name: "Paszport Anny",
+      fields: {
+        kind: "passport",
+        number: "XX0000000",
+        fullName: "Anna Przykładowa",
+        issueDate: "2021-05-05",
+        expiryDate: "2031-05-05",
+        issuer: "Wojewoda Testowy",
+      },
+    },
+  },
 ];
 
 async function setup() {
@@ -46,18 +201,28 @@ async function setup() {
   const session = fakeArea();
   (globalThis as unknown as { chrome: unknown }).chrome = {
     storage: { local, session },
-    runtime: { sendMessage: async () => undefined, getURL: (path: string) => `chrome-extension://passholder/${path}` },
+    runtime: {
+      sendMessage: async () => undefined,
+      getURL: (path: string) => `chrome-extension://passholder/${path}`,
+    },
     permissions: { contains: async () => true },
     // The popup is open over the sample mail site, so „Pasujące do tej strony” has a row.
     tabs: { query: async () => [{ id: 1, url: "https://poczta.example.org/login" }] },
   };
-  Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async () => undefined } });
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: { writeText: async () => undefined },
+  });
 
   const phone = await FakePhone.withVault(PASSWORD, [PHONE_URL]);
   const network: Network = new Map([[PHONE_URL, phone]]);
   const fetchFn = networkFetch(network);
   globalThis.fetch = fetchFn;
-  const pairing = new VaultStore(chromeStore(local), chromeStore(session), (url) => new PhoneClient(url, fetchFn));
+  const pairing = new VaultStore(
+    chromeStore(local),
+    chromeStore(session),
+    (url) => new PhoneClient(url, fetchFn),
+  );
   phone.offerPairing();
   await pairing.pairStart(PHONE_URL, CODE, "Chrome (Linux)");
   await pairing.pairFinish(PASSWORD);
@@ -84,21 +249,67 @@ async function setup() {
     openZipExport: async () => {
       const plain = new TextEncoder().encode("Przykładowa umowa (fikcyjna).");
       const ef = await files.encryptFile(plain, { name: "umowa.pdf", mime: "application/pdf" });
-      await store.putEntry("z1", { ...base, type: "note", name: "Umowa najmu (przykład)", fields: {}, attachments: [ef.attachment] }, [ef]);
+      await store.putEntry(
+        "z1",
+        {
+          ...base,
+          type: "note",
+          name: "Umowa najmu (przykład)",
+          fields: {},
+          attachments: [ef.attachment],
+        },
+        [ef],
+      );
       transferView();
-      const zip = [...document.querySelectorAll<HTMLInputElement>("input[name=format]")].find((r) => r.value === "passholder-zip")!;
+      const zip = [...document.querySelectorAll<HTMLInputElement>("input[name=format]")].find(
+        (r) => r.value === "passholder-zip",
+      )!;
       zip.click();
     },
     /** The summary after importing a made-up archive: two entries, two files, one file missing from the archive. */
     importZip: async () => {
       transferView();
-      const bytes = new Map([["a", "Skan dowodu (fikcyjny)."], ["b", "Polisa (przykład)."], ["c", "Zdjęcie."]]);
+      const bytes = new Map([
+        ["a", "Skan dowodu (fikcyjny)."],
+        ["b", "Polisa (przykład)."],
+        ["c", "Zdjęcie."],
+      ]);
       const att = (id: string, name: string, mime: string) =>
-        ({ id, name, mime, size: new TextEncoder().encode(bytes.get(id)!).length, chunks: 1, sha256: "", key: "" }) as files.Attachment;
+        ({
+          id,
+          name,
+          mime,
+          size: new TextEncoder().encode(bytes.get(id)!).length,
+          chunks: 1,
+          sha256: "",
+          key: "",
+        }) as files.Attachment;
       const archive = await transfer.exportPassHolderZip(
         [
-          { ...base, type: "document", name: "Dowód (kopia z archiwum)", fields: { kind: "id_card", number: "ZZZ000000", fullName: "Jan Testowy", issueDate: "", expiryDate: "", issuer: "" }, attachments: [att("a", "dowód – skan.pdf", "application/pdf")] },
-          { ...base, type: "note", name: "Ubezpieczenie (przykład)", fields: {}, attachments: [att("b", "polisa.pdf", "application/pdf"), att("c", "zdjęcie.jpg", "image/jpeg")] },
+          {
+            ...base,
+            type: "document",
+            name: "Dowód (kopia z archiwum)",
+            fields: {
+              kind: "id_card",
+              number: "ZZZ000000",
+              fullName: "Jan Testowy",
+              issueDate: "",
+              expiryDate: "",
+              issuer: "",
+            },
+            attachments: [att("a", "dowód – skan.pdf", "application/pdf")],
+          },
+          {
+            ...base,
+            type: "note",
+            name: "Ubezpieczenie (przykład)",
+            fields: {},
+            attachments: [
+              att("b", "polisa.pdf", "application/pdf"),
+              att("c", "zdjęcie.jpg", "image/jpeg"),
+            ],
+          },
         ],
         async (a) => new TextEncoder().encode(bytes.get(a.id)!),
       );
@@ -112,11 +323,19 @@ async function setup() {
       });
       await zip.add("passholder.json", new TextEncoder().encode(index));
       const reader = await transfer.openPassHolderZip(concat(...archive.parts));
-      for (const f of parsed.entries.flatMap((e) => e.files).slice(0, 2)) await zip.add(f.path, await reader.readFile(f));
+      for (const f of parsed.entries.flatMap((e) => e.files).slice(0, 2))
+        await zip.add(f.path, await reader.readFile(f));
       const input = document.querySelector<HTMLInputElement>("input[type=file]")!;
-      Object.defineProperty(input, "files", { configurable: true, value: [new File([concat(...zip.finish()) as BlobPart], "passholder.zip")] });
+      Object.defineProperty(input, "files", {
+        configurable: true,
+        value: [new File([concat(...zip.finish()) as BlobPart], "passholder.zip")],
+      });
       [...document.querySelectorAll("button")].find((b) => b.textContent === "Importuj")!.click();
-      for (let i = 0; i < 200 && !document.querySelector(".status")?.textContent?.startsWith("Dodano"); i++) {
+      for (
+        let i = 0;
+        i < 200 && !document.querySelector(".status")?.textContent?.startsWith("Dodano");
+        i++
+      ) {
         await new Promise((r) => setTimeout(r, 50));
       }
     },
@@ -127,15 +346,32 @@ async function setup() {
     /** The save panel of save-prompt.html (360 × 340 on a page) for a made-up candidate. */
     openPrompt: (decision: "create" | "update" | null, locked = false) => {
       document.body.classList.add("panel");
-      const info = { id: "c1", host: "sklep.example.com", username: "jan.testowy@example.com", password: locked ? "" : "S3cretHaslo!", decision, entryName: decision === "update" ? "Sklep" : undefined, locked };
-      document.getElementById("app")!.replaceChildren(
-        promptView(info, { answer: async () => ({ ok: true }), preview: async () => undefined, unlock: () => undefined, done: () => undefined }),
-      );
+      const info = {
+        id: "c1",
+        host: "sklep.example.com",
+        username: "jan.testowy@example.com",
+        password: locked ? "" : "S3cretHaslo!",
+        decision,
+        entryName: decision === "update" ? "Sklep" : undefined,
+        locked,
+      };
+      document
+        .getElementById("app")!
+        .replaceChildren(
+          promptView(info, {
+            answer: async () => ({ ok: true }),
+            preview: async () => undefined,
+            unlock: () => undefined,
+            done: () => undefined,
+          }),
+        );
     },
     /** „Zapis haseł” with two hosts on the never list. */
     openSaveSettings: async () => {
       document.body.classList.remove("panel");
-      await chrome.storage.local.set({ [STORAGE_KEYS.saveNever]: ["bank.example.com", "forum.example.org"] });
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.saveNever]: ["bank.example.com", "forum.example.org"],
+      });
       await saveSettingsView();
     },
     /** Clicks „Pokaż” of every hidden custom field. */
@@ -148,4 +384,5 @@ async function setup() {
   };
 }
 
-(window as unknown as { __screens: Promise<Awaited<ReturnType<typeof setup>>> }).__screens = setup();
+(window as unknown as { __screens: Promise<Awaited<ReturnType<typeof setup>>> }).__screens =
+  setup();

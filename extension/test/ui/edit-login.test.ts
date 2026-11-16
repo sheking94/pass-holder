@@ -15,7 +15,9 @@ function after(root: Element, label: string, index = 0): HTMLElement {
 /** The input of the field under this label. */
 function input(root: Element, label: string): HTMLInputElement {
   const el = after(root, label);
-  return (el.matches("input, textarea") ? el : el.querySelector("input, textarea")) as HTMLInputElement;
+  return (
+    el.matches("input, textarea") ? el : el.querySelector("input, textarea")
+  ) as HTMLInputElement;
 }
 function fill(el: HTMLInputElement | HTMLTextAreaElement, value: string) {
   el.value = value;
@@ -24,18 +26,33 @@ function fill(el: HTMLInputElement | HTMLTextAreaElement, value: string) {
 const customRows = (app: Element) => [...app.querySelectorAll<HTMLElement>(".custom-field")];
 function customInputs(row: HTMLElement) {
   const [label, value] = [...row.querySelectorAll<HTMLInputElement>("input:not([type=checkbox])")];
-  return { label: label!, value: value!, hidden: row.querySelector<HTMLInputElement>("input[type=checkbox]")! };
+  return {
+    label: label!,
+    value: value!,
+    hidden: row.querySelector<HTMLInputElement>("input[type=checkbox]")!,
+  };
 }
 const tabPressed = (app: Element) =>
-  [...app.querySelectorAll(".tabs button")].findIndex((b) => b.getAttribute("aria-pressed") === "true");
+  [...app.querySelectorAll(".tabs button")].findIndex(
+    (b) => b.getAttribute("aria-pressed") === "true",
+  );
 
 function existingLogin(): p2p.EntryContentV3 {
   const l = p2p.emptyLogin("Bank");
   return {
     ...l,
     note: "notatka",
-    custom: [{ label: "Klient", value: "123", hidden: false }, { label: "PIN", value: "9999", hidden: true }],
-    fields: { username: "jan", password: "stare", totp: "JBSWY3DP", urls: ["https://bank.pl"], androidApps: ["pl.bank"] },
+    custom: [
+      { label: "Klient", value: "123", hidden: false },
+      { label: "PIN", value: "9999", hidden: true },
+    ],
+    fields: {
+      username: "jan",
+      password: "stare",
+      totp: "JBSWY3DP",
+      urls: ["https://bank.pl"],
+      androidApps: ["pl.bank"],
+    },
   };
 }
 
@@ -79,7 +96,13 @@ describe("login form", () => {
       name: "Poczta",
       note: "linia 1\nlinia 2",
       custom: [{ label: "Kod", value: "4321", hidden: true }],
-      fields: { username: "ola", password: "sekret", totp: "ABCDEF", urls: ["https://poczta.pl"], androidApps: ["pl.poczta"] },
+      fields: {
+        username: "ola",
+        password: "sekret",
+        totp: "ABCDEF",
+        urls: ["https://poczta.pl"],
+        androidApps: ["pl.poczta"],
+      },
     });
     expect(tabPressed(app)).toBe(0);
   }, 30_000);
@@ -148,10 +171,15 @@ describe("login form", () => {
     fill(input(app, "Nazwa"), "Poczta");
     fill(input(app, "Hasło"), "sekret");
     await click(byText(after(app, "Adresy stron"), "+ Dodaj adres"));
-    fill(after(app, "Adresy stron").querySelector<HTMLInputElement>("input")!, "https://poczta.pl ");
+    fill(
+      after(app, "Adresy stron").querySelector<HTMLInputElement>("input")!,
+      "https://poczta.pl ",
+    );
     await click(byText(app, "Zapisz"));
     await settle(() => app.querySelector(".status")?.textContent === SAVED);
-    expect((store.listEntries("login")[0]!.data.fields as p2p.LoginFields).urls).toEqual(["https://poczta.pl "]);
+    expect((store.listEntries("login")[0]!.data.fields as p2p.LoginFields).urls).toEqual([
+      "https://poczta.pl ",
+    ]);
   }, 30_000);
 
   it("a bad Android package name is refused and nothing is saved", async () => {
@@ -163,7 +191,10 @@ describe("login form", () => {
     await click(byText(after(app, "Aplikacje Androida"), "+ Dodaj aplikację"));
     fill(after(app, "Aplikacje Androida").querySelector<HTMLInputElement>("input")!, "com");
     await click(byText(app, "Zapisz"));
-    await settle(() => app.querySelector(".status")?.textContent === "Aplikacje Androida: zła nazwa pakietu com");
+    await settle(
+      () =>
+        app.querySelector(".status")?.textContent === "Aplikacje Androida: zła nazwa pakietu com",
+    );
     expect(app.querySelector(".status")!.classList.contains("error")).toBe(true);
     expect(store.listEntries("login")).toEqual([]);
   }, 30_000);
@@ -206,7 +237,14 @@ describe("entry form shell", () => {
       ...c,
       name: "Visa",
       custom: [{ label: "Bank", value: "PKO", hidden: false }],
-      fields: { ...c.fields, holder: "JAN KOWALSKI", number: "4111 1111 1111 1111", expiry: "2/2030", cvc: "123", pin: "0000" },
+      fields: {
+        ...c.fields,
+        holder: "JAN KOWALSKI",
+        number: "4111 1111 1111 1111",
+        expiry: "2/2030",
+        cvc: "123",
+        pin: "0000",
+      },
     };
     const { app, store } = await setupPopup([{ id: "c1", content: card }]);
     const { editView } = await import("../../src/views/edit.ts");

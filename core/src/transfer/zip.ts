@@ -17,7 +17,14 @@ const FLAG_ENCRYPTED = 0x0001;
 const FLAG_UTF8 = 0x0800;
 const VERSION = 20;
 
-export interface ZipEntry { path: string; method: 0 | 8; compressedSize: number; size: number; crc: number; offset: number }
+export interface ZipEntry {
+  path: string;
+  method: 0 | 8;
+  compressedSize: number;
+  size: number;
+  crc: number;
+  offset: number;
+}
 
 const CRC_TABLE = (() => {
   const table = new Uint32Array(256);
@@ -37,7 +44,13 @@ export function crc32(bytes: Uint8Array): number {
 
 /** True when the bytes start with a ZIP local file header ("PK\3\4"). */
 export function isZip(bytes: Uint8Array): boolean {
-  return bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04;
+  return (
+    bytes.length >= 4 &&
+    bytes[0] === 0x50 &&
+    bytes[1] === 0x4b &&
+    bytes[2] === 0x03 &&
+    bytes[3] === 0x04
+  );
 }
 
 function invalid(): never {
@@ -65,7 +78,13 @@ function concat(chunks: readonly Uint8Array[]): Uint8Array {
   return out;
 }
 
-interface Pending { name: Uint8Array; method: 0 | 8; crc: number; size: number; data: Uint8Array }
+interface Pending {
+  name: Uint8Array;
+  method: 0 | 8;
+  crc: number;
+  size: number;
+  data: Uint8Array;
+}
 
 /**
  * Builds an archive in memory. Each local header carries the sizes and CRC (no data descriptor); names are UTF-8
@@ -78,8 +97,12 @@ export class ZipWriter {
 
   /** The time is written from the date's UTC fields, so the same date gives the same bytes in every time zone. */
   constructor(date: Date = new Date()) {
-    this.time = (date.getUTCHours() << 11) | (date.getUTCMinutes() << 5) | (date.getUTCSeconds() >> 1);
-    this.date = (Math.max(0, date.getUTCFullYear() - 1980) << 9) | ((date.getUTCMonth() + 1) << 5) | date.getUTCDate();
+    this.time =
+      (date.getUTCHours() << 11) | (date.getUTCMinutes() << 5) | (date.getUTCSeconds() >> 1);
+    this.date =
+      (Math.max(0, date.getUTCFullYear() - 1980) << 9) |
+      ((date.getUTCMonth() + 1) << 5) |
+      date.getUTCDate();
   }
 
   /** Adds an entry after the ones added so far, or before all of them with `first`. */
@@ -87,7 +110,10 @@ export class ZipWriter {
     const deflated = bytes.length === 0 ? bytes : await deflateRaw(bytes);
     const stored = deflated.length >= bytes.length;
     const entry: Pending = {
-      name: new TextEncoder().encode(path), method: stored ? 0 : 8, crc: crc32(bytes), size: bytes.length,
+      name: new TextEncoder().encode(path),
+      method: stored ? 0 : 8,
+      crc: crc32(bytes),
+      size: bytes.length,
       // A copy, so the caller may zero its plaintext as soon as add resolves.
       data: stored ? bytes.slice() : deflated,
     };
@@ -124,7 +150,8 @@ export class ZipWriter {
       offset += local.length + e.data.length;
     }
     const centralSize = central.reduce((n, c) => n + c.length, 0);
-    if (offset >= 0xffffffff || centralSize >= 0xffffffff || offset + centralSize >= 0xffffffff) tooLarge();
+    if (offset >= 0xffffffff || centralSize >= 0xffffffff || offset + centralSize >= 0xffffffff)
+      tooLarge();
     const end = new Uint8Array(22);
     const ev = new DataView(end.buffer);
     ev.setUint32(0, END_SIG, true);
@@ -153,7 +180,8 @@ export class ZipWriter {
 function findEnd(bytes: Uint8Array, v: DataView): number {
   const last = bytes.length - 22;
   for (let at = last; at >= 0 && at >= last - 0xffff; at--) {
-    if (v.getUint32(at, true) === END_SIG && at + 22 + v.getUint16(at + 20, true) === bytes.length) return at;
+    if (v.getUint32(at, true) === END_SIG && at + 22 + v.getUint16(at + 20, true) === bytes.length)
+      return at;
   }
   return invalid();
 }
@@ -170,8 +198,14 @@ export function readZipIndex(bytes: Uint8Array): ZipEntry[] {
   const count = v.getUint16(end + 10, true);
   const size = v.getUint32(end + 12, true);
   const start = v.getUint32(end + 16, true);
-  if (v.getUint16(end + 4, true) !== 0 || v.getUint16(end + 6, true) !== 0 || v.getUint16(end + 8, true) !== count) invalid();
-  if (count === 0xffff || size === 0xffffffff || start === 0xffffffff || count > MAX_ZIP_ENTRIES) invalid();
+  if (
+    v.getUint16(end + 4, true) !== 0 ||
+    v.getUint16(end + 6, true) !== 0 ||
+    v.getUint16(end + 8, true) !== count
+  )
+    invalid();
+  if (count === 0xffff || size === 0xffffffff || start === 0xffffffff || count > MAX_ZIP_ENTRIES)
+    invalid();
   if (start + size > end) invalid();
   const names = new Set<string>();
   const decoder = new TextDecoder("utf-8", { fatal: true });
@@ -187,8 +221,14 @@ export function readZipIndex(bytes: Uint8Array): ZipEntry[] {
     const nameLength = v.getUint16(at + 28, true);
     const next = at + 46 + nameLength + v.getUint16(at + 30, true) + v.getUint16(at + 32, true);
     const offset = v.getUint32(at + 42, true);
-    if (flags & FLAG_ENCRYPTED || (method !== 0 && method !== 8) || v.getUint16(at + 34, true) !== 0) invalid();
-    if (compressedSize === 0xffffffff || entrySize === 0xffffffff || offset === 0xffffffff) invalid();
+    if (
+      flags & FLAG_ENCRYPTED ||
+      (method !== 0 && method !== 8) ||
+      v.getUint16(at + 34, true) !== 0
+    )
+      invalid();
+    if (compressedSize === 0xffffffff || entrySize === 0xffffffff || offset === 0xffffffff)
+      invalid();
     if (next > start + size || offset + 30 > start) invalid();
     let path: string;
     try {
@@ -208,10 +248,15 @@ export function readZipIndex(bytes: Uint8Array): ZipEntry[] {
  * The entry's bytes, checked against the central directory's size and CRC (ZIP_INVALID). Throws ZIP_ENTRY_TOO_LARGE
  * when the declared size or the inflated output passes `maxSize`; inflating stops as soon as it does.
  */
-export async function readZipEntry(bytes: Uint8Array, e: ZipEntry, maxSize: number): Promise<Uint8Array> {
+export async function readZipEntry(
+  bytes: Uint8Array,
+  e: ZipEntry,
+  maxSize: number,
+): Promise<Uint8Array> {
   const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   if (e.offset + 30 > bytes.length || v.getUint32(e.offset, true) !== LOCAL_SIG) invalid();
-  const dataStart = e.offset + 30 + v.getUint16(e.offset + 26, true) + v.getUint16(e.offset + 28, true);
+  const dataStart =
+    e.offset + 30 + v.getUint16(e.offset + 26, true) + v.getUint16(e.offset + 28, true);
   const dataEnd = dataStart + e.compressedSize;
   if (dataEnd > bytes.length) invalid();
   if (e.size > maxSize) throw new Error(ZIP_ENTRY_TOO_LARGE);
@@ -232,7 +277,9 @@ async function inflateRaw(data: Uint8Array, maxSize: number): Promise<Uint8Array
   const writer = stream.writable.getWriter();
   const writing = (async () => {
     for (let at = 0; at < data.length; at += INFLATE_SLICE) {
-      await writer.write(data.subarray(at, Math.min(data.length, at + INFLATE_SLICE)) as BufferSource);
+      await writer.write(
+        data.subarray(at, Math.min(data.length, at + INFLATE_SLICE)) as BufferSource,
+      );
     }
     await writer.close();
   })();

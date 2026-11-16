@@ -7,7 +7,13 @@ import {
   orphanFileIds,
   processP2pFile,
 } from "../../src/files/index.ts";
-import { generateKeyPair, NoiseKK, P2P_PROLOGUE, P2pHost, type PairedDevice } from "../../src/p2p/index.ts";
+import {
+  generateKeyPair,
+  NoiseKK,
+  P2P_PROLOGUE,
+  P2pHost,
+  type PairedDevice,
+} from "../../src/p2p/index.ts";
 import { decryptFrames, encryptFrames } from "../../src/p2p/frames.ts";
 import { P2P_FILE_PATH } from "../../src/p2p/transport.ts";
 import { MemorySyncStore } from "../../src/protocol.ts";
@@ -27,17 +33,24 @@ const put = (id: string, index: number, chunks: number, blob: string, epoch = EP
 describe("processP2pFile", () => {
   it("stores chunks and reports status", () => {
     const store = new MemoryFileStore();
-    expect(processP2pFile(store, EPOCH, put(ID, 0, 2, "AAAA"), 5)).toEqual({ status: 200, body: { have: 1 } });
-    expect(processP2pFile(store, EPOCH, { op: "status", epoch: EPOCH, ids: [ID, ID2] }, 5).body).toEqual({
+    expect(processP2pFile(store, EPOCH, put(ID, 0, 2, "AAAA"), 5)).toEqual({
+      status: 200,
+      body: { have: 1 },
+    });
+    expect(
+      processP2pFile(store, EPOCH, { op: "status", epoch: EPOCH, ids: [ID, ID2] }, 5).body,
+    ).toEqual({
       files: [
         { id: ID, chunks: 2, have: [0], complete: false },
         { id: ID2, chunks: 0, have: [], complete: false },
       ],
     });
     expect(processP2pFile(store, EPOCH, put(ID, 1, 2, "BBBB"), 6).body).toEqual({ have: 2 });
-    expect(processP2pFile(store, EPOCH, { op: "status", epoch: EPOCH, ids: [ID] }, 7).body).toEqual({
-      files: [{ id: ID, chunks: 2, have: [0, 1], complete: true }],
-    });
+    expect(processP2pFile(store, EPOCH, { op: "status", epoch: EPOCH, ids: [ID] }, 7).body).toEqual(
+      {
+        files: [{ id: ID, chunks: 2, have: [0, 1], complete: true }],
+      },
+    );
     expect(store.createdAt(ID)).toBe(5);
   });
 
@@ -51,7 +64,10 @@ describe("processP2pFile", () => {
   it("accepts an identical chunk, rejects a different one and a chunk count change", () => {
     const store = new MemoryFileStore();
     processP2pFile(store, EPOCH, put(ID, 0, 2, "AAAA"), 1);
-    expect(processP2pFile(store, EPOCH, put(ID, 0, 2, "AAAA"), 2)).toEqual({ status: 200, body: { have: 1 } });
+    expect(processP2pFile(store, EPOCH, put(ID, 0, 2, "AAAA"), 2)).toEqual({
+      status: 200,
+      body: { have: 1 },
+    });
     expect(processP2pFile(store, EPOCH, put(ID, 0, 2, "BBBB"), 2)).toEqual({
       status: 409,
       body: { error: "chunk differs" },
@@ -70,7 +86,10 @@ describe("processP2pFile", () => {
       status: 200,
       body: { chunks: 2, blob: "AAAA" },
     });
-    for (const [id, index] of [[ID, 1], [ID2, 0]] as const)
+    for (const [id, index] of [
+      [ID, 1],
+      [ID2, 0],
+    ] as const)
       expect(processP2pFile(store, EPOCH, { op: "get", epoch: EPOCH, id, index }, 2)).toEqual({
         status: 404,
         body: { error: "chunk not found" },
@@ -116,9 +135,16 @@ describe("processP2pFile", () => {
         status: 400,
         body: { error: "malformed file request" },
       });
-    expect(processP2pFile(store, EPOCH, put(ID, 0, 2, "A".repeat(MAX_FILE_BLOB_LENGTH)), 1).status).toBe(200);
     expect(
-      processP2pFile(store, EPOCH, { op: "status", epoch: EPOCH, ids: Array.from({ length: 500 }, () => ID) }, 1).status,
+      processP2pFile(store, EPOCH, put(ID, 0, 2, "A".repeat(MAX_FILE_BLOB_LENGTH)), 1).status,
+    ).toBe(200);
+    expect(
+      processP2pFile(
+        store,
+        EPOCH,
+        { op: "status", epoch: EPOCH, ids: Array.from({ length: 500 }, () => ID) },
+        1,
+      ).status,
     ).toBe(200);
   });
 
@@ -164,7 +190,9 @@ describe("P2pHost file path", () => {
   function setup(files: MemoryFileStore | undefined) {
     const hostKey = generateKeyPair();
     const clientKey = generateKeyPair();
-    const devices: PairedDevice[] = [{ deviceId: "d1", name: "d1", staticPublicKey: clientKey.publicKey }];
+    const devices: PairedDevice[] = [
+      { deviceId: "d1", name: "d1", staticPublicKey: clientKey.publicKey },
+    ];
     const host = new P2pHost({
       staticKey: hostKey,
       devices: () => devices,
@@ -174,7 +202,11 @@ describe("P2pHost file path", () => {
       files,
     });
     const handshake = async () => {
-      const noise = NoiseKK.initiator({ s: clientKey, rs: hostKey.publicKey, prologue: P2P_PROLOGUE });
+      const noise = NoiseKK.initiator({
+        s: clientKey,
+        rs: hostKey.publicKey,
+        prologue: P2P_PROLOGUE,
+      });
       const message = toBase64(await noise.writeMessage(new Uint8Array()));
       const res = await host.handle("/p2p/v2/handshake", { deviceId: "d1", message });
       const body = res.body as { session: string; message: string };
@@ -197,7 +229,9 @@ describe("P2pHost file path", () => {
       frames: await encryptFrames(a.ciphers.send, put(ID, 0, 1, "AAAA")),
     });
     expect(res.status).toBe(200);
-    expect(await decryptFrames(a.ciphers.recv, (res.body as { frames: string[] }).frames)).toEqual({ have: 1 });
+    expect(await decryptFrames(a.ciphers.recv, (res.body as { frames: string[] }).frames)).toEqual({
+      have: 1,
+    });
     const b = await s.handshake();
     const got = await s.host.handle(P2P_FILE_PATH, {
       session: b.session,
@@ -212,7 +246,12 @@ describe("P2pHost file path", () => {
   it("returns errors in plaintext and spends the session", async () => {
     const s = setup(new MemoryFileStore());
     const a = await s.handshake();
-    const frames = await encryptFrames(a.ciphers.send, { op: "get", epoch: EPOCH, id: ID, index: 0 });
+    const frames = await encryptFrames(a.ciphers.send, {
+      op: "get",
+      epoch: EPOCH,
+      id: ID,
+      index: 0,
+    });
     expect(await s.host.handle(P2P_FILE_PATH, { session: a.session, frames })).toEqual({
       status: 404,
       body: { error: "chunk not found" },
@@ -232,11 +271,17 @@ describe("P2pHost file path", () => {
 
   it("rejects an unknown session and an unpaired device", async () => {
     const s = setup(new MemoryFileStore());
-    const frames = await encryptFrames((await s.handshake()).ciphers.send, { op: "status", epoch: EPOCH, ids: [] });
+    const frames = await encryptFrames((await s.handshake()).ciphers.send, {
+      op: "status",
+      epoch: EPOCH,
+      ids: [],
+    });
     expect((await s.host.handle(P2P_FILE_PATH, { session: "nope", frames })).status).toBe(401);
     const a = await s.handshake();
     s.devices.length = 0;
     const f2 = await encryptFrames(a.ciphers.send, { op: "status", epoch: EPOCH, ids: [] });
-    expect((await s.host.handle(P2P_FILE_PATH, { session: a.session, frames: f2 })).status).toBe(403);
+    expect((await s.host.handle(P2P_FILE_PATH, { session: a.session, frames: f2 })).status).toBe(
+      403,
+    );
   });
 });

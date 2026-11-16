@@ -24,7 +24,9 @@ describe("secretField", () => {
     await click(byText(field.row, "Kopiuj"));
     await settle(() => messages.length > 0);
     expect(clipboard).toEqual(["tajne-123"]);
-    expect(messages).toEqual([expect.objectContaining({ target: "background", type: "password-copied" })]);
+    expect(messages).toEqual([
+      expect.objectContaining({ target: "background", type: "password-copied" }),
+    ]);
     expect(status.textContent).toBe("Skopiowano PIN. Schowek zostanie wyczyszczony za 1 min.");
   }, 30_000);
 
@@ -100,7 +102,12 @@ describe("listEditor", () => {
 describe("setupPopup", () => {
   it("gives the views a paired, unlocked store with the given entries", async () => {
     const login = p2p.emptyLogin("Bank");
-    const { app, store } = await setupPopup([{ id: "1", content: { ...login, fields: { ...login.fields, username: "jan", password: "x" } } }]);
+    const { app, store } = await setupPopup([
+      {
+        id: "1",
+        content: { ...login, fields: { ...login.fields, username: "jan", password: "x" } },
+      },
+    ]);
     expect(app.id).toBe("app");
     expect(store.listEntries("login").map((e) => e.data.name)).toEqual(["Bank"]);
     const state = await import("../../src/ui/state.ts");
@@ -111,7 +118,12 @@ describe("setupPopup", () => {
 describe("list view copy buttons", () => {
   it("keep their status texts", async () => {
     const login = p2p.emptyLogin("Bank");
-    const { app, clipboard, messages } = await setupPopup([{ id: "1", content: { ...login, fields: { ...login.fields, username: "jan", password: "x" } } }]);
+    const { app, clipboard, messages } = await setupPopup([
+      {
+        id: "1",
+        content: { ...login, fields: { ...login.fields, username: "jan", password: "x" } },
+      },
+    ]);
     const { listView } = await import("../../src/views/list.ts");
     listView();
     const status = app.querySelector(".status")!;

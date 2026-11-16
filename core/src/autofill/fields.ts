@@ -1,4 +1,11 @@
-import { AUTOCOMPLETE_TOKENS, KEYWORDS, NEW_PASSWORD_PATTERN, normalizeText, SKIP_PATTERN, type FieldKind } from "./keywords.ts";
+import {
+  AUTOCOMPLETE_TOKENS,
+  KEYWORDS,
+  NEW_PASSWORD_PATTERN,
+  normalizeText,
+  SKIP_PATTERN,
+  type FieldKind,
+} from "./keywords.ts";
 
 export interface FieldDescriptor {
   /** autocomplete attribute tokens, or Android autofillHints */
@@ -13,7 +20,15 @@ export interface FieldDescriptor {
   options?: { value: string; text: string }[];
 }
 
-const IGNORED_TYPES = new Set(["hidden", "search", "submit", "button", "checkbox", "radio", "file"]);
+const IGNORED_TYPES = new Set([
+  "hidden",
+  "search",
+  "submit",
+  "button",
+  "checkbox",
+  "radio",
+  "file",
+]);
 
 export function classifyField(field: FieldDescriptor): FieldKind | null {
   const type = field.type.toLowerCase();

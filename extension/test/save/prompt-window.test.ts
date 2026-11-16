@@ -1,13 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { PROMPT_BADGE, PROMPT_WIDTH, promptBounds, PromptWindows, type Bounds, type WindowApi } from "../../src/save/prompt-window.ts";
+import {
+  PROMPT_BADGE,
+  PROMPT_WIDTH,
+  promptBounds,
+  PromptWindows,
+  type Bounds,
+  type WindowApi,
+} from "../../src/save/prompt-window.ts";
 import type { KeyValueStore } from "../../src/storage.ts";
 
 function memory(): KeyValueStore {
   const m = new Map<string, unknown>();
   return {
     get: async <T>(k: string) => m.get(k) as T | undefined,
-    set: async (k, v) => { m.set(k, structuredClone(v)); },
-    remove: async (k) => { m.delete(k); },
+    set: async (k, v) => {
+      m.set(k, structuredClone(v));
+    },
+    remove: async (k) => {
+      m.delete(k);
+    },
   };
 }
 
@@ -26,8 +37,12 @@ function fake(o: { openFails?: boolean; navigateFails?: boolean } = {}) {
       if (o.navigateFails) throw new Error("gone");
       calls.push(`navigate ${id} ${url}`);
     },
-    close: async (id) => { calls.push(`close ${id}`); },
-    badge: async (tabId, text) => { badges.set(tabId, text); },
+    close: async (id) => {
+      calls.push(`close ${id}`);
+    },
+    badge: async (tabId, text) => {
+      badges.set(tabId, text);
+    },
   };
   const w = new PromptWindows(api, memory(), (id) => `prompt?id=${id}`);
   return { w, calls, badges };

@@ -42,7 +42,9 @@ export class IdbFileStore implements LocalFileStore {
     this.#db.catch(() => undefined);
   }
 
-  async #tx(mode: IDBTransactionMode): Promise<{ tx: IDBTransaction; files: IDBObjectStore; chunks: IDBObjectStore }> {
+  async #tx(
+    mode: IDBTransactionMode,
+  ): Promise<{ tx: IDBTransaction; files: IDBObjectStore; chunks: IDBObjectStore }> {
     const tx = (await this.#db).transaction(["files", "chunks"], mode);
     return { tx, files: tx.objectStore("files"), chunks: tx.objectStore("chunks") };
   }

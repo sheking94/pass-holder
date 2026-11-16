@@ -36,14 +36,20 @@ export const MAX_BLOB_BYTES_PER_ROUND = 524288;
 
 export const MAX_ENTRY_ID_LENGTH = 128;
 
-const isRevision = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v) && v >= 0;
+const isRevision = (v: unknown): v is number =>
+  typeof v === "number" && Number.isSafeInteger(v) && v >= 0;
 
 /**
  * Checks a decrypted sync request before anything is written. Returns the error text for a 400, or undefined.
  * Every change is checked against the store first, so a bad change never leaves earlier ones applied.
  */
-export function validateP2pSyncRequest(store: SyncStore, epoch: string, request: unknown): string | undefined {
-  if (typeof request !== "object" || request === null || Array.isArray(request)) return "malformed sync request";
+export function validateP2pSyncRequest(
+  store: SyncStore,
+  epoch: string,
+  request: unknown,
+): string | undefined {
+  if (typeof request !== "object" || request === null || Array.isArray(request))
+    return "malformed sync request";
   const r = request as Record<string, unknown>;
   if (typeof r.epoch !== "string" || !isRevision(r.sinceRevision) || !Array.isArray(r.changes))
     return "malformed sync request";
@@ -53,8 +59,12 @@ export function validateP2pSyncRequest(store: SyncStore, epoch: string, request:
     if (typeof c !== "object" || c === null || Array.isArray(c)) return "malformed change";
     const { id, baseRevision, deleted, blob } = c as Record<string, unknown>;
     if (
-      typeof id !== "string" || id.length < 1 || id.length > MAX_ENTRY_ID_LENGTH ||
-      !isRevision(baseRevision) || typeof deleted !== "boolean" || typeof blob !== "string"
+      typeof id !== "string" ||
+      id.length < 1 ||
+      id.length > MAX_ENTRY_ID_LENGTH ||
+      !isRevision(baseRevision) ||
+      typeof deleted !== "boolean" ||
+      typeof blob !== "string"
     )
       return "malformed change";
     if (blob.length > MAX_ENTRY_BLOB_LENGTH) return "blob too large";

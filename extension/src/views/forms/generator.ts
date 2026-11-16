@@ -24,9 +24,17 @@ async function loadGeneratorOptions(): Promise<GeneratorOptions> {
 }
 
 /** „Generator haseł”: „Generuj” hands a new password to onGenerated and remembers the settings. */
-export async function passwordGenerator(status: HTMLElement, onGenerated: (password: string) => void): Promise<HTMLElement> {
+export async function passwordGenerator(
+  status: HTMLElement,
+  onGenerated: (password: string) => void,
+): Promise<HTMLElement> {
   const options = await loadGeneratorOptions();
-  const length = h("input", { type: "range", min: MIN_LENGTH, max: MAX_LENGTH, value: options.length });
+  const length = h("input", {
+    type: "range",
+    min: MIN_LENGTH,
+    max: MAX_LENGTH,
+    value: options.length,
+  });
   const lengthLabel = h("span", { class: "mono" }, String(options.length));
   length.addEventListener("input", () => (lengthLabel.textContent = length.value));
   const groupBoxes = (Object.keys(CHARACTER_GROUPS) as CharacterGroup[]).map((group) => ({
@@ -39,7 +47,8 @@ export async function passwordGenerator(status: HTMLElement, onGenerated: (passw
       length: Number(length.value),
       groups: groupBoxes.filter((g) => g.box.checked).map((g) => g.group),
     };
-    if (chosen.groups.length === 0) return setStatus(status, "Wybierz co najmniej jedną grupę znaków", true);
+    if (chosen.groups.length === 0)
+      return setStatus(status, "Wybierz co najmniej jedną grupę znaków", true);
     onGenerated(generatePassword(chosen));
     await local.set(STORAGE_KEYS.generator, chosen);
     setStatus(status, "");

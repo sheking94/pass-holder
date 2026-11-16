@@ -5,7 +5,13 @@ import { mergeAttachments, type Attachment } from "../../src/files/index.ts";
 const KEY = toBase64(new Uint8Array(32).fill(7));
 const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const att = (n: number, name = `f${n}.txt`): Attachment => ({
-  id: uuid(n), name, mime: "text/plain", size: 10, chunks: 1, sha256: "a".repeat(64), key: KEY,
+  id: uuid(n),
+  name,
+  mime: "text/plain",
+  size: 10,
+  chunks: 1,
+  sha256: "a".repeat(64),
+  key: KEY,
 });
 const ids = (list: Attachment[]) => list.map((a) => a.id);
 

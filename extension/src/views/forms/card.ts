@@ -3,15 +3,31 @@ import type { p2p } from "@passholder/core";
 import { h, secretField } from "../../ui/dom.ts";
 import type { FieldsForm } from "./types.ts";
 
-function secret(value: string, what: string, status: HTMLElement, props: Partial<Record<string, unknown>> = {}) {
-  const input = h("input", { type: "password", class: "mono", value, autocomplete: "off", ...props });
+function secret(
+  value: string,
+  what: string,
+  status: HTMLElement,
+  props: Partial<Record<string, unknown>> = {},
+) {
+  const input = h("input", {
+    type: "password",
+    class: "mono",
+    value,
+    autocomplete: "off",
+    ...props,
+  });
   return { input, row: secretField(input, what, status).row };
 }
 
 export function cardForm(fields: p2p.CardFields, status: HTMLElement): FieldsForm<"card"> {
   const holder = h("input", { type: "text", value: fields.holder, autocomplete: "off" });
   const number = secret(fields.number, "numer karty", status, { inputMode: "numeric" });
-  const expiry = h("input", { type: "text", value: fields.expiry, placeholder: "MM/RR", autocomplete: "off" });
+  const expiry = h("input", {
+    type: "text",
+    value: fields.expiry,
+    placeholder: "MM/RR",
+    autocomplete: "off",
+  });
   const cvc = secret(fields.cvc, "CVC", status);
   const pin = secret(fields.pin, "PIN", status);
 

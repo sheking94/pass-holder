@@ -17,7 +17,8 @@ const BAD_NAME = "Nieprawidłowa nazwa pliku";
 const WAITING = "czeka na synchronizację";
 const CORRUPTED = "Plik jest uszkodzony";
 const NEW = "nowy – zapisz wpis";
-const DOWNLOAD_WARNING = "Pobierasz plik, który zostanie odszyfrowany i będzie dostępny na tym urządzeniu.";
+const DOWNLOAD_WARNING =
+  "Pobierasz plik, który zostanie odszyfrowany i będzie dostępny na tym urządzeniu.";
 const TAB_WARNING =
   "Formularz otworzy się w karcie. Niezapisane zmiany z tego okna przepadną – najpierw zapisz wpis, jeśli coś zmieniłeś.";
 
@@ -46,7 +47,10 @@ export async function attachmentsEditor(
   initial: files.Attachment[],
   status: HTMLElement,
   openInTab: () => void,
-): Promise<{ node: HTMLElement; read(): { attachments: files.Attachment[]; added: files.EncryptedFile[] } }> {
+): Promise<{
+  node: HTMLElement;
+  read(): { attachments: files.Attachment[]; added: files.EncryptedFile[] };
+}> {
   const items: Item[] = await Promise.all(initial.map(savedItem));
   const list = h("ul", { class: "attachments" });
   // Holds the one open question box (download warning or the W6 warning).
@@ -57,43 +61,64 @@ export async function attachmentsEditor(
   const download = (item: Item) => {
     const a = item.attachment;
     asking = item;
-    dialog.replaceChildren(confirmBox(DOWNLOAD_WARNING, "Pobierz", () =>
-      void busy(status, "Odszyfrowuję plik…", async () => {
-        const bytes = await store.readFile(a);
-        downloadFile(a.name, bytes as BlobPart, a.mime || "application/octet-stream");
-        // The Blob holds its own copy: the decrypted bytes are not kept anywhere else.
-        bytes.fill(0);
-        setStatus(status, "");
-      })));
+    dialog.replaceChildren(
+      confirmBox(
+        DOWNLOAD_WARNING,
+        "Pobierz",
+        () =>
+          void busy(status, "Odszyfrowuję plik…", async () => {
+            const bytes = await store.readFile(a);
+            downloadFile(a.name, bytes as BlobPart, a.mime || "application/octet-stream");
+            // The Blob holds its own copy: the decrypted bytes are not kept anywhere else.
+            bytes.fill(0);
+            setStatus(status, "");
+          }),
+      ),
+    );
   };
 
   const render = () =>
-    list.replaceChildren(...items.map((item) => {
-      const a = item.attachment;
-      return h(
-        "li",
-        { class: "attachment" },
-        h(
-          "span",
-          { class: "grow" },
-          h("span", { class: "name", title: a.name }, a.name),
-          h("span", { class: "user" }, formatSize(a.size), item.note && ` · ${item.note}`),
-        ),
-        h("button", { type: "button", title: `Pobierz: ${a.name}`, disabled: !item.ready, onclick: () => download(item) }, "Pobierz"),
-        h("button", {
-          type: "button",
-          title: `Usuń: ${a.name}`,
-          onclick: () => {
-            items.splice(items.indexOf(item), 1);
-            if (asking === item) {
-              asking = undefined;
-              dialog.replaceChildren();
-            }
-            render();
-          },
-        }, "Usuń"),
-      );
-    }));
+    list.replaceChildren(
+      ...items.map((item) => {
+        const a = item.attachment;
+        return h(
+          "li",
+          { class: "attachment" },
+          h(
+            "span",
+            { class: "grow" },
+            h("span", { class: "name", title: a.name }, a.name),
+            h("span", { class: "user" }, formatSize(a.size), item.note && ` · ${item.note}`),
+          ),
+          h(
+            "button",
+            {
+              type: "button",
+              title: `Pobierz: ${a.name}`,
+              disabled: !item.ready,
+              onclick: () => download(item),
+            },
+            "Pobierz",
+          ),
+          h(
+            "button",
+            {
+              type: "button",
+              title: `Usuń: ${a.name}`,
+              onclick: () => {
+                items.splice(items.indexOf(item), 1);
+                if (asking === item) {
+                  asking = undefined;
+                  dialog.replaceChildren();
+                }
+                render();
+              },
+            },
+            "Usuń",
+          ),
+        );
+      }),
+    );
 
   const add = (file: File) =>
     busy(status, "Szyfruję plik…", async () => {
@@ -124,16 +149,25 @@ export async function attachmentsEditor(
       input.value = "";
       if (file) void add(file);
     });
-    chooser = [input, h("button", { type: "button", class: "small", onclick: () => input.click() }, "+ Dodaj plik")];
+    chooser = [
+      input,
+      h("button", { type: "button", class: "small", onclick: () => input.click() }, "+ Dodaj plik"),
+    ];
   } else {
-    chooser = [h("button", {
-      type: "button",
-      class: "small",
-      onclick: () => {
-        asking = undefined;
-        dialog.replaceChildren(confirmBox(TAB_WARNING, "Otwórz w karcie", openInTab));
-      },
-    }, "+ Dodaj plik")];
+    chooser = [
+      h(
+        "button",
+        {
+          type: "button",
+          class: "small",
+          onclick: () => {
+            asking = undefined;
+            dialog.replaceChildren(confirmBox(TAB_WARNING, "Otwórz w karcie", openInTab));
+          },
+        },
+        "+ Dodaj plik",
+      ),
+    ];
   }
 
   render();

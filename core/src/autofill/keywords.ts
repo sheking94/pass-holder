@@ -1,8 +1,23 @@
 export type FieldKind =
-  | "username" | "password" | "newPassword"
-  | "ccName" | "ccNumber" | "ccExp" | "ccExpMonth" | "ccExpYear" | "ccCsc"
-  | "givenName" | "familyName" | "fullName" | "email" | "tel"
-  | "street" | "postalCode" | "city" | "country" | "bday";
+  | "username"
+  | "password"
+  | "newPassword"
+  | "ccName"
+  | "ccNumber"
+  | "ccExp"
+  | "ccExpMonth"
+  | "ccExpYear"
+  | "ccCsc"
+  | "givenName"
+  | "familyName"
+  | "fullName"
+  | "email"
+  | "tel"
+  | "street"
+  | "postalCode"
+  | "city"
+  | "country"
+  | "bday";
 
 /** Lowercase, strip diacritics (NFD), and map the stroked l (not decomposable) to plain l. */
 export function normalizeText(s: string): string {
@@ -67,12 +82,14 @@ export const NEW_PASSWORD_PATTERN = /powtorz|potwierdz|confirm|repeat|new.?pass|
  * Names that look like a known field but are not (checked before KEYWORDS, never for type=password):
  * address lines 2 and 3, and password hints.
  */
-export const SKIP_PATTERN = new RegExp([
-  "(address|adres)[\\s_()-]*(line|linia)?[\\s_()-]*[23]\\b",
-  "(^|[^a-z])(line|linia)[\\s_-]*[23]\\b",
-  "(pass\\w*|haslo)[\\s_-]*(hint|podpowiedz)",
-  "(hint|podpowiedz)[\\s_-]*(pass\\w*|haslo)",
-].join("|"));
+export const SKIP_PATTERN = new RegExp(
+  [
+    "(address|adres)[\\s_()-]*(line|linia)?[\\s_()-]*[23]\\b",
+    "(^|[^a-z])(line|linia)[\\s_-]*[23]\\b",
+    "(pass\\w*|haslo)[\\s_-]*(hint|podpowiedz)",
+    "(hint|podpowiedz)[\\s_-]*(pass\\w*|haslo)",
+  ].join("|"),
+);
 
 export const KEYWORDS: readonly { kind: FieldKind; pattern: RegExp }[] = [
   { kind: "newPassword", pattern: NEW_PASSWORD_PATTERN },
@@ -81,7 +98,10 @@ export const KEYWORDS: readonly { kind: FieldKind; pattern: RegExp }[] = [
   { kind: "ccExp", pattern: /cc.?exp|expir|valid.?thru|data.?waznosci|waznosc|mm.?[/-]?.?yy/ },
   { kind: "ccCsc", pattern: /cvc|cvv|csc|security.?code|kod.?zabezp/ },
   { kind: "ccNumber", pattern: /card.?n(um|o)|numer.?karty|cc.?num/ },
-  { kind: "ccName", pattern: /card.?holder|cc.?name|name.?on.?card|wlasciciel.?karty|imie.?i.?nazwisko.?na.?karcie/ },
+  {
+    kind: "ccName",
+    pattern: /card.?holder|cc.?name|name.?on.?card|wlasciciel.?karty|imie.?i.?nazwisko.?na.?karcie/,
+  },
   { kind: "email", pattern: /e-?mail/ },
   // password before username: login_password / user_password (show-password toggles) are passwords.
   { kind: "password", pattern: /passw|haslo/ },

@@ -5,7 +5,15 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["**/node_modules/", "**/dist/", ".claude/", "android/", "core/src/autofill/psl-rules.ts"] },
+  {
+    ignores: [
+      "**/node_modules/",
+      "**/dist/",
+      ".claude/",
+      "android/",
+      "core/src/autofill/psl-rules.ts",
+    ],
+  },
   js.configs.recommended,
   tseslint.configs.recommended,
   {

@@ -1,4 +1,15 @@
-import { assertKdfParamsAcceptable, deriveMasterKey, fromBase64, fromUtf8, newKdfParams, open, seal, toBase64, utf8, type KdfParams } from "@passholder/core";
+import {
+  assertKdfParamsAcceptable,
+  deriveMasterKey,
+  fromBase64,
+  fromUtf8,
+  newKdfParams,
+  open,
+  seal,
+  toBase64,
+  utf8,
+  type KdfParams,
+} from "@passholder/core";
 
 /**
  * Unlocking with a PIN. The PIN never replaces the master password: it only re-wraps the keys this
@@ -22,7 +33,8 @@ export const LONG_PIN_MAX_LENGTH = 64;
 export const MAX_PIN_ATTEMPTS = 5;
 
 /** Shown wherever a PIN of the wrong shape is typed. */
-export const INVALID_PIN = "PIN musi mieć od 4 do 6 cyfr albo co najmniej 8 znaków (nie same cyfry)";
+export const INVALID_PIN =
+  "PIN musi mieć od 4 do 6 cyfr albo co najmniej 8 znaków (nie same cyfry)";
 
 /** Shown when a short PIN is chosen together with "remember after restart". */
 export const INVALID_REMEMBERED_PIN =

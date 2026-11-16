@@ -3,12 +3,34 @@ import { p2p } from "@passholder/core";
 import { pairedBrowser } from "./fake-phone.ts";
 
 function card(name: string): p2p.EntryContentV3 {
-  return { type: "card", name, note: "n", custom: [{ label: "x", value: "y", hidden: true }], fields: { holder: "Jan", number: "4111 1111 1111 1111", expiry: "12/30", cvc: "123", pin: "1234" } };
+  return {
+    type: "card",
+    name,
+    note: "n",
+    custom: [{ label: "x", value: "y", hidden: true }],
+    fields: {
+      holder: "Jan",
+      number: "4111 1111 1111 1111",
+      expiry: "12/30",
+      cvc: "123",
+      pin: "1234",
+    },
+  };
 }
 function contact(name: string): p2p.EntryContentV3 {
   return {
-    type: "contact", name, note: "", custom: [],
-    fields: { firstName: "Anna", lastName: "Nowak", birthDate: "1990-01-02", phones: [{ label: "dom", value: "123" }], emails: [], addresses: [] },
+    type: "contact",
+    name,
+    note: "",
+    custom: [],
+    fields: {
+      firstName: "Anna",
+      lastName: "Nowak",
+      birthDate: "1990-01-02",
+      phones: [{ label: "dom", value: "123" }],
+      emails: [],
+      addresses: [],
+    },
   };
 }
 
@@ -59,7 +81,13 @@ describe("typed entry API", () => {
 
   it("rejects a too large entry and stores nothing", async () => {
     const { store } = await pairedBrowser();
-    const note: p2p.EntryContentV3 = { type: "note", name: "n", note: "a".repeat(70_000), custom: [], fields: {} };
+    const note: p2p.EntryContentV3 = {
+      type: "note",
+      name: "n",
+      note: "a".repeat(70_000),
+      custom: [],
+      fields: {},
+    };
     await expect(store.putEntry("big", note)).rejects.toThrow("Wpis jest za duży");
     expect(store.getEntry("big")).toBeUndefined();
     expect(store.pendingCount()).toBe(0);
@@ -68,7 +96,10 @@ describe("typed entry API", () => {
   it("keeps androidApps when the old upsert changes the password", async () => {
     const { store } = await pairedBrowser();
     const login = p2p.emptyLogin("bank");
-    await store.putEntry("l", { ...login, fields: { ...login.fields, password: "a", androidApps: ["pl.bank"] } });
+    await store.putEntry("l", {
+      ...login,
+      fields: { ...login.fields, password: "a", androidApps: ["pl.bank"] },
+    });
     await store.upsert("l", { name: "bank", username: "", password: "b" });
     const data = store.getEntry("l")!.data;
     expect(data.type === "login" && data.fields.androidApps).toEqual(["pl.bank"]);

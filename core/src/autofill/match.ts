@@ -25,7 +25,10 @@ function parse(raw: string): ParsedUrl | undefined {
     return undefined;
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") return undefined;
-  const host = url.hostname.toLowerCase().replace(/\.$/, "").replace(/^www\./, "");
+  const host = url.hostname
+    .toLowerCase()
+    .replace(/\.$/, "")
+    .replace(/^www\./, "");
   if (host === "") return undefined;
   return { scheme: url.protocol, host, port: url.port };
 }
@@ -42,7 +45,11 @@ export function matchUrl(pageUrl: string, savedUrl: string): MatchKind | undefin
 
   if (saved.scheme === "https:" && page.scheme !== "https:") return undefined;
   // URL drops default ports, so an empty page port is the scheme default.
-  if (saved.port === "" ? page.port !== "" : saved.port !== (page.port || (page.scheme === "https:" ? "443" : "80"))) {
+  if (
+    saved.port === ""
+      ? page.port !== ""
+      : saved.port !== (page.port || (page.scheme === "https:" ? "443" : "80"))
+  ) {
     return undefined;
   }
 
@@ -51,7 +58,9 @@ export function matchUrl(pageUrl: string, savedUrl: string): MatchKind | undefin
   if (!page.host.endsWith(`.${saved.host}`)) return undefined;
   // Only within one registrable domain (review V3-S2): a saved `github.io` or `co.uk` is not a parent of other owners.
   const site = registrableDomain(page.host);
-  return site !== undefined && (saved.host === site || saved.host.endsWith(`.${site}`)) ? "subdomain" : undefined;
+  return site !== undefined && (saved.host === site || saved.host.endsWith(`.${site}`))
+    ? "subdomain"
+    : undefined;
 }
 
 export interface MatchOptions {

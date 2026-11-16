@@ -29,14 +29,16 @@ export function chromeSaveWatchApi(): SaveWatchApi {
       return found.length > 0;
     },
     register: () =>
-      chrome.scripting.registerContentScripts([{
-        id: SAVE_SCRIPT_ID,
-        js: ["save-watch.js"],
-        matches: [...SAVE_ORIGINS],
-        allFrames: true,
-        runAt: "document_idle",
-        persistAcrossSessions: true,
-      }]),
+      chrome.scripting.registerContentScripts([
+        {
+          id: SAVE_SCRIPT_ID,
+          js: ["save-watch.js"],
+          matches: [...SAVE_ORIGINS],
+          allFrames: true,
+          runAt: "document_idle",
+          persistAcrossSessions: true,
+        },
+      ]),
     unregister: () => chrome.scripting.unregisterContentScripts({ ids: [SAVE_SCRIPT_ID] }),
   };
 }
@@ -54,13 +56,19 @@ export function syncSaveWatch(api: SaveWatchApi): Promise<void> {
 }
 
 async function syncOnce(api: SaveWatchApi): Promise<void> {
-  const [allowed, registered] = await Promise.all([api.contains(["https://*/*"]), api.registered()]);
+  const [allowed, registered] = await Promise.all([
+    api.contains(["https://*/*"]),
+    api.registered(),
+  ]);
   if (allowed && !registered) await api.register();
   else if (!allowed && registered) await api.unregister();
 }
 
 // Takes the permission back; plain-http access stays while a phone address is http (the extension needs it to sync).
-export async function disableSavePrompt(api: SaveWatchApi, phoneUrls: readonly string[]): Promise<void> {
+export async function disableSavePrompt(
+  api: SaveWatchApi,
+  phoneUrls: readonly string[],
+): Promise<void> {
   await api.remove(["https://*/*"]);
   if (!phoneUrls.some((u) => u.startsWith("http:"))) await api.remove(["http://*/*"]);
 }

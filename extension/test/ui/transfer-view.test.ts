@@ -10,7 +10,10 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const sample = readFileSync(resolve(__dirname, "../../../core/test-vectors/transfer/passholder.json"), "utf8");
+const sample = readFileSync(
+  resolve(__dirname, "../../../core/test-vectors/transfer/passholder.json"),
+  "utf8",
+);
 
 async function open() {
   const ctx = await setupPopup();
@@ -19,7 +22,9 @@ async function open() {
   const downloads: { name: string; type: string }[] = [];
   URL.createObjectURL = (blob: Blob | MediaSource) => `blob:${(blob as Blob).type}`;
   URL.revokeObjectURL = () => undefined;
-  vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+  vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+    this: HTMLAnchorElement,
+  ) {
     downloads.push({ name: this.download, type: this.href.replace(/^blob:/, "") });
   });
   const status = () => ctx.app.querySelector(".status")!;
@@ -39,19 +44,32 @@ function chooseFile(app: Element, data: string | Uint8Array | File, name = "x.js
   return file;
 }
 
-const PLAIN_WARNING = "Uwaga: plik nie jest zaszyfrowany. Każdy, kto go zobaczy (inny program, kopia zapasowa, synchronizacja folderu Pobrane z chmurą), pozna wszystkie Twoje hasła. Usuń go zaraz po użyciu.";
-const ZIP_WARNING = "Uwaga: archiwum nie jest zaszyfrowane. Zawiera hasła jawnym tekstem i odszyfrowane pliki. Każdy, kto je zobaczy (inny program, kopia zapasowa, folder w chmurze), pozna je wszystkie. Usuń je zaraz po użyciu.";
+const PLAIN_WARNING =
+  "Uwaga: plik nie jest zaszyfrowany. Każdy, kto go zobaczy (inny program, kopia zapasowa, synchronizacja folderu Pobrane z chmurą), pozna wszystkie Twoje hasła. Usuń go zaraz po użyciu.";
+const ZIP_WARNING =
+  "Uwaga: archiwum nie jest zaszyfrowane. Zawiera hasła jawnym tekstem i odszyfrowane pliki. Każdy, kto je zobaczy (inny program, kopia zapasowa, folder w chmurze), pozna je wszystkie. Usuń je zaraz po użyciu.";
 
 describe("transfer view", () => {
   it("shows the title, intro and four formats with PassHolder JSON selected", async () => {
     const { app } = await open();
     expect(app.querySelector("h1")!.textContent).toBe("Import i eksport");
-    expect(app.textContent).toContain("Import rozpoznaje format sam: PassHolder ZIP, PassHolder JSON, Bitwarden JSON (bez szyfrowania) albo NordPass CSV.");
+    expect(app.textContent).toContain(
+      "Import rozpoznaje format sam: PassHolder ZIP, PassHolder JSON, Bitwarden JSON (bez szyfrowania) albo NordPass CSV.",
+    );
     const radios = [...app.querySelectorAll<HTMLInputElement>("input[type=radio][name=format]")];
-    expect(radios.map((r) => r.value)).toEqual(["passholder", "passholder-zip", "bitwarden", "nordpass"]);
+    expect(radios.map((r) => r.value)).toEqual([
+      "passholder",
+      "passholder-zip",
+      "bitwarden",
+      "nordpass",
+    ]);
     expect(radios.map((r) => r.checked)).toEqual([true, false, false, false]);
-    expect(byText(app, "PassHolder ZIP (wpisy i pliki)").querySelector("input")!.value).toBe("passholder-zip");
-    expect(app.querySelector("input[type=file]")!.getAttribute("accept")).toBe(".json,.csv,.zip,application/json,text/csv,application/zip");
+    expect(byText(app, "PassHolder ZIP (wpisy i pliki)").querySelector("input")!.value).toBe(
+      "passholder-zip",
+    );
+    expect(app.querySelector("input[type=file]")!.getAttribute("accept")).toBe(
+      ".json,.csv,.zip,application/json,text/csv,application/zip",
+    );
   });
 
   it("warns under NordPass CSV not to open the file in a spreadsheet (formulas)", async () => {
@@ -59,7 +77,9 @@ describe("transfer view", () => {
     const { CSV_WARNING } = await import("../../src/views/transfer.ts");
     const hints = [...app.querySelectorAll(".hint")].map((p) => p.textContent);
     expect(hints.filter((t) => t === CSV_WARNING)).toHaveLength(1);
-    expect(byText(app, "NordPass CSV").nextElementSibling!.nextElementSibling!.textContent).toBe(CSV_WARNING);
+    expect(byText(app, "NordPass CSV").nextElementSibling!.nextElementSibling!.textContent).toBe(
+      CSV_WARNING,
+    );
   });
 
   it("refuses to export without the checkbox", async () => {
@@ -82,7 +102,9 @@ describe("transfer view", () => {
     await settle(() => status().textContent!.startsWith("Wyeksportowano"), 30_000);
     const day = new Date().toISOString().slice(0, 10);
     expect(downloads).toEqual([{ name: `${prefix}-${day}.${ext}`, type: mime }]);
-    expect(status().textContent).toBe("Wyeksportowano 0 wpisów. Usuń plik, gdy nie będzie już potrzebny.");
+    expect(status().textContent).toBe(
+      "Wyeksportowano 0 wpisów. Usuń plik, gdy nie będzie już potrzebny.",
+    );
   });
 
   it("refuses to export without the master password, or with a wrong one (V3-N6)", async () => {
@@ -92,9 +114,14 @@ describe("transfer view", () => {
     expect(status().textContent).toBe("Wpisz hasło główne, żeby pobrać plik.");
     confirmExport(app, "nie to hasło");
     await click(byText(app, "Pobierz plik"));
-    await settle(() => status().classList.contains("error") && status().textContent === "Złe hasło główne", 30_000);
+    await settle(
+      () => status().classList.contains("error") && status().textContent === "Złe hasło główne",
+      30_000,
+    );
     expect(downloads).toEqual([]);
-    expect((app.querySelector("input[autocomplete=current-password]") as HTMLInputElement).value).toBe("");
+    expect(
+      (app.querySelector("input[autocomplete=current-password]") as HTMLInputElement).value,
+    ).toBe("");
   }, 60_000);
 
   it("shows an export failure (locked vault) as an error and downloads nothing", async () => {
@@ -126,7 +153,9 @@ describe("transfer view", () => {
     ] as never);
     const { transferView } = await import("../../src/views/transfer.ts");
     transferView();
-    expect(ctx.app.textContent).toContain("2 pliki nie zostaną wyeksportowane w formatach JSON i CSV. Wybierz PassHolder ZIP, żeby je zabrać.");
+    expect(ctx.app.textContent).toContain(
+      "2 pliki nie zostaną wyeksportowane w formatach JSON i CSV. Wybierz PassHolder ZIP, żeby je zabrać.",
+    );
   });
 
   it("says nothing about files when the vault has no attachments", async () => {
@@ -146,7 +175,9 @@ describe("transfer view", () => {
     const { app } = await open();
     const warning = () => app.querySelector(".warning")!.textContent;
     expect(warning()).toBe(PLAIN_WARNING);
-    (byText(app, "PassHolder ZIP (wpisy i pliki)").querySelector("input") as HTMLInputElement).click();
+    (
+      byText(app, "PassHolder ZIP (wpisy i pliki)").querySelector("input") as HTMLInputElement
+    ).click();
     expect(warning()).toBe(ZIP_WARNING);
     expect(app.querySelectorAll(".warning")).toHaveLength(1);
     (byText(app, "NordPass CSV").querySelector("input") as HTMLInputElement).click();
@@ -155,20 +186,36 @@ describe("transfer view", () => {
 
   it("exports a PassHolder ZIP and says how many entries and files went out", async () => {
     const { app, store, downloads, status } = await open();
-    vi.spyOn(store, "exportArchive").mockResolvedValue({ parts: [new Uint8Array([1])], entries: 3, files: 2, missing: 0 });
-    (byText(app, "PassHolder ZIP (wpisy i pliki)").querySelector("input") as HTMLInputElement).click();
+    vi.spyOn(store, "exportArchive").mockResolvedValue({
+      parts: [new Uint8Array([1])],
+      entries: 3,
+      files: 2,
+      missing: 0,
+    });
+    (
+      byText(app, "PassHolder ZIP (wpisy i pliki)").querySelector("input") as HTMLInputElement
+    ).click();
     confirmExport(app);
     await click(byText(app, "Pobierz plik"));
     await settle(() => status().textContent!.startsWith("Wyeksportowano"), 30_000);
     const day = new Date().toISOString().slice(0, 10);
     expect(downloads).toEqual([{ name: `passholder-${day}.zip`, type: "application/zip" }]);
-    expect(status().textContent).toBe("Wyeksportowano 3 wpisy i 2 pliki. Usuń archiwum, gdy nie będzie już potrzebne.");
+    expect(status().textContent).toBe(
+      "Wyeksportowano 3 wpisy i 2 pliki. Usuń archiwum, gdy nie będzie już potrzebne.",
+    );
   });
 
   it("tells how many files the ZIP export left out", async () => {
     const { app, store, status } = await open();
-    vi.spyOn(store, "exportArchive").mockResolvedValue({ parts: [], entries: 1, files: 0, missing: 1 });
-    (byText(app, "PassHolder ZIP (wpisy i pliki)").querySelector("input") as HTMLInputElement).click();
+    vi.spyOn(store, "exportArchive").mockResolvedValue({
+      parts: [],
+      entries: 1,
+      files: 0,
+      missing: 1,
+    });
+    (
+      byText(app, "PassHolder ZIP (wpisy i pliki)").querySelector("input") as HTMLInputElement
+    ).click();
     confirmExport(app);
     await click(byText(app, "Pobierz plik"));
     await settle(() => status().textContent!.startsWith("Wyeksportowano"), 30_000);
@@ -189,7 +236,9 @@ describe("transfer view", () => {
     await click(byText(app, "Importuj"));
     await settle(() => status().textContent!.startsWith("Dodano"));
     expect(importArchive).toHaveBeenCalledTimes(1);
-    expect(status().textContent).toBe("Dodano 1 wpis (lokalnie, zsynchronizuj, żeby trafiły na telefon). Usuń plik z dysku, zawiera hasła jawnym tekstem.");
+    expect(status().textContent).toBe(
+      "Dodano 1 wpis (lokalnie, zsynchronizuj, żeby trafiły na telefon). Usuń plik z dysku, zawiera hasła jawnym tekstem.",
+    );
   });
 
   it("refuses a file over 256 MiB without reading it", async () => {
@@ -211,11 +260,22 @@ describe("transfer view", () => {
     const index = JSON.stringify({
       format: "passholder",
       version: 3,
-      entries: [{ type: "note", name: "N", note: "", custom: [], fields: {}, attachments: [{ name: "a.pdf", mime: "application/pdf", size: 5, path: "files/1-a.pdf" }] }],
+      entries: [
+        {
+          type: "note",
+          name: "N",
+          note: "",
+          custom: [],
+          fields: {},
+          attachments: [{ name: "a.pdf", mime: "application/pdf", size: 5, path: "files/1-a.pdf" }],
+        },
+      ],
     });
     chooseFile(app, index, "passholder.json");
     await click(byText(app, "Importuj"));
     await settle(() => status().textContent!.startsWith("Dodano"));
-    expect(status().textContent).toContain("Pominięto 1 plik: wpis 1, a.pdf: importuj całe archiwum ZIP.");
+    expect(status().textContent).toContain(
+      "Pominięto 1 plik: wpis 1, a.pdf: importuj całe archiwum ZIP.",
+    );
   });
 });

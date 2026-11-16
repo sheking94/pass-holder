@@ -29,27 +29,48 @@ export async function saveSettingsView(): Promise<void> {
     }
   });
 
-  const hosts = never.length === 0
-    ? h("p", { class: "hint" }, "Brak")
-    : h("ul", { class: "never" }, ...never.map((host) =>
-      h("li", { class: "row" },
-        h("span", { class: "grow mono" }, host),
-        h("button", {
-          type: "button",
-          class: "small",
-          onclick: async () => {
-            await removeFromNever(local, host);
-            await saveSettingsView();
-          },
-        }, "Usuń"))));
+  const hosts =
+    never.length === 0
+      ? h("p", { class: "hint" }, "Brak")
+      : h(
+          "ul",
+          { class: "never" },
+          ...never.map((host) =>
+            h(
+              "li",
+              { class: "row" },
+              h("span", { class: "grow mono" }, host),
+              h(
+                "button",
+                {
+                  type: "button",
+                  class: "small",
+                  onclick: async () => {
+                    await removeFromNever(local, host);
+                    await saveSettingsView();
+                  },
+                },
+                "Usuń",
+              ),
+            ),
+          ),
+        );
 
   show(
     h("h1", {}, "Zapis haseł"),
     h("label", { class: "check" }, toggle, "Pytaj o zapis haseł"),
-    h("p", { class: "hint" }, "Po zalogowaniu na stronie wtyczka zapyta, czy zapisać login i hasło w PassHolder. Wymaga zgody Chrome na dostęp do stron."),
+    h(
+      "p",
+      { class: "hint" },
+      "Po zalogowaniu na stronie wtyczka zapyta, czy zapisać login i hasło w PassHolder. Wymaga zgody Chrome na dostęp do stron.",
+    ),
     h("h2", {}, "Nigdy dla tych stron"),
     hosts,
-    h("div", { class: "actions" }, h("button", { type: "button", onclick: () => listView() }, "Wróć")),
+    h(
+      "div",
+      { class: "actions" },
+      h("button", { type: "button", onclick: () => listView() }, "Wróć"),
+    ),
     statusLine(),
   );
 }

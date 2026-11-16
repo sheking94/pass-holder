@@ -83,7 +83,10 @@ export class FakePhone {
     const phone = new FakePhone(new MemorySyncStore(), addresses);
     phone.kdf = TEST_KDF();
     phone.vaultKey = newVaultKey();
-    phone.wrappedVaultKey = await wrapVaultKey((await deriveKeys(password, phone.kdf)).encKey, phone.vaultKey);
+    phone.wrappedVaultKey = await wrapVaultKey(
+      (await deriveKeys(password, phone.kdf)).encKey,
+      phone.vaultKey,
+    );
     return phone;
   }
 
@@ -139,7 +142,9 @@ export class FakePhone {
     const names: string[] = [];
     for (const record of this.store.listSince(0)) {
       if (record.deleted) continue;
-      names.push(p2p.parseEntryData(await p2p.decryptPayloadV2(vaultKey, record.id, record.blob)).name);
+      names.push(
+        p2p.parseEntryData(await p2p.decryptPayloadV2(vaultKey, record.id, record.blob)).name,
+      );
     }
     return names.sort();
   }
@@ -151,7 +156,9 @@ export class FakePhone {
       case "/p2p/v1/ping":
         return { status: 200, body: { ok: true } };
       case "/p2p/v1/pair/hello":
-        return this.offer ? { status: 200, body: { sid: this.offer.sid, mode: this.offer.mode } } : fail(404, "no pairing");
+        return this.offer
+          ? { status: 200, body: { sid: this.offer.sid, mode: this.offer.mode } }
+          : fail(404, "no pairing");
       case "/p2p/v1/pair/start":
         return this.start(body);
       case "/p2p/v1/pair/finish":
@@ -169,14 +176,22 @@ export class FakePhone {
   }
 
   private start(body: Record<string, unknown>): Reply {
-    if (typeof body.sid !== "string" || typeof body.message !== "string") return fail(400, "malformed request");
+    if (typeof body.sid !== "string" || typeof body.message !== "string")
+      return fail(400, "malformed request");
     const offer = this.offer;
     if (!offer || body.sid !== offer.sid) return fail(404, "no pairing");
     // One attempt: the offer is gone for every later /start, whatever happens next.
     this.offer = undefined;
-    const cpace = p2p.cpaceStart(utf8(offer.code), p2p.PAIRING_CI, fromBase64(offer.sid), utf8(this.identity.deviceId));
+    const cpace = p2p.cpaceStart(
+      utf8(offer.code),
+      p2p.PAIRING_CI,
+      fromBase64(offer.sid),
+      utf8(this.identity.deviceId),
+    );
     try {
-      this.pairKey = p2p.pairingKey(p2p.cpaceFinish(cpace.state, fromBase64(body.message), "responder"));
+      this.pairKey = p2p.pairingKey(
+        p2p.cpaceFinish(cpace.state, fromBase64(body.message), "responder"),
+      );
     } catch {
       return fail(400, "pairing failed");
     }
@@ -186,17 +201,29 @@ export class FakePhone {
   }
 
   private async finish(body: Record<string, unknown>): Promise<Reply> {
-    if (typeof body.sid !== "string" || typeof body.identity !== "string") return fail(400, "malformed request");
+    if (typeof body.sid !== "string" || typeof body.identity !== "string")
+      return fail(400, "malformed request");
     const key = this.pairKey;
     const mode = this.pendingMode;
     this.pairKey = undefined;
     if (!key || body.sid !== this.pendingSid) return fail(404, "no pairing");
-    if ((mode === "restore") !== (typeof body.vaultInfo === "string")) return fail(400, "malformed request");
+    if ((mode === "restore") !== (typeof body.vaultInfo === "string"))
+      return fail(400, "malformed request");
     let identity: p2p.DeviceIdentity;
     try {
-      identity = (await p2p.openPairingMessage(key, "identity", "initiator", body.identity)) as p2p.DeviceIdentity;
+      identity = (await p2p.openPairingMessage(
+        key,
+        "identity",
+        "initiator",
+        body.identity,
+      )) as p2p.DeviceIdentity;
       if (typeof body.vaultInfo === "string") {
-        this.receivedVaultInfo = (await p2p.openPairingMessage(key, "vault-info", "initiator", body.vaultInfo)) as p2p.VaultInfo;
+        this.receivedVaultInfo = (await p2p.openPairingMessage(
+          key,
+          "vault-info",
+          "initiator",
+          body.vaultInfo,
+        )) as p2p.VaultInfo;
       }
     } catch {
       return fail(403, "pairing failed");
@@ -211,7 +238,12 @@ export class FakePhone {
       name: identity.name,
       staticPublicKey: fromBase64(identity.staticPublicKey),
     });
-    const info: p2p.VaultInfo = { epoch: this.epoch, kdf: this.kdf!, wrappedVaultKey: this.wrappedVaultKey!, addresses: this.addresses };
+    const info: p2p.VaultInfo = {
+      epoch: this.epoch,
+      kdf: this.kdf!,
+      wrappedVaultKey: this.wrappedVaultKey!,
+      addresses: this.addresses,
+    };
     return {
       status: 200,
       body: {
@@ -225,7 +257,10 @@ export class FakePhone {
   /** "Zmień hasło główne" on the phone: the same vault key under a new salt; every paired browser is forgotten. */
   async changePassword(newPassword: string): Promise<void> {
     this.kdf = TEST_KDF();
-    this.wrappedVaultKey = await wrapVaultKey((await deriveKeys(newPassword, this.kdf)).encKey, this.vaultKey!);
+    this.wrappedVaultKey = await wrapVaultKey(
+      (await deriveKeys(newPassword, this.kdf)).encKey,
+      this.vaultKey!,
+    );
     this.devices.splice(0, this.devices.length);
   }
 
@@ -244,7 +279,9 @@ export function networkFetch(network: Network): typeof fetch {
     const target = network.get(url.origin);
     if (target === "hang") {
       return new Promise<Response>((_, reject) => {
-        init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+        init?.signal?.addEventListener("abort", () =>
+          reject(new DOMException("aborted", "AbortError")),
+        );
       });
     }
     if (!target) throw new TypeError("fetch failed");
@@ -264,7 +301,13 @@ export function newBrowser(
   const session = memoryStore();
   const fetchFn = networkFetch(network);
   const makeClient = (url: string) => new PhoneClient(url, fetchFn);
-  return { local, session, makeClient, files: fileStore, store: new VaultStore(local, session, makeClient, now, canReach, fileStore) };
+  return {
+    local,
+    session,
+    makeClient,
+    files: fileStore,
+    store: new VaultStore(local, session, makeClient, now, canReach, fileStore),
+  };
 }
 
 /** The file phase of a sync that had no attachments to move. */
@@ -284,4 +327,8 @@ export async function pairedBrowser(o: { now?: () => number; phoneAddresses?: st
   return { phone, network, ...browser };
 }
 
-export const names = (store: VaultStore) => store.entries().map((e) => e.data.name).sort();
+export const names = (store: VaultStore) =>
+  store
+    .entries()
+    .map((e) => e.data.name)
+    .sort();

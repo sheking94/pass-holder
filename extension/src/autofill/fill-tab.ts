@@ -28,11 +28,16 @@ export function chromeTabApi(): TabApi {
   return {
     get: (tabId) => chrome.tabs.get(tabId),
     async inject(tabId, plan, expectedOrigin) {
-      await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, files: ["autofill-content.js"] });
+      await chrome.scripting.executeScript({
+        target: { tabId, allFrames: true },
+        files: ["autofill-content.js"],
+      });
       const results = await chrome.scripting.executeScript({
         target: { tabId, allFrames: true },
         func: (p: FillPlan, origin: string) =>
-          (globalThis as { passholderFill?: (p: FillPlan, origin: string) => { filled: number } }).passholderFill?.(p, origin).filled ?? 0,
+          (
+            globalThis as { passholderFill?: (p: FillPlan, origin: string) => { filled: number } }
+          ).passholderFill?.(p, origin).filled ?? 0,
         args: [plan, expectedOrigin],
       });
       return results.reduce((sum, r) => sum + (typeof r.result === "number" ? r.result : 0), 0);
@@ -53,7 +58,12 @@ function pageUrl(raw: string | undefined): URL | undefined {
 }
 
 /** Fills the tab with one entry, re-checking in here (not trusting the popup) that the page is allowed. */
-export async function fillTab(store: VaultStore, tabs: TabApi, tabId: number, entryId: string): Promise<FillResult> {
+export async function fillTab(
+  store: VaultStore,
+  tabs: TabApi,
+  tabId: number,
+  entryId: string,
+): Promise<FillResult> {
   if (!(await store.resume())) return fail(LOCKED);
   const entry = store.getEntry(entryId);
   const plan = entry && planFor(entry.data);
@@ -65,7 +75,8 @@ export async function fillTab(store: VaultStore, tabs: TabApi, tabId: number, en
 
   if (entry.data.type === "login") {
     const { urls } = entry.data.fields;
-    if (matchLogins(url.href, [entry], () => ({ name: entry.data.name, urls })).length === 0) return fail(NOT_MATCHING);
+    if (matchLogins(url.href, [entry], () => ({ name: entry.data.name, urls })).length === 0)
+      return fail(NOT_MATCHING);
   } else if (plan.kind === "card" && url.protocol !== "https:" && url.hostname !== "localhost") {
     return fail(CARD_NEEDS_HTTPS);
   }

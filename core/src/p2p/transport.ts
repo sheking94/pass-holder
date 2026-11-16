@@ -40,9 +40,13 @@ export async function callP2pHost(
   if (res.status !== 200) {
     const message = messages[res.status];
     if (message !== undefined) throw new Error(message);
-    throw new P2pHostError(res.status, b && typeof b.error === "string" ? b.error : "no error message");
+    throw new P2pHostError(
+      res.status,
+      b && typeof b.error === "string" ? b.error : "no error message",
+    );
   }
-  if (typeof b !== "object" || b === null) throw new Error("P2P host returned a malformed response");
+  if (typeof b !== "object" || b === null)
+    throw new Error("P2P host returned a malformed response");
   return b;
 }
 
@@ -63,7 +67,11 @@ export interface NoiseClientOptions {
  * One Noise handshake plus one encrypted request to `path`; returns the decrypted 200 payload. A non-200 answer
  * on `path` throws a P2pHostError; a 404 on the handshake throws PHONE_UPDATE_REQUIRED.
  */
-export async function noiseRequest(o: NoiseClientOptions, path: string, request: unknown): Promise<unknown> {
+export async function noiseRequest(
+  o: NoiseClientOptions,
+  path: string,
+  request: unknown,
+): Promise<unknown> {
   const base = o.baseUrl.replace(/\/+$/, "");
   const noise = NoiseKK.initiator({ s: o.staticKey, rs: o.peerPublicKey, prologue: P2P_PROLOGUE });
   const first = await noise.writeMessage(new Uint8Array());
@@ -78,7 +86,12 @@ export async function noiseRequest(o: NoiseClientOptions, path: string, request:
   const frames = await encryptFrames(send, request);
   const res = await callP2pHost(o.post, `${base}${path}`, { session: str(hs.session), frames });
   const incoming = res.frames;
-  if (!Array.isArray(incoming) || incoming.length < 1 || incoming.length > MAX_FRAMES || !incoming.every((f) => typeof f === "string"))
+  if (
+    !Array.isArray(incoming) ||
+    incoming.length < 1 ||
+    incoming.length > MAX_FRAMES ||
+    !incoming.every((f) => typeof f === "string")
+  )
     throw new Error("P2P host returned a malformed response");
   return decryptFrames(recv, incoming);
 }

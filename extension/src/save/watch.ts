@@ -36,7 +36,9 @@ const CLICKABLE = "button, input[type=submit], [role=button]";
 function userEvent(e: Event, doc: Document): boolean {
   if (e.isTrusted !== true) return false;
   if (e.type !== "submit") return true;
-  const activation = (doc.defaultView?.navigator as { userActivation?: { isActive: boolean } } | undefined)?.userActivation;
+  const activation = (
+    doc.defaultView?.navigator as { userActivation?: { isActive: boolean } } | undefined
+  )?.userActivation;
   return activation?.isActive === true;
 }
 
@@ -57,21 +59,36 @@ export function startSaveWatch(doc: Document, runtime: WatchRuntime): void {
   };
 
   // Capture phase on the document: runs before page handlers that may clear the fields.
-  doc.addEventListener("submit", (e) => {
-    if (trusted(e) && e.target instanceof Element) report(loginScope(e.target));
-  }, true);
-  doc.addEventListener("keydown", (e) => {
-    const t = e.target;
-    if (trusted(e) && e.key === "Enter" && t instanceof HTMLInputElement && t.type === "password") report(loginScope(t));
-  }, true);
-  doc.addEventListener("click", (e) => {
-    const t = e.target;
-    const button = trusted(e) && t instanceof Element ? t.closest(CLICKABLE) : null;
-    if (button) report(loginScope(button));
-  }, true);
+  doc.addEventListener(
+    "submit",
+    (e) => {
+      if (trusted(e) && e.target instanceof Element) report(loginScope(e.target));
+    },
+    true,
+  );
+  doc.addEventListener(
+    "keydown",
+    (e) => {
+      const t = e.target;
+      if (trusted(e) && e.key === "Enter" && t instanceof HTMLInputElement && t.type === "password")
+        report(loginScope(t));
+    },
+    true,
+  );
+  doc.addEventListener(
+    "click",
+    (e) => {
+      const t = e.target;
+      const button = trusted(e) && t instanceof Element ? t.closest(CLICKABLE) : null;
+      if (button) report(loginScope(button));
+    },
+    true,
+  );
 
   // A new page in the tab: the service worker shows the window again, or closes it after a failed login.
   if (role === "top") {
-    void runtime.send({ target: "background", type: "save-pending", emptyLoginForms: emptyLoginForms(doc) }).catch(() => {});
+    void runtime
+      .send({ target: "background", type: "save-pending", emptyLoginForms: emptyLoginForms(doc) })
+      .catch(() => {});
   }
 }
