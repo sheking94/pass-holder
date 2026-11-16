@@ -26,6 +26,7 @@ Androidzie.
 | [docs/FUNKCJE.md](docs/FUNKCJE.md) | Funkcje urządzeń: blokada, PIN, CSV, karta, odcisk palca, schowek |
 | [docs/TESTY.md](docs/TESTY.md) | Testy automatyczne i ręczne |
 | [docs/PRZEGLAD_BEZPIECZENSTWA_V3.md](docs/PRZEGLAD_BEZPIECZENSTWA_V3.md) | Przegląd bezpieczeństwa po V3: znaleziska, naprawy, grupy poprawek |
+| [docs/PRZEGLAD_CZYSTOSCI_KODU_V3.md](docs/PRZEGLAD_CZYSTOSCI_KODU_V3.md) | Przegląd czystości kodu po V3: znaleziska, grupy poprawek, decyzje |
 | [docs/archive/](docs/archive/README.md) | Dokumenty historyczne (wersja z Raspberry Pi, wykonane plany) |
 
 ## Testy i budowanie (TypeScript)
