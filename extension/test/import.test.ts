@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { p2p, transfer } from "@passholder/core";
 import { importSummary } from "../src/import-summary.ts";
-import { pairedBrowser } from "./fake-phone.ts";
+import { pairedBrowser, loginFields, newLogin } from "./fake-phone.ts";
 
 const read = (name: string) =>
   readFileSync(new URL(`../../core/test-vectors/transfer/${name}`, import.meta.url), "utf8");
@@ -34,7 +34,7 @@ describe("VaultStore.importContents", () => {
 
   it("skips duplicates within the file and in the vault (login), keeps one that differs", async () => {
     const { store, phone } = await pairedBrowser();
-    await store.upsert("1", { name: "Bank", username: "jan", password: "x" });
+    await store.putEntry("1", newLogin({ name: "Bank", username: "jan", password: "x" }));
     const login = (password: string): p2p.EntryContentV3 =>
       ({
         ...p2p.emptyLogin("Bank"),
@@ -45,8 +45,8 @@ describe("VaultStore.importContents", () => {
     expect(result).toEqual({ added: 2, duplicates: 2, tooLarge: 0 });
     expect(
       store
-        .entries()
-        .map((e) => e.data.password)
+        .listEntries("login")
+        .map((e) => loginFields(e)!.password)
         .sort(),
     ).toEqual(["nowe", "x", "y"]);
     expect(store.pendingCount()).toBe(3);
@@ -96,7 +96,7 @@ describe("VaultStore.importContents", () => {
 
   it("rolls back when saving fails: no entries added, none left pending, error rethrown", async () => {
     const { store, local } = await pairedBrowser();
-    await store.upsert("1", { name: "Bank", username: "jan", password: "x" });
+    await store.putEntry("1", newLogin({ name: "Bank", username: "jan", password: "x" }));
     const before = store.allContents();
     const { parsed } = transfer.parseImportFile(read("passholder.json"));
     const realSet = local.set.bind(local);
@@ -114,7 +114,7 @@ describe("VaultStore.importContents", () => {
 
   it("a file that fails to parse leaves the vault unchanged", async () => {
     const { store } = await pairedBrowser();
-    await store.upsert("1", { name: "Bank", username: "jan", password: "x" });
+    await store.putEntry("1", newLogin({ name: "Bank", username: "jan", password: "x" }));
     expect(() => transfer.parseImportFile("{zły")).toThrow("Plik JSON jest uszkodzony");
     expect(() => transfer.parseImportFile("foo,bar\n1,2")).toThrow(/NordPass/);
     expect(store.allContents().length).toBe(1);
@@ -123,8 +123,8 @@ describe("VaultStore.importContents", () => {
 
   it("allContents has live entries only, without v and hlc", async () => {
     const { store } = await pairedBrowser();
-    await store.upsert("1", { name: "A", username: "u", password: "p" });
-    await store.upsert("2", { name: "B", username: "u", password: "p" });
+    await store.putEntry("1", newLogin({ name: "A", username: "u", password: "p" }));
+    await store.putEntry("2", newLogin({ name: "B", username: "u", password: "p" }));
     await store.delete("2");
     const all = store.allContents();
     expect(all.map((c) => c.name)).toEqual(["A"]);

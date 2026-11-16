@@ -100,11 +100,6 @@ describe("master password", () => {
     expect(await unwrapVaultKey(right.encKey, wrapped)).toEqual(vaultKey);
   });
 
-  it("enc and auth keys differ (the split is part of the data format)", async () => {
-    const keys = await deriveKeys("x", params);
-    expect(toHex(keys.encKey)).not.toBe(toHex(keys.authKey));
-  });
-
   it("a different salt gives different keys for the same password", async () => {
     const a = await deriveKeys("same", params);
     const b = await deriveKeys("same", { ...params, salt: toBase64(new Uint8Array(16).fill(2)) });

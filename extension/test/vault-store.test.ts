@@ -19,6 +19,8 @@ import {
   PHONE_URL,
   SECOND_URL,
   type Network,
+  newLogin,
+  loginFields,
 } from "./fake-phone.ts";
 
 afterEach(() => {
@@ -118,7 +120,7 @@ describe("pairing a new browser with the phone", () => {
 describe("pairing an existing browser again (repair)", () => {
   it("refuses a phone with another vault and keeps the account and entries (Review Focus 2)", async () => {
     const { store, local } = await pairedBrowser();
-    await store.upsert("1", { name: "moje.pl", username: "u", password: "p" });
+    await store.putEntry("1", newLogin({ name: "moje.pl", username: "u", password: "p" }));
     await store.sync();
 
     // Another phone with its own vault, even under the same master password.
@@ -156,9 +158,9 @@ describe("pairing an existing browser again (repair)", () => {
   it("restores a phone from the extension: the phone gets every entry from baseRevision 0", async () => {
     const { store, local, session } = await pairedBrowser();
     for (const name of ["a.pl", "b.pl", "c.pl"])
-      await store.upsert(name, { name, username: "u", password: "p" });
+      await store.putEntry(name, newLogin({ name, username: "u", password: "p" }));
     await store.sync(); // the entries now have revisions on the old phone
-    expect(store.entry("a.pl")!.dirty).toBe(false);
+    expect(store.getEntry("a.pl")!.dirty).toBe(false);
     const vaultKey = fromBase64(
       (await session.get<{ vaultKey: string }>(STORAGE_KEYS.sessionKeys))!.vaultKey,
     );
@@ -237,7 +239,7 @@ describe("after the master password changed on the phone", () => {
 
   it("pairs again with the new password, keeps entries and PIN off, and the old password stops working", async () => {
     const { store, phone, local, session, makeClient } = await pairedBrowser();
-    await store.upsert("1", { name: "moje.pl", username: "u", password: "p" });
+    await store.putEntry("1", newLogin({ name: "moje.pl", username: "u", password: "p" }));
     await store.sync();
     await store.enablePin("2468", false);
     expect(await store.pinStatus()).toBeDefined();
@@ -298,7 +300,7 @@ describe("syncing with the phone", () => {
     network.set(silent, "hang");
     network.set(SECOND_URL, phone);
     await store.setPhoneUrls([silent, SECOND_URL]);
-    await store.upsert("1", { name: "bank.pl", username: "u", password: "p" });
+    await store.putEntry("1", newLogin({ name: "bank.pl", username: "u", password: "p" }));
 
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     let done = false;
@@ -329,7 +331,7 @@ describe("syncing with the phone", () => {
   it("takes the phone's entries and sends its own both ways", async () => {
     const { store, phone } = await pairedBrowser();
     await phone.addEntry("p1", "z-telefonu.pl");
-    await store.upsert("e1", { name: "z-wtyczki.pl", username: "u", password: "p" });
+    await store.putEntry("e1", newLogin({ name: "z-wtyczki.pl", username: "u", password: "p" }));
     await store.sync();
     expect(names(store)).toEqual(["z-telefonu.pl", "z-wtyczki.pl"]);
     expect(await phone.entryNames()).toEqual(["z-telefonu.pl", "z-wtyczki.pl"]);
@@ -403,7 +405,10 @@ describe("syncing with the phone", () => {
 describe("VaultStore offline", () => {
   it("unlocks from disk without the phone and keeps entries encrypted at rest", async () => {
     const browser = await pairedBrowser();
-    await browser.store.upsert("1", { name: "poczta.pl", username: "jan", password: "hunter2" });
+    await browser.store.putEntry(
+      "1",
+      newLogin({ name: "poczta.pl", username: "jan", password: "hunter2" }),
+    );
     browser.network.clear(); // the phone is out of reach
 
     await browser.store.lock();
@@ -469,8 +474,8 @@ describe("VaultStore offline", () => {
 
   it("refuses to disconnect with unsynced changes unless forced, and names how many (I1)", async () => {
     const browser = await pairedBrowser();
-    await browser.store.upsert("1", { name: "a.pl", username: "u", password: "p" });
-    await browser.store.upsert("2", { name: "b.pl", username: "u", password: "p" });
+    await browser.store.putEntry("1", newLogin({ name: "a.pl", username: "u", password: "p" }));
+    await browser.store.putEntry("2", newLogin({ name: "b.pl", username: "u", password: "p" }));
     const error = await browser.store.disconnect().catch((e: unknown) => e);
     expect(error).toBeInstanceOf(UnsyncedChanges);
     expect((error as UnsyncedChanges).count).toBe(2);
@@ -487,7 +492,7 @@ describe("VaultStore offline", () => {
 
   it("disconnects while locked without counting (the UI warns that changes may be lost)", async () => {
     const browser = await pairedBrowser();
-    await browser.store.upsert("1", { name: "a.pl", username: "u", password: "p" });
+    await browser.store.putEntry("1", newLogin({ name: "a.pl", username: "u", password: "p" }));
     await browser.store.lock();
     await browser.store.disconnect();
     expect(await browser.store.getAccount()).toBeUndefined();
@@ -569,11 +574,11 @@ describe("v3 entries", () => {
 
     await store.unlock(PASSWORD);
     expect(store.pendingCount()).toBe(1);
-    expect(store.entry("1")).toMatchObject({ dirty: true });
-    expect(store.entry("2")).toBeUndefined();
+    expect(store.getEntry("1")).toMatchObject({ dirty: true });
+    expect(store.getEntry("2")).toBeUndefined();
     const tombstone = (store as unknown as { vault: p2p.LocalVaultV2 }).vault.entries.get("2");
     expect(tombstone).toMatchObject({ revision: 3, deleted: true, dirty: false });
-    expect(store.entries().map((e) => e.data)).toEqual([
+    expect(store.listEntries("login").map(loginFields)).toEqual([
       { name: "stary.pl", username: "jan", password: "tajne" },
     ]);
     await store.sync();
@@ -597,9 +602,12 @@ describe("v3 entries", () => {
       },
     });
     await store.sync();
-    expect(store.entry("1")!.data).toEqual({ name: "bank.pl", username: "jan", password: "old" });
+    const stored = store.getEntry("1")!.data;
+    if (stored.type !== "login") throw new Error("expected a login");
+    expect(stored.fields.password).toBe("old");
 
-    await store.upsert("1", { name: "bank.pl", username: "jan", password: "new" });
+    // As the login form saves: the stored content with one field changed.
+    await store.putEntry("1", { ...stored, fields: { ...stored.fields, password: "new" } });
     await store.sync();
     const data = await phone.entryData("1");
     expect(data).toMatchObject({
@@ -617,7 +625,7 @@ describe("v3 entries", () => {
     });
   }, 30_000);
 
-  it("other types are hidden", async () => {
+  it("the login list leaves out other types", async () => {
     const { store, phone } = await pairedBrowser();
     const base = { name: "Jan", note: "", custom: [] };
     await phone.addContent("c", {
@@ -635,7 +643,7 @@ describe("v3 entries", () => {
     await phone.addEntry("l", "login.pl");
     await store.sync();
     expect(names(store)).toEqual(["login.pl"]);
-    expect(store.entry("c")).toBeUndefined();
+    expect(store.getEntry("c")!.data.type).toBe("contact");
     expect(store.pendingCount()).toBe(0);
   }, 30_000);
 
@@ -644,9 +652,9 @@ describe("v3 entries", () => {
     await phone.addContent("n", { ...p2p.emptyLogin("x"), type: "note", fields: {} });
     await store.sync();
     expect(store.pendingCount()).toBe(0);
-    await expect(store.upsert("n", { name: "a", username: "b", password: "c" })).rejects.toThrow(
-      "Ten wpis nie jest loginem",
-    );
+    await expect(
+      store.putEntry("n", newLogin({ name: "a", username: "b", password: "c" })),
+    ).rejects.toThrow("Ten wpis ma inny typ");
     expect(store.pendingCount()).toBe(0);
     await store.sync();
     expect((await phone.entryData("n")).type).toBe("note");
@@ -655,14 +663,14 @@ describe("v3 entries", () => {
   it("too large entry", async () => {
     const { store } = await pairedBrowser();
     const big = { name: "big", username: "u", password: "x".repeat(70_000) };
-    await expect(store.upsert("1", big)).rejects.toThrow("Wpis jest za duży");
-    expect(store.entries()).toEqual([]);
+    await expect(store.putEntry("1", newLogin(big))).rejects.toThrow("Wpis jest za duży");
+    expect(store.listEntries("login")).toEqual([]);
     expect(
       await store.importContents(
         [{ ...p2p.emptyLogin("big"), note: "x".repeat(70_000) } as p2p.EntryContentV3],
         () => "2",
       ),
     ).toEqual({ added: 0, duplicates: 0, tooLarge: 1 });
-    expect(store.entries()).toEqual([]);
+    expect(store.listEntries("login")).toEqual([]);
   }, 30_000);
 });

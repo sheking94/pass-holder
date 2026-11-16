@@ -33,10 +33,10 @@ Formatowanie i lint dla całego repo: `.editorconfig`, `.prettierrc.json`, `.pre
 | Plik | Co robi |
 |---|---|
 | `src/encoding.ts` | UTF-8 z normalizacją NFC, Base64, hex, `randomBytes` |
-| `src/kdf.ts` | Argon2id, HKDF (`encKey`; `authKey` liczony, ale nieużywany, bo podział klucza to część formatu), granice `MIN_KDF` / `MAX_KDF` |
+| `src/kdf.ts` | Argon2id, HKDF (`encKey`), granice `MIN_KDF` / `MAX_KDF` |
 | `src/cipher.ts` | AES-256-GCM w formacie `0x01 ‖ nonce ‖ szyfrogram ‖ tag` (`seal`, `open`) |
 | `src/vault.ts` | klucz sejfu: `newVaultKey`, `wrapVaultKey`, `unwrapVaultKey` |
-| `src/protocol.ts` | `RemoteRecord`, `SyncStore`, `processSync`, `MemorySyncStore`: logika hosta (numery `revision`, `baseRevision`) |
+| `src/protocol.ts` | `RemoteRecord`, `SyncStore`, `processSync`, `MemorySyncStore`: logika hosta (numery `revision`, `baseRevision`); `processSync` i `MemorySyncStore` to host wzorcowy (tylko testy i skrypty) |
 | `src/generator.ts` | generator haseł (CSPRNG z odrzucaniem, Fisher-Yates) |
 | `src/p2p/hlc.ts` | hybrydowy zegar logiczny (HLC) do rozstrzygania konfliktów |
 | `src/p2p/entry.ts` | wpis v3 i nagrobek: typy, ścisły parser (`parseEntryData`, `parseTombstoneData`, `parseEntryContent` dla wpisu bez `v` i `hlc`), zwarta serializacja w stałej kolejności kluczy, limit `MAX_ENTRY_BLOB_LENGTH`, odczyt v2 jako login; AAD `passholder/v2/entry/<id>` |
@@ -44,7 +44,7 @@ Formatowanie i lint dla całego repo: `.editorconfig`, `.prettierrc.json`, `.pre
 | `src/p2p/host-sync.ts` | strona hosta: `validateP2pSyncRequest` (też blob ≤ 64 KiB), `processP2pSync` (na `processSync`), epoka, stronicowanie po 500 zmianach i `MAX_BLOB_BYTES_PER_ROUND` (tnie też `conflicts`) |
 | `src/p2p/cpace.ts`, `pairing.ts`, `pair-client.ts` | parowanie: CPace, kod 8 cyfr, zapieczętowane tożsamości, klient HTTP parowania wtyczki |
 | `src/p2p/noise.ts`, `frames.ts`, `transport.ts` | Noise KK, ramki, `noiseTransport` i `callP2pHost`; ścieżki `/p2p/v2/*`, 404 → „Phone app needs an update” |
-| `src/p2p/host.ts` | `P2pHost`: referencyjny host (uzgadnianie, sesje, sync); `/p2p/v1/handshake` i `/p2p/v1/sync` → 410 |
+| `src/p2p/host.ts` | `P2pHost`: referencyjny host (uzgadnianie, sesje, sync; tylko testy i skrypty, telefon ma host w Kotlinie); `/p2p/v1/handshake` i `/p2p/v1/sync` → 410 |
 | `src/files/attachment.ts` | opis załącznika: stałe (`MAX_FILE_SIZE`, `FILE_CHUNK_SIZE`, limity 20/40), `parseAttachments`, `attachmentJson` (stała kolejność kluczy), `canAddAttachment`, wzorzec UUID v4 |
 | `src/files/chunks.ts` | szyfrowanie pliku kawałkami: `encryptFile`, `decryptChunk`, `decryptFile` (rozmiar, `sha256`), AAD `passholder/v3/file/<id>/<i>/<n>` |
 | `src/files/host-files.ts` | strona hosta `/p2p/v2/file`: `FileStore`, `MemoryFileStore`, `processP2pFile` (`status`/`put`/`get`, 400/404/409/507), `orphanFileIds` (24 h) |
@@ -111,15 +111,15 @@ Dwa moduły Gradle: `core` (czysta JVM, testy bez emulatora) i `app` (Jetpack Co
 
 | Plik (`android/core/.../core/`) | Co robi |
 |---|---|
-| `Encoding.kt`, `Kdf.kt`, `Cipher.kt`, `Vault.kt`, `Generator.kt` | odpowiedniki plików z `core/src/` (`Vault.kt`: `Credentials`, `VaultCrypto` do klucza sejfu) |
+| `Encoding.kt`, `Kdf.kt`, `Cipher.kt`, `Vault.kt`, `Generator.kt` | odpowiedniki plików z `core/src/` (`Vault.kt`: `VaultCrypto` do klucza sejfu) |
 | `Protocol.kt` | `RemoteRecord`, `ChangeRequest`, `Accepted`, `SyncResponse` |
 | `p2p/Hlc.kt`, `EntryV3.kt`, `P2pJson.kt` | HLC, wpis v3 (`EntryV3`: modele, ścisły parser, serializacja w kolejności z TypeScriptu, limit, odczyt v2 jako login), wspólny `Json` |
 | `p2p/Ristretto255.kt`, `Cpace.kt`, `Pairing.kt`, `PairingHost.kt` | parowanie: grupa, CPace, kod i zapieczętowane wiadomości, strona telefonu po HTTP |
-| `p2p/Noise.kt`, `Frames.kt`, `P2pHost.kt`, `HostSync.kt` | Noise KK, ramki, host synchronizacji (`/p2p/v2/*`, stare ścieżki → 410), `processSync`, budżet bajtów rundy i `MemorySyncStore` |
+| `p2p/Noise.kt`, `Frames.kt`, `P2pHost.kt`, `HostSync.kt` | Noise KK, ramki, host synchronizacji (`/p2p/v2/*`, stare ścieżki → 410), `processSync` i budżet bajtów rundy |
 | `p2p/SyncHttpServer.kt`, `PhoneRouter.kt`, `LocalAddresses.kt` | serwer HTTP na porcie 8787 z limitami, trasy `/p2p/v1/pair/*`, `/p2p/v1/ping` i `/p2p/v2/*` (stare `/p2p/v1/handshake` i `/sync` przekazane do hosta, który odpowiada 410), adresy telefonu |
 | `transfer/Common.kt`, `Csv.kt`, `JsonText.kt`, `PassHolderJson.kt`, `BitwardenJson.kt`, `NordPassCsv.kt`, `Transfer.kt`, `PassHolderZip.kt`, `ArchiveReader.kt` | pakiet `core.transfer`: ZIP bez `ZipInputStream` (własny strumieniowy parser: CRC i pomijanie pliku bez rozpakowania, budżet rozpakowywania; zapis `java.util.zip`); port `core/src/transfer/` (`contentKey`, `sortForExport` na `RuleBasedCollator` zgodnym z wektorem `sort.json`, CSV RFC 4180, serializacja JSON jak `JSON.stringify`, `Transfer.parseImportFile` i `exportFile`); te same pliki przykładowe z `core/test-vectors/transfer/` |
-| `files/Attachment.kt`, `FileChunks.kt`, `FileHost.kt`, `DiskFileStore.kt` | pliki w sejfie (port `core/src/files/` bez klienta): opis załącznika (stałe, ścisły parser), szyfrowanie kawałkami, host `/p2p/v2/file` (`FileHost`, `FileStore`, `MemoryFileStore`) i magazyn na dysku telefonu (`p2p/files/`, zapis przez `.tmp` i `rename`); `P2pHost` dostaje magazyn jako ostatni parametr |
-| `p2p/PhoneVaultStore.kt`, `PhoneVault.kt`, `FileSyncStore.kt`, `HostState.kt` | sejf telefonu: tworzenie, odtwarzanie, blokada (15 min), wpisy (`entries()` zwraca wszystkie typy, `upsert` zachowuje resztę pól i odmawia nadpisania wpisu innego typu), urządzenia; pliki `records.jsonl` i `host.json`; import: `importContents` (duplikaty po `contentKey`, jeden zapis) i `allContents`; pliki: `addFile`, `isFileComplete`, `readFile`, `pruneFiles`, `discardFiles` (kasuje podane pliki poza używanymi przez żywy wpis), kasowanie przy zmianie epoki |
+| `files/Attachment.kt`, `FileChunks.kt`, `FileHost.kt`, `DiskFileStore.kt` | pliki w sejfie (port `core/src/files/` bez klienta): opis załącznika (stałe, ścisły parser), szyfrowanie kawałkami, host `/p2p/v2/file` (`FileHost`, `FileStore`) i magazyn na dysku telefonu (`p2p/files/`, zapis przez `.tmp` i `rename`); `P2pHost` dostaje magazyn jako ostatni parametr |
+| `p2p/PhoneVaultStore.kt`, `PhoneVault.kt`, `FileSyncStore.kt`, `HostState.kt` | sejf telefonu: tworzenie, odtwarzanie, blokada (15 min), wpisy (`entries()` zwraca wszystkie typy, `upsertContent` zapisuje dokładnie podaną treść i odmawia nadpisania wpisu innego typu), urządzenia; pliki `records.jsonl` i `host.json`; import: `importContents` (duplikaty po `contentKey`, jeden zapis) i `allContents`; pliki: `addFile`, `isFileComplete`, `readFile`, `pruneFiles`, `discardFiles` (kasuje podane pliki poza używanymi przez żywy wpis), kasowanie przy zmianie epoki |
 | `autofill/Keywords.kt`, `Fields.kt`, `Values.kt`, `Match.kt`, `PublicSuffix.kt` | port `core/src/autofill/` 1:1 (`classifyField`, `planFor`, `fillValue`, `matchUrl` z własnym parserem adresu, `matchLogins`, `publicSuffix`/`registrableDomain` z zasobu `public_suffix_rules.txt`) na tych samych wektorach `{match,psl,fields,values}.json`; `matchApp`: przeglądarka zweryfikowana podpisem (`AppRequest.browserVerified`; 13 pakietów z certyfikatami SHA-256 w `TRUSTED_BROWSERS`) z `webDomain` → `matchLogins` (brak `webScheme` = `http`, `pageScheme`), inaczej loginy z pakietem w `androidApps`, po nazwie, tylko przy `appVerified`; `verifyApp` ustawia obie flagi z certyfikatów pakietu i zapamiętanych (V3-S3); wektory `test-vectors/autofill/app.json` (tylko Kotlin) |
 | `autofill/Planner.kt` | `planRequest`: grupa formularza (login, karta, kontakt) i jej pola; `planDatasets`: pasujące wpisy → wartości pól (`ListIndex` dla list), bez wpisów bez wartości, najwyżej 10; generyczne po typie id pola, więc testowane bez Androida |
 | `save/SaveUrl.kt`, `Decide.kt`, `SaveFields.kt` | port `core/src/save/` (`saveUrl`, `saveName`, `decideSave`; te same wektory `core/test-vectors/save/{url,decide}.json`) plus `saveFields` (pole hasła: pierwsze nowe hasło, inaczej hasło; login: pole loginu, inaczej ostatni e-mail przed hasłem), `saveTargetFor` (zaufana przeglądarka z domeną → `Web`, inaczej `App` z pakietem), `newLogin`, `withPassword` |

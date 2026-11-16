@@ -1,10 +1,10 @@
 package io.github.sheking94.passholder.core.p2p
 
-import io.github.sheking94.passholder.core.Credentials
 import io.github.sheking94.passholder.core.Encoding
 import io.github.sheking94.passholder.core.files.Attachment
 import io.github.sheking94.passholder.core.files.FileChunks
 import io.github.sheking94.passholder.core.files.MemoryFileStore
+import io.github.sheking94.passholder.core.login
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -120,7 +120,7 @@ class P2pInteropTest {
         assumeTrue(System.getenv("PASSHOLDER_INTEROP_TEST") == "1", "set PASSHOLDER_INTEROP_TEST=1")
         val addresses = listOf("192.168.1.5:8787")
         val f = start(addresses)
-        f.vault.upsert("phone-1", Credentials("z-telefonu.pl", "jan", "z Kotlina"))
+        f.vault.upsertContent("phone-1", login("z-telefonu.pl", "jan", "z Kotlina"))
 
         val out = runClient(f, 1, "z-przegladarki", tmp)
 
@@ -136,7 +136,7 @@ class P2pInteropTest {
     fun `large vaults sync in pages both ways`(@TempDir tmp: File) {
         assumeTrue(System.getenv("PASSHOLDER_INTEROP_TEST") == "1", "set PASSHOLDER_INTEROP_TEST=1")
         val f = start(emptyList())
-        for (i in 0 until 1300) f.vault.upsert("phone-$i", Credentials("z-telefonu-$i", "u", "p".repeat(100)))
+        for (i in 0 until 1300) f.vault.upsertContent("phone-$i", login("z-telefonu-$i", "u", "p".repeat(100)))
 
         val out = runClient(f, 1200, "z-przegladarki", tmp)
 

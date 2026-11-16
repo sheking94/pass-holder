@@ -1,3 +1,8 @@
+/**
+ * Reference host, for tests and scripts only: the phone runs the Kotlin host
+ * (android/core/.../p2p/HostSync.kt). Client code (p2p/sync.ts, files/client.ts) imports only the types and
+ * limits from here. The extension's tests drive this host as a fake phone.
+ */
 import { MAX_ENTRY_BLOB_LENGTH } from "./entry.ts";
 import { processSync, type ChangeRequest, type RemoteRecord, type SyncStore } from "../protocol.ts";
 

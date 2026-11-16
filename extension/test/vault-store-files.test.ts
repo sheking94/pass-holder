@@ -235,17 +235,6 @@ describe("attachments in the vault store", () => {
     await a.files.putChunk(ef.attachment.id, 0, ef.attachment.chunks, other.blobs[0]!);
     await expect(a.store.readFile(ef.attachment)).rejects.toThrow("Plik jest uszkodzony");
   });
-
-  it("upsert keeps attachments", async () => {
-    const a = await pairedBrowser();
-    const ef = await encrypt();
-    await a.store.putEntry("e1", loginWith("bank.pl", [ef.attachment]), [ef]);
-
-    await a.store.upsert("e1", { name: "bank.pl", username: "nowy", password: "inne" });
-    expect(a.store.getEntry("e1")!.data.attachments).toEqual([ef.attachment]);
-    expect(await a.store.fileStatus(ef.attachment)).toBe("ready");
-  });
-
   it("putEntry after auto-lock stores no file", async () => {
     let clock = Date.now();
     const a = await pairedBrowser({ now: () => clock });

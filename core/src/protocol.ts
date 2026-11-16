@@ -1,4 +1,8 @@
-/** Records and revisions the phone (the host) keeps. The P2P protocol in p2p/host-sync.ts builds on them. */
+/**
+ * Records and revisions the phone (the host) keeps. The P2P protocol in p2p/host-sync.ts builds on them.
+ * processSync() and MemorySyncStore are the reference host, for tests and scripts only (see p2p/host.ts);
+ * the phone runs the Kotlin version in android/core/.../p2p/HostSync.kt.
+ */
 
 export interface RemoteRecord {
   id: string;

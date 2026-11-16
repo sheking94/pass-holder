@@ -1,3 +1,8 @@
+/**
+ * Reference host, for tests and scripts only: the phone runs the Kotlin host
+ * (android/core/.../files/FileHost.kt). Client code (p2p/sync.ts, files/client.ts) imports only the types and
+ * limits from here. The extension's tests drive this host as a fake phone.
+ */
 import { MAX_FILE_BLOB_LENGTH, MAX_FILE_CHUNKS, UUID_V4 } from "./attachment.ts";
 
 /** Files nobody references and older than this are removed by the host's cleanup. */

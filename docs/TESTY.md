@@ -118,7 +118,7 @@ wartości losowe mają stałe klucze i nonce.
 
 | Plik | Co sprawdza |
 |---|---|
-| `vault-store.test.ts`, `pairing-flow.test.ts` | wpisy v3 (zachowanie pól loginu, odmowa nadpisania innego typu, stary sejf v2, za duży wpis), parowanie, złe hasło po zamknięciu okienka, wygaśnięcie po 10 min, inny sejf, odtwarzanie, kilka adresów, brak zgody Chrome, odłączanie (też `saveNever` i `saveCandidates`, V3-I3), KDF konta poza granicami (V3-I5); po zmianie hasła na telefonie: ponowne parowanie nowym hasłem (PIN wyłączony, stare hasło nie otwiera), stare hasło → komunikat o nowym haśle, nowe hasło innego sejfu → „To inny sejf”, telefon w `restore` nie traci kodu przy złym haśle |
+| `vault-store.test.ts`, `pairing-flow.test.ts` | wpisy v3 (edycja zachowuje pola loginu, odmowa nadpisania innego typu, stary sejf v2, za duży wpis), parowanie, złe hasło po zamknięciu okienka, wygaśnięcie po 10 min, inny sejf, odtwarzanie, kilka adresów, brak zgody Chrome, odłączanie (też `saveNever` i `saveCandidates`, V3-I3), KDF konta poza granicami (V3-I5); po zmianie hasła na telefonie: ponowne parowanie nowym hasłem (PIN wyłączony, stare hasło nie otwiera), stare hasło → komunikat o nowym haśle, nowe hasło innego sejfu → „To inny sejf”, telefon w `restore` nie traci kodu przy złym haśle |
 | `edge-cases.test.ts` | konflikty HLC, zablokowany sejf, słaby KDF od telefonu, telefon, który zapomniał przeglądarkę, limit 30 s |
 | `phone-urls.test.ts` | adresy IPv4, zera wiodące, porty, `pickPhone` (4 s) |
 | `pin.test.ts` | PIN: kształt, 5 prób, licznik przed sprawdzeniem, długi PIN na dysku, równoległe próby z kilku kart (V3-N4), KDF z pamięci poza granicami (V3-I5) |
@@ -131,7 +131,7 @@ wartości losowe mają stałe klucze i nonce.
 | `ui/edit-login.test.ts`, `ui/edit-types.test.ts` | formularze: zapis każdego pola, puste elementy list pomijane, data w innym zapisie oraz e-mail i adres strony ze spacjami zapisują się bez zmian, etykiety pól list, błędy formatów, zachowanie pól spoza formularza, ukryte własne pole, generator, „Usuń” |
 | `ui/transfer-view.test.ts` | ekran „Import i eksport”: formaty, zgoda i hasło główne przed eksportem (V3-N6), import pliku, błąd uszkodzonego pliku, zdanie o pominiętych plikach (`2 pliki nie zostaną wyeksportowane…`, brak go bez załączników) |
 | `idb-file-store.test.ts` | `IdbFileStore` (`fake-indexeddb`): plik kompletny, kawałki jeden po drugim, zmiana liczby kawałków, prefiks `id`, baza, która się nie otwiera (błąd w każdej operacji), dane między instancjami, synchronizacja z hostem telefonu (wysłanie i pobranie w drugim magazynie) |
-| `vault-store-files.test.ts` | pliki w `VaultStore`: plik z przeglądarki A pobrany w B, wznowienie po przerwanej fazie (jeden kawałek), sprzątanie po usunięciu załącznika i wpisu (plik niewysłany zostaje), błąd zapisu wpisu i sprzątania, stary telefon (404), zapamiętany plik uszkodzony, `upsert` zachowuje załączniki, `putEntry` po blokadzie (także w trakcie zapisu plików), faza plików przerwana blokadą (bez kolejnych żądań i sprzątania), `disconnect` czyści pliki (i działa przy błędzie IndexedDB) |
+| `vault-store-files.test.ts` | pliki w `VaultStore`: plik z przeglądarki A pobrany w B, wznowienie po przerwanej fazie (jeden kawałek), sprzątanie po usunięciu załącznika i wpisu (plik niewysłany zostaje), błąd zapisu wpisu i sprzątania, stary telefon (404), zapamiętany plik uszkodzony, `putEntry` po blokadzie (także w trakcie zapisu plików), faza plików przerwana blokadą (bez kolejnych żądań i sprzątania), `disconnect` czyści pliki (i działa przy błędzie IndexedDB) |
 | `ui/attachments.test.ts` | sekcja „Załączniki” w karcie i okienku: nowy plik dopiero po „Zapisz” (treść jawna wyczyszczona po szyfrowaniu), limity (21. plik, 10 MB, pusty, zła nazwa), ten sam plik dwa razy, „Usuń” (zamyka pytanie o pobranie), ostrzeżenie przed „Pobierz”, „czeka na synchronizację” (także gdy stanu nie da się odczytać) i „Plik jest uszkodzony”, ostrzeżenie „Otwórz w karcie”, tryb `edit` (cel jednorazowy, id innego typu daje nowy wpis), „📎 N” na liście, „Pliki: 0 z t” … „Pliki: t z t” i komunikat po synchronizacji |
 | `format-size.test.ts` | `formatSize`: KB poniżej 1 MiB (co najmniej 1), MB z przecinkiem od 1 MiB |
 | `autofill/fill-page.test.ts` | `fillPage` w happy-dom: logowanie, dwuetapowe, rejestracja (`new-password` pomijane), karta z jednym i dwoma polami ważności, `<select>`, adres; pola ukryte, wyłączone i tylko do odczytu, pusta wartość, obcy origin i inny origin niż sprawdzony; kontakt i karta (V3-S4): `clip-path`, tylko formularz pola z kursorem albo pierwszego pasującego pola, pole 3 px, przykryte, ucięte przez `overflow`, etykieta nad polem nie przeszkadza |
@@ -141,7 +141,9 @@ wartości losowe mają stałe klucze i nonce.
 | `ui/widgets.test.ts` | `secretField` (zakrycie, „Pokaż”, kopia czyści schowek, puste pole się nie kopiuje), `listEditor`, przyciski kopiowania w wierszu |
 
 Testy wtyczki używają `extension/test/fake-phone.ts`: parowanie z prawdziwym CPace przed referencyjnym
-`P2pHost`. Testy widoków (`// @vitest-environment happy-dom`) biorą z `extension/test/ui/fake-chrome.ts`
+`P2pHost`. Stamtąd też `newLogin` (nowy login z nazwą, loginem i hasłem dla `putEntry`) i `loginFields`
+(nazwa, login i hasło zapisanego loginu); od G2 testy używają tylko aktualnego API (`listEntries`, `getEntry`,
+`putEntry`). Testy widoków (`// @vitest-environment happy-dom`) biorą z `extension/test/ui/fake-chrome.ts`
 atrapę `chrome.*` i sparowany sejf (`setupPopup`, `teardownPopup`, `click`, `settle`, `byText`).
 
 ### Zrzuty ekranów wtyczki
@@ -186,6 +188,11 @@ Playwright z Chromium nie jest zależnością repozytorium: w kontenerze w chmur
 | `save/SaveVectorsTest`, `SaveFieldsTest`, `SaveTargetTest` | port pytania o zapis: te same wektory `{url,decide}.json` co TypeScript (adres, nazwa, decyzja; `www.` → brak adresu), wybór pól hasła i loginu (nowe hasło przed hasłem, e-mail przed hasłem), cel zapisu (domena tylko od zaufanej przeglądarki, inaczej pakiet), `newLogin`, `withPassword` (stare hasło w „Poprzednie hasło”, tylko ostatnie) |
 | `autofill/SaveStateTest`, `SaveLoginTest`, `PendingSaveTest` (app) | `clientState` (id pól i aplikacja; tylko poniżej API 33, `SaveInfo` testuje `FillLogicTest`), zapis nowego loginu pod domeną i pod pakietem, obca aplikacja z domeną banku, zmiana hasła, to samo hasło → nic, zablokowany → `LOCKED`, komunikaty; kandydat tylko w pamięci, 2 minuty, jeden naraz |
 | `AutofillSaveTest` (app) | ekran zapisu: odblokowanie tylko przy zablokowanym sejfie, podgląd i edycja (nazwa, login, hasło), zmiana hasła, „Ten login jest już zapisany”, sejf zablokowany w trakcie podglądu (ten sam szkic), wyjście w tło (D1; z opóźnieniem: powrót kasuje termin, zamknięcie go nie przesuwa), Anuluj, Wstecz, kandydat starszy niż 2 minuty z komunikatem, brak kandydata, stary termin 60 s; `SaveReviewTest` (logika: `SaveReview`, `saveReviewed`, ponowny odczyt sejfu), `SaveReviewScreenTest` (zrzut podglądu); `FillLogicTest` (`SaveInfo` dla każdego ekranu z polem hasła: kontakt, samo „nowe hasło”, odpowiedź z samym `SaveInfo` bez pasujących wpisów, brak `SaveInfo` przy wyłączonym przełączniku), `SettingsScreenTests` (przełącznik „Pytaj o zapis haseł”), `BackgroundSaveRefreshTest` (powrót do aplikacji odświeża listę po zapisie w tle) |
+
+Pomocniki testów Kotlina są w `android/core/src/testFixtures/` (widzą je testy `core` i `app`): `MemorySyncStore`,
+`MemoryFileStore` (magazyny w pamięci), `Credentials` i `login(nazwa, login, hasło)` (nowy login dla
+`upsertContent`), `PhoneEntry.credentials` (nazwa, login i hasło wpisu), `TestP2pClient`. Od G2 nie ma ich w kodzie
+produkcyjnym.
 
 Zrzuty ekranów telefonu (`android/app/screenshots/`, przepisywane przy każdym przebiegu testów): 30 Ustawienia,
 31-35 zakładki (Loginy, Karty, Kontakty, Notatki, Dokumenty), 36 formularz loginu, 37 pole ukryte pokazane,

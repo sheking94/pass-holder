@@ -14,9 +14,7 @@
         "parallelism": 4
       },
       "masterKey": "8f11f6fb967c35b8a5e4d8a09c3a6e7ca765c9ae923ee1a3b5682ef5564fd066",
-      "encKey": "32608d5f85a2765c8fb9d1d78156eaeca02441e800e060955be0b2a23d590231",
-      "authKey": "48ebdd9ef11d8e51b71884a5a957afb0e73fb2b98cdc9dfa6bd30861fe0c1dc6",
-      "authHash": "5c39873ed80b5c660c4194c5c14213aa1bd9921a66b1bab46bd73d187f629476"
+      "encKey": "32608d5f85a2765c8fb9d1d78156eaeca02441e800e060955be0b2a23d590231"
     },
     {
       "description": "Minimum parameters; password given in NFD, must be normalized to NFC (same key as \"Zażółć\")",
@@ -30,9 +28,7 @@
         "parallelism": 1
       },
       "masterKey": "ab3f0bea14b994d0cb892ef722a6c1b02f88941dbfc1d48936dd6c89abefe875",
-      "encKey": "fcc58314ce1aafb8c8ee419f067c8c9f0441ff20f8ef77f7c7c3628d686174a1",
-      "authKey": "54d0b110ada1b6b895e3997f528dc217faa862f824428b525adc6006dc5d551f",
-      "authHash": "cd59b42d09572741bfe86cf9efc71778146dd0ccd353a20654a3118a5c85a6e8"
+      "encKey": "fcc58314ce1aafb8c8ee419f067c8c9f0441ff20f8ef77f7c7c3628d686174a1"
     }
   ],
   "seal": [

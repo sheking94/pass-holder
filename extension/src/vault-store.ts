@@ -180,20 +180,6 @@ async function talkToPhone<T>(call: () => Promise<T>): Promise<T> {
  */
 export const ACTIVITY_WRITE_INTERVAL_MS = 30_000;
 
-/** What the user sees of a login, e.g. one row of an imported file. */
-export interface EntryFields {
-  name: string;
-  username: string;
-  password: string;
-}
-
-/** A login that is not deleted, as the popup lists and edits it. Other entry types are not shown here. */
-export interface LiveEntry {
-  id: string;
-  dirty: boolean;
-  data: EntryFields;
-}
-
 /** What importContents() did: how many entries were added, were already in the vault, or were too large. */
 export interface ImportResult {
   added: number;
@@ -209,7 +195,6 @@ export interface StoredEntry {
 }
 
 const OTHER_TYPE = "Ten wpis ma inny typ";
-const NOT_A_LOGIN = "Ten wpis nie jest loginem";
 const ENTRY_TOO_LARGE_PL = "Wpis jest za duży";
 const FILE_CORRUPTED_PL = "Plik jest uszkodzony";
 const FILE_NOT_READY = "Plik czeka na synchronizację";
@@ -243,38 +228,6 @@ async function pruneUnusedFiles(
   } catch {
     // Leftover files only take space; they are removed on a later prune or on disconnect.
   }
-}
-
-function loginView(e: p2p.LocalEntryV2): LiveEntry | undefined {
-  if (e.deleted || e.data.type !== "login") return undefined;
-  return {
-    id: e.id,
-    dirty: e.dirty,
-    data: { name: e.data.name, username: e.data.fields.username, password: e.data.fields.password },
-  };
-}
-
-/**
- * The content to store for a login edited here: the existing login's other fields stay, a new one starts empty.
- * An id that holds a live entry of another type is refused: it would be overwritten by a login.
- */
-function loginContent(
-  existing: p2p.LocalEntryV2 | undefined,
-  fields: EntryFields,
-): p2p.EntryContentV3 {
-  let base: p2p.EntryContentV3 & { type: "login" } = p2p.emptyLogin();
-  if (existing && !existing.deleted) {
-    if (existing.data.type !== "login") throw new Error(NOT_A_LOGIN);
-    base = existing.data;
-  }
-  return {
-    type: "login",
-    name: fields.name,
-    note: base.note,
-    custom: base.custom,
-    fields: { ...base.fields, username: fields.username, password: fields.password },
-    ...(base.attachments && base.attachments.length > 0 ? { attachments: base.attachments } : {}),
-  };
 }
 
 function storedView(e: p2p.LocalEntryV2): StoredEntry | undefined {
@@ -421,16 +374,6 @@ export class VaultStore {
     return this.vault !== undefined && !this.expired();
   }
 
-  /** Logins that are not deleted, in no particular order. */
-  entries(): LiveEntry[] {
-    return [...this.requireVault().entries.values()].flatMap((e) => loginView(e) ?? []);
-  }
-
-  entry(id: string): LiveEntry | undefined {
-    const entry = this.requireVault().entries.get(id);
-    return entry && loginView(entry);
-  }
-
   /** Live entries of one type, sorted by name (Polish collation). */
   listEntries(type: p2p.EntryType): StoredEntry[] {
     return [...this.requireVault().entries.values()]
@@ -520,19 +463,6 @@ export class VaultStore {
   /** Number of local changes the phone has not seen yet. */
   pendingCount(): number {
     return [...this.requireVault().entries.values()].filter((e) => e.dirty).length;
-  }
-
-  /** Saves a login; an existing one keeps what this screen does not edit (note, totp, urls, androidApps, custom). */
-  async upsert(id: string, fields: EntryFields): Promise<void> {
-    const vault = this.requireVault();
-    const existing = vault.entries.get(id);
-    const content = loginContent(existing, fields);
-    try {
-      p2p.upsertEntryV2(vault, this.requireClock(), id, content);
-    } catch (error) {
-      throw tooLargeInPolish(error);
-    }
-    await this.save();
   }
 
   /**

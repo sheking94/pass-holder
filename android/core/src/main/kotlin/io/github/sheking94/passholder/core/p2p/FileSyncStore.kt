@@ -8,7 +8,7 @@ import java.nio.file.StandardCopyOption
 
 /**
  * File-backed [SyncStore]: JSON Lines, one RemoteRecord per line, every put appended and fsynced.
- * Not thread-safe, callers must hold synchronized(store) (same contract as [MemorySyncStore]).
+ * Not thread-safe, callers must hold synchronized(store) (same contract as the in-memory store in the tests).
  *
  * On open the map is rebuilt (a later line with the same id wins). An unparsable last line (torn write) is
  * dropped and the file rewritten; an unparsable line anywhere else throws IllegalStateException("Corrupt sync store").

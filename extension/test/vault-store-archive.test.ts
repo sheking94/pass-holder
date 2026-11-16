@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { concat, p2p, transfer } from "@passholder/core";
 import * as files from "@passholder/core/files";
 import { AUTO_LOCK_MS } from "../src/vault-store.ts";
-import { pairedBrowser, PASSWORD } from "./fake-phone.ts";
+import { pairedBrowser, PASSWORD, newLogin } from "./fake-phone.ts";
 
 /** 600 000 bytes: three chunks of FILE_CHUNK_SIZE. */
 const SIZE = 600_000;
@@ -154,7 +154,7 @@ describe("VaultStore.importArchive", () => {
   it("auto-lock while storing files: an error, nothing imported, no files left", async () => {
     let clock = Date.now();
     const a = await pairedBrowser({ now: () => clock });
-    await a.store.upsert("old", { name: "Stary", username: "u", password: "p" });
+    await a.store.putEntry("old", newLogin({ name: "Stary", username: "u", password: "p" }));
     const before = a.store.allContents();
     const { bytes } = await sampleArchive();
     const markComplete = a.files.markComplete.bind(a.files);
@@ -170,7 +170,7 @@ describe("VaultStore.importArchive", () => {
 
   it("locked while storing files: an error, nothing imported (also on disk), no files left", async () => {
     const a = await pairedBrowser();
-    await a.store.upsert("old", { name: "Stary", username: "u", password: "p" });
+    await a.store.putEntry("old", newLogin({ name: "Stary", username: "u", password: "p" }));
     const before = a.store.allContents();
     const { bytes } = await sampleArchive();
     const putChunk = a.files.putChunk.bind(a.files);
@@ -221,7 +221,7 @@ describe("VaultStore.exportArchive", () => {
     await a.store.putEntry("e1", loginWith("Bank", [ready.attachment, waiting.attachment]), [
       ready,
     ]);
-    await a.store.upsert("e2", { name: "Poczta", username: "u", password: "p" });
+    await a.store.putEntry("e2", newLogin({ name: "Poczta", username: "u", password: "p" }));
 
     const out = await a.store.exportArchive();
     expect({ entries: out.entries, files: out.files, missing: out.missing }).toEqual({

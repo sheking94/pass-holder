@@ -4,6 +4,7 @@ import io.github.sheking94.passholder.core.Aead
 import io.github.sheking94.passholder.core.Credentials
 import io.github.sheking94.passholder.core.Encoding
 import io.github.sheking94.passholder.core.RemoteRecord
+import io.github.sheking94.passholder.core.login
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -17,7 +18,7 @@ class PhoneVaultTest {
     private val store = MemorySyncStore()
     private var wall = 1_700_000_000_000L
     private fun vault(s: SyncStore = store, device: String = "phone") = PhoneVault(s, key, device) { wall }
-    private fun cred(name: String) = Credentials(name, "user-$name", "pw-$name")
+    private fun cred(name: String) = login(name, "user-$name", "pw-$name")
 
     private fun readEntry(id: String): EntryDataV3 = EntryV3.parse(EntryV3.decrypt(key, id, store.get(id)!!.blob))
 
@@ -30,18 +31,18 @@ class PhoneVaultTest {
         assertThrows<IllegalArgumentException> { vault(device = "d".repeat(65)) }
         vault(device = "d".repeat(64))
         val v = vault()
-        assertThrows<IllegalArgumentException> { v.upsert("", cred("A")) }
-        assertThrows<IllegalArgumentException> { v.upsert("i".repeat(129), cred("A")) }
+        assertThrows<IllegalArgumentException> { v.upsertContent("", cred("A")) }
+        assertThrows<IllegalArgumentException> { v.upsertContent("i".repeat(129), cred("A")) }
         assertThrows<IllegalArgumentException> { v.delete("") }
         assertThrows<IllegalArgumentException> { v.delete("i".repeat(129)) }
         assertEquals(0L, store.currentRevision())
-        v.upsert("i".repeat(128), cred("A"))
+        v.upsertContent("i".repeat(128), cred("A"))
         assertEquals(1L, store.currentRevision())
     }
 
     @Test
     fun upsertWritesRevisionOneWithDeviceHlc() {
-        vault().upsert("a", cred("A"))
+        vault().upsertContent("a", cred("A"))
         val rec = store.get("a")!!
         assertEquals(1L, rec.revision)
         assertEquals(false, rec.deleted)
@@ -54,7 +55,7 @@ class PhoneVaultTest {
     fun editOfFutureEntryGetsLargerHlc() {
         val future = Hlc(wall + 365L * 24 * 3600 * 1000, 3, "ext")
         store.put(RemoteRecord("a", 1, false, EntryV3.encrypt(key, "a", login("A", future))))
-        vault().upsert("a", cred("A2"))
+        vault().upsertContent("a", cred("A2"))
         assertTrue(readEntry("a").hlc > future)
         assertEquals(2L, store.get("a")!!.revision)
     }
@@ -62,7 +63,7 @@ class PhoneVaultTest {
     @Test
     fun deleteWritesTombstoneAndHidesEntry() {
         val v = vault()
-        v.upsert("a", cred("A"))
+        v.upsertContent("a", cred("A"))
         v.delete("a")
         val rec = store.get("a")!!
         assertEquals(2L, rec.revision)
@@ -76,7 +77,7 @@ class PhoneVaultTest {
     @Test
     fun deleteUnknownIdIsNoop() {
         val v = vault()
-        v.upsert("a", cred("A"))
+        v.upsertContent("a", cred("A"))
         v.delete("zzz")
         assertEquals(1L, store.currentRevision())
         assertEquals(null, store.get("zzz"))
@@ -87,7 +88,7 @@ class PhoneVaultTest {
         val future = Hlc(wall + 10_000_000, 7, "ext")
         store.put(RemoteRecord("x", 1, false, EntryV3.encrypt(key, "x", login("X", future))))
         store.put(RemoteRecord("t", 2, true, EntryV3.encryptTombstone(key, "t", TombstoneData(Hlc(wall + 20_000_000, 1, "ext")))))
-        vault().upsert("new", cred("N"))
+        vault().upsertContent("new", cred("N"))
         val h = readEntry("new").hlc
         assertTrue(h > Hlc(wall + 20_000_000, 1, "ext"), "hlc $h")
         assertEquals("phone", h.d)
@@ -96,17 +97,17 @@ class PhoneVaultTest {
     @Test
     fun entriesSortedByNameIgnoringCase() {
         val v = vault()
-        v.upsert("1", cred("Zeta"))
-        v.upsert("2", cred("alfa"))
+        v.upsertContent("1", cred("Zeta"))
+        v.upsertContent("2", cred("alfa"))
         assertEquals(listOf("alfa", "Zeta"), v.entries().map { it.credentials.name })
     }
 
     @Test
     fun entriesSortedByNameWithoutTombstones() {
         val v = vault()
-        v.upsert("1", cred("Zeta"))
-        v.upsert("2", cred("Alpha"))
-        v.upsert("3", cred("Mid"))
+        v.upsertContent("1", cred("Zeta"))
+        v.upsertContent("2", cred("Alpha"))
+        v.upsertContent("3", cred("Mid"))
         v.delete("3")
         val list = v.entries()
         assertEquals(listOf("Alpha", "Zeta"), list.map { it.credentials.name })
@@ -117,7 +118,7 @@ class PhoneVaultTest {
 
     @Test
     fun upsertVisibleToHostSync() {
-        vault().upsert("a", cred("A"))
+        vault().upsertContent("a", cred("A"))
         val resp = HostSync.process(store, epoch, emptyList(), requestJson(0))
         assertEquals(listOf("a"), resp.changes.map { it.id })
         assertEquals(1L, resp.currentRevision)
@@ -148,8 +149,8 @@ class PhoneVaultTest {
             }
         }
         val threads = listOf(
-            run { repeat(200) { v.upsert("a$it", cred("A$it")) } },
-            run { repeat(200) { v.upsert("b$it", cred("B$it")) } },
+            run { repeat(200) { v.upsertContent("a$it", cred("A$it")) } },
+            run { repeat(200) { v.upsertContent("b$it", cred("B$it")) } },
             run {
                 repeat(50) {
                     val r = HostSync.process(store, epoch, emptyList(), requestJson(0, change("h$it", 0, "blob$it")))
@@ -171,7 +172,7 @@ class PhoneVaultTest {
     @Test
     fun garbageRecordIsReportedAndOthersStayVisible() {
         val v = vault()
-        v.upsert("a", cred("A"))
+        v.upsertContent("a", cred("A"))
         store.put(RemoteRecord("bad", 2, false, "not-a-blob"))
         // Valid ciphertext, but a tombstone payload where an entry is expected.
         store.put(RemoteRecord("bad2", 3, false, EntryV3.encryptTombstone(key, "bad2", TombstoneData(Hlc(1, 0, "x")))))
@@ -182,32 +183,6 @@ class PhoneVaultTest {
         assertNotNull(store.get("bad"))
     }
 
-    private val h0 = Hlc(1, 0, "ext")
-    private val rich = EntryContentV3(
-        "Rich",
-        "my note",
-        LoginFields("u", "p", "totp-secret", listOf("https://a.pl"), listOf("pl.app")),
-        listOf(CustomField("pin", "1234", true)),
-    )
-
-    @Test
-    fun editKeepsV3Fields() {
-        val v = vault()
-        v.upsertContent("a", rich)
-        v.upsert("a", Credentials("Renamed", "u2", "p2"))
-        val c = readEntry("a").content
-        assertEquals(
-            rich.copy(name = "Renamed", fields = (rich.fields as LoginFields).copy(username = "u2", password = "p2")),
-            c,
-        )
-    }
-
-    @Test
-    fun newLoginHasEmptyExtras() {
-        vault().upsert("a", cred("A"))
-        assertEquals(EntryContentV3("A", "", LoginFields("user-A", "pw-A"), emptyList()), readEntry("a").content)
-    }
-
     private fun note(name: String) = EntryContentV3(name, "tekst", NoteFields, emptyList())
     private fun cardContent(name: String) =
         EntryContentV3(name, "", CardFields("H", "4111 1111 1111 1111", "01/30", "123", "0000"), emptyList())
@@ -215,7 +190,7 @@ class PhoneVaultTest {
     @Test
     fun `entries returns every type sorted by name`() {
         val v = vault()
-        v.upsert("l", cred("B"))
+        v.upsertContent("l", cred("B"))
         v.upsertContent("c", cardContent("A"))
         v.upsertContent("n", note("C"))
         val list = v.entries()
@@ -247,20 +222,6 @@ class PhoneVaultTest {
     }
 
     @Test
-    fun `upsert of a login keeps totp, urls, androidApps, note and custom`() {
-        val v = vault()
-        v.upsertContent("a", rich)
-        v.upsert("a", Credentials("Renamed", "u2", "p2"))
-        val c = readEntry("a").content
-        val f = c.fields as LoginFields
-        assertEquals("totp-secret", f.totp)
-        assertEquals(listOf("https://a.pl"), f.urls)
-        assertEquals(listOf("pl.app"), f.androidApps)
-        assertEquals("my note", c.note)
-        assertEquals(listOf(CustomField("pin", "1234", true)), c.custom)
-    }
-
-    @Test
     fun readsV2Blob() {
         val v2 = """{"name":"Old","username":"ou","password":"op","hlc":{"ms":5,"c":0,"d":"ext"}}"""
         store.put(RemoteRecord("o", 1, false, EntryV3.encryptJson(key, "o", v2, ByteArray(12))))
@@ -272,10 +233,10 @@ class PhoneVaultTest {
     @Test
     fun tooLargeLeavesStore() {
         val v = vault()
-        v.upsert("a", cred("A"))
+        v.upsertContent("a", cred("A"))
         val before = store.get("a")
-        assertThrows<EntryTooLargeException> { v.upsert("a", Credentials("A", "u", "x".repeat(70_000))) }
-        assertThrows<EntryTooLargeException> { v.upsert("b", Credentials("B", "u", "x".repeat(70_000))) }
+        assertThrows<EntryTooLargeException> { v.upsertContent("a", login("A", "u", "x".repeat(70_000))) }
+        assertThrows<EntryTooLargeException> { v.upsertContent("b", login("B", "u", "x".repeat(70_000))) }
         assertEquals(1L, store.currentRevision())
         assertEquals(before, store.get("a"))
         assertEquals(null, store.get("b"))
@@ -284,29 +245,10 @@ class PhoneVaultTest {
     @Test
     fun tombstoneIsExact() {
         val v = vault()
-        v.upsert("a", cred("A"))
+        v.upsertContent("a", cred("A"))
         v.delete("a")
         val json = Encoding.fromUtf8(Aead.open(key, store.get("a")!!.blob, EntryV3.aad("a")))
         assertTrue(Regex("""\{"hlc":\{"ms":\d+,"c":\d+,"d":"phone"\}\}""").matches(json), json)
-    }
-
-    @Test
-    fun upsertOnLiveNonLoginThrowsAndChangesNothing() {
-        val v = vault()
-        v.upsertContent("n", EntryContentV3("Notatka", "tekst", NoteFields, emptyList()))
-        val before = store.get("n")
-        assertThrows<EntryTypeMismatchException> { v.upsert("n", cred("X")) }
-        assertEquals(before, store.get("n"))
-        assertEquals(1L, store.currentRevision())
-    }
-
-    @Test
-    fun upsertOnDeletedNonLoginIdWritesLogin() {
-        val v = vault()
-        v.upsertContent("n", EntryContentV3("Notatka", "tekst", NoteFields, emptyList()))
-        v.delete("n")
-        v.upsert("n", cred("X"))
-        assertEquals(listOf("X"), v.entries().map { it.credentials.name })
     }
 
     private data class Ch(val id: String, val base: Long, val blob: String)
@@ -325,7 +267,7 @@ class PhoneVaultTest {
     @Test
     fun importWritesConsecutiveRevisionsAndEntriesShowThem() {
         val v = vault()
-        v.upsert("old", cred("Old"))
+        v.upsertContent("old", cred("Old"))
         var n = 0
         val result = v.importContents(listOf(content("A"), content("B"), content("C"))) { "id${++n}" }
         assertEquals(ImportResult(3, 0, 0), result)
@@ -394,8 +336,6 @@ class PhoneVaultTest {
         )
         val v = vault()
         v.upsertContent("a", EntryContentV3("A", "", LoginFields("u", "p"), emptyList(), listOf(att)))
-        v.upsert("a", cred("B"))
-        assertEquals(listOf(att), readEntry("a").content.attachments)
         v.upsertContent("a", readEntry("a").content.copy(name = "x"))
         assertEquals(listOf(att), readEntry("a").content.attachments)
     }

@@ -14,7 +14,7 @@ import {
   STORAGE_KEYS,
   VaultStore,
 } from "../src/vault-store.ts";
-import { pairedBrowser } from "./fake-phone.ts";
+import { pairedBrowser, newLogin } from "./fake-phone.ts";
 
 function fakeAlarms() {
   const alarms = new Map<string, number>();
@@ -36,13 +36,13 @@ describe("VaultStore auto-lock while a page is open (S1)", () => {
   it("refuses to use the vault after 15 minutes without activity, even before the page locks", async () => {
     const clock = { now: 1_000_000 };
     const { store } = await unlockedBrowser(clock);
-    expect(store.entries()).toEqual([]);
+    expect(store.listEntries("login")).toEqual([]);
     clock.now += AUTO_LOCK_MS;
     expect(store.isUnlocked()).toBe(false);
-    expect(() => store.entries()).toThrow("Sejf jest zablokowany");
-    await expect(store.upsert("1", { name: "a", username: "b", password: "c" })).rejects.toThrow(
-      "Sejf jest zablokowany",
-    );
+    expect(() => store.listEntries("login")).toThrow("Sejf jest zablokowany");
+    await expect(
+      store.putEntry("1", newLogin({ name: "a", username: "b", password: "c" })),
+    ).rejects.toThrow("Sejf jest zablokowany");
   }, 30_000);
 
   it("lockIfIdle locks the page and removes the keys from session storage once the deadline passes", async () => {
@@ -84,7 +84,7 @@ describe("VaultStore auto-lock while a page is open (S1)", () => {
     expect(await popup.resume()).toBe(true); // the popup opened: the deadline moves for everyone
     clock.now += 2000;
     expect(await tab.lockIfIdle()).toBe(false);
-    expect(tab.entries()).toEqual([]);
+    expect(tab.listEntries("login")).toEqual([]);
 
     await popup.lock();
     expect(await tab.lockIfIdle()).toBe(true);

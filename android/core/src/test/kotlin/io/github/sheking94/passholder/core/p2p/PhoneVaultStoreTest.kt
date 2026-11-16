@@ -1,7 +1,6 @@
 package io.github.sheking94.passholder.core.p2p
 
 import io.github.sheking94.passholder.core.ChangeRequest
-import io.github.sheking94.passholder.core.Credentials
 import io.github.sheking94.passholder.core.Encoding
 import io.github.sheking94.passholder.core.Kdf
 import io.github.sheking94.passholder.core.KdfParams
@@ -9,6 +8,7 @@ import io.github.sheking94.passholder.core.VaultCrypto
 import io.github.sheking94.passholder.core.files.Attachment
 import io.github.sheking94.passholder.core.files.Attachments
 import io.github.sheking94.passholder.core.files.FileChunks
+import io.github.sheking94.passholder.core.login
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -74,7 +74,7 @@ class PhoneVaultStoreTest {
         assertTrue(store.hasVault)
         assertFalse(store.restoreInProgress)
         assertTrue(store.isUnlocked)
-        store.upsert("e1", Credentials("Bank", "jan", "tajne"))
+        store.upsertContent("e1", login("Bank", "jan", "tajne"))
         assertEquals("Bank", store.entry("e1")!!.credentials.name)
         assertNull(store.entry("missing"))
 
@@ -155,7 +155,7 @@ class PhoneVaultStoreTest {
     fun changeMasterPasswordRewrapsTheSameKeyAndForgetsDevices() {
         val store = newStore()
         store.createVault("stare hasło")
-        store.upsert("e1", Credentials("Bank", "jan", "tajne"))
+        store.upsertContent("e1", login("Bank", "jan", "tajne"))
         val keyBefore = store.exportUnlockKeys()
         val http = serve(store)
         val pair = TestP2pClient.pair(http, store.offerPairing().code, extIdentity)
@@ -421,7 +421,7 @@ class PhoneVaultStoreTest {
         store.unlockWithKeys(keys)
         assertTrue(store.isUnlocked)
 
-        store.upsert("e1", Credentials("Bank", "jan", "x"))
+        store.upsertContent("e1", login("Bank", "jan", "x"))
         store.lock()
         assertThrows<IllegalArgumentException> { store.unlockWithKeys(Encoding.randomBytes(32)) }
         assertFalse(store.isUnlocked)
@@ -483,7 +483,7 @@ class PhoneVaultStoreTest {
     fun disconnectDeletesEverything() {
         val store = newStore()
         store.createVault("pw")
-        store.upsert("e1", Credentials("Bank", "jan", "x"))
+        store.upsertContent("e1", login("Bank", "jan", "x"))
         store.disconnect()
         assertFalse(store.isUnlocked)
         assertFalse(store.hasVault)
@@ -725,7 +725,7 @@ class PhoneVaultStoreTest {
         assertEquals(setOf(a.id, b.id), storedIds())
         assertFalse(store.isFileComplete(orphan))
         // Editing the login keeps the attachments, so nothing goes.
-        store.upsert("e1", Credentials("A2", "u2", "p2"))
+        store.upsertContent("e1", store.entry("e1")!!.content.copy(name = "A2"))
         assertEquals(setOf(a.id, b.id), storedIds())
         store.upsertContent("e1", EntryContentV3("A3", "", LoginFields("u", "p"), emptyList()))
         assertEquals(setOf(b.id), storedIds())

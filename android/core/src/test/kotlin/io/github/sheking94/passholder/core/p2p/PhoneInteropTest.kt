@@ -1,6 +1,6 @@
 package io.github.sheking94.passholder.core.p2p
 
-import io.github.sheking94.passholder.core.Credentials
+import io.github.sheking94.passholder.core.login
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -74,7 +74,7 @@ class PhoneInteropTest {
         assumeTrue(System.getenv("PASSHOLDER_INTEROP_TEST") == "1", "set PASSHOLDER_INTEROP_TEST=1")
         val store = PhoneVaultStore(File(tmp, "phone"), PlainSecretWrapper)
         store.createVault(password)
-        store.upsert("phone-1", Credentials("z-telefonu.pl", "jan", "z Kotlina"))
+        store.upsertContent("phone-1", login("z-telefonu.pl", "jan", "z Kotlina"))
         val baseUrl = serve(store)
         val offer = store.offerPairing()
         assertEquals(PairingMode.PAIR, offer.mode)

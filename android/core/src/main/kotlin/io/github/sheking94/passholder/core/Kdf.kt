@@ -21,11 +21,6 @@ data class KdfParams(
 class DerivedKeys(
     /** Wraps and unwraps the vault key. Never leaves the device. */
     val encKey: ByteArray,
-    /**
-     * Unused since the Pi server was removed. Still derived because the split is part of the data format:
-     * changing it would change encKey and make existing vaults unreadable.
-     */
-    val authKey: ByteArray,
 )
 
 /** Key derivation from docs/SPEC.md §2, same as core/src/kdf.ts. */
@@ -45,7 +40,6 @@ object Kdf {
     const val MAX_PARALLELISM = 64
 
     private val INFO_ENC = Encoding.utf8("passholder/v1/enc")
-    private val INFO_AUTH = Encoding.utf8("passholder/v1/auth")
 
     fun newParams(): KdfParams = KdfParams(
         alg = "argon2id",
@@ -87,7 +81,6 @@ object Kdf {
 
     fun splitMasterKey(masterKey: ByteArray) = DerivedKeys(
         encKey = hkdfSha256(masterKey, INFO_ENC),
-        authKey = hkdfSha256(masterKey, INFO_AUTH),
     )
 
     fun deriveKeys(masterPassword: String, params: KdfParams): DerivedKeys {
