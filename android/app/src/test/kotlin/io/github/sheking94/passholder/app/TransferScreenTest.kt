@@ -79,7 +79,9 @@ class TransferScreenTest : ScreenTestBase() {
         assertTrue(vm.state.value.status!!.text.contains("Pominięto 1 takich"))
 
         // A Bitwarden file adds an entry, and the list shows it.
-        val bitwarden = """{"encrypted":false,"items":[{"type":1,"name":"poczta.pl","login":{"username":"jan@poczta.pl","password":"pw"}}]}"""
+        val bitwarden =
+            """{"encrypted":false,"items":[{"type":1,"name":"poczta.pl",""" +
+                """"login":{"username":"jan@poczta.pl","password":"pw"}}]}"""
         compose.runOnIdle { vm.importFrom(file("bitwarden.json", bitwarden.toByteArray())) }
         waitFor("Dodano 1 wpis (zsynchronizuj, żeby trafiły do wtyczki).", substring = true)
         assertEquals(2, app.phoneStore.entries().size)

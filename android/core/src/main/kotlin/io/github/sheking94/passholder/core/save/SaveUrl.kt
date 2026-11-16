@@ -2,7 +2,7 @@ package io.github.sheking94.passholder.core.save
 
 import io.github.sheking94.passholder.core.autofill.parse
 
-/** Port of core/src/save/url.ts. */
+// Port of core/src/save/url.ts.
 
 /** Address to save a login under for a page (spec 3.1), or null when the page cannot be saved. */
 fun saveUrl(pageUrl: String): String? {

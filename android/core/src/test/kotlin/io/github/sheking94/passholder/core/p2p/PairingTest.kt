@@ -12,12 +12,12 @@ import javax.crypto.AEADBadTagException
 
 class PairingTest {
     private val key = ByteArray(32) { it.toByte() }
-    private val b64_16 = "AAECAwQFBgcICQoLDA0ODw=="
-    private val b64_32 = Encoding.toBase64(ByteArray(32) { it.toByte() })
+    private val base64Of16 = "AAECAwQFBgcICQoLDA0ODw=="
+    private val base64Of32 = Encoding.toBase64(ByteArray(32) { it.toByte() })
 
-    private val identity = DeviceIdentity("ext-1", "Chrome", b64_32)
-    private val kdf = KdfParams("argon2id", b64_16, 65536, 3, 4)
-    private val vaultInfo = VaultInfo(b64_16, kdf, Encoding.toBase64(ByteArray(40) { 1 }), listOf("192.168.1.5:8443"))
+    private val identity = DeviceIdentity("ext-1", "Chrome", base64Of32)
+    private val kdf = KdfParams("argon2id", base64Of16, 65536, 3, 4)
+    private val vaultInfo = VaultInfo(base64Of16, kdf, Encoding.toBase64(ByteArray(40) { 1 }), listOf("192.168.1.5:8443"))
 
     private fun rejectsIdentity(value: DeviceIdentity) {
         val blob = Pairing.sealIdentity(key, CpaceRole.RESPONDER, value)
@@ -70,9 +70,9 @@ class PairingTest {
 
     @Test
     fun `non canonical epoch is rejected`() {
-        // Decodes to the same 16 bytes as b64_16, but the last data character carries non-zero unused bits.
+        // Decodes to the same 16 bytes as base64Of16, but the last data character carries non-zero unused bits.
         val nonCanonical = "AAECAwQFBgcICQoLDA0ODx=="
-        assertTrue(Encoding.fromBase64(nonCanonical).contentEquals(Encoding.fromBase64(b64_16)))
+        assertTrue(Encoding.fromBase64(nonCanonical).contentEquals(Encoding.fromBase64(base64Of16)))
         rejectsVaultInfo(vaultInfo.copy(epoch = nonCanonical))
     }
 
@@ -104,7 +104,7 @@ class PairingTest {
     @Test
     fun `wrongly typed JSON is rejected`() {
         val aad = Pairing.aad(PairingKind.IDENTITY, CpaceRole.RESPONDER)
-        for (json in listOf("[]", "null", "\"x\"", """{"deviceId":1,"name":"a","staticPublicKey":"$b64_32"}""")) {
+        for (json in listOf("[]", "null", "\"x\"", """{"deviceId":1,"name":"a","staticPublicKey":"$base64Of32"}""")) {
             val blob = Aead.seal(key, utf8(json), aad)
             assertThrows<IllegalArgumentException> { Pairing.openIdentity(key, CpaceRole.RESPONDER, blob) }
         }
@@ -130,7 +130,7 @@ class PairingTest {
         val (extKey, phoneKey) = session(code, code)
         assertTrue(extKey.contentEquals(phoneKey))
 
-        val phoneId = DeviceIdentity("phone-1", "Pixel", b64_32)
+        val phoneId = DeviceIdentity("phone-1", "Pixel", base64Of32)
         val idBlob = Pairing.sealIdentity(phoneKey, CpaceRole.RESPONDER, phoneId)
         val viBlob = Pairing.sealVaultInfo(phoneKey, CpaceRole.RESPONDER, vaultInfo)
         assertEquals(phoneId, Pairing.openIdentity(extKey, CpaceRole.RESPONDER, idBlob))

@@ -107,7 +107,8 @@ class ImportSummaryTest {
             ArchiveFiles(0, listOf(ImportSkip("wpis 1, a1.pdf", "uszkodzony"))),
         )
         assertEquals(
-            "Dodano 1 wpis (zsynchronizuj, żeby trafiły do wtyczki). Pominięto 1 takich, które już są w sejfie lub powtarzają się w pliku. " +
+            "Dodano 1 wpis (zsynchronizuj, żeby trafiły do wtyczki). " +
+                "Pominięto 1 takich, które już są w sejfie lub powtarzają się w pliku. " +
                 "Pominięto 1 wpis: wpis 2: brak nazwy. Pominięto 1 plik: wpis 1, a1.pdf: uszkodzony. $end",
             one,
         )

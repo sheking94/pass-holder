@@ -16,7 +16,9 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 
 class NordPassCsvTest {
-    private val header = "name,url,username,password,note,cardholdername,cardnumber,cvc,expirydate,zipcode,folder,full_name,phone_number,email,address1,address2,city,country,state,totp,shared_folder"
+    private val header =
+        "name,url,username,password,note,cardholdername,cardnumber,cvc,expirydate,zipcode,folder," +
+            "full_name,phone_number,email,address1,address2,city,country,state,totp,shared_folder"
 
     private val login = EntryContentV3(
         "Poczta",

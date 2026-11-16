@@ -88,7 +88,9 @@ class BiometricUnlock(context: Context, private val keys: UnlockKeyProtector = K
 
 class BiometricKeyLostException : Exception(MESSAGE) {
     companion object {
-        const val MESSAGE = "Odcisk palca przestał działać (np. dodano nowy odcisk w telefonie). Odblokuj hasłem głównym i włącz go ponownie."
+        const val MESSAGE =
+            "Odcisk palca przestał działać (np. dodano nowy odcisk w telefonie). " +
+                "Odblokuj hasłem głównym i włącz go ponownie."
     }
 }
 
