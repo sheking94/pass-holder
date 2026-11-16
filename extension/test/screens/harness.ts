@@ -355,16 +355,14 @@ async function setup() {
         entryName: decision === "update" ? "Sklep" : undefined,
         locked,
       };
-      document
-        .getElementById("app")!
-        .replaceChildren(
-          promptView(info, {
-            answer: async () => ({ ok: true }),
-            preview: async () => undefined,
-            unlock: () => undefined,
-            done: () => undefined,
-          }),
-        );
+      document.getElementById("app")!.replaceChildren(
+        promptView(info, {
+          answer: async () => ({ ok: true }),
+          preview: async () => undefined,
+          unlock: () => undefined,
+          done: () => undefined,
+        }),
+      );
     },
     /** „Zapis haseł” with two hosts on the never list. */
     openSaveSettings: async () => {

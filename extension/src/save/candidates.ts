@@ -177,20 +177,18 @@ export class SaveCandidates {
     const exactIds = new Set(
       autofill.matchLogins(c.url, entries, candidate, { exactOnly: true }).map((e) => e.id),
     );
-    const all = autofill
-      .matchLogins(c.url, entries, candidate)
-      .flatMap((e) =>
-        e.data.type === "login"
-          ? [
-              {
-                id: e.id,
-                entryName: e.data.name,
-                username: e.data.fields.username,
-                password: e.data.fields.password,
-              },
-            ]
-          : [],
-      );
+    const all = autofill.matchLogins(c.url, entries, candidate).flatMap((e) =>
+      e.data.type === "login"
+        ? [
+            {
+              id: e.id,
+              entryName: e.data.name,
+              username: e.data.fields.username,
+              password: e.data.fields.password,
+            },
+          ]
+        : [],
+    );
     return {
       exact: all.filter((l) => exactIds.has(l.id)),
       related: all.filter((l) => !exactIds.has(l.id)),
