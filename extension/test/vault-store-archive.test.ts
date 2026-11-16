@@ -6,11 +6,16 @@ import { pairedBrowser, PASSWORD } from "./fake-phone.ts";
 
 /** 600 000 bytes: three chunks of FILE_CHUNK_SIZE. */
 const SIZE = 600_000;
-const bytesOf = (seed: number, size = SIZE) => new Uint8Array(size).map((_, i) => (i * 31 + seed) % 251);
+const bytesOf = (seed: number, size = SIZE) =>
+  new Uint8Array(size).map((_, i) => (i * 31 + seed) % 251);
 
 function loginWith(name: string, attachments: files.Attachment[] = []): p2p.EntryContentV3 {
   const login = p2p.emptyLogin(name);
-  return { ...login, fields: { ...login.fields, username: "u", password: "p" }, ...(attachments.length > 0 ? { attachments } : {}) };
+  return {
+    ...login,
+    fields: { ...login.fields, username: "u", password: "p" },
+    ...(attachments.length > 0 ? { attachments } : {}),
+  };
 }
 
 /**
@@ -24,9 +29,14 @@ async function sampleArchive() {
     plain.set(ef.attachment.id, bytesOf(seed));
     return ef.attachment;
   };
-  const bank = loginWith("Bank", [await describe(1, "skan: umowa?.pdf"), await describe(2, "żółć.pdf")]);
+  const bank = loginWith("Bank", [
+    await describe(1, "skan: umowa?.pdf"),
+    await describe(2, "żółć.pdf"),
+  ]);
   const poczta = loginWith("Poczta");
-  const { parts } = await transfer.exportPassHolderZip([bank, poczta], async (a) => plain.get(a.id));
+  const { parts } = await transfer.exportPassHolderZip([bank, poczta], async (a) =>
+    plain.get(a.id),
+  );
   return { bytes: concat(...parts), bank };
 }
 
@@ -74,7 +84,10 @@ describe("VaultStore.importArchive", () => {
     const a = await pairedBrowser();
     const plain = new Map<string, Uint8Array>();
     const att = async (seed: number) => {
-      const ef = await files.encryptFile(bytesOf(seed, 10), { name: `f${seed}.txt`, mime: "text/plain" });
+      const ef = await files.encryptFile(bytesOf(seed, 10), {
+        name: `f${seed}.txt`,
+        mime: "text/plain",
+      });
       plain.set(ef.attachment.id, bytesOf(seed, 10));
       return ef.attachment;
     };
@@ -92,7 +105,10 @@ describe("VaultStore.importArchive", () => {
     const a = await pairedBrowser();
     const plain = new Map<string, Uint8Array>();
     const att = async (seed: number) => {
-      const ef = await files.encryptFile(bytesOf(seed, 10), { name: `f${seed}.txt`, mime: "text/plain" });
+      const ef = await files.encryptFile(bytesOf(seed, 10), {
+        name: `f${seed}.txt`,
+        mime: "text/plain",
+      });
       plain.set(ef.attachment.id, bytesOf(seed, 10));
       return ef.attachment;
     };
@@ -118,7 +134,12 @@ describe("VaultStore.importArchive", () => {
     const index = JSON.stringify({
       format: "passholder",
       version: 3,
-      entries: [{ ...loginWith("Bank"), attachments: [{ name: "a.txt", mime: "text/plain", size: 10, path: "files/1-a.txt" }] }],
+      entries: [
+        {
+          ...loginWith("Bank"),
+          attachments: [{ name: "a.txt", mime: "text/plain", size: 10, path: "files/1-a.txt" }],
+        },
+      ],
     });
     const zip = new transfer.ZipWriter();
     await zip.add("passholder.json", new TextEncoder().encode(index));
@@ -181,7 +202,9 @@ describe("VaultStore.importArchive", () => {
   it("refuses a damaged archive and imports nothing", async () => {
     const a = await pairedBrowser();
     const { bytes } = await sampleArchive();
-    await expect(a.store.importArchive(bytes.subarray(0, bytes.length - 30))).rejects.toThrow(transfer.ZIP_INVALID);
+    await expect(a.store.importArchive(bytes.subarray(0, bytes.length - 30))).rejects.toThrow(
+      transfer.ZIP_INVALID,
+    );
     expect(a.store.allContents()).toEqual([]);
     expect(await a.files.ids()).toEqual([]);
   }, 30_000);
@@ -191,12 +214,21 @@ describe("VaultStore.exportArchive", () => {
   it("exports entries and ready files; a file waiting for sync is counted as missing", async () => {
     const a = await pairedBrowser();
     const ready = await files.encryptFile(bytesOf(1, 10), { name: "jest.txt", mime: "text/plain" });
-    const waiting = await files.encryptFile(bytesOf(2, 10), { name: "czeka.txt", mime: "text/plain" });
-    await a.store.putEntry("e1", loginWith("Bank", [ready.attachment, waiting.attachment]), [ready]);
+    const waiting = await files.encryptFile(bytesOf(2, 10), {
+      name: "czeka.txt",
+      mime: "text/plain",
+    });
+    await a.store.putEntry("e1", loginWith("Bank", [ready.attachment, waiting.attachment]), [
+      ready,
+    ]);
     await a.store.upsert("e2", { name: "Poczta", username: "u", password: "p" });
 
     const out = await a.store.exportArchive();
-    expect({ entries: out.entries, files: out.files, missing: out.missing }).toEqual({ entries: 2, files: 1, missing: 1 });
+    expect({ entries: out.entries, files: out.files, missing: out.missing }).toEqual({
+      entries: 2,
+      files: 1,
+      missing: 1,
+    });
 
     const { parsed, readFile } = await transfer.openPassHolderZip(concat(...out.parts));
     const bank = parsed.entries.find((e) => e.content.name === "Bank")!;

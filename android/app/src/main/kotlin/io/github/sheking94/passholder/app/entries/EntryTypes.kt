@@ -62,12 +62,16 @@ fun emptyContent(type: EntryType): EntryContentV3 {
 /** Short description shown under the entry name in the list. */
 fun entrySummary(content: EntryContentV3): String = when (val f = content.fields) {
     is LoginFields -> f.username
+
     is CardFields -> {
         val digits = f.number.replace(WHITESPACE, "")
         if (digits.isEmpty()) "" else "•••• " + digits.takeLast(4)
     }
+
     is DocumentFields -> DOCUMENT_KIND_LABELS[f.kind].orEmpty()
+
     is ContactFields -> f.phones.firstOrNull()?.value.orEmpty()
+
     NoteFields -> content.note.split(LINE_BREAK).firstOrNull { it.isNotBlank() }.orEmpty()
 }
 
@@ -78,6 +82,7 @@ fun matchesQuery(content: EntryContentV3, query: String): Boolean =
 fun tidyContent(content: EntryContentV3): EntryContentV3 {
     val fields = when (val f = content.fields) {
         is LoginFields -> f.copy(urls = f.urls.filter { it != "" }, androidApps = f.androidApps.filter { it != "" })
+
         is ContactFields -> f.copy(
             phones = f.phones.filter { it.label != "" || it.value != "" },
             emails = f.emails.filter { it.label != "" || it.value != "" },
@@ -85,6 +90,7 @@ fun tidyContent(content: EntryContentV3): EntryContentV3 {
                 it.label != "" || it.street != "" || it.postalCode != "" || it.city != "" || it.country != ""
             },
         )
+
         else -> f
     }
     return content.copy(
@@ -104,8 +110,7 @@ private fun isCalendarDate(s: String): Boolean {
     }
 }
 
-private fun validDate(value: String, original: String?): Boolean =
-    value == "" || value == original || isCalendarDate(value)
+private fun validDate(value: String, original: String?): Boolean = value == "" || value == original || isCalendarDate(value)
 
 /** Returns the first form error, or null. Only values changed against [original] are format-checked. */
 fun validateContent(content: EntryContentV3, original: EntryContentV3?): String? {
@@ -118,8 +123,10 @@ fun validateContent(content: EntryContentV3, original: EntryContentV3?): String?
             f.androidApps.firstOrNull { it != "" && it !in known && !ANDROID_PACKAGE.matches(it) }
                 ?.let { "Aplikacje Androida: zła nazwa pakietu $it" }
         }
+
         is ContactFields ->
             if (!validDate(f.birthDate, (before as? ContactFields)?.birthDate)) "Data urodzenia: wpisz datę RRRR-MM-DD" else null
+
         is DocumentFields -> {
             val o = before as? DocumentFields
             when {
@@ -128,10 +135,12 @@ fun validateContent(content: EntryContentV3, original: EntryContentV3?): String?
                 else -> null
             }
         }
+
         is CardFields -> {
             val o = (before as? CardFields)?.expiry
             if (f.expiry != "" && f.expiry != o && !CARD_EXPIRY.matches(f.expiry)) "Ważność: wpisz MM/RR" else null
         }
+
         NoteFields -> null
     }
 }

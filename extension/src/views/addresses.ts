@@ -8,7 +8,8 @@ import { listView, skippedNote } from "./list.ts";
 
 const REPAIRED: Record<"paired" | "restored", string> = {
   paired: "Sparowano z telefonem. Ta przeglądarka synchronizuje się teraz z nim.",
-  restored: "Telefon odtworzony z tej wtyczki: ma już wszystkie hasła. Synchronizacja działa jak dotąd.",
+  restored:
+    "Telefon odtworzony z tej wtyczki: ma już wszystkie hasła. Synchronizacja działa jak dotąd.",
 };
 
 /** Opens the address form in a tab: like pairing, it may need a host permission prompt. */
@@ -36,13 +37,23 @@ export async function addressesView(message = "") {
     requestHostPermission(typed.origins, status, () => {
       void busy(status, "Zapisuję…", async () => {
         await store.setPhoneUrls(typed.urls);
-        setStatus(status, "Zapisano. Przy synchronizacji wtyczka sama wybierze adres, który odpowiada." + closeHint);
+        setStatus(
+          status,
+          "Zapisano. Przy synchronizacji wtyczka sama wybierze adres, który odpowiada." + closeHint,
+        );
       });
     });
   };
 
   const other = phoneUrlFields();
-  const code = h("input", { type: "text", class: "mono", inputmode: "numeric", autocomplete: "off", maxLength: 9, placeholder: "12345678" });
+  const code = h("input", {
+    type: "text",
+    class: "mono",
+    inputmode: "numeric",
+    autocomplete: "off",
+    maxLength: 9,
+    placeholder: "12345678",
+  });
   const password = h("input", { type: "password", autocomplete: "current-password" });
   const repairStatus = statusLine();
   const repair = () => {
@@ -68,7 +79,11 @@ export async function addressesView(message = "") {
   show(
     h("h1", {}, "PassHolder: telefon"),
     h("p", {}, `Sparowano jako „${account.deviceName}” z telefonem „${account.phone.name}”.`),
-    h("p", {}, "Adresy telefonu, np. w sieci domowej i w Tailscale. Telefon pokazuje je na ekranie Synchronizacja; te, które poda sam, wtyczka dopisuje przy synchronizacji."),
+    h(
+      "p",
+      {},
+      "Adresy telefonu, np. w sieci domowej i w Tailscale. Telefon pokazuje je na ekranie Synchronizacja; te, które poda sam, wtyczka dopisuje przy synchronizacji.",
+    ),
     form(
       save,
       ...addresses.fields,
@@ -80,9 +95,15 @@ export async function addressesView(message = "") {
       ),
     ),
     status,
-    h("fieldset", {},
+    h(
+      "fieldset",
+      {},
       h("legend", {}, "Sparuj z innym telefonem / odtwórz telefon"),
-      h("p", { class: "hint" }, "Nowy albo przeinstalowany telefon: wybierz w nim „Dodaj wtyczkę” (telefon z sejfem) albo „Odtwórz z wtyczki” (pusty telefon) i przepisz adres i kod. Hasła z tej przeglądarki zostają."),
+      h(
+        "p",
+        { class: "hint" },
+        "Nowy albo przeinstalowany telefon: wybierz w nim „Dodaj wtyczkę” (telefon z sejfem) albo „Odtwórz z wtyczki” (pusty telefon) i przepisz adres i kod. Hasła z tej przeglądarki zostają.",
+      ),
       form(
         repair,
         ...other.fields,

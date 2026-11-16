@@ -1,0 +1,9 @@
+# Generated or fixed data: formatting would change test vectors or generator output.
+core/test-vectors/
+core/src/autofill/psl-rules.ts
+package-lock.json
+# Not TypeScript code.
+android/
+docs/
+.claude/
+*.md

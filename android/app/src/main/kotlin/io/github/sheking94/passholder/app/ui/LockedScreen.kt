@@ -15,13 +15,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import kotlinx.coroutines.flow.first
-import androidx.compose.ui.unit.dp
 import io.github.sheking94.passholder.app.AppViewModel
 import io.github.sheking94.passholder.app.UiState
+import kotlinx.coroutines.flow.first
 
 /**
  * The vault lives on the phone: unlocking needs no network.
@@ -64,7 +64,12 @@ fun LockedScreen(state: UiState, vm: AppViewModel) {
         AlertDialog(
             onDismissRequest = { askDisconnect = false },
             text = { Text("Usunąć sejf z tego telefonu? Wpisy zostaną tylko na sparowanych wtyczkach.") },
-            confirmButton = { TextButton(onClick = { askDisconnect = false; vm.disconnect() }) { Text("Usuń", color = MaterialTheme.colorScheme.error) } },
+            confirmButton = {
+                TextButton(onClick = {
+                    askDisconnect = false
+                    vm.disconnect()
+                }) { Text("Usuń", color = MaterialTheme.colorScheme.error) }
+            },
             dismissButton = { TextButton(onClick = { askDisconnect = false }) { Text("Anuluj") } },
         )
     }

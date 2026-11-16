@@ -15,9 +15,9 @@ import androidx.work.workDataOf
 import io.github.sheking94.passholder.core.Encoding
 import java.security.MessageDigest
 import java.security.SecureRandom
+import java.util.concurrent.TimeUnit
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
-import java.util.concurrent.TimeUnit
 
 /** Copies to the clipboard; passwords are marked sensitive and cleared after a minute, like in the extension. */
 object SecureClipboard {

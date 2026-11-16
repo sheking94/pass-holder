@@ -124,7 +124,10 @@ class TestP2pClient(
             sid: String? = null,
         ): PairResult = pair(
             { path, body -> pairing.handle(path, P2pJson.json.parseToJsonElement(Encoding.fromUtf8(body)) as JsonObject)!! },
-            code, identity, vaultInfo, sid,
+            code,
+            identity,
+            vaultInfo,
+            sid,
         )
 
         /** Same as above over any [transport], e.g. real HTTP to a [PhoneRouter]. */
@@ -160,7 +163,11 @@ class TestP2pClient(
             )
             if (finish.status != 200) return PairResult(hello, start, finish, usedSid, key, null, null)
             return PairResult(
-                hello, start, finish, usedSid, key,
+                hello,
+                start,
+                finish,
+                usedSid,
+                key,
                 Pairing.openIdentity(key, CpaceRole.RESPONDER, text(finish, "identity")),
                 Pairing.openVaultInfo(key, CpaceRole.RESPONDER, text(finish, "vaultInfo")),
             )

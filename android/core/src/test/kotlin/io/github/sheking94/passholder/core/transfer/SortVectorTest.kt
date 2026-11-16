@@ -1,14 +1,14 @@
 package io.github.sheking94.passholder.core.transfer
 
-import io.github.sheking94.passholder.core.p2p.NoteFields
 import io.github.sheking94.passholder.core.p2p.EntryContentV3
-import java.io.File
+import io.github.sheking94.passholder.core.p2p.NoteFields
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import java.io.File
 
 class SortVectorTest {
     @Test

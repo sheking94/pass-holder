@@ -1,11 +1,23 @@
 import type { CardFields, CustomField, DocumentKind, EntryContentV3 } from "../p2p/entry.ts";
-import { addressLine, labelled, sortForExport, type ImportSkip, type ParsedImport } from "./common.ts";
+import {
+  addressLine,
+  labelled,
+  sortForExport,
+  type ImportSkip,
+  type ParsedImport,
+} from "./common.ts";
 
 const NOT_BITWARDEN = "To nie jest plik Bitwarden JSON";
 const ENCRYPTED =
   "Zaszyfrowany eksport Bitwarden nie jest obsługiwany. Wyeksportuj z Bitwardena plik JSON bez szyfrowania.";
 const ANDROID_PREFIX = "androidapp://";
-const DOCUMENT_KINDS: readonly string[] = ["id_card", "passport", "driving_license", "student_id", "other"];
+const DOCUMENT_KINDS: readonly string[] = [
+  "id_card",
+  "passport",
+  "driving_license",
+  "student_id",
+  "other",
+];
 
 const L_KIND = "Rodzaj dokumentu";
 const L_NUMBER = "Numer dokumentu";
@@ -42,10 +54,16 @@ function importFields(raw: unknown): CustomField[] {
   for (const f of raw) {
     if (!isObj(f)) continue;
     switch (f.type) {
-      case 1: out.push(custom(s(f.name), s(f.value), true)); break;
-      case 2: out.push(custom(s(f.name), s(f.value) === "true" ? "true" : "false")); break;
-      case 3: break;
-      default: out.push(custom(s(f.name), s(f.value)));
+      case 1:
+        out.push(custom(s(f.name), s(f.value), true));
+        break;
+      case 2:
+        out.push(custom(s(f.name), s(f.value) === "true" ? "true" : "false"));
+        break;
+      case 3:
+        break;
+      default:
+        out.push(custom(s(f.name), s(f.value)));
     }
   }
   return out;
@@ -65,13 +83,20 @@ function importCard(c: Obj, pin: string): CardFields {
   };
 }
 
-function importIdentity(name: string, note: string, id: Obj, fields: CustomField[]): EntryContentV3 {
+function importIdentity(
+  name: string,
+  note: string,
+  id: Obj,
+  fields: CustomField[],
+): EntryContentV3 {
   const kindIdx = fields.findIndex((f) => f.label === L_KIND && DOCUMENT_KINDS.includes(f.value));
   const isDocument = kindIdx >= 0;
   const address = {
     label: "",
     street: [s(id.address1), s(id.address2), s(id.address3)].filter((x) => x !== "").join(", "),
-    postalCode: s(id.postalCode), city: s(id.city), country: s(id.country),
+    postalCode: s(id.postalCode),
+    city: s(id.city),
+    country: s(id.country),
   };
   const hasAddress = Object.values(address).some((x) => x !== "");
   const passport = s(id.passportNumber);
@@ -80,44 +105,70 @@ function importIdentity(name: string, note: string, id: Obj, fields: CustomField
   const hasFullName = fullNameField !== undefined && fullNameField.value !== "";
   // A document keeps one number (the one matching its kind first); the other one goes to a custom field.
   const kind = isDocument ? (fields[kindIdx]!.value as DocumentKind) : undefined;
-  const usesLicense = kind === "driving_license" ? license !== "" : passport === "" && license !== "";
+  const usesLicense =
+    kind === "driving_license" ? license !== "" : passport === "" && license !== "";
   const usesPassport = !usesLicense && passport !== "";
   const numberFromIdentity = usesLicense ? license : passport;
   const extras: [string, string][] = [
-    ["Tytuł", s(id.title)], ["Drugie imię", s(id.middleName)], ["Firma", s(id.company)],
+    ["Tytuł", s(id.title)],
+    ["Drugie imię", s(id.middleName)],
+    ["Firma", s(id.company)],
     ["Numer SSN", s(id.ssn)],
     ["Numer paszportu", isDocument && usesPassport ? "" : passport],
     ["Numer prawa jazdy", isDocument && usesLicense ? "" : license],
-    ["Nazwa użytkownika", s(id.username)], ["Województwo/stan", s(id.state)],
+    ["Nazwa użytkownika", s(id.username)],
+    ["Województwo/stan", s(id.state)],
     ...(isDocument
       ? ([
-        ["E-mail", s(id.email)], ["Telefon", s(id.phone)], ["Adres", hasAddress ? addressLine(address) : ""],
-        ["Imię", hasFullName ? s(id.firstName) : ""], ["Nazwisko", hasFullName ? s(id.lastName) : ""],
-      ] as [string, string][])
+          ["E-mail", s(id.email)],
+          ["Telefon", s(id.phone)],
+          ["Adres", hasAddress ? addressLine(address) : ""],
+          ["Imię", hasFullName ? s(id.firstName) : ""],
+          ["Nazwisko", hasFullName ? s(id.lastName) : ""],
+        ] as [string, string][])
       : []),
   ];
   const all = [...extras.filter(([, v]) => v !== "").map(([l, v]) => custom(l, v)), ...fields];
 
   if (isDocument) {
-    all.splice(all.findIndex((f) => f === fields[kindIdx]), 1);
+    all.splice(
+      all.findIndex((f) => f === fields[kindIdx]),
+      1,
+    );
     const take = (label: string): string => {
       const i = all.findIndex((f) => f.label === label);
       return i < 0 ? "" : all.splice(i, 1)[0]!.value;
     };
     const number = numberFromIdentity || take(L_NUMBER);
-    const fullName = take(L_FULL_NAME) || [s(id.firstName), s(id.lastName)].filter(Boolean).join(" ");
+    const fullName =
+      take(L_FULL_NAME) || [s(id.firstName), s(id.lastName)].filter(Boolean).join(" ");
     return {
-      type: "document", name, note, custom: all,
-      fields: { kind: kind!, number, fullName, issueDate: take(L_ISSUE), expiryDate: take(L_EXPIRY), issuer: take(L_ISSUER) },
+      type: "document",
+      name,
+      note,
+      custom: all,
+      fields: {
+        kind: kind!,
+        number,
+        fullName,
+        issueDate: take(L_ISSUE),
+        expiryDate: take(L_EXPIRY),
+        issuer: take(L_ISSUER),
+      },
     };
   }
 
   const email = s(id.email);
   const phone = s(id.phone);
   return {
-    type: "contact", name, note, custom: all,
+    type: "contact",
+    name,
+    note,
+    custom: all,
     fields: {
-      firstName: s(id.firstName), lastName: s(id.lastName), birthDate: "",
+      firstName: s(id.firstName),
+      lastName: s(id.lastName),
+      birthDate: "",
       phones: phone ? [{ label: "", value: phone }] : [],
       emails: email ? [{ label: "", value: email }] : [],
       addresses: hasAddress ? [address] : [],
@@ -126,7 +177,8 @@ function importIdentity(name: string, note: string, id: Obj, fields: CustomField
 }
 
 function importItem(item: Obj): EntryContentV3 | string {
-  if (![1, 2, 3, 4].includes(item.type as number)) return `typ ${s(item.type)} nie jest obsługiwany`;
+  if (![1, 2, 3, 4].includes(item.type as number))
+    return `typ ${s(item.type)} nie jest obsługiwany`;
   const name = s(item.name);
   if (name.trim() === "") return "brak nazwy";
   const note = s(item.notes);
@@ -143,8 +195,17 @@ function importItem(item: Obj): EntryContentV3 | string {
         else urls.push(uri);
       }
       return {
-        type: "login", name, note, custom: fields,
-        fields: { username: s(login.username), password: s(login.password), totp: s(login.totp), urls, androidApps },
+        type: "login",
+        name,
+        note,
+        custom: fields,
+        fields: {
+          username: s(login.username),
+          password: s(login.password),
+          totp: s(login.totp),
+          urls,
+          androidApps,
+        },
       };
     }
     case 2:
@@ -155,7 +216,10 @@ function importItem(item: Obj): EntryContentV3 | string {
       const pinIdx = fields.findIndex((f) => f.label === L_PIN);
       const pin = pinIdx < 0 ? "" : fields.splice(pinIdx, 1)[0]!.value;
       return {
-        type: "card", name, note, fields: importCard(card, pin),
+        type: "card",
+        name,
+        note,
+        fields: importCard(card, pin),
         custom: [...(brand ? [custom("Marka karty", brand)] : []), ...fields],
       };
     }
@@ -186,15 +250,38 @@ export function parseBitwardenJson(text: string): ParsedImport {
 
 // ---- export ----
 
-interface BwField { name: string; value: string; type: number }
+interface BwField {
+  name: string;
+  value: string;
+  type: number;
+}
 
 const nn = (v: string): string | null => (v === "" ? null : v);
-const field = (name: string, value: string, hidden = false): BwField => ({ name, value, type: hidden ? 1 : 0 });
+const field = (name: string, value: string, hidden = false): BwField => ({
+  name,
+  value,
+  type: hidden ? 1 : 0,
+});
 
 const EMPTY_IDENTITY = {
-  title: null, firstName: null, middleName: null, lastName: null, address1: null, address2: null, address3: null,
-  city: null, state: null, postalCode: null, country: null, company: null, email: null, phone: null, ssn: null,
-  username: null, passportNumber: null, licenseNumber: null,
+  title: null,
+  firstName: null,
+  middleName: null,
+  lastName: null,
+  address1: null,
+  address2: null,
+  address3: null,
+  city: null,
+  state: null,
+  postalCode: null,
+  country: null,
+  company: null,
+  email: null,
+  phone: null,
+  ssn: null,
+  username: null,
+  passportNumber: null,
+  licenseNumber: null,
 };
 
 function exportItem(e: EntryContentV3): Obj {
@@ -211,7 +298,9 @@ function exportItem(e: EntryContentV3): Obj {
             ...f.urls.map((uri) => ({ match: null, uri })),
             ...f.androidApps.map((pkg) => ({ match: null, uri: ANDROID_PREFIX + pkg })),
           ],
-          username: nn(f.username), password: nn(f.password), totp: nn(f.totp),
+          username: nn(f.username),
+          password: nn(f.password),
+          totp: nn(f.totp),
         },
       };
       break;
@@ -228,8 +317,12 @@ function exportItem(e: EntryContentV3): Obj {
       if (!m && f.expiry !== "") extra.push(field("Ważność", f.expiry));
       body = {
         card: {
-          cardholderName: nn(f.holder), brand: null, number: nn(f.number),
-          expMonth: m ? String(Number(m[1])) : null, expYear: m ? `20${m[2]}` : null, code: nn(f.cvc),
+          cardholderName: nn(f.holder),
+          brand: null,
+          number: nn(f.number),
+          expMonth: m ? String(Number(m[1])) : null,
+          expYear: m ? `20${m[2]}` : null,
+          code: nn(f.cvc),
         },
       };
       break;
@@ -249,10 +342,14 @@ function exportItem(e: EntryContentV3): Obj {
       body = {
         identity: {
           ...EMPTY_IDENTITY,
-          firstName: nn(f.firstName), lastName: nn(f.lastName),
-          phone: phone ? nn(phone.value) : null, email: mail ? nn(mail.value) : null,
-          address1: addr ? nn(addr.street) : null, postalCode: addr ? nn(addr.postalCode) : null,
-          city: addr ? nn(addr.city) : null, country: addr ? nn(addr.country) : null,
+          firstName: nn(f.firstName),
+          lastName: nn(f.lastName),
+          phone: phone ? nn(phone.value) : null,
+          email: mail ? nn(mail.value) : null,
+          address1: addr ? nn(addr.street) : null,
+          postalCode: addr ? nn(addr.postalCode) : null,
+          city: addr ? nn(addr.city) : null,
+          country: addr ? nn(addr.country) : null,
         },
       };
       break;
@@ -261,8 +358,14 @@ function exportItem(e: EntryContentV3): Obj {
       const f = e.fields;
       type = 4;
       extra.push(field(L_KIND, f.kind));
-      if (f.kind !== "passport" && f.kind !== "driving_license" && f.number !== "") extra.push(field(L_NUMBER, f.number));
-      const rest: [string, string][] = [[L_FULL_NAME, f.fullName], [L_ISSUE, f.issueDate], [L_EXPIRY, f.expiryDate], [L_ISSUER, f.issuer]];
+      if (f.kind !== "passport" && f.kind !== "driving_license" && f.number !== "")
+        extra.push(field(L_NUMBER, f.number));
+      const rest: [string, string][] = [
+        [L_FULL_NAME, f.fullName],
+        [L_ISSUE, f.issueDate],
+        [L_EXPIRY, f.expiryDate],
+        [L_ISSUER, f.issuer],
+      ];
       for (const [label, value] of rest) {
         if (value !== "") extra.push(field(label, value));
       }
@@ -281,5 +384,11 @@ function exportItem(e: EntryContentV3): Obj {
 }
 
 export function exportBitwardenJson(entries: readonly EntryContentV3[]): string {
-  return JSON.stringify({ encrypted: false, folders: [], items: sortForExport(entries).map(exportItem) }, null, 2) + "\n";
+  return (
+    JSON.stringify(
+      { encrypted: false, folders: [], items: sortForExport(entries).map(exportItem) },
+      null,
+      2,
+    ) + "\n"
+  );
 }

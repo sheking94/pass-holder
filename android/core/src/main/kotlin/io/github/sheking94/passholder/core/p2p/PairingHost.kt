@@ -72,8 +72,7 @@ class PairingHost(
         else -> null
     }
 
-    private fun fail(status: Int, error: String) =
-        HostReply(status, buildJsonObject { put("error", error) }.toString())
+    private fun fail(status: Int, error: String) = HostReply(status, buildJsonObject { put("error", error) }.toString())
 
     private fun malformed() = fail(400, "malformed request")
 
@@ -123,7 +122,10 @@ class PairingHost(
         val key: ByteArray
         try {
             val cpace = Cpace.start(
-                Encoding.utf8(o.code), Cpace.PAIRING_CI, Encoding.fromBase64(o.sid), Encoding.utf8(identity().deviceId),
+                Encoding.utf8(o.code),
+                Cpace.PAIRING_CI,
+                Encoding.fromBase64(o.sid),
+                Encoding.utf8(identity().deviceId),
             )
             key = Pairing.key(Cpace.finish(cpace.state, Encoding.fromBase64(messageText), CpaceRole.RESPONDER))
             reply = cpace.message

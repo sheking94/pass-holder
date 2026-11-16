@@ -3,12 +3,20 @@ import { describe, expect, it } from "vitest";
 import { classifyField, type FieldDescriptor } from "../../src/autofill/fields.ts";
 import { normalizeText, type FieldKind } from "../../src/autofill/keywords.ts";
 
-const vectors = JSON.parse(readFileSync(new URL("../../test-vectors/autofill/fields.json", import.meta.url), "utf8")) as {
+const vectors = JSON.parse(
+  readFileSync(new URL("../../test-vectors/autofill/fields.json", import.meta.url), "utf8"),
+) as {
   cases: { field: Partial<FieldDescriptor>; expected: FieldKind | null }[];
 };
 
 const full = (p: Partial<FieldDescriptor>): FieldDescriptor => ({
-  autocomplete: [], type: "", name: "", id: "", label: "", placeholder: "", ...p,
+  autocomplete: [],
+  type: "",
+  name: "",
+  id: "",
+  label: "",
+  placeholder: "",
+  ...p,
 });
 
 describe("classifyField vectors", () => {

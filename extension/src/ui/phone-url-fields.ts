@@ -3,7 +3,8 @@ import { h, setStatus } from "./dom.ts";
 
 const URL_EXAMPLE = `http://192.168.1.5:${PHONE_PORT}`;
 const SECOND_URL_EXAMPLE = `http://100.64.0.7:${PHONE_PORT}`;
-const NO_PERMISSION = "Bez zgody Chrome na dostęp do adresu telefonu wtyczka nie może się z nim łączyć.";
+const NO_PERMISSION =
+  "Bez zgody Chrome na dostęp do adresu telefonu wtyczka nie może się z nim łączyć.";
 
 /** The host permission pattern for one normalized phone address, e.g. http://192.168.1.5:8787/*. */
 export function originPattern(url: string): string {
@@ -20,7 +21,14 @@ export function phoneUrlFields(current: readonly string[] = []) {
   const add = (value = "") => {
     const first = box.childElementCount === 0;
     // Not `required`: read() names a missing address in the status line, in the same place as other errors.
-    const input = h("input", { type: "text", inputmode: "url", class: "mono", placeholder: first ? URL_EXAMPLE : SECOND_URL_EXAMPLE, value, autocomplete: "off" });
+    const input = h("input", {
+      type: "text",
+      inputmode: "url",
+      class: "mono",
+      placeholder: first ? URL_EXAMPLE : SECOND_URL_EXAMPLE,
+      value,
+      autocomplete: "off",
+    });
     box.append(input);
     return input;
   };
@@ -33,7 +41,11 @@ export function phoneUrlFields(current: readonly string[] = []) {
     fields: [
       h("label", {}, "Adresy telefonu (z ekranu Synchronizacja w aplikacji)"),
       box,
-      h("button", { type: "button", class: "small", onclick: () => add().focus() }, "+ Dodaj adres"),
+      h(
+        "button",
+        { type: "button", class: "small", onclick: () => add().focus() },
+        "+ Dodaj adres",
+      ),
     ],
     /** All typed addresses and the host permission patterns they need, or an error message. */
     read(): { urls: string[]; origins: string[] } | string {
@@ -54,7 +66,11 @@ export function phoneUrlFields(current: readonly string[] = []) {
  * submit handler, before any await (the prompt needs the user gesture). It runs in a tab (see page-mode.ts),
  * so the page survives the prompt and the callback runs.
  */
-export function requestHostPermission(origins: string[], status: HTMLElement, onGranted: () => void) {
+export function requestHostPermission(
+  origins: string[],
+  status: HTMLElement,
+  onGranted: () => void,
+) {
   chrome.permissions.request({ origins }, (granted) => {
     if (!granted) return setStatus(status, NO_PERMISSION, true);
     onGranted();

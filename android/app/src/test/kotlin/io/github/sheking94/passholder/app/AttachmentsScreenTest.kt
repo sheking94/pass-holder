@@ -8,8 +8,8 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.isDialog
+import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ApplicationProvider
@@ -29,8 +29,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import org.robolectric.fakes.BaseCursor
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.fakes.BaseCursor
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.nio.file.Files
@@ -78,8 +78,11 @@ abstract class AttachmentsScreenBase : ScreenTestBase() {
         scenario.onActivity { activity ->
             val shadow = shadowOf(activity)
             val request = shadow.peekNextStartedActivityForResult().intent
-            if (uri == null) shadow.receiveResult(request, Activity.RESULT_CANCELED, null)
-            else shadow.receiveResult(request, Activity.RESULT_OK, Intent().setData(uri))
+            if (uri == null) {
+                shadow.receiveResult(request, Activity.RESULT_CANCELED, null)
+            } else {
+                shadow.receiveResult(request, Activity.RESULT_OK, Intent().setData(uri))
+            }
         }
         compose.waitForIdle()
     }
@@ -327,7 +330,12 @@ class AttachmentsKeepScreenTest : AttachmentsScreenBase() {
             "1",
             EntryContentV3("GitHub", "", LoginFields("jkowalski", "s3cret", urls = listOf("https://github.com")), emptyList(), listOf(a)),
         )
-        val review = SaveReview(SaveData(AppRequest("com.android.chrome", "github.com", "https", browserVerified = true), "jkowalski", "nowe"), phoneStore().entries(), "Chrome")
+        val review =
+            SaveReview(
+                SaveData(AppRequest("com.android.chrome", "github.com", "https", browserVerified = true), "jkowalski", "nowe"),
+                phoneStore().entries(),
+                "Chrome",
+            )
         assertEquals(SaveOutcome.UPDATED, saveReviewed(app(), review, review.initialDraft()))
         assertEquals(listOf(a), phoneStore().entry("1")!!.content.attachments)
     }
@@ -336,8 +344,14 @@ class AttachmentsKeepScreenTest : AttachmentsScreenBase() {
 /** A provider stream that waits until the test lets it read: keeps the app busy ("Szyfruję plik…") for as long as needed. */
 private class BlockedStream(bytes: ByteArray, private val release: java.util.concurrent.CountDownLatch) : java.io.InputStream() {
     private val inner = ByteArrayInputStream(bytes)
-    override fun read(): Int { release.await(); return inner.read() }
-    override fun read(b: ByteArray, off: Int, len: Int): Int { release.await(); return inner.read(b, off, len) }
+    override fun read(): Int {
+        release.await()
+        return inner.read()
+    }
+    override fun read(b: ByteArray, off: Int, len: Int): Int {
+        release.await()
+        return inner.read(b, off, len)
+    }
 }
 
 class AttachmentsBackWhileBusyScreenTest : AttachmentsScreenBase() {

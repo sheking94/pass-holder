@@ -25,24 +25,21 @@ class HostSyncTest {
     private fun changeJson(id: String, base: Long = 0): JsonElement =
         P2pJson.json.encodeToJsonElement(ChangeRequest.serializer(), change(id, base))
 
-    private fun request(sinceRevision: Long, vararg changes: JsonElement, epoch: String = this.epoch): JsonObject =
-        buildJsonObject {
-            put("epoch", epoch)
-            put("sinceRevision", sinceRevision)
-            put("changes", buildJsonArray { changes.forEach { add(it) } })
-        }
+    private fun request(sinceRevision: Long, vararg changes: JsonElement, epoch: String = this.epoch): JsonObject = buildJsonObject {
+        put("epoch", epoch)
+        put("sinceRevision", sinceRevision)
+        put("changes", buildJsonArray { changes.forEach { add(it) } })
+    }
 
-    private fun requestRaw(since: JsonElement?, changes: JsonElement? = buildJsonArray {}): JsonObject =
-        buildJsonObject {
-            put("epoch", epoch)
-            if (since != null) put("sinceRevision", since)
-            if (changes != null) put("changes", changes)
-        }
+    private fun requestRaw(since: JsonElement?, changes: JsonElement? = buildJsonArray {}): JsonObject = buildJsonObject {
+        put("epoch", epoch)
+        if (since != null) put("sinceRevision", since)
+        if (changes != null) put("changes", changes)
+    }
 
     private fun num(text: String): JsonElement = P2pJson.json.parseToJsonElement(text)
 
-    private fun withField(c: JsonElement, key: String, value: JsonElement): JsonElement =
-        JsonObject((c as JsonObject) + (key to value))
+    private fun withField(c: JsonElement, key: String, value: JsonElement): JsonElement = JsonObject((c as JsonObject) + (key to value))
 
     private fun records(n: Int) = MemorySyncStore().also { s ->
         for (i in 1..n) s.put(RemoteRecord("id$i", i.toLong(), false, "x"))
@@ -196,7 +193,10 @@ class HostSyncTest {
         )
         for ((c, message) in bad) {
             assertEquals(message, HostSync.validate(store, epoch, request(0, ok, c)), c.toString())
-            val e = assertThrows(IllegalArgumentException::class.java, { HostSync.process(store, epoch, emptyList(), request(0, ok, c)) }, c.toString())
+            val e =
+                assertThrows(IllegalArgumentException::class.java, {
+                    HostSync.process(store, epoch, emptyList(), request(0, ok, c))
+                }, c.toString())
             assertEquals(message, e.message)
             assertEquals(0, store.currentRevision())
             assertNull(store.get("ok"))
@@ -208,7 +208,13 @@ class HostSyncTest {
     fun malformedSinceRevisionIsRejected() {
         val store = MemorySyncStore()
         val values = listOf(
-            JsonPrimitive("5"), num("1.5"), num("-1"), num("1e20"), num("9007199254740992"), JsonNull, null,
+            JsonPrimitive("5"),
+            num("1.5"),
+            num("-1"),
+            num("1e20"),
+            num("9007199254740992"),
+            JsonNull,
+            null,
         )
         for (v in values) {
             assertEquals("malformed sync request", HostSync.validate(store, epoch, requestRaw(v)), "$v")
@@ -222,9 +228,18 @@ class HostSyncTest {
     fun malformedRequestShapesAreRejected() {
         val store = MemorySyncStore()
         val shapes = listOf(
-            JsonPrimitive("x"), buildJsonArray {}, JsonNull,
-            buildJsonObject { put("sinceRevision", 0); put("changes", buildJsonArray {}) },
-            buildJsonObject { put("epoch", 1); put("sinceRevision", 0); put("changes", buildJsonArray {}) },
+            JsonPrimitive("x"),
+            buildJsonArray {},
+            JsonNull,
+            buildJsonObject {
+                put("sinceRevision", 0)
+                put("changes", buildJsonArray {})
+            },
+            buildJsonObject {
+                put("epoch", 1)
+                put("sinceRevision", 0)
+                put("changes", buildJsonArray {})
+            },
             requestRaw(num("0"), null),
             requestRaw(num("0"), JsonPrimitive("c")),
         )
@@ -279,7 +294,9 @@ class HostSyncTest {
         store.put(RemoteRecord("later", 4, false, "y"))
         // Three changes on stale base revisions conflict with the three big records.
         val res = HostSync.process(
-            store, epoch, emptyList(),
+            store,
+            epoch,
+            emptyList(),
             request(3, changeJson("c1", 99), changeJson("c2", 99), changeJson("c3", 99)),
         )
         assertEquals(listOf("c1", "c2"), res.conflicts.map { it.id })
@@ -292,7 +309,8 @@ class HostSyncTest {
     fun rejectsBlobOver64KiB() {
         val store = MemorySyncStore()
         fun withBlob(n: Int) = P2pJson.json.encodeToJsonElement(
-            ChangeRequest.serializer(), ChangeRequest("a", 0, false, "x".repeat(n)),
+            ChangeRequest.serializer(),
+            ChangeRequest("a", 0, false, "x".repeat(n)),
         )
         assertNull(HostSync.validate(store, epoch, request(0, withBlob(EntryV3.MAX_BLOB_LENGTH))))
         assertEquals("blob too large", HostSync.validate(store, epoch, request(0, withBlob(EntryV3.MAX_BLOB_LENGTH + 1))))

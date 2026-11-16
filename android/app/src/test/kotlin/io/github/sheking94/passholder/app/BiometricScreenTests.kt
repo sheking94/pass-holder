@@ -1,6 +1,7 @@
 package io.github.sheking94.passholder.app
 
 import android.content.Context
+import android.os.Looper
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
@@ -10,7 +11,6 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.robolectric.Shadows.shadowOf
-import android.os.Looper
 import java.time.Duration
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -32,7 +32,9 @@ class SoftwareKeyProtector : UnlockKeyProtector {
     override fun decryptCipher(iv: ByteArray): Cipher? =
         key?.let { Cipher.getInstance("AES/GCM/NoPadding").apply { init(Cipher.DECRYPT_MODE, it, GCMParameterSpec(128, iv)) } }
 
-    override fun deleteKey() { key = null }
+    override fun deleteKey() {
+        key = null
+    }
 }
 
 /** A finger that always matches, unless [cancel] is set (the user pressed "Użyj hasła głównego"). */
@@ -42,7 +44,13 @@ class FakeFingerprintPrompt : FingerprintPrompt {
 
     override fun availability(context: Context) = BiometricAvailability.Ready
 
-    override fun authenticate(activity: FragmentActivity, title: String, cipher: Cipher, onSuccess: (Cipher) -> Unit, onError: (String?) -> Unit) {
+    override fun authenticate(
+        activity: FragmentActivity,
+        title: String,
+        cipher: Cipher,
+        onSuccess: (Cipher) -> Unit,
+        onError: (String?) -> Unit,
+    ) {
         shown++
         if (cancel) onError(null) else onSuccess(cipher)
     }

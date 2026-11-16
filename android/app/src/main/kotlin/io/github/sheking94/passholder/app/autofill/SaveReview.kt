@@ -59,6 +59,7 @@ class SaveReview(val data: SaveData, entries: List<PhoneEntry>, private val appL
     val target: SaveTarget? = saveTargetFor(data.app)
 
     private val saved: List<SavedLogin>
+
     /** Subdomain matches: they only tell that the login is saved already. */
     private val related: List<SavedLogin>
     private val names: Map<String, String>
@@ -119,6 +120,7 @@ fun saveReviewed(app: PassHolderApp, review: SaveReview, draft: SaveDraft): Save
     val decision = decideSave(draft.username, draft.password, logins.exact.map { it.savedLogin() }, logins.related.map { it.savedLogin() })
     return when (decision) {
         SaveDecision.None -> SaveOutcome.NOTHING
+
         SaveDecision.Create -> {
             val name = draft.name.trim().ifEmpty { review.initialDraft().name }
             val content = newLogin(target, name, draft.username, draft.password).copy(name = name)
@@ -127,6 +129,7 @@ fun saveReviewed(app: PassHolderApp, review: SaveReview, draft: SaveDraft): Save
             if (target is SaveTarget.App) app.appTrust.rememberIfNew(target.packageName)
             SaveOutcome.SAVED
         }
+
         is SaveDecision.Update -> {
             val entry = logins.exact.first { it.id == decision.id }
             store.upsertContent(entry.id, withPassword(entry.content, draft.password))
@@ -141,18 +144,22 @@ fun saveReviewed(app: PassHolderApp, review: SaveReview, draft: SaveDraft): Save
  */
 class SaveReviewModel : ViewModel() {
     var candidate: SaveData? = null
+
     /** Null before the review starts, after the save and while the vault is locked again (decrypted logins dropped). */
     var review: SaveReview? by mutableStateOf(null)
         private set
+
     /** Whether the review started: the draft is the user's then and survives a new unlock. */
     var started = false
         private set
     var draft by mutableStateOf(SaveDraft("", "", ""))
     var saving by mutableStateOf(false)
         private set
+
     /** Set once the save ran: the Toast text (null for none). */
     var done: Done? by mutableStateOf(null)
         private set
+
     /** The vault was locked when "Zapisz" came: unlock again, then the review with the same draft. */
     var lockedOut by mutableStateOf(false)
 
@@ -195,8 +202,10 @@ class SaveReviewModel : ViewModel() {
             done = Done(
                 when (outcome) {
                     null -> SAVE_FAILED
+
                     // Saved meanwhile (a sync, another save) with this password.
                     SaveOutcome.NOTHING -> ALREADY_SAVED
+
                     else -> saveToast(outcome)
                 },
             )

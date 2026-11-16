@@ -24,9 +24,13 @@ class PassHolderJsonTest {
     @Test
     fun rejectsOtherVersionsFormatsAndShapes() {
         for (t in listOf(
-            """{"format":"passholder","version":2,"entries":[]}""", """{"format":"other","version":3,"entries":[]}""",
-            """{"format":"passholder","version":3,"entries":{}}""", """{"format":"passholder","version":"3","entries":[]}""",
-            "[]", "null", "nie json",
+            """{"format":"passholder","version":2,"entries":[]}""",
+            """{"format":"other","version":3,"entries":[]}""",
+            """{"format":"passholder","version":3,"entries":{}}""",
+            """{"format":"passholder","version":"3","entries":[]}""",
+            "[]",
+            "null",
+            "nie json",
         )) {
             assertEquals(msg, assertThrows<IllegalArgumentException> { PassHolderJson.parse(t) }.message, t)
         }
@@ -76,12 +80,17 @@ class PassHolderJsonTest {
         val e = """"type":"note","name":"Umowa","note":"","fields":{},"custom":[]"""
         val files = """[{"name":"skan.pdf","mime":"application/pdf","size":10,"path":"files/1-skan.pdf"},""" +
             """{"name":"a:b?.jpg","mime":"image/jpeg","size":20,"path":"files/2-a_b_.jpg"}]"""
-        val text = """{"format":"passholder","version":3,"entries":[{"type":"note","name":"Bez plików","note":"","fields":{},"custom":[]},{$e,"attachments":$files}]}"""
+        val text =
+            """{"format":"passholder","version":3,"entries":[""" +
+                """{"type":"note","name":"Bez plików","note":"","fields":{},"custom":[]},{$e,"attachments":$files}]}"""
         assertEquals(
             ParsedImport(
                 listOf(EntryContentV3("Bez plików", "", NoteFields, emptyList()), EntryContentV3("Umowa", "", NoteFields, emptyList())),
                 emptyList(),
-                listOf(ImportSkip("wpis 2, skan.pdf", "importuj całe archiwum ZIP"), ImportSkip("wpis 2, a:b?.jpg", "importuj całe archiwum ZIP")),
+                listOf(
+                    ImportSkip("wpis 2, skan.pdf", "importuj całe archiwum ZIP"),
+                    ImportSkip("wpis 2, a:b?.jpg", "importuj całe archiwum ZIP"),
+                ),
             ),
             PassHolderJson.parse(text),
         )

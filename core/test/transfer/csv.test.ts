@@ -25,8 +25,14 @@ describe("parseCsv", () => {
 
 describe("toCsv", () => {
   it("quotes fields with commas, quotes, line breaks or outer spaces and ends rows with CRLF", () => {
-    const csv = toCsv([["a", "b,c", 'q"q', " s "], ["x", "", "l\nl", "z"]]);
+    const csv = toCsv([
+      ["a", "b,c", 'q"q', " s "],
+      ["x", "", "l\nl", "z"],
+    ]);
     expect(csv).toBe('a,"b,c","q""q"," s "\r\nx,,"l\nl",z\r\n');
-    expect(parseCsv(csv).map((r) => r.fields)).toEqual([["a", "b,c", 'q"q', " s "], ["x", "", "l\nl", "z"]]);
+    expect(parseCsv(csv).map((r) => r.fields)).toEqual([
+      ["a", "b,c", 'q"q', " s "],
+      ["x", "", "l\nl", "z"],
+    ]);
   });
 });

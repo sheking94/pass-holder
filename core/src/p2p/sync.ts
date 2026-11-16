@@ -15,7 +15,12 @@ import {
   type TombstoneDataV2,
 } from "./entry.ts";
 import { compareHlc, HlcClock, type Hlc } from "./hlc.ts";
-import { MAX_BLOB_BYTES_PER_ROUND, MAX_CHANGES_PER_REQUEST, type P2pSyncRequest, type P2pSyncResponse } from "./host-sync.ts";
+import {
+  MAX_BLOB_BYTES_PER_ROUND,
+  MAX_CHANGES_PER_REQUEST,
+  type P2pSyncRequest,
+  type P2pSyncResponse,
+} from "./host-sync.ts";
 
 /** Safety limit on requests in one syncVaultV2 call, paging included. */
 export const MAX_SYNC_ROUNDS = 1000;
@@ -48,19 +53,25 @@ export function upsertEntryV2(
 ): void {
   // An empty list is dropped (a plugin may save one); a bad or over-long list throws before anything changes.
   const { attachments, ...rest } = input;
-  const content: EntryContentV3 = attachments === undefined || attachments.length === 0
-    ? (rest as EntryContentV3)
-    : { ...rest, attachments: parseAttachments(attachments) } as EntryContentV3;
+  const content: EntryContentV3 =
+    attachments === undefined || attachments.length === 0
+      ? (rest as EntryContentV3)
+      : ({ ...rest, attachments: parseAttachments(attachments) } as EntryContentV3);
   const existing = vault.entries.get(id);
   // Size check on a copy of the clock first: a rejected entry changes neither the vault nor the clock.
   const probe = clock.clone();
   if (existing) probe.observe(existing.data.hlc);
-  if (entryBlobLength({ ...content, v: 3, hlc: probe.tick() }) > MAX_ENTRY_BLOB_LENGTH) throw new Error(ENTRY_TOO_LARGE);
+  if (entryBlobLength({ ...content, v: 3, hlc: probe.tick() }) > MAX_ENTRY_BLOB_LENGTH)
+    throw new Error(ENTRY_TOO_LARGE);
   // A restarted clock must still order this edit after the version it overwrites.
   if (existing) clock.observe(existing.data.hlc);
   const revision = existing?.revision ?? 0;
   vault.entries.set(id, {
-    id, revision, dirty: true, deleted: false, data: { ...content, v: 3, hlc: clock.tick() },
+    id,
+    revision,
+    dirty: true,
+    deleted: false,
+    data: { ...content, v: 3, hlc: clock.tick() },
   });
 }
 
@@ -83,14 +94,17 @@ export function deleteEntryV2(vault: LocalVaultV2, clock: HlcClock, id: string):
 }
 
 export function liveEntriesV2(vault: LocalVaultV2): (LocalEntryV2 & { deleted: false })[] {
-  return [...vault.entries.values()].filter((e): e is LocalEntryV2 & { deleted: false } => !e.deleted);
+  return [...vault.entries.values()].filter(
+    (e): e is LocalEntryV2 & { deleted: false } => !e.deleted,
+  );
 }
 
 /** A clock that continues after every HLC already in the vault (for a device whose clock was not persisted). */
 export function clockForVault(vault: LocalVaultV2, deviceId: string, now?: () => number): HlcClock {
   const clock = new HlcClock(deviceId, now);
   let max: Hlc | undefined;
-  for (const e of vault.entries.values()) if (!max || compareHlc(e.data.hlc, max) > 0) max = e.data.hlc;
+  for (const e of vault.entries.values())
+    if (!max || compareHlc(e.data.hlc, max) > 0) max = e.data.hlc;
   if (max) clock.observe(max);
   return clock;
 }
@@ -132,14 +146,30 @@ async function buildRequest(vault: LocalVaultV2, vaultKey: Uint8Array): Promise<
     })),
   );
   // An unknown epoch is sent as "" and only serves to learn the phone's epoch.
-  return { request: { epoch: vault.epoch ?? "", sinceRevision: vault.lastSyncRevision, changes }, sent, capped: allDirty.length > dirty.length };
+  return {
+    request: { epoch: vault.epoch ?? "", sinceRevision: vault.lastSyncRevision, changes },
+    sent,
+    capped: allDirty.length > dirty.length,
+  };
 }
 
 async function decodeRemote(vaultKey: Uint8Array, record: RemoteRecord): Promise<LocalEntryV2> {
   const payload = await decryptPayloadV2(vaultKey, record.id, record.blob);
   return record.deleted
-    ? { id: record.id, revision: record.revision, dirty: false, deleted: true, data: parseTombstoneData(payload) }
-    : { id: record.id, revision: record.revision, dirty: false, deleted: false, data: parseEntryData(payload) };
+    ? {
+        id: record.id,
+        revision: record.revision,
+        dirty: false,
+        deleted: true,
+        data: parseTombstoneData(payload),
+      }
+    : {
+        id: record.id,
+        revision: record.revision,
+        dirty: false,
+        deleted: false,
+        data: parseEntryData(payload),
+      };
 }
 
 /** Starts over with a phone that knows none of our records (new epoch, or the phone's state went backwards). */
@@ -147,20 +177,25 @@ function adoptEpoch(vault: LocalVaultV2, epoch: string): void {
   vault.epoch = epoch;
   vault.lastSyncRevision = 0;
   // The new phone knows none of our records: send everything, including tombstones.
-  for (const [id, entry] of vault.entries) vault.entries.set(id, { ...entry, revision: 0, dirty: true });
+  for (const [id, entry] of vault.entries)
+    vault.entries.set(id, { ...entry, revision: 0, dirty: true });
 }
 
 /**
  * Applies the vault info received during pairing. A different epoch (also the first one) goes through the same
  * reset as an epoch change during sync; the addresses are always replaced.
  */
-export function applyVaultInfo(vault: LocalVaultV2, info: { epoch: string; addresses: string[] }): void {
+export function applyVaultInfo(
+  vault: LocalVaultV2,
+  info: { epoch: string; addresses: string[] },
+): void {
   if (vault.epoch !== info.epoch) adoptEpoch(vault, info.epoch);
   vault.addresses = [...new Set(info.addresses)];
 }
 
 function addAddresses(vault: LocalVaultV2, addresses: string[]): void {
-  for (const address of addresses) if (!vault.addresses.includes(address)) vault.addresses.push(address);
+  for (const address of addresses)
+    if (!vault.addresses.includes(address)) vault.addresses.push(address);
 }
 
 /**
@@ -180,7 +215,13 @@ async function applyResponse(
     const sentHlc = sent.get(id);
     if (!entry) {
       // Deleted while its first push was in flight: the phone now has it, so it needs a tombstone.
-      vault.entries.set(id, { id, revision, dirty: true, deleted: true, data: { hlc: clock.tick() } });
+      vault.entries.set(id, {
+        id,
+        revision,
+        dirty: true,
+        deleted: true,
+        data: { hlc: clock.tick() },
+      });
     } else {
       // Changed while in flight: the phone has the older version, keep the newer one dirty.
       const unchanged = sentHlc !== undefined && compareHlc(entry.data.hlc, sentHlc) === 0;
@@ -195,17 +236,29 @@ async function applyResponse(
     const local = vault.entries.get(record.id);
     const localWins = local?.dirty === true && compareHlc(local.data.hlc, remote.data.hlc) > 0;
     // Both versions live and the local one unsent: the HLC picks the entry, but the attachment lists are merged.
-    const merged = local?.dirty && !local.deleted && !remote.deleted
-      ? localWins ? mergeEntryAttachments(local.data, remote.data, clock) : mergeEntryAttachments(remote.data, local.data, clock)
-      : undefined;
+    const merged =
+      local?.dirty && !local.deleted && !remote.deleted
+        ? localWins
+          ? mergeEntryAttachments(local.data, remote.data, clock)
+          : mergeEntryAttachments(remote.data, local.data, clock)
+        : undefined;
     if (localWins) {
-      vault.entries.set(record.id, merged
-        ? { id: record.id, revision: record.revision, dirty: true, deleted: false, data: merged }
-        : { ...local!, revision: record.revision });
+      vault.entries.set(
+        record.id,
+        merged
+          ? { id: record.id, revision: record.revision, dirty: true, deleted: false, data: merged }
+          : { ...local!, revision: record.revision },
+      );
       needsResync = true;
     } else if (merged) {
       // The remote version wins but lacks some local files: keep it with the merged list as a new local change.
-      vault.entries.set(record.id, { id: record.id, revision: record.revision, dirty: true, deleted: false, data: merged });
+      vault.entries.set(record.id, {
+        id: record.id,
+        revision: record.revision,
+        dirty: true,
+        deleted: false,
+        data: merged,
+      });
       needsResync = true;
     } else if (local && compareHlc(remote.data.hlc, local.data.hlc) < 0) {
       // Security review V3-I2: an older version than the one known here (an old ciphertext replayed under a new
@@ -227,10 +280,15 @@ async function applyResponse(
  * undefined. The winner's list stays unchanged when the merge would exceed MAX_ATTACHMENTS_PARSED or make the
  * entry too large to sync. The merged list always holds the winner's files, so it is never empty.
  */
-function mergeEntryAttachments(winner: EntryDataV3, loser: EntryDataV3, clock: HlcClock): EntryDataV3 | undefined {
+function mergeEntryAttachments(
+  winner: EntryDataV3,
+  loser: EntryDataV3,
+  clock: HlcClock,
+): EntryDataV3 | undefined {
   const merged = mergeAttachments(winner.attachments, loser.attachments);
   // The merge only appends, so an unchanged length means an unchanged id sequence.
-  if (merged.length === (winner.attachments?.length ?? 0) || merged.length > MAX_ATTACHMENTS_PARSED) return undefined;
+  if (merged.length === (winner.attachments?.length ?? 0) || merged.length > MAX_ATTACHMENTS_PARSED)
+    return undefined;
   // Measure with a throwaway tick; the real clock moves only when the merge is accepted.
   const probe: EntryDataV3 = { ...winner, attachments: merged, hlc: clock.clone().tick() };
   if (entryBlobLength(probe) > MAX_ENTRY_BLOB_LENGTH) return undefined;
@@ -261,7 +319,8 @@ export async function syncVaultV2(
     const { request, sent, capped } = await buildRequest(vault, vaultKey);
     const response = await send(request);
     // Same epoch but the phone is behind what we already saw: its state was restored. Upload everything.
-    const wentBack = response.epoch === vault.epoch && response.currentRevision < vault.lastSyncRevision;
+    const wentBack =
+      response.epoch === vault.epoch && response.currentRevision < vault.lastSyncRevision;
     if (response.epoch !== vault.epoch || wentBack) {
       if (epochChanged) throw new Error("Epoch changed twice during sync");
       epochChanged = true;
@@ -272,7 +331,8 @@ export async function syncVaultV2(
     }
     const needsResync = await applyResponse(vault, clock, response, sent, vaultKey);
     // A round whose answer was cut (more) resolves at least one record, so it is paging, not a conflict ping-pong.
-    if (needsResync && !response.more && ++resyncs >= maxRounds) throw new Error("Sync did not settle, try again");
+    if (needsResync && !response.more && ++resyncs >= maxRounds)
+      throw new Error("Sync did not settle, try again");
     if (!needsResync && !capped && !response.more) return;
   }
   throw new Error("Sync exceeded the round limit");

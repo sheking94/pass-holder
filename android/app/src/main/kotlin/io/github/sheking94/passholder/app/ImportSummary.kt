@@ -57,7 +57,13 @@ fun importSummary(parsed: ParsedArchive, result: ImportResult, format: TransferF
     summary(parsed.skipped, result, format, files)
 
 private fun summary(skipped: List<ImportSkip>, result: ImportResult, format: TransferFormat, files: ArchiveFiles?): String {
-    fun noun(n: Int) = if (format == TransferFormat.NORDPASS) plural(n, "wiersz", "wiersze", "wierszy") else plural(n, "wpis", "wpisy", "wpisów")
+    fun noun(n: Int) = if (format ==
+        TransferFormat.NORDPASS
+    ) {
+        plural(n, "wiersz", "wiersze", "wierszy")
+    } else {
+        plural(n, "wpis", "wpisy", "wpisów")
+    }
     val fileSkips = files?.skipped.orEmpty()
     return listOfNotNull(
         "Dodano ${entriesNoun(result.added)} (zsynchronizuj, żeby trafiły do wtyczki).",

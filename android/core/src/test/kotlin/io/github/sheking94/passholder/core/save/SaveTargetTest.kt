@@ -4,9 +4,9 @@ import io.github.sheking94.passholder.core.autofill.AppRequest
 import io.github.sheking94.passholder.core.p2p.CustomField
 import io.github.sheking94.passholder.core.p2p.EntryContentV3
 import io.github.sheking94.passholder.core.p2p.LoginFields
-import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Test
 
 class SaveTargetTest {
     private val chrome = "com.android.chrome"
@@ -14,7 +14,10 @@ class SaveTargetTest {
     @Test
     fun trustedBrowserGivesWeb() {
         assertEquals(SaveTarget.Web("github.com"), saveTargetFor(AppRequest(chrome, "www.GitHub.com", "https", browserVerified = true)))
-        assertEquals(SaveTarget.Web("http://intranet.local"), saveTargetFor(AppRequest(chrome, "intranet.local", "http", browserVerified = true)))
+        assertEquals(
+            SaveTarget.Web("http://intranet.local"),
+            saveTargetFor(AppRequest(chrome, "intranet.local", "http", browserVerified = true)),
+        )
         // No reported scheme counts as http (review V3-N5).
         assertEquals(SaveTarget.Web("http://bank.pl"), saveTargetFor(AppRequest(chrome, "bank.pl", null, browserVerified = true)))
     }
@@ -31,7 +34,10 @@ class SaveTargetTest {
     @Test
     fun newLoginForWebAndApp() {
         val web = newLogin(SaveTarget.Web("http://a.example:8080"), "Label", "jan", "pw")
-        assertEquals(EntryContentV3("a.example", "", LoginFields("jan", "pw", "", listOf("http://a.example:8080"), emptyList()), emptyList()), web)
+        assertEquals(
+            EntryContentV3("a.example", "", LoginFields("jan", "pw", "", listOf("http://a.example:8080"), emptyList()), emptyList()),
+            web,
+        )
         val app = newLogin(SaveTarget.App("com.example.app"), "Example", "jan", "pw")
         assertEquals(EntryContentV3("Example", "", LoginFields("jan", "pw", "", emptyList(), listOf("com.example.app")), emptyList()), app)
     }
@@ -39,7 +45,10 @@ class SaveTargetTest {
     @Test
     fun withPasswordKeepsOtherFields() {
         val c = EntryContentV3(
-            "n", "note", LoginFields("u", "old", "totp", listOf("x.pl"), listOf("a.b")), listOf(CustomField("l", "v", true)),
+            "n",
+            "note",
+            LoginFields("u", "old", "totp", listOf("x.pl"), listOf("a.b")),
+            listOf(CustomField("l", "v", true)),
         )
         assertEquals(
             c.copy(

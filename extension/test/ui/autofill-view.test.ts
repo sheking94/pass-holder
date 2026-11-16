@@ -31,10 +31,12 @@ const ENTRIES = [
 const TAB = { id: 7, url: "https://mail.google.com/inbox" };
 
 const tabs = (app: Element) => [...app.querySelectorAll<HTMLButtonElement>(".tabs button")];
-const fillButtons = (root: Element) => [...root.querySelectorAll("button")].filter((b) => b.textContent === "Wypełnij");
+const fillButtons = (root: Element) =>
+  [...root.querySelectorAll("button")].filter((b) => b.textContent === "Wypełnij");
 const status = (app: Element) => app.querySelector(".status")!;
 
-const shownMatches = async (app: Element) => (await settle(() => app.querySelector(".matches:not([hidden])")))!;
+const shownMatches = async (app: Element) =>
+  (await settle(() => app.querySelector(".matches:not([hidden])")))!;
 
 async function open(options: Parameters<typeof setupPopup>[1]) {
   const popup = await setupPopup(ENTRIES, options);
@@ -48,9 +50,15 @@ describe("autofill in the list view", () => {
     const { app } = await open({ activeTab: TAB });
     const section = await shownMatches(app);
     expect(section.querySelector("h2")!.textContent).toBe("Pasujące do tej strony");
-    expect([...section.querySelectorAll(".name")].map((n) => n.textContent!.replace(/ •$/, ""))).toEqual(["Poczta"]);
+    expect(
+      [...section.querySelectorAll(".name")].map((n) => n.textContent!.replace(/ •$/, "")),
+    ).toEqual(["Poczta"]);
     expect(fillButtons(section)).toHaveLength(1);
-    expect([...app.querySelectorAll("#app > .entries .name")].map((n) => n.textContent!.replace(/ •$/, ""))).toEqual(["Bank", "Poczta"]);
+    expect(
+      [...app.querySelectorAll("#app > .entries .name")].map((n) =>
+        n.textContent!.replace(/ •$/, ""),
+      ),
+    ).toEqual(["Bank", "Poczta"]);
   }, 30_000);
 
   it("hides the section when nothing matches", async () => {
@@ -88,11 +96,19 @@ describe("autofill in the list view", () => {
     const section = await shownMatches(app);
     await click(byText(section, "Wypełnij"));
     await settle(() => close.mock.calls.length > 0);
-    expect(messages).toContainEqual({ target: "background", type: "fill", entryId: "l2", tabId: 7 });
+    expect(messages).toContainEqual({
+      target: "background",
+      type: "fill",
+      entryId: "l2",
+      tabId: 7,
+    });
   }, 30_000);
 
   it("fill shows the error and keeps the popup open", async () => {
-    const { app, close } = await open({ activeTab: TAB, fillResult: { ok: false, error: NO_FIELDS.card } });
+    const { app, close } = await open({
+      activeTab: TAB,
+      fillResult: { ok: false, error: NO_FIELDS.card },
+    });
     await click(tabs(app)[2]!);
     await click(fillButtons(app)[0]!);
     await settle(() => status(app).textContent === NO_FIELDS.card);

@@ -80,13 +80,7 @@ class P2pInteropTest {
     }
 
     /** Runs the TypeScript client and returns the JSON it prints on its last line. */
-    private fun runClient(
-        f: Fixture,
-        count: Int,
-        startPrefix: String,
-        tmp: File,
-        phoneFileId: String? = null,
-    ): JsonObject {
+    private fun runClient(f: Fixture, count: Int, startPrefix: String, tmp: File, phoneFileId: String? = null): JsonObject {
         val config = File(tmp, "config.json")
         config.writeText(
             buildJsonObject {
@@ -107,9 +101,12 @@ class P2pInteropTest {
         )
         // No --experimental-transform-types: Node 26 dropped it, and the script and core/src/p2p need only type stripping.
         val process = ProcessBuilder(
-            "node", "--disable-warning=ExperimentalWarning",
+            "node",
+            "--disable-warning=ExperimentalWarning",
             "android/core/src/test/resources/p2p-interop.ts",
-            root.path, web.url("/").toString().trimEnd('/'), config.path,
+            root.path,
+            web.url("/").toString().trimEnd('/'),
+            config.path,
         ).directory(root).redirectErrorStream(true).start()
         val output = process.inputStream.bufferedReader(Charsets.UTF_8).readText()
         check(process.waitFor(5, TimeUnit.MINUTES) && process.exitValue() == 0) { "node client failed:\n$output" }

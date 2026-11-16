@@ -9,11 +9,23 @@ import type { FieldsForm } from "./types.ts";
  * so a stored value would change on save; inputMode only picks the on-screen keyboard.
  */
 function text(value: string, placeholder?: string, ariaLabel?: string, inputMode?: string) {
-  return h("input", { type: "text", value, placeholder, "aria-label": ariaLabel, inputmode: inputMode, autocomplete: "off" });
+  return h("input", {
+    type: "text",
+    value,
+    placeholder,
+    "aria-label": ariaLabel,
+    inputmode: inputMode,
+    autocomplete: "off",
+  });
 }
 
 /** Label + value pairs (phones, e-mails): a narrow label and the value side by side. */
-function labeledList(items: readonly p2p.LabeledValue[], addLabel: string, valueName: string, inputMode: string) {
+function labeledList(
+  items: readonly p2p.LabeledValue[],
+  addLabel: string,
+  valueName: string,
+  inputMode: string,
+) {
   return listEditor<p2p.LabeledValue>({
     items,
     empty: () => ({ label: "", value: "" }),
@@ -21,7 +33,10 @@ function labeledList(items: readonly p2p.LabeledValue[], addLabel: string, value
     row: (item) => {
       const label = text(item.label, "np. dom", "Etykieta");
       const value = text(item.value, valueName, valueName, inputMode);
-      return { node: h("div", { class: "pair" }, label, value), read: () => ({ ...item, label: label.value, value: value.value }) };
+      return {
+        node: h("div", { class: "pair" }, label, value),
+        read: () => ({ ...item, label: label.value, value: value.value }),
+      };
     },
   });
 }
@@ -43,8 +58,22 @@ export function contactForm(fields: p2p.ContactFields): FieldsForm<"contact"> {
       const city = text(item.city, "Miasto", "Miasto");
       const country = text(item.country, "Kraj", "Kraj");
       return {
-        node: h("div", { class: "field-stack" }, label, street, h("div", { class: "pair" }, postalCode, city), country),
-        read: () => ({ ...item, label: label.value, street: street.value, postalCode: postalCode.value, city: city.value, country: country.value }),
+        node: h(
+          "div",
+          { class: "field-stack" },
+          label,
+          street,
+          h("div", { class: "pair" }, postalCode, city),
+          country,
+        ),
+        read: () => ({
+          ...item,
+          label: label.value,
+          street: street.value,
+          postalCode: postalCode.value,
+          city: city.value,
+          country: country.value,
+        }),
       };
     },
   });

@@ -15,12 +15,12 @@ import android.service.autofill.FillResponse
 import android.service.autofill.SaveCallback
 import android.service.autofill.SaveRequest
 import android.util.Log
-import android.widget.Toast
 import android.view.inputmethod.InlineSuggestionsRequest
+import android.widget.Toast
 import io.github.sheking94.passholder.app.PassHolderApp
 import io.github.sheking94.passholder.core.autofill.planDatasets
-import io.github.sheking94.passholder.core.p2p.LoginFields
 import io.github.sheking94.passholder.core.autofill.planRequest
+import io.github.sheking94.passholder.core.p2p.LoginFields
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
@@ -63,7 +63,9 @@ internal fun respond(
  * cancelling would make the suggestion of a response still on screen dead.
  */
 internal fun unlockPendingIntent(context: Context): PendingIntent = PendingIntent.getActivity(
-    context, 0, Intent(context, AutofillUnlockActivity::class.java),
+    context,
+    0,
+    Intent(context, AutofillUnlockActivity::class.java),
     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
 )
 
@@ -72,7 +74,10 @@ internal fun unlockPendingIntent(context: Context): PendingIntent = PendingInten
  * data: the candidate is in [PassHolderApp.pendingSave], never in the intent. requestCode 1 keeps it apart from [unlockPendingIntent].
  */
 internal fun savePendingIntent(context: Context): PendingIntent = PendingIntent.getActivity(
-    context, 1, Intent(context, AutofillSaveActivity::class.java), PendingIntent.FLAG_IMMUTABLE,
+    context,
+    1,
+    Intent(context, AutofillSaveActivity::class.java),
+    PendingIntent.FLAG_IMMUTABLE,
 )
 
 /** The system autofill service. Holds no entries or keys: each request reads the store anew. */

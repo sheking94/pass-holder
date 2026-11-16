@@ -28,12 +28,8 @@ class EntryTypesTest {
         name: String = "Jan",
     ) = EntryContentV3(name, "", ContactFields("", "", birthDate, phones, emails, addresses), emptyList())
 
-    private fun doc(
-        kind: DocumentKind = DocumentKind.ID_CARD,
-        issueDate: String = "",
-        expiryDate: String = "",
-        name: String = "Dowód",
-    ) = EntryContentV3(name, "", DocumentFields(kind, "", "", issueDate, expiryDate, ""), emptyList())
+    private fun doc(kind: DocumentKind = DocumentKind.ID_CARD, issueDate: String = "", expiryDate: String = "", name: String = "Dowód") =
+        EntryContentV3(name, "", DocumentFields(kind, "", "", issueDate, expiryDate, ""), emptyList())
 
     private fun login(
         username: String = "",

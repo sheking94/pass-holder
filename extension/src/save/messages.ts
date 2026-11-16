@@ -7,13 +7,22 @@ export type SaveCandidateMessage = {
 };
 
 /** Sent by the top frame on every new page; the service worker shows the question window again or closes it. */
-export type SavePendingMessage = { target: "background"; type: "save-pending"; emptyLoginForms: string[] };
+export type SavePendingMessage = {
+  target: "background";
+  type: "save-pending";
+  emptyLoginForms: string[];
+};
 export type SavePendingResponse = { candidateId?: string };
 
 /** "Odblokuj i zapisz" in the question window: bring the candidate's tab forward and open the popup over it. */
 export type SaveUnlockMessage = { target: "background"; type: "save-unlock"; candidateId: string };
 
-export type SaveInfoMessage = { target: "background"; type: "save-info"; candidateId?: string; tabId?: number };
+export type SaveInfoMessage = {
+  target: "background";
+  type: "save-info";
+  candidateId?: string;
+  tabId?: number;
+};
 
 export interface SavePromptInfo {
   id: string;
@@ -39,7 +48,8 @@ export type SavePreviewMessage = {
   password: string;
 };
 /** undefined: no such candidate, locked vault or a foreign sender. */
-export type SavePreviewResponse = { decision: "create" | "update" | "none"; entryName?: string } | undefined;
+export type SavePreviewResponse =
+  { decision: "create" | "update" | "none"; entryName?: string } | undefined;
 
 export type SaveAnswerMessage = {
   target: "background";

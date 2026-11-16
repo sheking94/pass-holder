@@ -36,7 +36,11 @@ export function randomIndex(max: number): number {
 export function generatePassword(options: GeneratorOptions = DEFAULT_GENERATOR_OPTIONS): string {
   const groups = [...new Set(options.groups)];
   if (groups.length === 0) throw new Error("Choose at least one character group");
-  if (!Number.isInteger(options.length) || options.length < MIN_LENGTH || options.length > MAX_LENGTH) {
+  if (
+    !Number.isInteger(options.length) ||
+    options.length < MIN_LENGTH ||
+    options.length > MAX_LENGTH
+  ) {
     throw new Error(`Length must be between ${MIN_LENGTH} and ${MAX_LENGTH}`);
   }
   const pick = (chars: string) => chars[randomIndex(chars.length)]!;

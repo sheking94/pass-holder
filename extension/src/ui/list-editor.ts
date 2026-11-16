@@ -12,19 +12,34 @@ export function listEditor<T>(o: {
   const add = (item: T) => {
     const { node, read } = o.row(item);
     const wrapper = h("div", { class: "row list-row" }, h("div", { class: "grow" }, node));
-    wrapper.append(h("button", {
-      type: "button",
-      class: "small",
-      onclick: () => {
-        readers.delete(wrapper);
-        wrapper.remove();
-      },
-    }, "Usuń"));
+    wrapper.append(
+      h(
+        "button",
+        {
+          type: "button",
+          class: "small",
+          onclick: () => {
+            readers.delete(wrapper);
+            wrapper.remove();
+          },
+        },
+        "Usuń",
+      ),
+    );
     readers.set(wrapper, read);
     rows.append(wrapper);
   };
   for (const item of o.items) add(item);
-  const node = h("div", { class: "list-editor" }, rows, h("button", { type: "button", class: "small", onclick: () => add(o.empty()) }, `+ ${o.addLabel}`));
+  const node = h(
+    "div",
+    { class: "list-editor" },
+    rows,
+    h(
+      "button",
+      { type: "button", class: "small", onclick: () => add(o.empty()) },
+      `+ ${o.addLabel}`,
+    ),
+  );
   // In the order the rows are shown.
   return { node, read: () => [...rows.children].map((row) => readers.get(row as HTMLElement)!()) };
 }

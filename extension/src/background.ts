@@ -1,10 +1,21 @@
 import { AUTO_LOCK_ALARM, onAutoLockAlarm, scheduleAutoLock } from "./auto-lock.ts";
 import { CLEAR_AFTER_MINUTES, CLEAR_CLIPBOARD_ALARM, type ClipboardMessage } from "./clipboard.ts";
-import { chromeTabApi, fillTab, onFillCommand, type FillMessage, UNSUPPORTED_PAGE } from "./autofill/fill-tab.ts";
+import {
+  chromeTabApi,
+  fillTab,
+  onFillCommand,
+  type FillMessage,
+  UNSUPPORTED_PAGE,
+} from "./autofill/fill-tab.ts";
 import { chromeSaveWatchApi, syncSaveWatch } from "./save/registration.ts";
 import { SaveCandidates } from "./save/candidates.ts";
 import type {
-  SaveAnswerMessage, SaveCandidateMessage, SaveInfoMessage, SavePendingMessage, SavePreviewMessage, SaveUnlockMessage,
+  SaveAnswerMessage,
+  SaveCandidateMessage,
+  SaveInfoMessage,
+  SavePendingMessage,
+  SavePreviewMessage,
+  SaveUnlockMessage,
 } from "./save/messages.ts";
 import { chromeWindowApi, PromptWindows } from "./save/prompt-window.ts";
 import { chromeStore, STORAGE_KEYS } from "./storage.ts";
@@ -15,7 +26,10 @@ import { VaultStore } from "./vault-store.ts";
  * (review V3-I4): only those may ask to fill a tab or to clear the clipboard.
  */
 function fromExtensionPage(sender: chrome.runtime.MessageSender): boolean {
-  return sender.id === chrome.runtime.id && (sender.url ?? "").startsWith(`chrome-extension://${chrome.runtime.id}/`);
+  return (
+    sender.id === chrome.runtime.id &&
+    (sender.url ?? "").startsWith(`chrome-extension://${chrome.runtime.id}/`)
+  );
 }
 
 // The popup closes as soon as it loses focus, so the one-minute timer lives here, in an alarm that
@@ -31,7 +45,8 @@ chrome.runtime.onMessage.addListener((message: ClipboardMessage, sender) => {
 });
 
 // Autofill: a fresh store per event, because the service worker may have been stopped in between.
-const newStore = () => new VaultStore(chromeStore(chrome.storage.local), chromeStore(chrome.storage.session));
+const newStore = () =>
+  new VaultStore(chromeStore(chrome.storage.local), chromeStore(chrome.storage.session));
 
 chrome.runtime.onMessage.addListener((message: FillMessage, sender, sendResponse) => {
   if (message.target !== "background" || message.type !== "fill") return;
@@ -61,35 +76,51 @@ const saveCandidates = new SaveCandidates({
   later: (ms, fn) => void setTimeout(fn, ms),
 });
 
-type SaveMessage = SaveCandidateMessage | SavePendingMessage | SaveInfoMessage | SaveAnswerMessage | SavePreviewMessage | SaveUnlockMessage;
-chrome.runtime.onMessage.addListener((message: { target?: string } & Partial<SaveMessage>, sender, sendResponse) => {
-  if (message.target !== "background") return;
-  const run = <T>(work: Promise<T>, onError: T) => {
-    work.catch((error: unknown) => {
-      console.warn("PassHolder: save message failed", error);
-      return onError;
-    }).then(sendResponse);
-    return true;
-  };
-  const m = message as SaveMessage;
-  switch (m.type) {
-    case "save-candidate":
-      return run(saveCandidates.onCandidate(m, sender).then(() => ({})), {});
-    case "save-pending":
-      return run(saveCandidates.onPending(m, sender), {});
-    case "save-info":
-      return run(saveCandidates.info(m, sender), undefined);
-    case "save-preview":
-      return run(saveCandidates.preview(m, sender), undefined);
-    case "save-answer":
-      return run(saveCandidates.answer(m, sender), { ok: false, error: UNSUPPORTED_PAGE });
-    case "save-unlock":
-      return run(unlockForSave(m, sender), undefined);
-  }
-});
+type SaveMessage =
+  | SaveCandidateMessage
+  | SavePendingMessage
+  | SaveInfoMessage
+  | SaveAnswerMessage
+  | SavePreviewMessage
+  | SaveUnlockMessage;
+chrome.runtime.onMessage.addListener(
+  (message: { target?: string } & Partial<SaveMessage>, sender, sendResponse) => {
+    if (message.target !== "background") return;
+    const run = <T>(work: Promise<T>, onError: T) => {
+      work
+        .catch((error: unknown) => {
+          console.warn("PassHolder: save message failed", error);
+          return onError;
+        })
+        .then(sendResponse);
+      return true;
+    };
+    const m = message as SaveMessage;
+    switch (m.type) {
+      case "save-candidate":
+        return run(
+          saveCandidates.onCandidate(m, sender).then(() => ({})),
+          {},
+        );
+      case "save-pending":
+        return run(saveCandidates.onPending(m, sender), {});
+      case "save-info":
+        return run(saveCandidates.info(m, sender), undefined);
+      case "save-preview":
+        return run(saveCandidates.preview(m, sender), undefined);
+      case "save-answer":
+        return run(saveCandidates.answer(m, sender), { ok: false, error: UNSUPPORTED_PAGE });
+      case "save-unlock":
+        return run(unlockForSave(m, sender), undefined);
+    }
+  },
+);
 
 /** The question window has no toolbar: bring the candidate's tab forward and open the popup there to unlock. */
-async function unlockForSave(m: SaveUnlockMessage, sender: chrome.runtime.MessageSender): Promise<undefined> {
+async function unlockForSave(
+  m: SaveUnlockMessage,
+  sender: chrome.runtime.MessageSender,
+): Promise<undefined> {
   const tabId = await saveCandidates.unlockTab(m, sender);
   if (tabId === undefined) return undefined;
   const tab = await chrome.tabs.update(tabId, { active: true });
@@ -108,8 +139,10 @@ chrome.windows.onRemoved.addListener((windowId) => {
 
 // The https permission is the save-prompt switch: keep the script registration in step with it, also when the
 // user took it away in chrome://extensions, or granted it while the popup (and its callback) was already gone.
-const syncSave = () => syncSaveWatch(chromeSaveWatchApi())
-  .catch((error: unknown) => console.warn("PassHolder: save-watch sync failed", error));
+const syncSave = () =>
+  syncSaveWatch(chromeSaveWatchApi()).catch((error: unknown) =>
+    console.warn("PassHolder: save-watch sync failed", error),
+  );
 chrome.runtime.onStartup.addListener(() => void syncSave());
 chrome.runtime.onInstalled.addListener(() => void syncSave());
 chrome.permissions.onAdded.addListener(() => void syncSave());
@@ -119,20 +152,23 @@ chrome.tabs.onRemoved.addListener((tabId) => void saveCandidates.onTabRemoved(ta
 
 chrome.commands.onCommand.addListener((command, tab) => {
   if (command !== "fill-login") return;
-  onFillCommand(newStore(), chromeTabApi(), tab, () => chrome.action.openPopup())
-    .catch((error: unknown) => console.warn("PassHolder: fill command failed", error));
+  onFillCommand(newStore(), chromeTabApi(), tab, () => chrome.action.openPopup()).catch(
+    (error: unknown) => console.warn("PassHolder: fill command failed", error),
+  );
 });
 
 // Auto-lock also when no PassHolder page is open: follow the deadline the pages write (see auto-lock.ts).
 chrome.storage.session.onChanged.addListener((changes) => {
   const change = changes[STORAGE_KEYS.sessionKeys];
-  if (change) void scheduleAutoLock(chrome.alarms, change.newValue as { unlockedUntil: number } | undefined);
+  if (change)
+    void scheduleAutoLock(chrome.alarms, change.newValue as { unlockedUntil: number } | undefined);
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === CLEAR_CLIPBOARD_ALARM) void clearClipboard();
   void saveCandidates.onAlarm(alarm.name);
-  if (alarm.name === AUTO_LOCK_ALARM) void onAutoLockAlarm(chromeStore(chrome.storage.session), chrome.alarms);
+  if (alarm.name === AUTO_LOCK_ALARM)
+    void onAutoLockAlarm(chromeStore(chrome.storage.session), chrome.alarms);
 });
 
 async function clearClipboard() {
@@ -147,6 +183,10 @@ async function clearClipboard() {
       justification: "Clear a copied password from the clipboard after one minute",
     });
   }
-  await chrome.runtime.sendMessage({ target: "offscreen", type: "clear-if-unchanged", hash: copiedPasswordHash } satisfies ClipboardMessage);
+  await chrome.runtime.sendMessage({
+    target: "offscreen",
+    type: "clear-if-unchanged",
+    hash: copiedPasswordHash,
+  } satisfies ClipboardMessage);
   await chrome.offscreen.closeDocument();
 }

@@ -4,9 +4,26 @@ import { deriveMasterKey, splitMasterKey, type KdfParams } from "../src/kdf.ts";
 import { open, seal } from "../src/cipher.ts";
 import { fromHex, toHex, utf8 } from "../src/encoding.ts";
 
-const vectors = JSON.parse(readFileSync(new URL("../test-vectors/v1.json", import.meta.url), "utf8")) as {
-  kdf: { description: string; password: string; passwordUtf8Nfc: string; kdf: KdfParams; masterKey: string; encKey: string; authKey: string }[];
-  seal: { description: string; key: string; plaintextHex: string; aad: string; nonce: string; blob: string }[];
+const vectors = JSON.parse(
+  readFileSync(new URL("../test-vectors/v1.json", import.meta.url), "utf8"),
+) as {
+  kdf: {
+    description: string;
+    password: string;
+    passwordUtf8Nfc: string;
+    kdf: KdfParams;
+    masterKey: string;
+    encKey: string;
+    authKey: string;
+  }[];
+  seal: {
+    description: string;
+    key: string;
+    plaintextHex: string;
+    aad: string;
+    nonce: string;
+    blob: string;
+  }[];
 };
 
 describe("test vectors v1", () => {

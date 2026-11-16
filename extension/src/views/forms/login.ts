@@ -6,7 +6,11 @@ import { passwordGenerator } from "./generator.ts";
 import type { FieldsForm } from "./types.ts";
 
 /** A list of single text inputs (addresses, package names). */
-function stringList(items: readonly string[], addLabel: string, props: Partial<Record<string, unknown>>) {
+function stringList(
+  items: readonly string[],
+  addLabel: string,
+  props: Partial<Record<string, unknown>>,
+) {
   return listEditor<string>({
     items,
     empty: () => "",
@@ -18,19 +22,41 @@ function stringList(items: readonly string[], addLabel: string, props: Partial<R
   });
 }
 
-export async function loginForm(fields: p2p.LoginFields, status: HTMLElement): Promise<FieldsForm<"login">> {
+export async function loginForm(
+  fields: p2p.LoginFields,
+  status: HTMLElement,
+): Promise<FieldsForm<"login">> {
   const username = h("input", { type: "text", value: fields.username, autocomplete: "off" });
-  const password = h("input", { type: "password", class: "mono", value: fields.password, autocomplete: "off" });
+  const password = h("input", {
+    type: "password",
+    class: "mono",
+    value: fields.password,
+    autocomplete: "off",
+  });
   const passwordRow = secretField(password, "hasło", status);
   const generator = await passwordGenerator(status, (generated) => {
     password.value = generated;
     passwordRow.setVisible(true);
   });
-  const totp = h("input", { type: "password", class: "mono", value: fields.totp, autocomplete: "off" });
+  const totp = h("input", {
+    type: "password",
+    class: "mono",
+    value: fields.totp,
+    autocomplete: "off",
+  });
   const totpRow = secretField(totp, "kod TOTP", status);
   // Not type="url": Chrome sanitizes its value (trims, punycode), so a stored address would change on save.
-  const urls = stringList(fields.urls, "Dodaj adres", { type: "text", inputmode: "url", placeholder: "https://", "aria-label": "Adres strony" });
-  const apps = stringList(fields.androidApps, "Dodaj aplikację", { type: "text", placeholder: "np. pl.mbank", "aria-label": "Nazwa pakietu" });
+  const urls = stringList(fields.urls, "Dodaj adres", {
+    type: "text",
+    inputmode: "url",
+    placeholder: "https://",
+    "aria-label": "Adres strony",
+  });
+  const apps = stringList(fields.androidApps, "Dodaj aplikację", {
+    type: "text",
+    placeholder: "np. pl.mbank",
+    "aria-label": "Nazwa pakietu",
+  });
 
   return {
     nodes: [

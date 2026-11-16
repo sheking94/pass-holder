@@ -1,6 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fromBase64, p2p, seal, utf8 } from "@passholder/core";
-import { AUTO_LOCK_MS, LOCAL_VAULT_AAD, STORAGE_KEYS, UnsyncedChanges, VaultStore, type Account } from "../src/vault-store.ts";
+import {
+  AUTO_LOCK_MS,
+  LOCAL_VAULT_AAD,
+  STORAGE_KEYS,
+  UnsyncedChanges,
+  VaultStore,
+  type Account,
+} from "../src/vault-store.ts";
 import {
   CODE,
   FakePhone,
@@ -25,7 +32,9 @@ describe("pairing a new browser with the phone", () => {
     const { store, session, local } = newBrowser(new Map([[PHONE_URL, phone]]));
     phone.offerPairing();
 
-    expect(await store.pairStart(PHONE_URL, CODE, "Chrome (Linux)")).toEqual({ needsPassword: true });
+    expect(await store.pairStart(PHONE_URL, CODE, "Chrome (Linux)")).toEqual({
+      needsPassword: true,
+    });
     expect(await session.get(STORAGE_KEYS.pendingPairing)).toBeDefined();
     expect(await store.getAccount()).toBeUndefined();
     expect(phone.devices.map((d) => d.name)).toEqual(["Chrome (Linux)"]);
@@ -34,13 +43,26 @@ describe("pairing a new browser with the phone", () => {
     expect(names(store)).toEqual(["bank.pl"]);
     expect(await session.get(STORAGE_KEYS.pendingPairing)).toBeUndefined();
     const account = (await store.getAccount())!;
-    expect(account).toMatchObject({ phoneUrls: [PHONE_URL], lastPhoneUrl: PHONE_URL, deviceName: "Chrome (Linux)", phone: phone.identity });
+    expect(account).toMatchObject({
+      phoneUrls: [PHONE_URL],
+      lastPhoneUrl: PHONE_URL,
+      deviceName: "Chrome (Linux)",
+      phone: phone.identity,
+    });
     expect(account.deviceId).toBe(phone.devices[0]!.deviceId);
     // The static private key is on disk only sealed under the vault key.
     expect(fromBase64(account.staticPublicKey)).toEqual(phone.devices[0]!.staticPublicKey);
-    expect(Object.keys(account).sort()).toEqual(
-      ["deviceId", "deviceName", "kdf", "lastPhoneUrl", "phone", "phoneUrls", "sealedStaticKey", "staticPublicKey", "wrappedVaultKey"],
-    );
+    expect(Object.keys(account).sort()).toEqual([
+      "deviceId",
+      "deviceName",
+      "kdf",
+      "lastPhoneUrl",
+      "phone",
+      "phoneUrls",
+      "sealedStaticKey",
+      "staticPublicKey",
+      "wrappedVaultKey",
+    ]);
     expect(await local.get(STORAGE_KEYS.account)).toEqual(account);
   }, 30_000);
 
@@ -71,15 +93,24 @@ describe("pairing a new browser with the phone", () => {
     const phone = FakePhone.waitingForRestore([PHONE_URL]);
     const { store, session } = newBrowser(new Map([[PHONE_URL, phone]]));
     phone.offerPairing();
-    await expect(store.pairStart(PHONE_URL, CODE, "Chrome")).rejects.toThrow("Telefon czeka na odtworzenie sejfu z wtyczki");
+    await expect(store.pairStart(PHONE_URL, CODE, "Chrome")).rejects.toThrow(
+      "Telefon czeka na odtworzenie sejfu z wtyczki",
+    );
     expect(phone.calls).not.toContain("/p2p/v1/pair/start");
     expect(await session.get(STORAGE_KEYS.pendingPairing)).toBeUndefined();
   });
 
   it("refuses an address that is not an IPv4 address of the phone", async () => {
     const { store } = newBrowser(new Map());
-    for (const bad of ["https://192.168.1.5:8787", "http://telefon.local:8787", "http://[::1]:8787", "192.168.1.300"]) {
-      await expect(store.pairStart(bad, CODE, "Chrome")).rejects.toThrow("Nieprawidłowy adres telefonu");
+    for (const bad of [
+      "https://192.168.1.5:8787",
+      "http://telefon.local:8787",
+      "http://[::1]:8787",
+      "192.168.1.300",
+    ]) {
+      await expect(store.pairStart(bad, CODE, "Chrome")).rejects.toThrow(
+        "Nieprawidłowy adres telefonu",
+      );
     }
   });
 });
@@ -110,7 +141,11 @@ describe("pairing an existing browser again (repair)", () => {
     const { store, phone, local, session, makeClient } = await pairedBrowser();
     const before = (await store.getAccount())!;
     phone.offerPairing();
-    expect(await store.repair(PHONE_URL, CODE, PASSWORD)).toEqual({ mode: "paired", skipped: [], files: NO_FILES });
+    expect(await store.repair(PHONE_URL, CODE, PASSWORD)).toEqual({
+      mode: "paired",
+      skipped: [],
+      files: NO_FILES,
+    });
     const after = (await store.getAccount())!;
     expect(after.deviceId).toBe(before.deviceId);
     expect(after.staticPublicKey).toBe(before.staticPublicKey);
@@ -120,10 +155,13 @@ describe("pairing an existing browser again (repair)", () => {
 
   it("restores a phone from the extension: the phone gets every entry from baseRevision 0", async () => {
     const { store, local, session } = await pairedBrowser();
-    for (const name of ["a.pl", "b.pl", "c.pl"]) await store.upsert(name, { name, username: "u", password: "p" });
+    for (const name of ["a.pl", "b.pl", "c.pl"])
+      await store.upsert(name, { name, username: "u", password: "p" });
     await store.sync(); // the entries now have revisions on the old phone
     expect(store.entry("a.pl")!.dirty).toBe(false);
-    const vaultKey = fromBase64((await session.get<{ vaultKey: string }>(STORAGE_KEYS.sessionKeys))!.vaultKey);
+    const vaultKey = fromBase64(
+      (await session.get<{ vaultKey: string }>(STORAGE_KEYS.sessionKeys))!.vaultKey,
+    );
     const before = (await store.getAccount())!;
 
     // The phone was lost; a new one waits for "Odtwórz z wtyczki" at another address.
@@ -131,9 +169,16 @@ describe("pairing an existing browser again (repair)", () => {
     const browser = newBrowser(new Map([[SECOND_URL, fresh]]));
     const sameStore = new VaultStore(local, session, browser.makeClient);
     fresh.offerPairing();
-    expect(await sameStore.repair(SECOND_URL, CODE, PASSWORD)).toEqual({ mode: "restored", skipped: [], files: NO_FILES });
+    expect(await sameStore.repair(SECOND_URL, CODE, PASSWORD)).toEqual({
+      mode: "restored",
+      skipped: [],
+      files: NO_FILES,
+    });
 
-    expect(fresh.receivedVaultInfo).toMatchObject({ kdf: before.kdf, wrappedVaultKey: before.wrappedVaultKey });
+    expect(fresh.receivedVaultInfo).toMatchObject({
+      kdf: before.kdf,
+      wrappedVaultKey: before.wrappedVaultKey,
+    });
     // A non-zero baseRevision for an entry the empty phone does not know would be refused with 400.
     expect(await fresh.entryNames(vaultKey)).toEqual(["a.pl", "b.pl", "c.pl"]);
     expect(await fresh.unwrap()).toEqual(vaultKey);
@@ -148,19 +193,29 @@ describe("pairing an existing browser again (repair)", () => {
 
   it("returns the learned addresses its first sync skipped because Chrome does not allow them (M1)", async () => {
     const phone = await FakePhone.withVault(PASSWORD, [PHONE_URL, SECOND_URL]);
-    const { store } = newBrowser(new Map([[PHONE_URL, phone]]), Date.now, async (u) => u === PHONE_URL);
+    const { store } = newBrowser(
+      new Map([[PHONE_URL, phone]]),
+      Date.now,
+      async (u) => u === PHONE_URL,
+    );
     phone.offerPairing();
     await store.pairStart(PHONE_URL, CODE, "Chrome");
     await store.pairFinish(PASSWORD);
     phone.offerPairing();
-    expect(await store.repair(PHONE_URL, CODE, PASSWORD)).toEqual({ mode: "paired", skipped: [SECOND_URL], files: NO_FILES });
+    expect(await store.repair(PHONE_URL, CODE, PASSWORD)).toEqual({
+      mode: "paired",
+      skipped: [SECOND_URL],
+      files: NO_FILES,
+    });
   }, 60_000);
 
   it("refuses a wrong master password and keeps the account (the phone's copy is the last check)", async () => {
     const { store, phone, local } = await pairedBrowser();
     const accountBefore = await local.get(STORAGE_KEYS.account);
     phone.offerPairing();
-    await expect(store.repair(PHONE_URL, CODE, "wrong password")).rejects.toThrow("Złe hasło główne");
+    await expect(store.repair(PHONE_URL, CODE, "wrong password")).rejects.toThrow(
+      "Złe hasło główne",
+    );
     expect(await local.get(STORAGE_KEYS.account)).toEqual(accountBefore);
   }, 60_000);
 
@@ -170,7 +225,9 @@ describe("pairing an existing browser again (repair)", () => {
     const browser = newBrowser(new Map([[SECOND_URL, fresh]]));
     const sameStore = new VaultStore(local, session, browser.makeClient);
     fresh.offerPairing();
-    await expect(sameStore.repair(SECOND_URL, CODE, "wrong password")).rejects.toThrow("Złe hasło główne");
+    await expect(sameStore.repair(SECOND_URL, CODE, "wrong password")).rejects.toThrow(
+      "Złe hasło główne",
+    );
     expect(fresh.calls).not.toContain("/p2p/v1/pair/start");
   }, 60_000);
 });
@@ -191,9 +248,17 @@ describe("after the master password changed on the phone", () => {
     await expect(store.sync()).rejects.toThrow("Telefon nie zna tej przeglądarki");
 
     phone.offerPairing();
-    expect(await store.repair(PHONE_URL, CODE, NEW_PASSWORD)).toEqual({ mode: "paired", skipped: [], files: NO_FILES });
+    expect(await store.repair(PHONE_URL, CODE, NEW_PASSWORD)).toEqual({
+      mode: "paired",
+      skipped: [],
+      files: NO_FILES,
+    });
     const after = (await store.getAccount())!;
-    expect(after).toMatchObject({ deviceId: before.deviceId, staticPublicKey: before.staticPublicKey, kdf: phone.kdf });
+    expect(after).toMatchObject({
+      deviceId: before.deviceId,
+      staticPublicKey: before.staticPublicKey,
+      kdf: phone.kdf,
+    });
     expect(after.wrappedVaultKey).not.toBe(before.wrappedVaultKey);
     expect(await store.pinStatus()).toBeUndefined();
     expect(names(store)).toEqual(["moje.pl"]);
@@ -254,7 +319,11 @@ describe("syncing with the phone", () => {
     await store.setPhoneUrls([PHONE_URL, "10.0.0.2:8787"]);
     phone.addresses = [PHONE_URL, SECOND_URL, "http://telefon.local:8787", "http://[fd00::1]:8787"];
     await store.sync();
-    expect((await store.getAccount())!.phoneUrls).toEqual([PHONE_URL, "http://10.0.0.2:8787", SECOND_URL]);
+    expect((await store.getAccount())!.phoneUrls).toEqual([
+      PHONE_URL,
+      "http://10.0.0.2:8787",
+      SECOND_URL,
+    ]);
   }, 30_000);
 
   it("takes the phone's entries and sends its own both ways", async () => {
@@ -284,10 +353,19 @@ describe("syncing with the phone", () => {
     await browser.store.pairStart(PHONE_URL, CODE, "Chrome");
     await browser.store.pairFinish(PASSWORD);
     const account = (await browser.store.getAccount())!;
-    duringSync = () => browser.local.set(STORAGE_KEYS.account, { ...account, phoneUrls: [PHONE_URL, extra], deviceName: "inna nazwa" });
+    duringSync = () =>
+      browser.local.set(STORAGE_KEYS.account, {
+        ...account,
+        phoneUrls: [PHONE_URL, extra],
+        deviceName: "inna nazwa",
+      });
     phone.addresses = [PHONE_URL, SECOND_URL];
     await browser.store.sync();
-    expect(await browser.store.getAccount()).toMatchObject({ phoneUrls: [PHONE_URL, extra, SECOND_URL], lastPhoneUrl: PHONE_URL, deviceName: "inna nazwa" });
+    expect(await browser.store.getAccount()).toMatchObject({
+      phoneUrls: [PHONE_URL, extra, SECOND_URL],
+      lastPhoneUrl: PHONE_URL,
+      deviceName: "inna nazwa",
+    });
   }, 30_000);
 
   it("does not write the account when another page paired with another phone during the sync (M7)", async () => {
@@ -303,7 +381,12 @@ describe("syncing with the phone", () => {
     await browser.store.pairStart(PHONE_URL, CODE, "Chrome");
     await browser.store.pairFinish(PASSWORD);
     const account = (await browser.store.getAccount())!;
-    const repaired: Account = { ...account, phone: { ...account.phone, staticPublicKey: "bm93eQ==" }, phoneUrls: [SECOND_URL], lastPhoneUrl: SECOND_URL };
+    const repaired: Account = {
+      ...account,
+      phone: { ...account.phone, staticPublicKey: "bm93eQ==" },
+      phoneUrls: [SECOND_URL],
+      lastPhoneUrl: SECOND_URL,
+    };
     duringSync = () => browser.local.set(STORAGE_KEYS.account, repaired);
     phone.addresses = [PHONE_URL, "http://10.0.0.3:8787"];
     await browser.store.sync();
@@ -329,7 +412,10 @@ describe("VaultStore offline", () => {
     await browser.store.unlock(PASSWORD);
     expect(names(browser.store)).toEqual(["poczta.pl"]);
 
-    const onDisk = JSON.stringify([await browser.local.get(STORAGE_KEYS.account), await browser.local.get(STORAGE_KEYS.vault)]);
+    const onDisk = JSON.stringify([
+      await browser.local.get(STORAGE_KEYS.account),
+      await browser.local.get(STORAGE_KEYS.vault),
+    ]);
     expect(onDisk).not.toMatch(/poczta|hunter2/);
   }, 30_000);
 
@@ -337,7 +423,12 @@ describe("VaultStore offline", () => {
     let clock = 1_000_000;
     const browser = await pairedBrowser({ now: () => clock });
 
-    const reopened = new VaultStore(browser.local, browser.session, browser.makeClient, () => clock);
+    const reopened = new VaultStore(
+      browser.local,
+      browser.session,
+      browser.makeClient,
+      () => clock,
+    );
     expect(await reopened.resume()).toBe(true);
 
     clock += AUTO_LOCK_MS + 1;
@@ -359,7 +450,10 @@ describe("VaultStore offline", () => {
     const browser = await pairedBrowser();
     await browser.store.lock();
     const account = (await browser.store.getAccount())!;
-    await browser.local.set(STORAGE_KEYS.account, { ...account, kdf: { ...account.kdf, iterations: 1000 } });
+    await browser.local.set(STORAGE_KEYS.account, {
+      ...account,
+      kdf: { ...account.kdf, iterations: 1000 },
+    });
     await expect(browser.store.unlock(PASSWORD)).rejects.toThrow("KDF iterations out of range");
     expect(browser.store.isUnlocked()).toBe(false);
   }, 30_000);
@@ -403,7 +497,11 @@ describe("VaultStore offline", () => {
     const { local, store } = newBrowser(new Map() as Network);
     await local.set("account", { serverUrls: ["https://pi.local:8443"] });
     expect(await store.getAccount()).toBeUndefined();
-    expect(STORAGE_KEYS).toMatchObject({ account: "accountV2", vault: "vaultV2", pendingPairing: "pendingPairing" });
+    expect(STORAGE_KEYS).toMatchObject({
+      account: "accountV2",
+      vault: "vaultV2",
+      pendingPairing: "pendingPairing",
+    });
     const typed: Account | undefined = await store.getAccount();
     expect(typed).toBeUndefined();
   });
@@ -412,21 +510,40 @@ describe("VaultStore offline", () => {
 describe("v3 entries", () => {
   it("names an old entry too large to sync as v3 in Polish", async () => {
     const { store, local, session } = await pairedBrowser();
-    const vaultKey = fromBase64((await session.get<{ vaultKey: string }>(STORAGE_KEYS.sessionKeys))!.vaultKey);
+    const vaultKey = fromBase64(
+      (await session.get<{ vaultKey: string }>(STORAGE_KEYS.sessionKeys))!.vaultKey,
+    );
     await store.lock();
     const hlc = { ms: 1_700_000_000_000, c: 0, d: "old-browser" };
     const oldVault = {
-      epoch: null, lastSyncRevision: 0, addresses: [],
-      entries: [{ id: "1", revision: 0, dirty: true, deleted: false, data: { name: "Wielki", username: "u", password: "x".repeat(49_000), hlc } }],
+      epoch: null,
+      lastSyncRevision: 0,
+      addresses: [],
+      entries: [
+        {
+          id: "1",
+          revision: 0,
+          dirty: true,
+          deleted: false,
+          data: { name: "Wielki", username: "u", password: "x".repeat(49_000), hlc },
+        },
+      ],
     };
-    await local.set(STORAGE_KEYS.vault, await seal(vaultKey, utf8(JSON.stringify(oldVault)), LOCAL_VAULT_AAD));
+    await local.set(
+      STORAGE_KEYS.vault,
+      await seal(vaultKey, utf8(JSON.stringify(oldVault)), LOCAL_VAULT_AAD),
+    );
     await store.unlock(PASSWORD);
-    await expect(store.sync()).rejects.toThrow("Wpis „Wielki” jest za duży (ponad 64 KiB) i nie może zostać zsynchronizowany. Skróć go.");
+    await expect(store.sync()).rejects.toThrow(
+      "Wpis „Wielki” jest za duży (ponad 64 KiB) i nie może zostać zsynchronizowany. Skróć go.",
+    );
   }, 30_000);
 
   it("opens vault saved in v2 format", async () => {
     const { store, phone, local, session } = await pairedBrowser();
-    const vaultKey = fromBase64((await session.get<{ vaultKey: string }>(STORAGE_KEYS.sessionKeys))!.vaultKey);
+    const vaultKey = fromBase64(
+      (await session.get<{ vaultKey: string }>(STORAGE_KEYS.sessionKeys))!.vaultKey,
+    );
     await store.lock();
     // What the previous extension wrote: v2-shaped data (no v, no type).
     const hlc = { ms: 1_700_000_000_000, c: 0, d: "old-browser" };
@@ -435,11 +552,20 @@ describe("v3 entries", () => {
       lastSyncRevision: 0,
       addresses: [],
       entries: [
-        { id: "1", revision: 0, dirty: true, deleted: false, data: { name: "stary.pl", username: "jan", password: "tajne", hlc } },
+        {
+          id: "1",
+          revision: 0,
+          dirty: true,
+          deleted: false,
+          data: { name: "stary.pl", username: "jan", password: "tajne", hlc },
+        },
         { id: "2", revision: 3, dirty: false, deleted: true, data: { hlc } },
       ],
     };
-    await local.set(STORAGE_KEYS.vault, await seal(vaultKey, utf8(JSON.stringify(oldVault)), LOCAL_VAULT_AAD));
+    await local.set(
+      STORAGE_KEYS.vault,
+      await seal(vaultKey, utf8(JSON.stringify(oldVault)), LOCAL_VAULT_AAD),
+    );
 
     await store.unlock(PASSWORD);
     expect(store.pendingCount()).toBe(1);
@@ -447,7 +573,9 @@ describe("v3 entries", () => {
     expect(store.entry("2")).toBeUndefined();
     const tombstone = (store as unknown as { vault: p2p.LocalVaultV2 }).vault.entries.get("2");
     expect(tombstone).toMatchObject({ revision: 3, deleted: true, dirty: false });
-    expect(store.entries().map((e) => e.data)).toEqual([{ name: "stary.pl", username: "jan", password: "tajne" }]);
+    expect(store.entries().map((e) => e.data)).toEqual([
+      { name: "stary.pl", username: "jan", password: "tajne" },
+    ]);
     await store.sync();
     expect(await phone.passwords()).toEqual({ "1": "tajne" });
     expect((await phone.entryData("1")).type).toBe("login");
@@ -460,7 +588,13 @@ describe("v3 entries", () => {
       ...login,
       note: "notatka",
       custom: [{ label: "PIN", value: "1234", hidden: true }],
-      fields: { username: "jan", password: "old", totp: "JBSWY3DP", urls: ["https://bank.pl"], androidApps: ["pl.bank"] },
+      fields: {
+        username: "jan",
+        password: "old",
+        totp: "JBSWY3DP",
+        urls: ["https://bank.pl"],
+        androidApps: ["pl.bank"],
+      },
     });
     await store.sync();
     expect(store.entry("1")!.data).toEqual({ name: "bank.pl", username: "jan", password: "old" });
@@ -473,7 +607,13 @@ describe("v3 entries", () => {
       name: "bank.pl",
       note: "notatka",
       custom: [{ label: "PIN", value: "1234", hidden: true }],
-      fields: { username: "jan", password: "new", totp: "JBSWY3DP", urls: ["https://bank.pl"], androidApps: ["pl.bank"] },
+      fields: {
+        username: "jan",
+        password: "new",
+        totp: "JBSWY3DP",
+        urls: ["https://bank.pl"],
+        androidApps: ["pl.bank"],
+      },
     });
   }, 30_000);
 
@@ -483,7 +623,14 @@ describe("v3 entries", () => {
     await phone.addContent("c", {
       ...base,
       type: "contact",
-      fields: { firstName: "Jan", lastName: "K", birthDate: "", phones: [], emails: [], addresses: [] },
+      fields: {
+        firstName: "Jan",
+        lastName: "K",
+        birthDate: "",
+        phones: [],
+        emails: [],
+        addresses: [],
+      },
     });
     await phone.addEntry("l", "login.pl");
     await store.sync();
@@ -497,7 +644,9 @@ describe("v3 entries", () => {
     await phone.addContent("n", { ...p2p.emptyLogin("x"), type: "note", fields: {} });
     await store.sync();
     expect(store.pendingCount()).toBe(0);
-    await expect(store.upsert("n", { name: "a", username: "b", password: "c" })).rejects.toThrow("Ten wpis nie jest loginem");
+    await expect(store.upsert("n", { name: "a", username: "b", password: "c" })).rejects.toThrow(
+      "Ten wpis nie jest loginem",
+    );
     expect(store.pendingCount()).toBe(0);
     await store.sync();
     expect((await phone.entryData("n")).type).toBe("note");
@@ -508,7 +657,12 @@ describe("v3 entries", () => {
     const big = { name: "big", username: "u", password: "x".repeat(70_000) };
     await expect(store.upsert("1", big)).rejects.toThrow("Wpis jest za duży");
     expect(store.entries()).toEqual([]);
-    expect(await store.importContents([{ ...p2p.emptyLogin("big"), note: "x".repeat(70_000) } as p2p.EntryContentV3], () => "2")).toEqual({ added: 0, duplicates: 0, tooLarge: 1 });
+    expect(
+      await store.importContents(
+        [{ ...p2p.emptyLogin("big"), note: "x".repeat(70_000) } as p2p.EntryContentV3],
+        () => "2",
+      ),
+    ).toEqual({ added: 0, duplicates: 0, tooLarge: 1 });
     expect(store.entries()).toEqual([]);
   }, 30_000);
 });

@@ -98,7 +98,8 @@ type Reply = { status: number; body: unknown };
 
 const fail = (status: number, error: string): Reply => ({ status, body: { error } });
 const MALFORMED = fail(400, "malformed file request");
-const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
 const isUuid = (v: unknown): v is string => typeof v === "string" && UUID_V4.test(v);
 const isInt = (v: unknown, min: number, max: number): v is number =>
   typeof v === "number" && Number.isInteger(v) && v >= min && v <= max;
@@ -107,7 +108,11 @@ function parseRequest(request: unknown): P2pFileRequest | undefined {
   if (!isRecord(request) || typeof request.epoch !== "string") return undefined;
   switch (request.op) {
     case "status":
-      if (!Array.isArray(request.ids) || request.ids.length > MAX_STATUS_IDS || !request.ids.every(isUuid))
+      if (
+        !Array.isArray(request.ids) ||
+        request.ids.length > MAX_STATUS_IDS ||
+        !request.ids.every(isUuid)
+      )
         return undefined;
       return request as unknown as P2pFileRequest;
     case "put":
@@ -129,7 +134,12 @@ function parseRequest(request: unknown): P2pFileRequest | undefined {
 }
 
 /** Handles one decoded /p2p/v2/file request. A 200 body is to be encrypted; other statuses go out in plaintext. */
-export function processP2pFile(store: FileStore, epoch: string, request: unknown, now: number): Reply {
+export function processP2pFile(
+  store: FileStore,
+  epoch: string,
+  request: unknown,
+  now: number,
+): Reply {
   const req = parseRequest(request);
   if (!req) return MALFORMED;
   if (req.epoch !== epoch) return { status: 200, body: { epoch } };

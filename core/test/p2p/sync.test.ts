@@ -44,14 +44,19 @@ const entry = (name: string) => login(name);
 function setup(epoch = newEpoch()) {
   const store = new MemorySyncStore();
   const vaultKey = newVaultKey();
-  const transport = (e: string): P2pTransport => async (r) =>
-    structuredClone(processP2pSync(store, e, [ADDRESS], structuredClone(r)));
+  const transport =
+    (e: string): P2pTransport =>
+    async (r) =>
+      structuredClone(processP2pSync(store, e, [ADDRESS], structuredClone(r)));
   const send = transport(epoch);
   const sync = (vault: LocalVaultV2, clock: HlcClock) => syncVaultV2(vault, vaultKey, clock, send);
   return { store, vaultKey, epoch, send, sync, transport };
 }
 
-const names = (v: LocalVaultV2) => liveEntriesV2(v).map((e) => e.data.name).sort();
+const names = (v: LocalVaultV2) =>
+  liveEntriesV2(v)
+    .map((e) => e.data.name)
+    .sort();
 
 describe("p2p sync", () => {
   it("moves entries between two devices and learns the epoch and addresses", async () => {
@@ -185,7 +190,9 @@ describe("p2p sync", () => {
     expect(second.store.listSince(0)).toHaveLength(3);
     expect(second.store.get("c")?.deleted).toBe(true);
     const a = second.store.get("a")!;
-    expect(await decryptPayloadV2(first.vaultKey, "a", a.blob)).toMatchObject({ name: "A edited offline" });
+    expect(await decryptPayloadV2(first.vaultKey, "a", a.blob)).toMatchObject({
+      name: "A edited offline",
+    });
     expect([...ext.entries.values()].every((e) => !e.dirty)).toBe(true);
     expect(names(ext)).toEqual(["A edited offline", "B"]);
   });
@@ -195,7 +202,8 @@ describe("p2p sync", () => {
     const a = setup();
     const b = setup();
     let n = 0;
-    const flipping: P2pTransport = (r) => (n++ % 2 === 0 ? a : b).transport(n % 2 === 1 ? a.epoch : b.epoch)(r);
+    const flipping: P2pTransport = (r) =>
+      (n++ % 2 === 0 ? a : b).transport(n % 2 === 1 ? a.epoch : b.epoch)(r);
     const clock = new HlcClock("ext", () => 1);
     await expect(syncVaultV2(emptyVaultV2(), vaultKey, clock, flipping)).rejects.toThrow(
       "Epoch changed twice during sync",
@@ -208,14 +216,31 @@ describe("p2p sync", () => {
       epoch: newEpoch(),
       sinceRevision: 0,
       changes: [
-        { id: "1", baseRevision: 0, deleted: false, blob: await encryptPayloadV2(vaultKey, "1", { ...login("x"), v: 3, hlc: { ms: 1, c: 0, d: "d" } }) },
+        {
+          id: "1",
+          baseRevision: 0,
+          deleted: false,
+          blob: await encryptPayloadV2(vaultKey, "1", {
+            ...login("x"),
+            v: 3,
+            hlc: { ms: 1, c: 0, d: "d" },
+          }),
+        },
       ],
     };
     const response = processP2pSync(store, epoch, [ADDRESS], request);
 
     expect(store.currentRevision()).toBe(0);
     expect(store.get("1")).toBeUndefined();
-    expect(response).toEqual({ epoch, currentRevision: 0, accepted: [], conflicts: [], changes: [], addresses: [ADDRESS], more: false });
+    expect(response).toEqual({
+      epoch,
+      currentRevision: 0,
+      accepted: [],
+      conflicts: [],
+      changes: [],
+      addresses: [ADDRESS],
+      more: false,
+    });
   });
 
   it("payloads are bound to their id and to v2", async () => {
@@ -226,14 +251,22 @@ describe("p2p sync", () => {
     expect(await decryptPayloadV2(key, "1", blob)).toEqual(data);
     await expect(decryptPayloadV2(key, "2", blob)).rejects.toThrow();
     // A v1 payload, sealed the way the removed Pi sync did it.
-    const v1 = await seal(key, utf8(JSON.stringify({ name: "x", username: "u", password: "p", modifiedAt: 1 })), "passholder/v1/entry/1");
+    const v1 = await seal(
+      key,
+      utf8(JSON.stringify({ name: "x", username: "u", password: "p", modifiedAt: 1 })),
+      "passholder/v1/entry/1",
+    );
     await expect(decryptPayloadV2(key, "1", v1)).rejects.toThrow();
   });
 });
 
 describe("p2p sync: final review fixes", () => {
   const password = async (s: ReturnType<typeof setup>, id: string) =>
-    ((await decryptPayloadV2(s.vaultKey, id, s.store.get(id)!.blob)) as { fields?: { password?: string } }).fields?.password;
+    (
+      (await decryptPayloadV2(s.vaultKey, id, s.store.get(id)!.blob)) as {
+        fields?: { password?: string };
+      }
+    ).fields?.password;
 
   it("an edit made while its push is in flight stays dirty and reaches the phone on the next sync", async () => {
     const s = setup();
@@ -336,7 +369,12 @@ describe("p2p sync: final review fixes", () => {
     expect(ext.addresses).toEqual(["10.0.0.2:2"]);
     expect([...ext.entries.values()].every((e) => e.dirty && e.revision === 0)).toBe(true);
     await second.sync(ext, clock);
-    expect(second.store.listSince(0).map((r) => r.id).sort()).toEqual(["a", "b"]);
+    expect(
+      second.store
+        .listSince(0)
+        .map((r) => r.id)
+        .sort(),
+    ).toEqual(["a", "b"]);
 
     // Same epoch: only the addresses change.
     applyVaultInfo(ext, { epoch: second.epoch, addresses: ["10.0.0.3:3"] });
@@ -370,7 +408,12 @@ describe("p2p sync: final review fixes", () => {
     await syncVaultV2(ext, s.vaultKey, clock, async (r) =>
       structuredClone(processP2pSync(restored, s.epoch, [ADDRESS], structuredClone(r))),
     );
-    expect(restored.listSince(0).map((r) => r.id).sort()).toEqual(["a", "b", "c"]);
+    expect(
+      restored
+        .listSince(0)
+        .map((r) => r.id)
+        .sort(),
+    ).toEqual(["a", "b", "c"]);
     expect(ext.lastSyncRevision).toBe(3);
   });
 });
@@ -378,24 +421,37 @@ describe("p2p sync: final review fixes", () => {
 describe("p2p sync: paging", () => {
   it("host returns at most MAX_CHANGES_PER_RESPONSE records and continues from the last one", async () => {
     const s = setup();
-    for (let i = 1; i <= 1300; i++) s.store.put({ id: `id${i}`, revision: i, deleted: false, blob: "x" });
-    const page = (since: number) => processP2pSync(s.store, s.epoch, [], { epoch: s.epoch, sinceRevision: since, changes: [] });
+    for (let i = 1; i <= 1300; i++)
+      s.store.put({ id: `id${i}`, revision: i, deleted: false, blob: "x" });
+    const page = (since: number) =>
+      processP2pSync(s.store, s.epoch, [], { epoch: s.epoch, sinceRevision: since, changes: [] });
     const first = page(0);
     expect(first.changes).toHaveLength(MAX_CHANGES_PER_RESPONSE);
     expect(first.more).toBe(true);
     expect(first.currentRevision).toBe(500);
-    expect(first.changes.map((c) => c.revision)).toEqual(Array.from({ length: 500 }, (_, i) => i + 1));
+    expect(first.changes.map((c) => c.revision)).toEqual(
+      Array.from({ length: 500 }, (_, i) => i + 1),
+    );
     expect(page(500)).toMatchObject({ more: true, currentRevision: 1000 });
     const last = page(1000);
     expect(last).toMatchObject({ more: false, currentRevision: 1300 });
     expect(last.changes).toHaveLength(300);
-    expect(processP2pSync(s.store, s.epoch, [], { epoch: "", sinceRevision: 0, changes: [] }).more).toBe(false);
+    expect(
+      processP2pSync(s.store, s.epoch, [], { epoch: "", sinceRevision: 0, changes: [] }).more,
+    ).toBe(false);
   });
 
   it("host rejects more than MAX_CHANGES_PER_REQUEST changes", () => {
     const s = setup();
-    const changes = Array.from({ length: MAX_CHANGES_PER_REQUEST + 1 }, (_, i) => ({ id: `${i}`, baseRevision: 0, deleted: false, blob: "x" }));
-    expect(() => processP2pSync(s.store, s.epoch, [], { epoch: s.epoch, sinceRevision: 0, changes })).toThrow("too many changes");
+    const changes = Array.from({ length: MAX_CHANGES_PER_REQUEST + 1 }, (_, i) => ({
+      id: `${i}`,
+      baseRevision: 0,
+      deleted: false,
+      blob: "x",
+    }));
+    expect(() =>
+      processP2pSync(s.store, s.epoch, [], { epoch: s.epoch, sinceRevision: 0, changes }),
+    ).toThrow("too many changes");
     expect(s.store.currentRevision()).toBe(0);
   });
 
@@ -428,7 +484,15 @@ describe("p2p sync: paging", () => {
     let calls = 0;
     const endless: P2pTransport = async () => {
       calls++;
-      return { epoch: s.epoch, currentRevision: 0, accepted: [], conflicts: [], changes: [], addresses: [], more: true };
+      return {
+        epoch: s.epoch,
+        currentRevision: 0,
+        accepted: [],
+        conflicts: [],
+        changes: [],
+        addresses: [],
+        more: true,
+      };
     };
     await expect(syncVaultV2(ext, s.vaultKey, clock, endless)).rejects.toThrow("Sync exceeded");
     expect(calls).toBe(MAX_SYNC_ROUNDS);
@@ -450,7 +514,8 @@ describe("p2p sync: v3 entries and byte budget", () => {
       return s.send(r);
     });
     expect(requests.length).toBeGreaterThan(1);
-    for (const r of requests) expect(blobSum(r.changes)).toBeLessThanOrEqual(MAX_BLOB_BYTES_PER_ROUND);
+    for (const r of requests)
+      expect(blobSum(r.changes)).toBeLessThanOrEqual(MAX_BLOB_BYTES_PER_ROUND);
     expect(s.store.listSince(0)).toHaveLength(20);
     expect([...ext.entries.values()].every((e) => !e.dirty)).toBe(true);
   });
@@ -469,7 +534,8 @@ describe("p2p sync: v3 entries and byte budget", () => {
       return res;
     });
     const real = responses.filter((r) => r.epoch === s.epoch && (r.changes.length > 0 || r.more));
-    for (const r of real) expect(blobSum([...r.conflicts, ...r.changes])).toBeLessThanOrEqual(MAX_BLOB_BYTES_PER_ROUND);
+    for (const r of real)
+      expect(blobSum([...r.conflicts, ...r.changes])).toBeLessThanOrEqual(MAX_BLOB_BYTES_PER_ROUND);
     expect(real.slice(0, -1).every((r) => r.more)).toBe(true);
     expect(real.at(-1)!.more).toBe(false);
     expect(real.length).toBeGreaterThan(1);
@@ -508,12 +574,19 @@ describe("p2p sync: v3 entries and byte budget", () => {
   it("host rejects blob over 64 KiB", () => {
     const s = setup();
     const request = (len: number, epoch = s.epoch) => ({
-      epoch, sinceRevision: 0,
+      epoch,
+      sinceRevision: 0,
       changes: [{ id: "1", baseRevision: 0, deleted: false, blob: "x".repeat(len) }],
     });
-    expect(validateP2pSyncRequest(s.store, s.epoch, request(MAX_ENTRY_BLOB_LENGTH + 1))).toBe("blob too large");
-    expect(validateP2pSyncRequest(s.store, s.epoch, request(MAX_ENTRY_BLOB_LENGTH + 1, "other"))).toBe("blob too large");
-    expect(validateP2pSyncRequest(s.store, s.epoch, request(MAX_ENTRY_BLOB_LENGTH))).toBeUndefined();
+    expect(validateP2pSyncRequest(s.store, s.epoch, request(MAX_ENTRY_BLOB_LENGTH + 1))).toBe(
+      "blob too large",
+    );
+    expect(
+      validateP2pSyncRequest(s.store, s.epoch, request(MAX_ENTRY_BLOB_LENGTH + 1, "other")),
+    ).toBe("blob too large");
+    expect(
+      validateP2pSyncRequest(s.store, s.epoch, request(MAX_ENTRY_BLOB_LENGTH)),
+    ).toBeUndefined();
   });
 
   it("upsert rejects too large entry", () => {
@@ -526,7 +599,9 @@ describe("p2p sync: v3 entries and byte budget", () => {
     // Overwriting an existing entry must not change it either.
     expect(() => upsertEntryV2(v, clock, "ok", note)).toThrow("Entry too large");
     expect([...v.entries]).toEqual(before);
-    expect(entryBlobLength({ ...note, v: 3, hlc: { ms: 1, c: 0, d: "a" } })).toBeGreaterThan(MAX_ENTRY_BLOB_LENGTH);
+    expect(entryBlobLength({ ...note, v: 3, hlc: { ms: 1, c: 0, d: "a" } })).toBeGreaterThan(
+      MAX_ENTRY_BLOB_LENGTH,
+    );
   });
 
   it("throws a clear error, before sending, for a dirty entry too large to sync", async () => {
@@ -536,10 +611,20 @@ describe("p2p sync: v3 entries and byte budget", () => {
     upsertEntryV2(v, clock, "ok", entry("ok"));
     // Saved before v3 and near the limit: it no longer fits once serialized as v3.
     const huge = { ...emptyLogin("Huge"), note: "a".repeat(70_000) };
-    v.entries.set("huge", { id: "huge", revision: 0, dirty: true, deleted: false, data: { ...huge, v: 3, hlc: { ms: 1, c: 0, d: "a" } } });
+    v.entries.set("huge", {
+      id: "huge",
+      revision: 0,
+      dirty: true,
+      deleted: false,
+      data: { ...huge, v: 3, hlc: { ms: 1, c: 0, d: "a" } },
+    });
     const requests: P2pSyncRequest[] = [];
-    await expect(syncVaultV2(v, s.vaultKey, clock, async (r) => { requests.push(r); return s.send(r); }))
-      .rejects.toThrow(`${ENTRY_TOO_LARGE_TO_SYNC}: Huge`);
+    await expect(
+      syncVaultV2(v, s.vaultKey, clock, async (r) => {
+        requests.push(r);
+        return s.send(r);
+      }),
+    ).rejects.toThrow(`${ENTRY_TOO_LARGE_TO_SYNC}: Huge`);
     expect(requests).toHaveLength(0);
   });
 
@@ -550,7 +635,10 @@ describe("p2p sync: v3 entries and byte budget", () => {
     s.store.put({ id: "1", revision: 1, deleted: false, blob });
     const ext = emptyVaultV2();
     await s.sync(ext, new HlcClock("ext", () => 1000));
-    expect(ext.entries.get("1")).toMatchObject({ deleted: false, data: { type: "login", name: "Old" } });
+    expect(ext.entries.get("1")).toMatchObject({
+      deleted: false,
+      data: { type: "login", name: "Old" },
+    });
   });
 });
 
@@ -558,10 +646,21 @@ describe("p2p sync: attachment merge on conflict", () => {
   const KEY = toBase64(new Uint8Array(32).fill(9));
   const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
   const file = (n: number): Attachment => ({
-    id: uuid(n), name: `f${n}.bin`, mime: "application/octet-stream", size: 300_000, chunks: 2, sha256: "b".repeat(64), key: KEY,
+    id: uuid(n),
+    name: `f${n}.bin`,
+    mime: "application/octet-stream",
+    size: 300_000,
+    chunks: 2,
+    sha256: "b".repeat(64),
+    key: KEY,
   });
-  const files = (from: number, count: number) => Array.from({ length: count }, (_, i) => file(from + i));
-  const withFiles = (name: string, attachments: Attachment[], note = ""): EntryContentV3 => ({ ...login(name), note, attachments });
+  const files = (from: number, count: number) =>
+    Array.from({ length: count }, (_, i) => file(from + i));
+  const withFiles = (name: string, attachments: Attachment[], note = ""): EntryContentV3 => ({
+    ...login(name),
+    note,
+    attachments,
+  });
   const fileIds = (v: LocalVaultV2, id = "1") => {
     const e = v.entries.get(id);
     return e && !e.deleted ? (e.data.attachments ?? []).map((a) => a.id) : undefined;
@@ -569,7 +668,10 @@ describe("p2p sync: attachment merge on conflict", () => {
   const counting = (s: ReturnType<typeof setup>) => {
     const requests: P2pSyncRequest[] = [];
     const sync = (vault: LocalVaultV2, clock: HlcClock) =>
-      syncVaultV2(vault, s.vaultKey, clock, async (r) => { requests.push(structuredClone(r)); return s.send(r); });
+      syncVaultV2(vault, s.vaultKey, clock, async (r) => {
+        requests.push(structuredClone(r));
+        return s.send(r);
+      });
     return { requests, sync };
   };
 
@@ -666,8 +768,13 @@ describe("p2p sync: attachment merge on conflict", () => {
     // Fits on its own, but not with one more descriptor.
     const note = "n".repeat(48_560);
     upsertEntryV2(b, bClock, "1", withFiles("Start", [file(2)], note));
-    const merged = { ...(b.entries.get("1")!.data as EntryContentV3), attachments: [file(2), file(1)] };
-    expect(entryBlobLength({ ...merged, v: 3, hlc: { ms: 9999, c: 0, d: "a" } })).toBeGreaterThan(MAX_ENTRY_BLOB_LENGTH);
+    const merged = {
+      ...(b.entries.get("1")!.data as EntryContentV3),
+      attachments: [file(2), file(1)],
+    };
+    expect(entryBlobLength({ ...merged, v: 3, hlc: { ms: 9999, c: 0, d: "a" } })).toBeGreaterThan(
+      MAX_ENTRY_BLOB_LENGTH,
+    );
     await s.sync(b, bClock);
     await s.sync(a, aClock);
 

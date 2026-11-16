@@ -45,7 +45,9 @@ fun CustomFieldsEditor(items: List<CustomField>, onChange: (List<CustomField>) -
                     onRevealedChange = { revealed = it },
                 )
             } else {
-                PlainField(field.value, { update(field.copy(value = it)) }, "Wartość", onCopy = { vm.copy(copyLabel, field.value, sensitive = false) })
+                PlainField(field.value, {
+                    update(field.copy(value = it))
+                }, "Wartość", onCopy = { vm.copy(copyLabel, field.value, sensitive = false) })
             }
             Row(
                 Modifier.toggleable(field.hidden, role = Role.Checkbox) { hidden ->

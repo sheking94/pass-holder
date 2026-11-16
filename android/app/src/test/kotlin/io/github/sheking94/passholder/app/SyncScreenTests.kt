@@ -17,8 +17,8 @@ import io.github.sheking94.passholder.core.p2p.EntryContentV3
 import io.github.sheking94.passholder.core.p2p.EntryDataV3
 import io.github.sheking94.passholder.core.p2p.EntryV3
 import io.github.sheking94.passholder.core.p2p.Hlc
-import io.github.sheking94.passholder.core.p2p.LoginFields
 import io.github.sheking94.passholder.core.p2p.HttpTestTransport
+import io.github.sheking94.passholder.core.p2p.LoginFields
 import io.github.sheking94.passholder.core.p2p.NoiseKeys
 import io.github.sheking94.passholder.core.p2p.P2pSyncRequest
 import io.github.sheking94.passholder.core.p2p.PairResult
@@ -40,6 +40,7 @@ abstract class SyncScreenTestBase : ScreenTestBase() {
     /** The port the sync server is listening on (the app asks for any free one). */
     @Volatile
     protected var port = -1
+
     /** The app's clock (vault store and sync mode); a fixed start keeps the dates on the screenshots the same. */
     @Volatile
     protected var clock = 1_794_000_000_000L
@@ -207,18 +208,26 @@ class RestoreFlowTest : SyncScreenTestBase() {
         shot("26-odtwarzanie-kod")
 
         // The extension's vault: the cheapest KDF the phone accepts, its own vault key.
-        val kdf = KdfParams("argon2id", Encoding.toBase64(Encoding.randomBytes(16)), Kdf.MIN_MEMORY_KIB, Kdf.MIN_ITERATIONS, Kdf.MIN_PARALLELISM)
+        val kdf =
+            KdfParams("argon2id", Encoding.toBase64(Encoding.randomBytes(16)), Kdf.MIN_MEMORY_KIB, Kdf.MIN_ITERATIONS, Kdf.MIN_PARALLELISM)
         val vaultKey = VaultCrypto.newVaultKey()
         val info = VaultInfo(
-            Encoding.toBase64(Encoding.randomBytes(16)), kdf,
-            VaultCrypto.wrapVaultKey(Kdf.deriveKeys(masterPassword, kdf).encKey, vaultKey), emptyList(),
+            Encoding.toBase64(Encoding.randomBytes(16)),
+            kdf,
+            VaultCrypto.wrapVaultKey(Kdf.deriveKeys(masterPassword, kdf).encKey, vaultKey),
+            emptyList(),
         )
         val pair = TestP2pClient.pair(http(), code, extIdentity, info)
         assertEquals(pair.finish?.body, 200, pair.finish?.status)
         waitFor("Czekam, aż wtyczka prześle sejf", substring = true)
 
         val changes = listOf("a" to "allegro.pl", "b" to "bank.pl").map { (id, name) ->
-            ChangeRequest(id, 0, false, EntryV3.encrypt(vaultKey, id, loginData(name, "jan", "pw-$id", Hlc(clock, 0, extIdentity.deviceId))))
+            ChangeRequest(
+                id,
+                0,
+                false,
+                EntryV3.encrypt(vaultKey, id, loginData(name, "jan", "pw-$id", Hlc(clock, 0, extIdentity.deviceId))),
+            )
         }
         val res = client(pair).syncResponse(P2pSyncRequest(pair.phoneVaultInfo!!.epoch, 0, changes))
         assertEquals(2, res.accepted.size)
@@ -291,7 +300,21 @@ class RestoreRestartTest : SyncScreenTestBase() {
         assertEquals(first, shownCode())
 
         // A wrong code spends it; the hint stays after another onStart, no new code comes by itself.
-        assertEquals(403, TestP2pClient.pair(http(), if (first == "00000000") "11111111" else "00000000", extIdentity, kdfLessInfo()).finish?.status)
+        assertEquals(
+            403,
+            TestP2pClient.pair(
+                http(),
+                if (first ==
+                    "00000000"
+                ) {
+                    "11111111"
+                } else {
+                    "00000000"
+                },
+                extIdentity,
+                kdfLessInfo(),
+            ).finish?.status,
+        )
         waitFor("Kod wygasł lub został użyty. Weź nowy kod.")
         scenario.recreate()
         waitFor("Kod wygasł lub został użyty. Weź nowy kod.")
@@ -312,7 +335,8 @@ class RestoreRestartTest : SyncScreenTestBase() {
     private fun kdfLessInfo() = VaultInfo(
         Encoding.toBase64(Encoding.randomBytes(16)),
         KdfParams("argon2id", Encoding.toBase64(Encoding.randomBytes(16)), Kdf.MIN_MEMORY_KIB, Kdf.MIN_ITERATIONS, Kdf.MIN_PARALLELISM),
-        "AA==", emptyList(),
+        "AA==",
+        emptyList(),
     )
 }
 
@@ -334,7 +358,9 @@ class SyncRefreshesEntriesTest : SyncScreenTestBase() {
 
         // The extension edited the same entry later than the phone did.
         val blob = EntryV3.encrypt(
-            vaultKey, old.id, loginData("bank.pl", "jan.nowak", "nowe-haslo-456", Hlc(clock + 60_000, 0, extIdentity.deviceId)),
+            vaultKey,
+            old.id,
+            loginData("bank.pl", "jan.nowak", "nowe-haslo-456", Hlc(clock + 60_000, 0, extIdentity.deviceId)),
         )
         val res = client(pair).syncResponse(
             P2pSyncRequest(pair.phoneVaultInfo!!.epoch, 0, listOf(ChangeRequest(old.id, old.revision, false, blob))),

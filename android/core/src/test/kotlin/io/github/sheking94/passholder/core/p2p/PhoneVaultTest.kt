@@ -19,8 +19,7 @@ class PhoneVaultTest {
     private fun vault(s: SyncStore = store, device: String = "phone") = PhoneVault(s, key, device) { wall }
     private fun cred(name: String) = Credentials(name, "user-$name", "pw-$name")
 
-    private fun readEntry(id: String): EntryDataV3 =
-        EntryV3.parse(EntryV3.decrypt(key, id, store.get(id)!!.blob))
+    private fun readEntry(id: String): EntryDataV3 = EntryV3.parse(EntryV3.decrypt(key, id, store.get(id)!!.blob))
 
     private fun login(name: String, hlc: Hlc, username: String = "u", password: String = "p") =
         EntryDataV3(EntryContentV3(name, "", LoginFields(username, password), emptyList()), hlc)
@@ -142,7 +141,11 @@ class PhoneVaultTest {
         val accepted = AtomicInteger()
         val errors = java.util.concurrent.ConcurrentLinkedQueue<Throwable>()
         fun run(body: () -> Unit) = Thread {
-            try { body() } catch (e: Throwable) { errors.add(e) }
+            try {
+                body()
+            } catch (e: Throwable) {
+                errors.add(e)
+            }
         }
         val threads = listOf(
             run { repeat(200) { v.upsert("a$it", cred("A$it")) } },
@@ -181,7 +184,9 @@ class PhoneVaultTest {
 
     private val h0 = Hlc(1, 0, "ext")
     private val rich = EntryContentV3(
-        "Rich", "my note", LoginFields("u", "p", "totp-secret", listOf("https://a.pl"), listOf("pl.app")),
+        "Rich",
+        "my note",
+        LoginFields("u", "p", "totp-secret", listOf("https://a.pl"), listOf("pl.app")),
         listOf(CustomField("pin", "1234", true)),
     )
 
@@ -204,7 +209,8 @@ class PhoneVaultTest {
     }
 
     private fun note(name: String) = EntryContentV3(name, "tekst", NoteFields, emptyList())
-    private fun cardContent(name: String) = EntryContentV3(name, "", CardFields("H", "4111 1111 1111 1111", "01/30", "123", "0000"), emptyList())
+    private fun cardContent(name: String) =
+        EntryContentV3(name, "", CardFields("H", "4111 1111 1111 1111", "01/30", "123", "0000"), emptyList())
 
     @Test
     fun `entries returns every type sorted by name`() {
@@ -314,8 +320,7 @@ class PhoneVaultTest {
         return P2pJson.json.parseToJsonElement("""{"epoch":"$epoch","sinceRevision":$since,"changes":[$cs]}""")
     }
 
-    private fun content(name: String, note: String = "") =
-        EntryContentV3(name, note, LoginFields("u-$name", "p-$name"), emptyList())
+    private fun content(name: String, note: String = "") = EntryContentV3(name, note, LoginFields("u-$name", "p-$name"), emptyList())
 
     @Test
     fun importWritesConsecutiveRevisionsAndEntriesShowThem() {
@@ -379,8 +384,13 @@ class PhoneVaultTest {
     @Test
     fun editsKeepAttachments() {
         val att = io.github.sheking94.passholder.core.files.Attachment(
-            "00000000-0000-4000-8000-000000000001", "a.txt", "text/plain", 10, 1,
-            "a".repeat(64), "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=",
+            "00000000-0000-4000-8000-000000000001",
+            "a.txt",
+            "text/plain",
+            10,
+            1,
+            "a".repeat(64),
+            "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=",
         )
         val v = vault()
         v.upsertContent("a", EntryContentV3("A", "", LoginFields("u", "p"), emptyList(), listOf(att)))

@@ -31,8 +31,10 @@ const ENTRIES = [
 ];
 
 const tabs = (app: Element) => [...app.querySelectorAll<HTMLButtonElement>(".tabs button")];
-const names = (app: Element) => [...app.querySelectorAll(".entries .name")].map((n) => n.textContent!.replace(/ •$/, ""));
-const summaries = (app: Element) => [...app.querySelectorAll(".entries .user")].map((n) => n.textContent);
+const names = (app: Element) =>
+  [...app.querySelectorAll(".entries .name")].map((n) => n.textContent!.replace(/ •$/, ""));
+const summaries = (app: Element) =>
+  [...app.querySelectorAll(".entries .user")].map((n) => n.textContent);
 const search = (app: Element) => app.querySelector<HTMLInputElement>("input[type=search]")!;
 function type(input: HTMLInputElement, value: string) {
   input.value = value;
@@ -45,8 +47,20 @@ describe("list view tabs", () => {
     const { listView } = await import("../../src/views/list.ts");
     listView();
     const t = tabs(app);
-    expect(t.map((b) => b.textContent)).toEqual(["🔑Loginy", "👤Kontakty", "💳Karty", "📝Notatki", "🪪Dokumenty"]);
-    expect(t.map((b) => b.getAttribute("aria-pressed"))).toEqual(["true", "false", "false", "false", "false"]);
+    expect(t.map((b) => b.textContent)).toEqual([
+      "🔑Loginy",
+      "👤Kontakty",
+      "💳Karty",
+      "📝Notatki",
+      "🪪Dokumenty",
+    ]);
+    expect(t.map((b) => b.getAttribute("aria-pressed"))).toEqual([
+      "true",
+      "false",
+      "false",
+      "false",
+      "false",
+    ]);
     expect(names(app)).toEqual(["Bank", "Poczta"]);
   }, 30_000);
 

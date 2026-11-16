@@ -39,7 +39,8 @@ import io.github.sheking94.passholder.core.transfer.TransferFormat
 import io.github.sheking94.passholder.core.transfer.countAttachments
 
 /** What an import file may be called by the picker: JSON and CSV come under many names; ZIP for a PassHolder ZIP. */
-private val IMPORT_TYPES = arrayOf("application/json", "text/*", "text/comma-separated-values", "application/zip", "application/octet-stream")
+private val IMPORT_TYPES =
+    arrayOf("application/json", "text/*", "text/comma-separated-values", "application/zip", "application/octet-stream")
 
 /** [zip]: PassHolder ZIP, written with the files by [AppViewModel.exportArchiveTo] ([format] is then not used). */
 internal const val CSV_WARNING =
@@ -146,7 +147,10 @@ fun TransferScreen(state: UiState, vm: AppViewModel) {
             Checkbox(checked = understood, onCheckedChange = null)
             Text("Rozumiem, plik będzie zawierał hasła jawnym tekstem")
         }
-        PasswordField(password, { password = it; vm.clearError() }, "Hasło główne")
+        PasswordField(password, {
+            password = it
+            vm.clearError()
+        }, "Hasło główne")
         Button(
             onClick = {
                 val name = TransferFiles.defaultFileName(format, zip = choice.zip)
@@ -163,7 +167,10 @@ fun TransferScreen(state: UiState, vm: AppViewModel) {
                 }
             },
             enabled = understood && !state.busy,
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.error,
+                contentColor = MaterialTheme.colorScheme.onError,
+            ),
         ) { Text("Zapisz plik") }
 
         HorizontalDivider()

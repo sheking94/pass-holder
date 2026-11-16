@@ -14,12 +14,7 @@ object Aead {
     private const val TAG_BITS = 128
 
     /** [nonce] is only for test vectors; normal callers leave it out and get a random one. */
-    fun seal(
-        key: ByteArray,
-        plaintext: ByteArray,
-        aad: String,
-        nonce: ByteArray = Encoding.randomBytes(NONCE_LENGTH),
-    ): String {
+    fun seal(key: ByteArray, plaintext: ByteArray, aad: String, nonce: ByteArray = Encoding.randomBytes(NONCE_LENGTH)): String {
         require(key.size == 32) { "Key must be 32 bytes" }
         require(nonce.size == NONCE_LENGTH) { "Nonce must be 12 bytes" }
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")

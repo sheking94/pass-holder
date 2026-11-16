@@ -57,12 +57,16 @@ class PairingHostTest {
 
         fun hello(): HostReply = post("/p2p/v1/pair/hello", JsonObject(emptyMap()))
 
-        fun sidOf(reply: HostReply): String =
-            ((P2pJson.json.parseToJsonElement(reply.body) as JsonObject)["sid"] as JsonPrimitive).content
+        fun sidOf(reply: HostReply): String = ((P2pJson.json.parseToJsonElement(reply.body) as JsonObject)["sid"] as JsonPrimitive).content
 
         fun startBody(sid: String, code: String) = buildJsonObject {
             put("sid", sid)
-            put("message", Encoding.toBase64(Cpace.start(Encoding.utf8(code), Cpace.PAIRING_CI, Encoding.fromBase64(sid), Encoding.utf8("ext-1")).message))
+            put(
+                "message",
+                Encoding.toBase64(
+                    Cpace.start(Encoding.utf8(code), Cpace.PAIRING_CI, Encoding.fromBase64(sid), Encoding.utf8("ext-1")).message,
+                ),
+            )
         }
     }
 
@@ -289,9 +293,18 @@ class PairingHostTest {
         val bodies = listOf(
             JsonObject(emptyMap()),
             buildJsonObject { put("sid", offer.sid) },
-            buildJsonObject { put("sid", 5); put("message", "AAAA") },
-            buildJsonObject { put("sid", offer.sid); put("message", "not base64!") },
-            buildJsonObject { put("sid", "%%%"); put("message", "AAAA") },
+            buildJsonObject {
+                put("sid", 5)
+                put("message", "AAAA")
+            },
+            buildJsonObject {
+                put("sid", offer.sid)
+                put("message", "not base64!")
+            },
+            buildJsonObject {
+                put("sid", "%%%")
+                put("message", "AAAA")
+            },
         )
         for (body in bodies) {
             val reply = s.post("/p2p/v1/pair/start", body)
@@ -301,8 +314,15 @@ class PairingHostTest {
         val finishBodies = listOf(
             JsonObject(emptyMap()),
             buildJsonObject { put("sid", offer.sid) },
-            buildJsonObject { put("sid", offer.sid); put("identity", 1) },
-            buildJsonObject { put("sid", offer.sid); put("identity", "AAAA"); put("vaultInfo", 1) },
+            buildJsonObject {
+                put("sid", offer.sid)
+                put("identity", 1)
+            },
+            buildJsonObject {
+                put("sid", offer.sid)
+                put("identity", "AAAA")
+                put("vaultInfo", 1)
+            },
         )
         for (body in finishBodies) {
             val reply = s.post("/p2p/v1/pair/finish", body)

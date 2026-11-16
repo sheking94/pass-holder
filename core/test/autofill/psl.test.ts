@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import { publicSuffix, registrableDomain } from "../../src/autofill/psl.ts";
 import { PSL_RULES } from "../../src/autofill/psl-rules.ts";
 
-const vectors = JSON.parse(readFileSync(new URL("../../test-vectors/autofill/psl.json", import.meta.url), "utf8")) as {
+const vectors = JSON.parse(
+  readFileSync(new URL("../../test-vectors/autofill/psl.json", import.meta.url), "utf8"),
+) as {
   cases: { host: string; publicSuffix: string; registrableDomain: string | null }[];
 };
 
@@ -19,7 +21,10 @@ describe("public suffix vectors", () => {
 describe("public suffix rules", () => {
   it("the Kotlin resource has the same rules", () => {
     const kotlin = readFileSync(
-      new URL("../../../android/core/src/main/resources/io/github/sheking94/passholder/core/autofill/public_suffix_rules.txt", import.meta.url),
+      new URL(
+        "../../../android/core/src/main/resources/io/github/sheking94/passholder/core/autofill/public_suffix_rules.txt",
+        import.meta.url,
+      ),
       "utf8",
     );
     const rules = kotlin.split("\n").filter((l) => l !== "" && !l.startsWith("//"));

@@ -22,8 +22,11 @@ class EntryV3Test {
         EntryDataV3(
             content(
                 ContactFields(
-                    "A", "B", "1990-01-02",
-                    listOf(LabeledValue("home", "1")), listOf(LabeledValue("w", "a@b")),
+                    "A",
+                    "B",
+                    "1990-01-02",
+                    listOf(LabeledValue("home", "1")),
+                    listOf(LabeledValue("w", "a@b")),
                     listOf(PostalAddress("h", "s", "p", "c", "PL")),
                 ),
             ),
@@ -105,8 +108,11 @@ class EntryV3Test {
         val h = """{"ms":5,"c":1,"d":"dev"}"""
         assertEquals(TombstoneData(hlc), EntryV3.parseTombstone(json("""{"hlc":$h}""")))
         for (c in listOf(
-            """{"hlc":$h,"name":"x"}""", """{"hlc":$h,"deleted":true}""",
-            """{"hlc":{"ms":5,"c":1,"d":"dev","extra":1}}""", "[]", """{"hlc":{"ms":5,"c":1}}""",
+            """{"hlc":$h,"name":"x"}""",
+            """{"hlc":$h,"deleted":true}""",
+            """{"hlc":{"ms":5,"c":1,"d":"dev","extra":1}}""",
+            "[]",
+            """{"hlc":{"ms":5,"c":1}}""",
         )) {
             assertInvalid("Invalid tombstone payload") { EntryV3.parseTombstone(json(c)) }
         }

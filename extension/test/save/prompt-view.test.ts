@@ -4,13 +4,21 @@ import { promptView } from "../../src/save/prompt-view.ts";
 import type { SavePreviewResponse, SavePromptInfo } from "../../src/save/messages.ts";
 
 const info = (over: Partial<SavePromptInfo> = {}): SavePromptInfo => ({
-  id: "c1", host: "sklep.example.com", username: "jan", password: "s3cret", decision: "create", locked: false, ...over,
+  id: "c1",
+  host: "sklep.example.com",
+  username: "jan",
+  password: "s3cret",
+  decision: "create",
+  locked: false,
+  ...over,
 });
 
 type Preview = (u: string, p: string) => Promise<SavePreviewResponse>;
 function setup(
   over: Partial<SavePromptInfo> = {},
-  answer = vi.fn(async (_a: string, _d?: unknown) => ({ ok: true }) as { ok: boolean; error?: string }),
+  answer = vi.fn(
+    async (_a: string, _d?: unknown) => ({ ok: true }) as { ok: boolean; error?: string },
+  ),
   preview = vi.fn<Preview>(async () => ({ decision: "create" })),
 ) {
   const actions = { answer, preview, unlock: vi.fn(), done: vi.fn() };
@@ -19,8 +27,11 @@ function setup(
   return { el, ...actions };
 }
 const button = (el: Element, text: string) =>
-  [...el.querySelectorAll("button")].find((b) => b.textContent === text || b.getAttribute("aria-label") === text)!;
-const input = (el: Element, label: string) => el.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!;
+  [...el.querySelectorAll("button")].find(
+    (b) => b.textContent === text || b.getAttribute("aria-label") === text,
+  )!;
+const input = (el: Element, label: string) =>
+  el.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!;
 const type = (el: HTMLInputElement, value: string) => {
   el.value = value;
   el.dispatchEvent(new Event("input"));
@@ -72,13 +83,17 @@ describe("promptView", () => {
     const { el } = setup({ decision: "update", entryName: "Sklep" });
     expect(el.querySelector("h1")?.textContent).toBe("Zmiana hasła: Sklep");
     expect(input(el, "Nazwa").closest("div")!.hidden).toBe(true);
-    const hint = [...el.querySelectorAll<HTMLElement>(".hint")].find((d) => d.textContent?.includes("Poprzednie hasło"));
+    const hint = [...el.querySelectorAll<HTMLElement>(".hint")].find((d) =>
+      d.textContent?.includes("Poprzednie hasło"),
+    );
     expect(hint?.hidden).toBe(false);
   });
 
   it("a new login does not show the replace hint", () => {
     const { el } = setup({ decision: "create" });
-    const hint = [...el.querySelectorAll<HTMLElement>(".hint")].find((d) => d.textContent?.includes("Poprzednie hasło"));
+    const hint = [...el.querySelectorAll<HTMLElement>(".hint")].find((d) =>
+      d.textContent?.includes("Poprzednie hasło"),
+    );
     expect(hint?.hidden).toBe(true);
   });
 
@@ -110,7 +125,11 @@ describe("promptView", () => {
   });
 
   it("an undefined preview keeps the header", async () => {
-    const { el } = setup({}, undefined, vi.fn<Preview>(async () => undefined));
+    const { el } = setup(
+      {},
+      undefined,
+      vi.fn<Preview>(async () => undefined),
+    );
     type(input(el, "Login"), "x");
     await flush();
     expect(el.querySelector("h1")?.textContent).toBe("Nowy login");
@@ -146,7 +165,9 @@ describe("promptView", () => {
   });
 
   it("an empty login reads „(bez loginu)”", () => {
-    expect(setup({ username: "", decision: null, locked: true, password: "" }).el.textContent).toContain("(bez loginu)");
+    expect(
+      setup({ username: "", decision: null, locked: true, password: "" }).el.textContent,
+    ).toContain("(bez loginu)");
   });
 
   it("Zapisz sends the edited draft", async () => {
@@ -180,7 +201,10 @@ describe("promptView", () => {
   });
 
   it("shows the error and keeps the buttons", async () => {
-    const { el, done } = setup({}, vi.fn(async () => ({ ok: false, error: "Sejf jest zablokowany" })));
+    const { el, done } = setup(
+      {},
+      vi.fn(async () => ({ ok: false, error: "Sejf jest zablokowany" })),
+    );
     button(el, "Zapisz").click();
     await flush();
     expect(el.querySelector(".status.error")?.textContent).toBe("Sejf jest zablokowany");
@@ -189,7 +213,12 @@ describe("promptView", () => {
   });
 
   it("a rejected answer shows an error too", async () => {
-    const { el } = setup({}, vi.fn(async () => { throw new Error("boom"); }));
+    const { el } = setup(
+      {},
+      vi.fn(async () => {
+        throw new Error("boom");
+      }),
+    );
     button(el, "Zapisz").click();
     await flush();
     expect(el.querySelector(".status.error")?.textContent).toBe("boom");

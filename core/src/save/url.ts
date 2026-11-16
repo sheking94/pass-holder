@@ -9,10 +9,14 @@ export function saveUrl(pageUrl: string): string | null {
     return null;
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") return null;
-  const host = url.hostname.toLowerCase().replace(/^www\./, "").replace(/\.$/, "");
+  const host = url.hostname
+    .toLowerCase()
+    .replace(/^www\./, "")
+    .replace(/\.$/, "");
   if (host === "") return null;
   // URL already drops the scheme's default port.
-  const withPort = url.port !== "" && url.port !== DEFAULT_PORT[url.protocol] ? `${host}:${url.port}` : host;
+  const withPort =
+    url.port !== "" && url.port !== DEFAULT_PORT[url.protocol] ? `${host}:${url.port}` : host;
   return url.protocol === "https:" ? withPort : `http://${withPort}`;
 }
 

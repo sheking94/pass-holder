@@ -3,7 +3,6 @@ package io.github.sheking94.passholder.app.ui
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
-import android.provider.Settings as AndroidSettings
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,6 +27,7 @@ import io.github.sheking94.passholder.app.AppViewModel
 import io.github.sheking94.passholder.app.BiometricAvailability
 import io.github.sheking94.passholder.app.PassHolderApp
 import io.github.sheking94.passholder.app.UiState
+import android.provider.Settings as AndroidSettings
 
 /** "Ustawienia": fingerprint unlock, the lock delay, autofill, the save prompt and "Zmień hasło główne". "Wróć" and the system back go to the list. */
 @Composable
@@ -57,8 +57,11 @@ private fun FingerprintSetting(state: UiState, vm: AppViewModel) {
     // The whole row is the switch, so tapping the label works too.
     Row(
         Modifier.fillMaxWidth().toggleable(value = enabled, enabled = canToggle, role = Role.Switch) { on ->
-            if (on) fingerprint.show("Włącz odblokowanie odciskiem palca", vm::cipherToEnableBiometric, vm::onBiometricEnableAuthorized)
-            else vm.disableBiometric()
+            if (on) {
+                fingerprint.show("Włącz odblokowanie odciskiem palca", vm::cipherToEnableBiometric, vm::onBiometricEnableAuthorized)
+            } else {
+                vm.disableBiometric()
+            }
         },
         verticalAlignment = Alignment.CenterVertically,
     ) {

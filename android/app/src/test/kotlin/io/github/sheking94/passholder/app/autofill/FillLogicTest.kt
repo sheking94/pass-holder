@@ -2,11 +2,13 @@ package io.github.sheking94.passholder.app.autofill
 
 import android.app.PendingIntent
 import android.content.Intent
+import android.service.autofill.FillResponse
+import android.service.autofill.SaveInfo
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.github.sheking94.passholder.app.AppSigners
 import io.github.sheking94.passholder.app.LeaveLock
 import io.github.sheking94.passholder.app.PassHolderApp
-import io.github.sheking94.passholder.app.AppSigners
 import io.github.sheking94.passholder.app.TEST_APP_CERT
 import io.github.sheking94.passholder.app.TestAppSigners
 import io.github.sheking94.passholder.app.TestSecretWrapper
@@ -15,14 +17,12 @@ import io.github.sheking94.passholder.core.autofill.AutofillNode
 import io.github.sheking94.passholder.core.autofill.FieldDescriptor
 import io.github.sheking94.passholder.core.p2p.EntryContentV3
 import io.github.sheking94.passholder.core.p2p.LoginFields
-import android.service.autofill.FillResponse
-import android.service.autofill.SaveInfo
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -61,7 +61,8 @@ class FillLogicTest {
     private fun vaultWithLogin() {
         app.phoneStore.createVault("haslo-glowne-1")
         app.phoneStore.upsertContent(
-            "1", EntryContentV3("GitHub", "", LoginFields("jkowalski", "s3cret", urls = listOf("https://github.com")), emptyList()),
+            "1",
+            EntryContentV3("GitHub", "", LoginFields("jkowalski", "s3cret", urls = listOf("https://github.com")), emptyList()),
         )
     }
 
@@ -244,7 +245,8 @@ class FillLogicTest {
     fun `app login only for the remembered certificate, remembered on first fill`() {
         app.phoneStore.createVault("haslo-glowne-1")
         app.phoneStore.upsertContent(
-            "1", EntryContentV3("Bank", "", LoginFields("jan", "s3cret", androidApps = listOf("pl.bank")), emptyList()),
+            "1",
+            EntryContentV3("Bank", "", LoginFields("jan", "s3cret", androidApps = listOf("pl.bank")), emptyList()),
         )
         val bank = { respond(app, request(pkg = "pl.bank", domain = null), null, auth)!! }
         assertNull(app.appTrust.remembered("pl.bank"))

@@ -18,8 +18,11 @@ const SHA256_HEX = /^[0-9a-f]{64}$/;
 // Name and MIME lengths are counted in UTF-16 code units, like String.length in TS and Kotlin.
 const MAX_NAME_LENGTH = 255;
 const MAX_MIME_LENGTH = 127;
+// Control characters are exactly what these patterns look for.
+/* eslint-disable no-control-regex */
 const NAME_FORBIDDEN = /[/\\\u0000-\u001f\u007f-\u009f]/;
 const CONTROL = /[\u0000-\u001f\u007f-\u009f]/;
+/* eslint-enable no-control-regex */
 
 export interface Attachment {
   id: string;
@@ -37,7 +40,15 @@ export function chunkCount(size: number): number {
 
 /** A copy with the fixed key order shared with the Kotlin core. */
 export function attachmentJson(a: Attachment): Attachment {
-  return { id: a.id, name: a.name, mime: a.mime, size: a.size, chunks: a.chunks, sha256: a.sha256, key: a.key };
+  return {
+    id: a.id,
+    name: a.name,
+    mime: a.mime,
+    size: a.size,
+    chunks: a.chunks,
+    sha256: a.sha256,
+    key: a.key,
+  };
 }
 
 export function canAddAttachment(count: number): boolean {
@@ -76,7 +87,8 @@ function parseAttachment(value: unknown): Attachment {
   if (typeof id !== "string" || !UUID_V4.test(id)) fail();
   if (typeof name !== "string" || !isAttachmentName(name)) fail();
   if (typeof mime !== "string" || !isAttachmentMime(mime)) fail();
-  if (typeof size !== "number" || !Number.isInteger(size) || size < 1 || size > MAX_FILE_SIZE) fail();
+  if (typeof size !== "number" || !Number.isInteger(size) || size < 1 || size > MAX_FILE_SIZE)
+    fail();
   if (chunks !== chunkCount(size)) fail();
   if (typeof sha256 !== "string" || !SHA256_HEX.test(sha256)) fail();
   if (typeof key !== "string" || !canonicalKey(key)) fail();

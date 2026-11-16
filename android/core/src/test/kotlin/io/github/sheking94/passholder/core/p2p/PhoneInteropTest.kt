@@ -53,9 +53,12 @@ class PhoneInteropTest {
         )
         // No --experimental-transform-types: the script and core/src need only type stripping.
         val process = ProcessBuilder(
-            "node", "--disable-warning=ExperimentalWarning",
+            "node",
+            "--disable-warning=ExperimentalWarning",
             "android/core/src/test/resources/phone-interop.ts",
-            root.path, baseUrl, config.path,
+            root.path,
+            baseUrl,
+            config.path,
         ).directory(root).redirectErrorStream(true).start()
         val output = process.inputStream.bufferedReader(Charsets.UTF_8).readText()
         check(process.waitFor(5, TimeUnit.MINUTES) && process.exitValue() == 0) { "node client failed:\n$output" }

@@ -26,8 +26,12 @@ class MasterPasswordRulesTest {
     @Test
     fun `accepts real passphrases`() {
         listOf(
-            "Zażółć gęślą jaźń 2026", "correct horse battery staple", "mój kot ma 3 łapy", "Tr0mb0n-Kasza-Lipa",
-            "password do banku zielony", "abcd!x7Qm#2pZ",
+            "Zażółć gęślą jaźń 2026",
+            "correct horse battery staple",
+            "mój kot ma 3 łapy",
+            "Tr0mb0n-Kasza-Lipa",
+            "password do banku zielony",
+            "abcd!x7Qm#2pZ",
         ).forEach { assertNull(it, MasterPasswordRules.problem(it)) }
     }
 }

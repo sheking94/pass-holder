@@ -1,7 +1,17 @@
 import { editTarget } from "../page-mode.ts";
 import { MAX_PIN_ATTEMPTS } from "../pin-lock.ts";
 import type { PinStatus } from "../pin-store.ts";
-import { busy, confirmButton, form, h, passwordField, pinInput, setStatus, show, statusLine } from "../ui/dom.ts";
+import {
+  busy,
+  confirmButton,
+  form,
+  h,
+  passwordField,
+  pinInput,
+  setStatus,
+  show,
+  statusLine,
+} from "../ui/dom.ts";
 import type { SaveInfoMessage, SavePromptInfo } from "../save/messages.ts";
 import { activeTab } from "../ui/active-tab.ts";
 import { MODE, openInTabButton } from "../ui/page.ts";
@@ -31,7 +41,8 @@ export async function showUnlocked(message = "") {
   if (MODE === "edit") {
     const target = editTarget(location.search);
     if (target) {
-      const exists = target.id !== undefined && store.getEntry(target.id)?.data.type === target.type;
+      const exists =
+        target.id !== undefined && store.getEntry(target.id)?.data.type === target.type;
       return editView(target.type, exists ? target.id : undefined);
     }
   }
@@ -57,7 +68,8 @@ function pinLockedView(pinStatus: PinStatus, message = "") {
   const pin = pinInput("off", pinStatus.rememberedAfterRestart);
   const status = statusLine();
   setStatus(status, message);
-  if (pinStatus.attemptsLeft < MAX_PIN_ATTEMPTS) setStatus(status, `Pozostało prób: ${pinStatus.attemptsLeft}.`, true);
+  if (pinStatus.attemptsLeft < MAX_PIN_ATTEMPTS)
+    setStatus(status, `Pozostało prób: ${pinStatus.attemptsLeft}.`, true);
   const unlock = () =>
     busy(status, "Sprawdzam PIN…", async () => {
       let movedToMemory: boolean;
@@ -109,7 +121,8 @@ function lockedView(message = "") {
     {
       type: "button",
       class: "danger",
-      title: "Usuwa sejf z tej przeglądarki. Telefon zachowuje hasła z ostatniej synchronizacji; niezsynchronizowane zmiany z tej przeglądarki mogą przepaść.",
+      title:
+        "Usuwa sejf z tej przeglądarki. Telefon zachowuje hasła z ostatniej synchronizacji; niezsynchronizowane zmiany z tej przeglądarki mogą przepaść.",
     },
     () =>
       void busy(status, "Odłączam…", async () => {
@@ -122,12 +135,21 @@ function lockedView(message = "") {
   show(
     openInTabButton(),
     h("h1", {}, "PassHolder jest zablokowany"),
-    h("p", { class: "hint" }, "Hasło główne sejfu z telefonu. Odblokowanie działa także bez połączenia z telefonem."),
+    h(
+      "p",
+      { class: "hint" },
+      "Hasło główne sejfu z telefonu. Odblokowanie działa także bez połączenia z telefonem.",
+    ),
     form(
       () => void unlock(),
       h("label", {}, "Hasło główne"),
       passwordField(password).row,
-      h("div", { class: "actions" }, h("button", { type: "submit", class: "primary" }, "Odblokuj"), disconnect),
+      h(
+        "div",
+        { class: "actions" },
+        h("button", { type: "submit", class: "primary" }, "Odblokuj"),
+        disconnect,
+      ),
     ),
     status,
   );

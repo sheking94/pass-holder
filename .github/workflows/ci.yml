@@ -1,4 +1,5 @@
 # Security review V3-N7: the Gradle wrapper is checked and the tests run on every push and pull request.
+# Clean code review V3-CN1: lint and formatting are checked too (ESLint, Prettier, ktlint).
 name: CI
 
 on:
@@ -20,6 +21,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
       - run: npm run typecheck
       - run: npm test
 
@@ -39,4 +42,4 @@ jobs:
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
       # The wrapper checks the downloaded distribution against distributionSha256Sum.
-      - run: ./gradlew :core:test :app:testDebugUnitTest
+      - run: ./gradlew ktlintCheck :core:test :app:testDebugUnitTest

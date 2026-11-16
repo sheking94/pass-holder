@@ -18,7 +18,9 @@ object JsonText {
     private fun write(sb: StringBuilder, v: JsonElement, depth: Int) {
         when (v) {
             is JsonNull -> sb.append("null")
+
             is JsonPrimitive -> if (v.isString) str(sb, v.content) else sb.append(v.content)
+
             is JsonArray -> {
                 if (v.isEmpty()) {
                     sb.append("[]")
@@ -33,6 +35,7 @@ object JsonText {
                 indent(sb, depth)
                 sb.append(']')
             }
+
             is JsonObject -> {
                 if (v.isEmpty()) {
                     sb.append("{}")
@@ -60,17 +63,27 @@ object JsonText {
         for ((i, ch) in s.withIndex()) {
             when {
                 ch == '"' -> sb.append("\\\"")
+
                 ch == '\\' -> sb.append("\\\\")
+
                 ch == '\b' -> sb.append("\\b")
+
                 ch == '\u000C' -> sb.append("\\f")
+
                 ch == '\n' -> sb.append("\\n")
+
                 ch == '\r' -> sb.append("\\r")
+
                 ch == '\t' -> sb.append("\\t")
+
                 ch < ' ' -> sb.append("\\u").append(String.format("%04x", ch.code))
+
                 ch.isHighSurrogate() && !(i + 1 < s.length && s[i + 1].isLowSurrogate()) ->
                     sb.append("\\u").append(String.format("%04x", ch.code))
+
                 ch.isLowSurrogate() && !(i > 0 && s[i - 1].isHighSurrogate()) ->
                     sb.append("\\u").append(String.format("%04x", ch.code))
+
                 else -> sb.append(ch)
             }
         }

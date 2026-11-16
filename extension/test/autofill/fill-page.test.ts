@@ -6,16 +6,37 @@ import { fillPage } from "../../src/autofill/fill-page.ts";
 type Plan = autofill.FillPlan;
 const ORIGIN = window.location.origin;
 const login: Plan = { kind: "login", username: "jan", password: "s3cret" };
-const card: Plan = { kind: "card", holder: "Jan Kowalski", number: "4111 1111 1111 1111", expiry: "08/29", cvc: "123" };
+const card: Plan = {
+  kind: "card",
+  holder: "Jan Kowalski",
+  number: "4111 1111 1111 1111",
+  expiry: "08/29",
+  cvc: "123",
+};
 const contact: Plan = {
-  kind: "contact", firstName: "Jan", lastName: "Kowalski", email: "jan@example.com", tel: "600100200",
-  street: "Prosta 1", postalCode: "00-001", city: "Warszawa", country: "Polska", bday: "",
+  kind: "contact",
+  firstName: "Jan",
+  lastName: "Kowalski",
+  email: "jan@example.com",
+  tel: "600100200",
+  street: "Prosta 1",
+  postalCode: "00-001",
+  city: "Warszawa",
+  country: "Polska",
+  bday: "",
 };
 
-function html(s: string): void { document.body.innerHTML = s; }
-function val(sel: string): string { return (document.querySelector(sel) as HTMLInputElement).value; }
+function html(s: string): void {
+  document.body.innerHTML = s;
+}
+function val(sel: string): string {
+  return (document.querySelector(sel) as HTMLInputElement).value;
+}
 
-afterEach(() => { document.body.innerHTML = ""; vi.restoreAllMocks(); });
+afterEach(() => {
+  document.body.innerHTML = "";
+  vi.restoreAllMocks();
+});
 
 describe("fillPage", () => {
   it("fills a simple login form", () => {
@@ -45,7 +66,9 @@ describe("fillPage", () => {
   });
 
   it("skips passwords in a registration form", () => {
-    html(`<form><input name="username"><input type="password" name="p1"><input type="password" name="p2"></form>`);
+    html(
+      `<form><input name="username"><input type="password" name="p1"><input type="password" name="p2"></form>`,
+    );
     fillPage(login, ORIGIN);
     expect(val("[name=p1]")).toBe("");
     expect(val("[name=p2]")).toBe("");
@@ -78,7 +101,8 @@ describe("fillPage", () => {
     expect(fillPage(login, ORIGIN)).toEqual({ filled: 2 });
     expect(val("#ok")).toBe("jan");
     expect(document.querySelectorAll("input[name=username]:not(#ok)")).toHaveLength(5);
-    for (const el of document.querySelectorAll<HTMLInputElement>("input[name=username]:not(#ok)")) expect(el.value).toBe("");
+    for (const el of document.querySelectorAll<HTMLInputElement>("input[name=username]:not(#ok)"))
+      expect(el.value).toBe("");
   });
 
   it("skips fields with opacity 0 on the element or an ancestor", () => {
@@ -90,21 +114,44 @@ describe("fillPage", () => {
     expect(fillPage(login, ORIGIN)).toEqual({ filled: 2 });
     expect(val("#ok")).toBe("jan");
     expect(document.querySelectorAll("input[name=username]:not(#ok)")).toHaveLength(2);
-    for (const el of document.querySelectorAll<HTMLInputElement>("input[name=username]:not(#ok)")) expect(el.value).toBe("");
+    for (const el of document.querySelectorAll<HTMLInputElement>("input[name=username]:not(#ok)"))
+      expect(el.value).toBe("");
   });
 
   describe("when the page has layout", () => {
     // happy-dom has no layout: every rect is all-zero, which fillPage treats as "no layout" (see hasLayout).
     function layout(rects: Record<string, [number, number, number, number]>): void {
-      vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+      vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (
+        this: Element,
+      ) {
         const [x, y, w, h] = rects[this.id || this.tagName] ?? [0, 0, 0, 0];
-        return { x, y, left: x, top: y, width: w, height: h, right: x + w, bottom: y + h, toJSON() { return {}; } } as DOMRect;
+        return {
+          x,
+          y,
+          left: x,
+          top: y,
+          width: w,
+          height: h,
+          right: x + w,
+          bottom: y + h,
+          toJSON() {
+            return {};
+          },
+        } as DOMRect;
       });
     }
 
     it("skips zero-size and off-screen fields, fills the visible one", () => {
-      html(`<form><input name="username" id="tiny"><input name="username" id="off"><input name="username" id="ok"><input type="password" id="pw"></form>`);
-      layout({ HTML: [0, 0, 800, 600], tiny: [10, 10, 1, 1], off: [-9999, 10, 200, 20], ok: [10, 50, 200, 20], pw: [10, 80, 200, 20] });
+      html(
+        `<form><input name="username" id="tiny"><input name="username" id="off"><input name="username" id="ok"><input type="password" id="pw"></form>`,
+      );
+      layout({
+        HTML: [0, 0, 800, 600],
+        tiny: [10, 10, 1, 1],
+        off: [-9999, 10, 200, 20],
+        ok: [10, 50, 200, 20],
+        pw: [10, 80, 200, 20],
+      });
       expect(fillPage(login, ORIGIN)).toEqual({ filled: 2 });
       expect(val("#ok")).toBe("jan");
       expect(val("#tiny")).toBe("");
@@ -116,19 +163,29 @@ describe("fillPage", () => {
     html(`<form><input name="username"><input type="password"></form>`);
     const el = document.querySelector("[name=username]") as HTMLInputElement;
     let own = "";
-    Object.defineProperty(el, "value", { get: () => own, set: (v: string) => { own = "framework:" + v; }, configurable: true });
+    Object.defineProperty(el, "value", {
+      get: () => own,
+      set: (v: string) => {
+        own = "framework:" + v;
+      },
+      configurable: true,
+    });
     const events: string[] = [];
     document.addEventListener("input", () => events.push("input"));
     document.addEventListener("change", () => events.push("change"));
     fillPage(login, ORIGIN);
     expect(own).toBe("");
-    expect(Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.get!.call(el)).toBe("jan");
+    expect(
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.get!.call(el),
+    ).toBe("jan");
     expect(events).toContain("input");
     expect(events).toContain("change");
   });
 
   it("fills a card with one expiry field", () => {
-    html(`<form><input autocomplete="cc-name"><input autocomplete="cc-number"><input autocomplete="cc-exp"><input autocomplete="cc-csc"></form>`);
+    html(
+      `<form><input autocomplete="cc-name"><input autocomplete="cc-number"><input autocomplete="cc-exp"><input autocomplete="cc-csc"></form>`,
+    );
     expect(fillPage(card, ORIGIN)).toEqual({ filled: 4 });
     expect(val("[autocomplete=cc-number]")).toBe("4111111111111111");
     expect(val("[autocomplete=cc-exp]")).toBe("08/29");
@@ -176,7 +233,9 @@ describe("fillPage", () => {
     });
 
     it("fills only the form of the focused field", () => {
-      html(`<form><input type="email" id="a"></form><form><input type="email" id="b"><input type="tel" id="t"></form>`);
+      html(
+        `<form><input type="email" id="a"></form><form><input type="email" id="b"><input type="tel" id="t"></form>`,
+      );
       (document.getElementById("b") as HTMLInputElement).focus();
       expect(fillPage(contact, ORIGIN)).toEqual({ filled: 2 });
       expect(val("#a")).toBe("");
@@ -184,23 +243,44 @@ describe("fillPage", () => {
     });
 
     it("without focus fills only the form of the first field it can fill", () => {
-      html(`<form><input name="q" id="q"></form><form><input type="email" id="a"></form><form><input type="tel" id="t"></form>`);
+      html(
+        `<form><input name="q" id="q"></form><form><input type="email" id="a"></form><form><input type="tel" id="t"></form>`,
+      );
       expect(fillPage(contact, ORIGIN)).toEqual({ filled: 1 });
       expect(val("#a")).toBe("jan@example.com");
       expect(val("#t")).toBe("");
     });
 
     it("login fill is not limited to one form scope by focus", () => {
-      html(`<form><input type="email" id="news"></form><form><input name="username" id="u"><input type="password" id="p"></form>`);
+      html(
+        `<form><input type="email" id="news"></form><form><input name="username" id="u"><input type="password" id="p"></form>`,
+      );
       (document.getElementById("news") as HTMLInputElement).focus();
       expect(fillPage(login, ORIGIN)).toEqual({ filled: 2 });
     });
 
     describe("with layout", () => {
-      function layout(rects: Record<string, [number, number, number, number]>, hit: (x: number, y: number) => Element | null): void {
-        vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+      function layout(
+        rects: Record<string, [number, number, number, number]>,
+        hit: (x: number, y: number) => Element | null,
+      ): void {
+        vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (
+          this: Element,
+        ) {
           const [x, y, w, h] = rects[this.id || this.tagName] ?? [0, 0, 0, 0];
-          return { x, y, left: x, top: y, width: w, height: h, right: x + w, bottom: y + h, toJSON() { return {}; } } as DOMRect;
+          return {
+            x,
+            y,
+            left: x,
+            top: y,
+            width: w,
+            height: h,
+            right: x + w,
+            bottom: y + h,
+            toJSON() {
+              return {};
+            },
+          } as DOMRect;
         });
         document.elementFromPoint = hit;
       }
@@ -210,10 +290,18 @@ describe("fillPage", () => {
           <input autocomplete="postal-code" id="small"><input autocomplete="address-level2" id="covered"><div id="cover"></div>
           <div id="box" style="overflow: hidden"><input autocomplete="street-address" id="cut"></div></form>`);
         const $ = (id: string) => document.getElementById(id);
-        layout({
-          HTML: [0, 0, 800, 600], em: [10, 10, 200, 20], tl: [10, 40, 200, 20], small: [10, 70, 3, 3],
-          covered: [10, 100, 200, 20], box: [10, 130, 200, 20], cut: [400, 130, 200, 20],
-        }, (_x, y) => (y === 50 ? $("lb") : y === 110 ? $("cover") : y === 20 ? $("em") : null));
+        layout(
+          {
+            HTML: [0, 0, 800, 600],
+            em: [10, 10, 200, 20],
+            tl: [10, 40, 200, 20],
+            small: [10, 70, 3, 3],
+            covered: [10, 100, 200, 20],
+            box: [10, 130, 200, 20],
+            cut: [400, 130, 200, 20],
+          },
+          (_x, y) => (y === 50 ? $("lb") : y === 110 ? $("cover") : y === 20 ? $("em") : null),
+        );
         expect(fillPage(contact, ORIGIN)).toEqual({ filled: 2 });
         expect(val("#em")).toBe("jan@example.com");
         expect(val("#tl")).toBe("600100200");
@@ -234,7 +322,9 @@ describe("fillPage", () => {
   it("returns 0 in a frame from another origin", () => {
     html(`<form><input name="username"><input type="password"></form>`);
     vi.spyOn(window, "top", "get").mockReturnValue({
-      get location(): never { throw new Error("cross-origin"); },
+      get location(): never {
+        throw new Error("cross-origin");
+      },
     } as unknown as Window);
     expect(fillPage(login, ORIGIN)).toEqual({ filled: 0 });
     expect(val("[name=username]")).toBe("");
@@ -242,7 +332,9 @@ describe("fillPage", () => {
 
   it("returns 0 when top is reachable but has a different origin", () => {
     html(`<form><input name="username"><input type="password"></form>`);
-    vi.spyOn(window, "top", "get").mockReturnValue({ location: { origin: "https://other.example" } } as unknown as Window);
+    vi.spyOn(window, "top", "get").mockReturnValue({
+      location: { origin: "https://other.example" },
+    } as unknown as Window);
     expect(fillPage(login, ORIGIN)).toEqual({ filled: 0 });
     expect(val("[name=username]")).toBe("");
   });

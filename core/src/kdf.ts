@@ -35,9 +35,12 @@ export function assertKdfParamsAcceptable(params: KdfParams): void {
   if (fromBase64(params.salt).length !== 16) throw new Error("KDF salt must be 16 bytes");
   // Checked as integers in range, not just "not below the minimum": NaN or a string compares false with
   // everything and would otherwise slip through.
-  if (!inRange(params.memoryKiB, MIN_KDF.memoryKiB, MAX_KDF.memoryKiB)) throw new Error("KDF memory out of range");
-  if (!inRange(params.iterations, MIN_KDF.iterations, MAX_KDF.iterations)) throw new Error("KDF iterations out of range");
-  if (!inRange(params.parallelism, MIN_KDF.parallelism, MAX_KDF.parallelism)) throw new Error("KDF parallelism out of range");
+  if (!inRange(params.memoryKiB, MIN_KDF.memoryKiB, MAX_KDF.memoryKiB))
+    throw new Error("KDF memory out of range");
+  if (!inRange(params.iterations, MIN_KDF.iterations, MAX_KDF.iterations))
+    throw new Error("KDF iterations out of range");
+  if (!inRange(params.parallelism, MIN_KDF.parallelism, MAX_KDF.parallelism))
+    throw new Error("KDF parallelism out of range");
 }
 
 export interface DerivedKeys {
@@ -53,7 +56,10 @@ export interface DerivedKeys {
 const INFO_ENC = utf8("passholder/v1/enc");
 const INFO_AUTH = utf8("passholder/v1/auth");
 
-export async function deriveMasterKey(masterPassword: string, params: KdfParams): Promise<Uint8Array> {
+export async function deriveMasterKey(
+  masterPassword: string,
+  params: KdfParams,
+): Promise<Uint8Array> {
   return argon2idAsync(utf8(masterPassword), fromBase64(params.salt), {
     m: params.memoryKiB,
     t: params.iterations,

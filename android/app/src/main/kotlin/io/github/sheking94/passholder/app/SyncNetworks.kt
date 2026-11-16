@@ -36,8 +36,10 @@ class SyncNetworks(context: Context) {
          */
         fun allowed(caps: NetworkCapabilities, addresses: List<InetAddress>): List<InetAddress> = when {
             caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) -> addresses.filter(::isTailscale)
+
             caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
                 caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> addresses
+
             else -> emptyList()
         }
 

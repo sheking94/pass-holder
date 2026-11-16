@@ -70,8 +70,7 @@ object TransferFiles {
     }
 
     /** Writes [text] as UTF-8 over the whole document at [uri] ("wt": an existing file is truncated, not overwritten in part). */
-    fun writeText(resolver: ContentResolver, uri: Uri, text: String) =
-        writeText(text) { resolver.openOutputStream(uri, "wt") }
+    fun writeText(resolver: ContentResolver, uri: Uri, text: String) = writeText(text) { resolver.openOutputStream(uri, "wt") }
 
     /** Provider failures (IOException, SecurityException, null stream) become the Polish [WRITE_FAILED]. */
     internal fun writeText(text: String, open: () -> OutputStream?) {
@@ -87,7 +86,13 @@ object TransferFiles {
 
     /** The name the save dialog suggests: passholder-RRRR-MM-DD.json, .csv for NordPass, .zip for a PassHolder ZIP ([zip]). */
     fun defaultFileName(format: TransferFormat, day: LocalDate = LocalDate.now(), zip: Boolean = false): String =
-        "passholder-$day.${if (zip) "zip" else if (format == TransferFormat.NORDPASS) "csv" else "json"}"
+        "passholder-$day.${if (zip) {
+            "zip"
+        } else if (format == TransferFormat.NORDPASS) {
+            "csv"
+        } else {
+            "json"
+        }}"
 
     /** The first bytes of a ZIP archive (a local file header): 50 4B 03 04. */
     private val ZIP_MAGIC = byteArrayOf(0x50, 0x4B, 0x03, 0x04)

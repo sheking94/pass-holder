@@ -61,7 +61,9 @@ class MatchVectorsTest {
     @Test
     fun exactOnlyLeavesOutSubdomains() {
         val items = listOf("Domain" to "example.com", "Host" to "x.example.com")
-        val pick = { url: String -> matchLogins(url, items, exactOnly = true) { MatchCandidate(it.first, listOf(it.second)) }.map { it.first } }
+        val pick = { url: String ->
+            matchLogins(url, items, exactOnly = true) { MatchCandidate(it.first, listOf(it.second)) }.map { it.first }
+        }
         assertEquals(listOf("Host"), pick("https://x.example.com"))
         assertEquals(emptyList<String>(), pick("https://y.example.com"))
     }

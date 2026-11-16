@@ -10,30 +10,46 @@ const LOGIN = `<form id="f"><input name="username" value="jan"><input type="pass
 function setup(trusted: ((e: Event) => boolean) | "real" = () => true) {
   const sent: Array<SaveCandidateMessage | SavePendingMessage> = [];
   const runtime: WatchRuntime = {
-    send: (m) => { sent.push(m); return Promise.resolve(undefined); },
+    send: (m) => {
+      sent.push(m);
+      return Promise.resolve(undefined);
+    },
     ...(trusted !== "real" && { trusted }),
   };
   return { sent, runtime, candidates: () => sent.filter((m) => m.type === "save-candidate") };
 }
 
-afterEach(() => { document.body.innerHTML = ""; vi.restoreAllMocks(); });
+afterEach(() => {
+  document.body.innerHTML = "";
+  vi.restoreAllMocks();
+});
 
 describe("startSaveWatch", () => {
   it("sends save-candidate on submit", () => {
     document.body.innerHTML = LOGIN;
     const t = setup();
     startSaveWatch(document, t.runtime);
-    document.getElementById("f")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-    expect(t.candidates()).toEqual([{
-      target: "background", type: "save-candidate", username: "jan", password: "s3cret", formSignature: "password,username",
-    }]);
+    document
+      .getElementById("f")!
+      .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    expect(t.candidates()).toEqual([
+      {
+        target: "background",
+        type: "save-candidate",
+        username: "jan",
+        password: "s3cret",
+        formSignature: "password,username",
+      },
+    ]);
   });
 
   it("sends on Enter in the password field", () => {
     document.body.innerHTML = LOGIN;
     const t = setup();
     startSaveWatch(document, t.runtime);
-    document.querySelector("[type=password]")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    document
+      .querySelector("[type=password]")!
+      .dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
     expect(t.candidates()).toHaveLength(1);
   });
 
@@ -41,7 +57,9 @@ describe("startSaveWatch", () => {
     document.body.innerHTML = LOGIN;
     const t = setup();
     startSaveWatch(document, t.runtime);
-    document.querySelector("[type=password]")!.dispatchEvent(new KeyboardEvent("keydown", { key: "a", bubbles: true }));
+    document
+      .querySelector("[type=password]")!
+      .dispatchEvent(new KeyboardEvent("keydown", { key: "a", bubbles: true }));
     expect(t.candidates()).toHaveLength(0);
   });
 
@@ -54,7 +72,8 @@ describe("startSaveWatch", () => {
   });
 
   it("does not send on a click of a button in another form", () => {
-    document.body.innerHTML = LOGIN + `<form id="other"><input name="q" value="x"><button id="s">Search</button></form>`;
+    document.body.innerHTML =
+      LOGIN + `<form id="other"><input name="q" value="x"><button id="s">Search</button></form>`;
     const t = setup();
     startSaveWatch(document, t.runtime);
     document.getElementById("s")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -68,7 +87,9 @@ describe("startSaveWatch", () => {
     });
     const t = setup();
     startSaveWatch(document, t.runtime);
-    document.getElementById("f")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    document
+      .getElementById("f")!
+      .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     expect(t.candidates()).toMatchObject([{ username: "jan", password: "s3cret" }]);
   });
 
@@ -77,7 +98,11 @@ describe("startSaveWatch", () => {
     const before = document.body.innerHTML;
     const t = setup();
     startSaveWatch(document, t.runtime);
-    expect(t.sent[0]).toEqual({ target: "background", type: "save-pending", emptyLoginForms: ["p,u"] });
+    expect(t.sent[0]).toEqual({
+      target: "background",
+      type: "save-pending",
+      emptyLoginForms: ["p,u"],
+    });
     expect(document.body.innerHTML).toBe(before);
   });
 
@@ -85,8 +110,12 @@ describe("startSaveWatch", () => {
     document.body.innerHTML = LOGIN;
     const t = setup("real"); // the real check: event.isTrusted (happy-dom leaves it undefined, a browser sets false)
     startSaveWatch(document, t.runtime);
-    document.getElementById("f")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-    document.querySelector("[type=password]")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    document
+      .getElementById("f")!
+      .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    document
+      .querySelector("[type=password]")!
+      .dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
     document.getElementById("go")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(t.candidates()).toEqual([]);
   });
@@ -95,7 +124,9 @@ describe("startSaveWatch", () => {
     document.body.innerHTML = LOGIN;
     const t = setup((e) => e.type === "click");
     startSaveWatch(document, t.runtime);
-    document.getElementById("f")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    document
+      .getElementById("f")!
+      .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     document.getElementById("go")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(t.candidates()).toHaveLength(1);
   });
@@ -103,20 +134,28 @@ describe("startSaveWatch", () => {
   it("does nothing when the top frame is cross-origin", () => {
     document.body.innerHTML = LOGIN;
     vi.spyOn(window, "top", "get").mockReturnValue({
-      get location(): never { throw new Error("cross-origin"); },
+      get location(): never {
+        throw new Error("cross-origin");
+      },
     } as unknown as Window);
     const t = setup();
     startSaveWatch(document, t.runtime);
-    document.getElementById("f")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    document
+      .getElementById("f")!
+      .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     expect(t.sent).toEqual([]);
   });
 
   it("a same-origin subframe sends candidates but not save-pending", () => {
     document.body.innerHTML = LOGIN;
-    vi.spyOn(window, "top", "get").mockReturnValue({ location: { origin: window.location.origin } } as unknown as Window);
+    vi.spyOn(window, "top", "get").mockReturnValue({
+      location: { origin: window.location.origin },
+    } as unknown as Window);
     const t = setup();
     startSaveWatch(document, t.runtime);
-    document.getElementById("f")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    document
+      .getElementById("f")!
+      .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     expect(t.sent.map((m) => m.type)).toEqual(["save-candidate"]);
   });
 });

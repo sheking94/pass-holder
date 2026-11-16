@@ -1,6 +1,21 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { STORAGE_KEYS, PAIRING_PENDING_MS, PairedButSyncFailed, VaultStore } from "../src/vault-store.ts";
-import { CODE, FakePhone, names, newBrowser, NO_FILES, pairedBrowser, PASSWORD, PHONE_URL, SECOND_URL } from "./fake-phone.ts";
+import {
+  STORAGE_KEYS,
+  PAIRING_PENDING_MS,
+  PairedButSyncFailed,
+  VaultStore,
+} from "../src/vault-store.ts";
+import {
+  CODE,
+  FakePhone,
+  names,
+  newBrowser,
+  NO_FILES,
+  pairedBrowser,
+  PASSWORD,
+  PHONE_URL,
+  SECOND_URL,
+} from "./fake-phone.ts";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -8,14 +23,22 @@ afterEach(() => {
 
 describe("pending pairing as the connect screen sees it", () => {
   it("reports a pending pairing with the phone's name and the addresses to allow, and cancels it", async () => {
-    const phone = await FakePhone.withVault(PASSWORD, [PHONE_URL, SECOND_URL, "http://telefon.local:8787"]);
+    const phone = await FakePhone.withVault(PASSWORD, [
+      PHONE_URL,
+      SECOND_URL,
+      "http://telefon.local:8787",
+    ]);
     const { store, session } = newBrowser(new Map([[PHONE_URL, phone]]));
     expect(await store.hasPendingPairing()).toBe(false);
     phone.offerPairing();
     await store.pairStart(PHONE_URL, CODE, "Chrome (Linux)");
 
     expect(await store.hasPendingPairing()).toBe(true);
-    expect(await store.pendingPairing()).toEqual({ phoneName: "Telefon", deviceName: "Chrome (Linux)", phoneUrls: [PHONE_URL, SECOND_URL] });
+    expect(await store.pendingPairing()).toEqual({
+      phoneName: "Telefon",
+      deviceName: "Chrome (Linux)",
+      phoneUrls: [PHONE_URL, SECOND_URL],
+    });
     // The phone already lists the browser: the screen names it, so the user can remove it there (M6).
     expect(await store.cancelPairing()).toBe("Chrome (Linux)");
     expect(await store.cancelPairing()).toBeUndefined();
@@ -27,7 +50,10 @@ describe("pending pairing as the connect screen sees it", () => {
   it("treats a pairing older than 10 minutes as absent and clears it", async () => {
     let clock = 5_000_000;
     const phone = await FakePhone.withVault(PASSWORD, [PHONE_URL]);
-    const { store, session, local, makeClient } = newBrowser(new Map([[PHONE_URL, phone]]), () => clock);
+    const { store, session, local, makeClient } = newBrowser(
+      new Map([[PHONE_URL, phone]]),
+      () => clock,
+    );
     phone.offerPairing();
     await store.pairStart(PHONE_URL, CODE, "Chrome");
     expect(PAIRING_PENDING_MS).toBe(10 * 60_000);
@@ -74,7 +100,10 @@ describe("pairing with several typed addresses", () => {
     phone.offerPairing();
     await store.pairStart([dead, SECOND_URL], CODE, "Chrome");
     await store.pairFinish(PASSWORD);
-    expect(await store.getAccount()).toMatchObject({ phoneUrls: [SECOND_URL, dead], lastPhoneUrl: SECOND_URL });
+    expect(await store.getAccount()).toMatchObject({
+      phoneUrls: [SECOND_URL, dead],
+      lastPhoneUrl: SECOND_URL,
+    });
   }, 30_000);
 });
 
@@ -118,7 +147,14 @@ describe("host permissions", () => {
   it("syncs only at addresses Chrome allows and names the skipped ones", async () => {
     const allowed = new Set([SECOND_URL]);
     const phone = await FakePhone.withVault(PASSWORD, [PHONE_URL]);
-    const { store } = newBrowser(new Map([[PHONE_URL, phone], [SECOND_URL, phone]]), Date.now, async (u) => allowed.has(u) || u === PHONE_URL);
+    const { store } = newBrowser(
+      new Map([
+        [PHONE_URL, phone],
+        [SECOND_URL, phone],
+      ]),
+      Date.now,
+      async (u) => allowed.has(u) || u === PHONE_URL,
+    );
     phone.offerPairing();
     await store.pairStart(PHONE_URL, CODE, "Chrome");
     await store.pairFinish(PASSWORD);

@@ -38,7 +38,9 @@ interface Vectors {
   oldPaths: { status: number; body: { error: string } };
 }
 
-const v = JSON.parse(readFileSync(new URL("../../test-vectors/v3.json", import.meta.url), "utf8")) as Vectors;
+const v = JSON.parse(
+  readFileSync(new URL("../../test-vectors/v3.json", import.meta.url), "utf8"),
+) as Vectors;
 
 describe("test-vectors/v3.json", () => {
   it("header and limits", () => {
@@ -54,8 +56,17 @@ describe("test-vectors/v3.json", () => {
   });
 
   it("covers every entry type, legacy v2 and a tombstone, with distinct nonces", () => {
-    const types = new Set(v.entries.map((e) => (e.parsed as { type?: string } | null)?.type ?? "tombstone"));
-    expect([...types].sort()).toEqual(["card", "contact", "document", "login", "note", "tombstone"]);
+    const types = new Set(
+      v.entries.map((e) => (e.parsed as { type?: string } | null)?.type ?? "tombstone"),
+    );
+    expect([...types].sort()).toEqual([
+      "card",
+      "contact",
+      "document",
+      "login",
+      "note",
+      "tombstone",
+    ]);
     expect(v.entries.some((e) => !e.deleted && !e.payload.startsWith('{"v":3'))).toBe(true);
     expect(new Set(v.entries.map((e) => e.nonce)).size).toBe(v.entries.length);
   });
@@ -63,7 +74,9 @@ describe("test-vectors/v3.json", () => {
   for (const e of v.entries) {
     it(`entry: ${e.description}`, async () => {
       const key = fromHex(e.vaultKey);
-      const data = e.deleted ? parseTombstoneData(JSON.parse(e.payload)) : parseEntryData(JSON.parse(e.payload));
+      const data = e.deleted
+        ? parseTombstoneData(JSON.parse(e.payload))
+        : parseEntryData(JSON.parse(e.payload));
       if (e.deleted) {
         expect(e.parsed).toBeNull();
         expect(serializeEntryData(data)).toBe(e.payload);
@@ -81,7 +94,9 @@ describe("test-vectors/v3.json", () => {
   for (const r of v.rejected) {
     it(`rejected: ${r.description}`, () => {
       const value = JSON.parse(r.payload);
-      expect(() => (r.deleted ? parseTombstoneData(value) : parseEntryData(value))).toThrow(r.error);
+      expect(() => (r.deleted ? parseTombstoneData(value) : parseEntryData(value))).toThrow(
+        r.error,
+      );
     });
   }
 });

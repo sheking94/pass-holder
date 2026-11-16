@@ -1,5 +1,11 @@
 import { liveEntriesV2, type LocalVaultV2 } from "../p2p/sync.ts";
-import { noiseRequest, P2pHostError, P2P_FILE_PATH, PHONE_UPDATE_REQUIRED, type NoiseClientOptions } from "../p2p/transport.ts";
+import {
+  noiseRequest,
+  P2pHostError,
+  P2P_FILE_PATH,
+  PHONE_UPDATE_REQUIRED,
+  type NoiseClientOptions,
+} from "../p2p/transport.ts";
 import type { Attachment } from "./attachment.ts";
 import { decryptFile, FILE_CORRUPTED, type EncryptedFile } from "./chunks.ts";
 import type { P2pFileRequest, P2pFileStatus } from "./host-files.ts";
@@ -77,7 +83,10 @@ export class MemoryLocalFileStore implements LocalFileStore {
   async putChunk(id: string, index: number, chunks: number, blob: string): Promise<void> {
     let f = this.#files.get(id);
     if (!f || f.state.chunks !== chunks) {
-      f = { state: { id, chunks, have: [], complete: false, uploadedEpoch: null }, blobs: new Map() };
+      f = {
+        state: { id, chunks, have: [], complete: false, uploadedEpoch: null },
+        blobs: new Map(),
+      };
       this.#files.set(id, f);
     }
     f.blobs.set(index, blob);
@@ -136,11 +145,15 @@ export interface FileSyncResult {
   corruptedIds: string[];
 }
 
-const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
 const isIndex = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 0;
 
 /** Sends a request and returns its answer, throwing FILE_SYNC_EPOCH_MISMATCH when the phone names another epoch. */
-async function call(send: P2pFileTransport, request: P2pFileRequest): Promise<Record<string, unknown> | null> {
+async function call(
+  send: P2pFileTransport,
+  request: P2pFileRequest,
+): Promise<Record<string, unknown> | null> {
   const res = await send(request);
   if (res === null && request.op === "get") return null;
   if (!isRecord(res)) throw new Error(MALFORMED);
@@ -148,7 +161,11 @@ async function call(send: P2pFileTransport, request: P2pFileRequest): Promise<Re
   return res;
 }
 
-async function phoneStatus(send: P2pFileTransport, epoch: string, ids: string[]): Promise<Map<string, P2pFileStatus>> {
+async function phoneStatus(
+  send: P2pFileTransport,
+  epoch: string,
+  ids: string[],
+): Promise<Map<string, P2pFileStatus>> {
   const status = new Map<string, P2pFileStatus>();
   for (let i = 0; i < ids.length; i += MAX_STATUS_IDS) {
     const res = await call(send, { op: "status", epoch, ids: ids.slice(i, i + MAX_STATUS_IDS) });
@@ -187,7 +204,8 @@ async function upload(
     const blob = await files.getChunk(a.id, index);
     if (blob === undefined) {
       const present: number[] = [];
-      for (let i = 0; i < a.chunks; i++) if ((await files.getChunk(a.id, i)) !== undefined) present.push(i);
+      for (let i = 0; i < a.chunks; i++)
+        if ((await files.getChunk(a.id, i)) !== undefined) present.push(i);
       await files.markIncomplete(a.id, present);
       return "pending";
     }
@@ -254,7 +272,13 @@ export async function syncFiles(
   onProgress?: (done: number, total: number) => void,
   skip?: ReadonlySet<string>,
 ): Promise<FileSyncResult> {
-  const result: FileSyncResult = { uploaded: 0, downloaded: 0, pending: 0, corrupted: [], corruptedIds: [] };
+  const result: FileSyncResult = {
+    uploaded: 0,
+    downloaded: 0,
+    pending: 0,
+    corrupted: [],
+    corruptedIds: [],
+  };
   // An unknown epoch is sent as "" and makes the phone answer with its own (FILE_SYNC_EPOCH_MISMATCH).
   const epoch = vault.epoch ?? "";
   // Only files that may need work: not complete here, or complete but not yet on this epoch's phone.
@@ -266,7 +290,11 @@ export async function syncFiles(
     candidates.push({ a, local });
   }
   if (candidates.length === 0) return result;
-  const status = await phoneStatus(send, epoch, candidates.map((c) => c.a.id));
+  const status = await phoneStatus(
+    send,
+    epoch,
+    candidates.map((c) => c.a.id),
+  );
 
   const uploads: { a: Attachment; phoneHas: number[] }[] = [];
   const downloads: Attachment[] = [];

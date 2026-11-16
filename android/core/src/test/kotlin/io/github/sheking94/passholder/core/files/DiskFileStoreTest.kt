@@ -22,17 +22,21 @@ class DiskFileStoreTest {
     private val id2 = "22222222-2222-4222-8222-222222222222"
     private fun open(free: Long = Long.MAX_VALUE) = DiskFileStore(dir, { free })
 
-    private fun put(store: FileStore, id: String, i: Int, n: Int, blob: String = "blob$i", now: Long = 1000) =
-        FileHost.process(
-            store, "E",
-            JsonObject(
-                mapOf(
-                    "epoch" to JsonPrimitive("E"), "op" to JsonPrimitive("put"), "id" to JsonPrimitive(id),
-                    "chunks" to JsonPrimitive(n), "index" to JsonPrimitive(i), "blob" to JsonPrimitive(blob),
-                ),
+    private fun put(store: FileStore, id: String, i: Int, n: Int, blob: String = "blob$i", now: Long = 1000) = FileHost.process(
+        store,
+        "E",
+        JsonObject(
+            mapOf(
+                "epoch" to JsonPrimitive("E"),
+                "op" to JsonPrimitive("put"),
+                "id" to JsonPrimitive(id),
+                "chunks" to JsonPrimitive(n),
+                "index" to JsonPrimitive(i),
+                "blob" to JsonPrimitive(blob),
             ),
-            now,
-        )
+        ),
+        now,
+    )
 
     @Test
     fun hostStepsMatchVectors() {
@@ -118,7 +122,12 @@ class DiskFileStoreTest {
         val s = open()
         val start = CountDownLatch(1)
         val replies = java.util.Collections.synchronizedList(ArrayList<FileReply>())
-        val threads = List(8) { thread { start.await(); replies += put(s, id, 0, 1, "same") } }
+        val threads = List(8) {
+            thread {
+                start.await()
+                replies += put(s, id, 0, 1, "same")
+            }
+        }
         start.countDown()
         threads.forEach { it.join() }
         assertEquals(8, replies.size)

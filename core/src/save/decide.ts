@@ -27,7 +27,8 @@ export function decideSave(
   if (password === "") return { kind: "none" };
   const same = (l: SavedLogin) => normalize(l.username) === normalize(username);
   const sameLogins = logins.filter(same);
-  if ([...sameLogins, ...related.filter(same)].some((l) => l.password === password)) return { kind: "none" };
+  if ([...sameLogins, ...related.filter(same)].some((l) => l.password === password))
+    return { kind: "none" };
   const first = sameLogins[0];
   return first ? { kind: "update", id: first.id } : { kind: "create" };
 }
@@ -47,8 +48,12 @@ export const PREVIOUS_PASSWORD_LABEL = "Poprzednie hasło";
  */
 export function withPassword(entry: LoginEntry, password: string): LoginEntry {
   const old = entry.fields.password;
-  const custom = old === "" || old === password
-    ? entry.custom
-    : [...entry.custom.filter((c) => c.label !== PREVIOUS_PASSWORD_LABEL), { label: PREVIOUS_PASSWORD_LABEL, value: old, hidden: true }];
+  const custom =
+    old === "" || old === password
+      ? entry.custom
+      : [
+          ...entry.custom.filter((c) => c.label !== PREVIOUS_PASSWORD_LABEL),
+          { label: PREVIOUS_PASSWORD_LABEL, value: old, hidden: true },
+        ];
   return { ...entry, custom, fields: { ...entry.fields, password } };
 }

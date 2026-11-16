@@ -102,7 +102,10 @@ object FileChunks {
         require(total == a.size) { FILE_CORRUPTED }
         val out = ByteArray(total.toInt())
         var pos = 0
-        for (p in parts) { p.copyInto(out, pos); pos += p.size }
+        for (p in parts) {
+            p.copyInto(out, pos)
+            pos += p.size
+        }
         require(sha256Hex(out) == a.sha256) { FILE_CORRUPTED }
         return out
     }

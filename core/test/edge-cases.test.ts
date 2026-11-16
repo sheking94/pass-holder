@@ -1,8 +1,30 @@
 import { describe, expect, it } from "vitest";
 import { open, seal } from "../src/cipher.ts";
-import { concat, fromBase64, fromHex, fromUtf8, randomBytes, toBase64, toHex, utf8 } from "../src/encoding.ts";
-import { CHARACTER_GROUPS, generatePassword, MAX_LENGTH, MIN_LENGTH, randomIndex } from "../src/generator.ts";
-import { assertKdfParamsAcceptable, deriveKeys, MAX_KDF, MIN_KDF, newKdfParams, type KdfParams } from "../src/kdf.ts";
+import {
+  concat,
+  fromBase64,
+  fromHex,
+  fromUtf8,
+  randomBytes,
+  toBase64,
+  toHex,
+  utf8,
+} from "../src/encoding.ts";
+import {
+  CHARACTER_GROUPS,
+  generatePassword,
+  MAX_LENGTH,
+  MIN_LENGTH,
+  randomIndex,
+} from "../src/generator.ts";
+import {
+  assertKdfParamsAcceptable,
+  deriveKeys,
+  MAX_KDF,
+  MIN_KDF,
+  newKdfParams,
+  type KdfParams,
+} from "../src/kdf.ts";
 import { unwrapVaultKey, wrapVaultKey, newVaultKey } from "../src/vault.ts";
 
 describe("encoding", () => {
@@ -27,7 +49,9 @@ describe("encoding", () => {
   });
 
   it("concatenates in order", () => {
-    expect(concat(Uint8Array.of(1), new Uint8Array(), Uint8Array.of(2, 3))).toEqual(Uint8Array.of(1, 2, 3));
+    expect(concat(Uint8Array.of(1), new Uint8Array(), Uint8Array.of(2, 3))).toEqual(
+      Uint8Array.of(1, 2, 3),
+    );
   });
 });
 
@@ -61,7 +85,11 @@ describe("cipher edge cases", () => {
 });
 
 describe("master password", () => {
-  const params: KdfParams = { alg: "argon2id", salt: toBase64(new Uint8Array(16).fill(1)), ...MIN_KDF };
+  const params: KdfParams = {
+    alg: "argon2id",
+    salt: toBase64(new Uint8Array(16).fill(1)),
+    ...MIN_KDF,
+  };
 
   it("a wrong password cannot unwrap the vault key", async () => {
     const vaultKey = newVaultKey();
@@ -131,7 +159,8 @@ describe("generator edge cases", () => {
     const groups = ["lowercase", "uppercase", "digits", "symbols"] as const;
     const short = generatePassword({ length: MIN_LENGTH, groups: [...groups] });
     expect(short).toHaveLength(4);
-    for (const g of groups) expect([...short].some((c) => CHARACTER_GROUPS[g].includes(c))).toBe(true);
+    for (const g of groups)
+      expect([...short].some((c) => CHARACTER_GROUPS[g].includes(c))).toBe(true);
     expect(generatePassword({ length: MAX_LENGTH, groups: ["digits"] })).toHaveLength(128);
   });
 
@@ -141,7 +170,9 @@ describe("generator edge cases", () => {
   });
 
   it("does not repeat itself", () => {
-    const seen = new Set(Array.from({ length: 1000 }, () => generatePassword({ length: 12, groups: ["lowercase"] })));
+    const seen = new Set(
+      Array.from({ length: 1000 }, () => generatePassword({ length: 12, groups: ["lowercase"] })),
+    );
     expect(seen.size).toBe(1000);
   });
 

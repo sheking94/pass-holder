@@ -35,14 +35,17 @@ class PhoneVaultStoreTest {
 
     /** Cheapest KDF the phone accepts, so the restore tests stay fast. */
     private val weakestKdf = KdfParams(
-        "argon2id", Encoding.toBase64(Encoding.randomBytes(16)), Kdf.MIN_MEMORY_KIB, Kdf.MIN_ITERATIONS, Kdf.MIN_PARALLELISM,
+        "argon2id",
+        Encoding.toBase64(Encoding.randomBytes(16)),
+        Kdf.MIN_MEMORY_KIB,
+        Kdf.MIN_ITERATIONS,
+        Kdf.MIN_PARALLELISM,
     )
 
     @AfterEach
     fun stopServers() = servers.forEach { it.stop() }
 
-    private fun newStore(autoLockMs: Long = PhoneVaultStore.AUTO_LOCK_MS) =
-        PhoneVaultStore(dir, PlainSecretWrapper, { time }, autoLockMs)
+    private fun newStore(autoLockMs: Long = PhoneVaultStore.AUTO_LOCK_MS) = PhoneVaultStore(dir, PlainSecretWrapper, { time }, autoLockMs)
 
     /** Starts a real HTTP server on a free port with the store's router; returns a transport to it. */
     private fun serve(store: PhoneVaultStore, onActivity: () -> Unit = {}): HttpTestTransport {
@@ -54,11 +57,11 @@ class PhoneVaultStoreTest {
     private fun clientFor(transport: TestTransport, pair: PairResult) =
         TestP2pClient(extIdentity.deviceId, extKey, Encoding.fromBase64(pair.phoneIdentity!!.staticPublicKey), transport)
 
-    private fun blob(vaultKey: ByteArray, id: String, name: String) =
-        EntryV3.encrypt(
-            vaultKey, id,
-            EntryDataV3(EntryContentV3(name, "", LoginFields("user-$id", "pass-$id"), emptyList()), Hlc(time, 0, extIdentity.deviceId)),
-        )
+    private fun blob(vaultKey: ByteArray, id: String, name: String) = EntryV3.encrypt(
+        vaultKey,
+        id,
+        EntryDataV3(EntryContentV3(name, "", LoginFields("user-$id", "pass-$id"), emptyList()), Hlc(time, 0, extIdentity.deviceId)),
+    )
 
     private fun nameOf(vaultKey: ByteArray, id: String, blob: String) = EntryV3.parse(EntryV3.decrypt(vaultKey, id, blob)).content.name
 
@@ -232,7 +235,10 @@ class PhoneVaultStoreTest {
         val extKeys = Kdf.deriveKeys("hasło wtyczki", weakestKdf)
         val vaultKey = VaultCrypto.newVaultKey()
         val extInfo = VaultInfo(
-            Encoding.toBase64(Encoding.randomBytes(16)), weakestKdf, VaultCrypto.wrapVaultKey(extKeys.encKey, vaultKey), listOf("x"),
+            Encoding.toBase64(Encoding.randomBytes(16)),
+            weakestKdf,
+            VaultCrypto.wrapVaultKey(extKeys.encKey, vaultKey),
+            listOf("x"),
         )
 
         val store = newStore()
@@ -301,8 +307,10 @@ class PhoneVaultStoreTest {
     private inner class ExtVault(password: String) {
         val vaultKey = VaultCrypto.newVaultKey()
         val info = VaultInfo(
-            Encoding.toBase64(Encoding.randomBytes(16)), weakestKdf,
-            VaultCrypto.wrapVaultKey(Kdf.deriveKeys(password, weakestKdf).encKey, vaultKey), emptyList(),
+            Encoding.toBase64(Encoding.randomBytes(16)),
+            weakestKdf,
+            VaultCrypto.wrapVaultKey(Kdf.deriveKeys(password, weakestKdf).encKey, vaultKey),
+            emptyList(),
         )
     }
 
@@ -587,8 +595,7 @@ class PhoneVaultStoreTest {
 
     private fun storedIds() = filesDir().listFiles().orEmpty().map { it.name }.toSet()
 
-    private fun withFile(name: String, a: Attachment) =
-        EntryContentV3(name, "", LoginFields("u", "p"), emptyList(), listOf(a))
+    private fun withFile(name: String, a: Attachment) = EntryContentV3(name, "", LoginFields("u", "p"), emptyList(), listOf(a))
 
     private fun putBody(epoch: String, id: String, index: Int, chunks: Int, blob: String) =
         """{"op":"put","epoch":"$epoch","id":"$id","index":$index,"chunks":$chunks,"blob":"$blob"}"""
@@ -735,7 +742,10 @@ class PhoneVaultStoreTest {
         val pair = TestP2pClient.pair(http, store.offerPairing().code, extIdentity)
         // An entry this vault key cannot open: it might use any file.
         val foreign = blob(VaultCrypto.newVaultKey(), "x", "Obcy")
-        val res = clientFor(http, pair).syncResponse(P2pSyncRequest(pair.phoneVaultInfo!!.epoch, 0, listOf(ChangeRequest("x", 0, false, foreign))))
+        val res = clientFor(
+            http,
+            pair,
+        ).syncResponse(P2pSyncRequest(pair.phoneVaultInfo!!.epoch, 0, listOf(ChangeRequest("x", 0, false, foreign))))
         assertEquals(1, res.accepted.size)
         assertEquals(listOf("x"), store.unreadableIds())
         time += day + 1

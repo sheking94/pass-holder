@@ -120,8 +120,7 @@ object AttachmentFiles {
     }
 
     /** Writes [bytes] over the whole document at [uri] ("wt": an existing file is truncated, not overwritten in part). */
-    fun write(resolver: ContentResolver, uri: Uri, bytes: ByteArray) =
-        write(bytes) { resolver.openOutputStream(uri, "wt") }
+    fun write(resolver: ContentResolver, uri: Uri, bytes: ByteArray) = write(bytes) { resolver.openOutputStream(uri, "wt") }
 
     /** Provider failures (IOException, SecurityException, null stream) become the Polish [WRITE_FAILED]. */
     internal fun write(bytes: ByteArray, open: () -> OutputStream?) {
@@ -141,11 +140,10 @@ object AttachmentFiles {
 class CreateDocumentOf : ActivityResultContract<CreateDocumentOf.Input, Uri?>() {
     data class Input(val name: String, val mime: String)
 
-    override fun createIntent(context: Context, input: Input): Intent =
-        Intent(Intent.ACTION_CREATE_DOCUMENT)
-            .addCategory(Intent.CATEGORY_OPENABLE)
-            .setType(input.mime.ifEmpty { "application/octet-stream" })
-            .putExtra(Intent.EXTRA_TITLE, input.name)
+    override fun createIntent(context: Context, input: Input): Intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
+        .addCategory(Intent.CATEGORY_OPENABLE)
+        .setType(input.mime.ifEmpty { "application/octet-stream" })
+        .putExtra(Intent.EXTRA_TITLE, input.name)
 
     override fun parseResult(resultCode: Int, intent: Intent?): Uri? =
         if (resultCode == android.app.Activity.RESULT_OK) intent?.data else null

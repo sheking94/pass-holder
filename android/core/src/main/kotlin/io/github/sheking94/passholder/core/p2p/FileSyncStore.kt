@@ -14,10 +14,7 @@ import java.nio.file.StandardCopyOption
  * dropped and the file rewritten; an unparsable line anywhere else throws IllegalStateException("Corrupt sync store").
  * The file is also rewritten when it holds more than 2 * records + 100 lines.
  */
-class FileSyncStore internal constructor(
-    private val file: File,
-    private val append: (FileOutputStream, ByteArray) -> Unit,
-) : SyncStore {
+class FileSyncStore internal constructor(private val file: File, private val append: (FileOutputStream, ByteArray) -> Unit) : SyncStore {
     constructor(file: File) : this(file, ::writeAndSync)
 
     private val records = HashMap<String, RemoteRecord>()
@@ -104,8 +101,7 @@ class FileSyncStore internal constructor(
         }
     }
 
-    override fun listSince(revision: Long): List<RemoteRecord> =
-        records.values.filter { it.revision > revision }.sortedBy { it.revision }
+    override fun listSince(revision: Long): List<RemoteRecord> = records.values.filter { it.revision > revision }.sortedBy { it.revision }
 
     override fun currentRevision(): Long = revision
 }

@@ -1,4 +1,9 @@
-import { MAX_ATTACHMENTS_PARSED, MAX_FILE_SIZE, isAttachmentMime, isAttachmentName } from "../files/attachment.ts";
+import {
+  MAX_ATTACHMENTS_PARSED,
+  MAX_FILE_SIZE,
+  isAttachmentMime,
+  isAttachmentName,
+} from "../files/attachment.ts";
 import { parseEntryContent, type EntryContentV3 } from "../p2p/entry.ts";
 import { sortForExport, type ImportSkip, type ParsedImport } from "./common.ts";
 
@@ -6,14 +11,21 @@ const NOT_PASSHOLDER = "To nie jest plik PassHolder w wersji 3";
 
 /** True for an object carrying the PassHolder format marker (used to detect the file kind). */
 export function isPassHolderJson(value: unknown): boolean {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    && (value as Record<string, unknown>).format === "passholder";
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    (value as Record<string, unknown>).format === "passholder"
+  );
 }
 
 export function exportPassHolderJson(entries: readonly EntryContentV3[]): string {
   // Attachment descriptors carry file keys and the files are not exported, so they are left out.
   const bare = entries.map(({ attachments: _attachments, ...rest }) => rest as EntryContentV3);
-  return JSON.stringify({ format: "passholder", version: 3, entries: sortForExport(bare) }, null, 2) + "\n";
+  return (
+    JSON.stringify({ format: "passholder", version: 3, entries: sortForExport(bare) }, null, 2) +
+    "\n"
+  );
 }
 
 /** Number of files that an export of these entries leaves out. */
@@ -22,15 +34,27 @@ export function countAttachments(entries: readonly EntryContentV3[]): number {
 }
 
 /** A file description in an archive index: exactly these keys, in this order. `path` only finds the file in the ZIP. */
-export interface ArchivedFile { name: string; mime: string; size: number; path: string }
+export interface ArchivedFile {
+  name: string;
+  mime: string;
+  size: number;
+  path: string;
+}
 
 /**
  * An entry of an archive index: content without attachments, plus the descriptions of its files (may be empty).
  * `position` is the entry's place in the index's `entries` (from 1), the N of "wpis N".
  */
-export interface ArchiveEntry { content: EntryContentV3; files: ArchivedFile[]; position: number }
+export interface ArchiveEntry {
+  content: EntryContentV3;
+  files: ArchivedFile[];
+  position: number;
+}
 
-export interface ParsedArchive { entries: ArchiveEntry[]; skipped: ImportSkip[] }
+export interface ParsedArchive {
+  entries: ArchiveEntry[];
+  skipped: ImportSkip[];
+}
 
 const FILE_KEYS = ["name", "mime", "size", "path"];
 
@@ -38,17 +62,20 @@ function parseArchivedFile(value: unknown): ArchivedFile {
   if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error();
   const o = value as Record<string, unknown>;
   const own = Object.keys(o);
-  if (own.length !== FILE_KEYS.length || !FILE_KEYS.every((k) => Object.hasOwn(o, k))) throw new Error();
+  if (own.length !== FILE_KEYS.length || !FILE_KEYS.every((k) => Object.hasOwn(o, k)))
+    throw new Error();
   const { name, mime, size, path } = o;
   if (typeof name !== "string" || !isAttachmentName(name)) throw new Error();
   if (typeof mime !== "string" || !isAttachmentMime(mime)) throw new Error();
-  if (typeof size !== "number" || !Number.isInteger(size) || size < 1 || size > MAX_FILE_SIZE) throw new Error();
+  if (typeof size !== "number" || !Number.isInteger(size) || size < 1 || size > MAX_FILE_SIZE)
+    throw new Error();
   if (typeof path !== "string" || path === "") throw new Error();
   return { name, mime, size, path };
 }
 
 function parseArchivedFiles(value: unknown): ArchivedFile[] {
-  if (!Array.isArray(value) || value.length < 1 || value.length > MAX_ATTACHMENTS_PARSED) throw new Error();
+  if (!Array.isArray(value) || value.length < 1 || value.length > MAX_ATTACHMENTS_PARSED)
+    throw new Error();
   return value.map(parseArchivedFile);
 }
 
@@ -101,7 +128,12 @@ export function parseArchiveIndex(text: string): ParsedArchive {
  */
 export function parsePassHolderJson(text: string): ParsedImport {
   const { entries, skipped } = parseArchiveIndex(text);
-  const files = entries.flatMap((e) => e.files.map((f) => ({ at: `wpis ${e.position}, ${f.name}`, reason: "importuj całe archiwum ZIP" })));
+  const files = entries.flatMap((e) =>
+    e.files.map((f) => ({
+      at: `wpis ${e.position}, ${f.name}`,
+      reason: "importuj całe archiwum ZIP",
+    })),
+  );
   const parsed: ParsedImport = { entries: entries.map((e) => e.content), skipped };
   if (files.length > 0) parsed.files = files;
   return parsed;

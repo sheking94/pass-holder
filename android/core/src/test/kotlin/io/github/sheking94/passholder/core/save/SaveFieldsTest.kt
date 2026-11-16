@@ -2,9 +2,9 @@ package io.github.sheking94.passholder.core.save
 
 import io.github.sheking94.passholder.core.autofill.AutofillNode
 import io.github.sheking94.passholder.core.autofill.FieldDescriptor
-import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Test
 
 class SaveFieldsTest {
     private fun node(id: Int, hint: String, type: String = "") =

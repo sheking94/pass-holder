@@ -266,7 +266,9 @@ class PhoneVaultStore(
         pairing.cancel()
         synchronized(stateLock) {
             val latest = state
-            check(latest != null && latest.epoch == s.epoch && latest.keyCheck == s.keyCheck) { "Sejf zmienił się w trakcie, spróbuj jeszcze raz" }
+            check(latest != null && latest.epoch == s.epoch && latest.keyCheck == s.keyCheck) {
+                "Sejf zmienił się w trakcie, spróbuj jeszcze raz"
+            }
             saveState(latest.copy(kdf = kdf, wrappedVaultKey = wrapped, devices = emptyList()))
         }
         touch()

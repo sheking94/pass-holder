@@ -59,7 +59,9 @@ fun ListScreen(state: UiState, vm: AppViewModel) {
     ) { padding ->
         Column(Modifier.padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(query, { query = it }, placeholder = { Text("Szukaj…") }, singleLine = true, modifier = Modifier.weight(1f))
+                OutlinedTextField(query, {
+                    query = it
+                }, placeholder = { Text("Szukaj…") }, singleLine = true, modifier = Modifier.weight(1f))
                 Button(onClick = { vm.newEntry(state.tab) }, enabled = !state.busy) { Text("+ Dodaj") }
             }
             if (state.unreadable > 0) {
@@ -71,7 +73,9 @@ fun ListScreen(state: UiState, vm: AppViewModel) {
             }
             LazyColumn(Modifier.weight(1f)) {
                 if (rows.isEmpty()) {
-                    item { Text(if (query.isBlank()) "Brak wpisów. Dodaj pierwszy." else "Nic nie pasuje.", Modifier.padding(vertical = 16.dp)) }
+                    item {
+                        Text(if (query.isBlank()) "Brak wpisów. Dodaj pierwszy." else "Nic nie pasuje.", Modifier.padding(vertical = 16.dp))
+                    }
                 }
                 items(rows, key = { it.id }) { entry ->
                     val login = entry.content.fields as? LoginFields
@@ -89,7 +93,12 @@ fun ListScreen(state: UiState, vm: AppViewModel) {
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
-                            Text(entrySummary(entry.content), style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                entrySummary(entry.content),
+                                style = MaterialTheme.typography.bodyMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
                         }
                         if (login != null) {
                             TextButton(onClick = { vm.copy("login", login.username, false) }) { Text("Login") }

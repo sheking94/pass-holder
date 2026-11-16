@@ -26,7 +26,8 @@ class BitwardenJsonTest {
     private val expected = readExpected("bitwarden.expected.json")
 
     private fun doc(kind: DocumentKind, number: String) = EntryContentV3(
-        "Dokument ${kind.json}", "n",
+        "Dokument ${kind.json}",
+        "n",
         DocumentFields(kind, number, "Jan Testowy", "2020-01-01", "2030-01-01", "Urząd"),
         listOf(CustomField("Własne", "x", true)),
     )
@@ -61,15 +62,19 @@ class BitwardenJsonTest {
     @Test
     fun roundTripsEveryDocumentKind() {
         val entries = listOf(
-            doc(DocumentKind.ID_CARD, "ABC1"), doc(DocumentKind.PASSPORT, "EA1"), doc(DocumentKind.DRIVING_LICENSE, "DL1"),
-            doc(DocumentKind.STUDENT_ID, "S1"), doc(DocumentKind.OTHER, "O1"),
+            doc(DocumentKind.ID_CARD, "ABC1"),
+            doc(DocumentKind.PASSPORT, "EA1"),
+            doc(DocumentKind.DRIVING_LICENSE, "DL1"),
+            doc(DocumentKind.STUDENT_ID, "S1"),
+            doc(DocumentKind.OTHER, "O1"),
         )
         assertEquals(ParsedImport(sortForExport(entries), emptyList()), roundTrip(entries))
     }
 
     @Test
     fun roundTripsCardWithPin() {
-        val card = EntryContentV3("K", "", CardFields("Jan Testowy", "4111", "03/27", "123", "9876"), listOf(CustomField("Własne", "x", false)))
+        val card =
+            EntryContentV3("K", "", CardFields("Jan Testowy", "4111", "03/27", "123", "9876"), listOf(CustomField("Własne", "x", false)))
         assertEquals(ParsedImport(listOf(card), emptyList()), roundTrip(listOf(card)))
     }
 
@@ -87,7 +92,9 @@ class BitwardenJsonTest {
     @Test
     fun roundTripsLogin() {
         val login = EntryContentV3(
-            "L", "", LoginFields("u", "p", "T", listOf("https://example.com"), listOf("com.example.app")),
+            "L",
+            "",
+            LoginFields("u", "p", "T", listOf("https://example.com"), listOf("com.example.app")),
             listOf(CustomField("p", "v", false), CustomField("q", "w", true)),
         )
         val text = BitwardenJson.export(listOf(login))
@@ -106,7 +113,10 @@ class BitwardenJsonTest {
         val item = items(BitwardenJson.export(listOf(card)))[0]
         val c = item["card"] as JsonObject
         assertEquals(JsonPrimitive(3), item["type"])
-        assertEquals(listOf(JsonPrimitive("3"), JsonPrimitive("2027"), JsonNull, JsonPrimitive("123")), listOf(c["expMonth"], c["expYear"], c["brand"], c["code"]))
+        assertEquals(
+            listOf(JsonPrimitive("3"), JsonPrimitive("2027"), JsonNull, JsonPrimitive("123")),
+            listOf(c["expMonth"], c["expYear"], c["brand"], c["code"]),
+        )
         assertEquals(listOf(f("PIN", "9876", 1)), fieldsOf(item))
         val odd = items(BitwardenJson.export(listOf(card.copy(fields = CardFields("Jan Testowy", "4111", "marzec 2027", "123", "")))))[0]
         assertEquals(listOf(JsonNull, JsonNull), listOf((odd["card"] as JsonObject)["expMonth"], (odd["card"] as JsonObject)["expYear"]))
@@ -116,9 +126,12 @@ class BitwardenJsonTest {
     @Test
     fun exportsContactIntoIdentityAndExtraFields() {
         val contact = EntryContentV3(
-            "C", "",
+            "C",
+            "",
             ContactFields(
-                "Jan", "Testowy", "1990-01-01",
+                "Jan",
+                "Testowy",
+                "1990-01-01",
                 listOf(LabeledValue("dom", "1"), LabeledValue("praca", "2"), LabeledValue("", "3")),
                 listOf(LabeledValue("", "a@example.com"), LabeledValue("biuro", "b@example.com")),
                 listOf(PostalAddress("dom", "ul. A 1", "00-001", "Warszawa", "PL"), PostalAddress("", "ul. B 2", "", "Kraków", "")),
@@ -133,8 +146,11 @@ class BitwardenJsonTest {
         )
         assertEquals(
             listOf(
-                f("Telefon (praca)", "2", 0), f("Telefon", "3", 0), f("E-mail (biuro)", "b@example.com", 0),
-                f("Adres", "ul. B 2, Kraków", 0), f("Data urodzenia", "1990-01-01", 0),
+                f("Telefon (praca)", "2", 0),
+                f("Telefon", "3", 0),
+                f("E-mail (biuro)", "b@example.com", 0),
+                f("Adres", "ul. B 2, Kraków", 0),
+                f("Data urodzenia", "1990-01-01", 0),
             ),
             fieldsOf(item),
         )
@@ -142,10 +158,18 @@ class BitwardenJsonTest {
 
     @Test
     fun writesDocumentKindFieldAndIdentityNumbers() {
-        val items = items(BitwardenJson.export(listOf(doc(DocumentKind.PASSPORT, "EA1"), doc(DocumentKind.DRIVING_LICENSE, "DL1"), doc(DocumentKind.ID_CARD, "ID1"))))
+        val items =
+            items(
+                BitwardenJson.export(
+                    listOf(doc(DocumentKind.PASSPORT, "EA1"), doc(DocumentKind.DRIVING_LICENSE, "DL1"), doc(DocumentKind.ID_CARD, "ID1")),
+                ),
+            )
         fun byName(n: String) = items.first { (it["name"] as JsonPrimitive).content == n }
         val passport = byName("Dokument passport")["identity"] as JsonObject
-        assertEquals(listOf(JsonPrimitive("EA1"), JsonNull, JsonNull), listOf(passport["passportNumber"], passport["licenseNumber"], passport["firstName"]))
+        assertEquals(
+            listOf(JsonPrimitive("EA1"), JsonNull, JsonNull),
+            listOf(passport["passportNumber"], passport["licenseNumber"], passport["firstName"]),
+        )
         assertEquals(JsonPrimitive("DL1"), (byName("Dokument driving_license")["identity"] as JsonObject)["licenseNumber"])
         val idCard = fieldsOf(byName("Dokument id_card"))
         assertEquals(f("Rodzaj dokumentu", "id_card", 0), idCard[0])
@@ -162,6 +186,12 @@ class BitwardenJsonTest {
     @Test
     fun recognisesItemsArray() {
         assertTrue(BitwardenJson.isFormat(Json.parseToJsonElement(file)))
-        for (t in listOf("""{"format":"passholder","entries":[]}""", "[]", "null")) assertFalse(BitwardenJson.isFormat(Json.parseToJsonElement(t)))
+        for (t in listOf(
+            """{"format":"passholder","entries":[]}""",
+            "[]",
+            "null",
+        )) {
+            assertFalse(BitwardenJson.isFormat(Json.parseToJsonElement(t)))
+        }
     }
 }

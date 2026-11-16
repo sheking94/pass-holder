@@ -12,10 +12,13 @@ fnm env --shell powershell | Out-String | Invoke-Expression
 npm ci
 npm test                 # core i extension (Vitest)
 npm run typecheck
+npm run lint             # ESLint
+npm run format:check     # Prettier (npm run format poprawia)
 npm run build            # wtyczka do extension\dist
 
 cd android
 $env:JAVA_HOME="$HOME\.jdks\jbr-21.0.11"    # JDK 21; JBR 25 nie działa z Gradle 8.14.3
+.\gradlew.bat ktlintCheck --console=plain                                 # ktlint (ktlintFormat poprawia)
 .\gradlew.bat :core:test :app:testDebugUnitTest --console=plain
 .\gradlew.bat :core:test --tests "*P2pHostTest*" --console=plain        # jeden plik
 git checkout app/screenshots                                              # testy nadpisują zrzuty
@@ -36,9 +39,9 @@ Gdy `node` się zawiesi, test czeka do przerwania Gradle.
 ### Linux (chmura, CI)
 
 ```sh
-npm ci && npm test && npm run typecheck && npm run build
+npm ci && npm run lint && npm run format:check && npm test && npm run typecheck && npm run build
 cd android
-./gradlew :core:test :app:testDebugUnitTest --console=plain
+./gradlew ktlintCheck :core:test :app:testDebugUnitTest --console=plain
 PASSHOLDER_INTEROP_TEST=1 ./gradlew :core:test --tests "*Interop*" --console=plain
 ```
 
@@ -447,11 +450,32 @@ hasłem: okno mówi „Nowy login”, wpis `example.com` zostaje bez zmian. (3) 
 nie pasuje do `https://<ktoś>.github.io`. (4) **Android (N5):** tylko na Androidzie 8.0–8.1: na stronie w Chrome
 login z adresem bez schematu nie jest podpowiadany, z adresem `http://` tak. Zapisz wynik i wersję Chrome/Androida.
 
+## Formatowanie i lint (przegląd czystości V3, CN1)
+
+CI (`.github/workflows/ci.yml`) odrzuca zmianę, gdy któreś z tych sprawdzeń nie przechodzi.
+
+| Narzędzie | Sprawdza | Poprawia | Konfiguracja |
+|---|---|---|---|
+| Prettier 3 | `npm run format:check` | `npm run format` | `.prettierrc.json` (linia 100), `.prettierignore` |
+| ESLint 10 + typescript-eslint | `npm run lint` | ręcznie | `eslint.config.mjs` |
+| ktlint 1.8 (plugin Gradle) | `./gradlew ktlintCheck` | `./gradlew ktlintFormat` | `.editorconfig` (styl `intellij_idea`, linia 140) |
+
+- Prettier pomija wektory testowe, wygenerowany `psl-rules.ts`, `docs/` i pliki `.md`: formatowanie
+  zmieniłoby dane albo wynik generatora.
+- ESLint: tylko zalecane reguły. `_nazwa` oznacza wartość pominiętą celowo. `preserve-caught-error` wyłączone
+  do grup G4/G5 (dodanie `cause` zmieniłoby błędy). W testach i skryptach wolno `any`.
+- typescript-eslint nie działa z TypeScript 7 (brak API JS), więc `overrides` w `package.json` daje mu
+  TypeScript 6.0. `tsc` w `core/` i `extension/` to nadal TypeScript 7.
+- ktlint: reguła nazw plików wyłączona do grupy G3 (nazwy).
+- Commity z samym formatowaniem są w `.git-blame-ignore-revs`; `git config blame.ignoreRevsFile
+  .git-blame-ignore-revs` pomija je w `git blame`.
+
 ## Zależności (przegląd bezpieczeństwa I5)
 
 Stan 2026-11-14:
 
-- **npm:** `npm audit` (cały projekt) i `npm audit --omit=dev`: **0 podatności**. Zależności produkcyjne to tylko
+- **npm:** `npm audit` (cały projekt) i `npm audit --omit=dev`: **0 podatności** (2026-11-16, po dodaniu
+  ESLint; `minimatch` podniesiony przez `overrides` do 11.0.8). Zależności produkcyjne to tylko
   `@noble/curves` i `@noble/hashes` 2.4.0.
 - **Gradle:** w chmurze nie da się sprawdzić bazy podatności (dostęp do `api.osv.dev` zablokowany), więc nie
   sprawdzono. Do zrobienia ręcznie na Windows, np. [OSV-Scanner](https://google.github.io/osv-scanner/):

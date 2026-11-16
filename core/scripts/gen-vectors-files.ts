@@ -21,25 +21,50 @@ import {
   sha256Hex,
   type Attachment,
 } from "../src/files/index.ts";
-import { entryAadV2, parseEntryData, serializeEntryData, type EntryDataV3, type Hlc } from "../src/p2p/index.ts";
+import {
+  entryAadV2,
+  parseEntryData,
+  serializeEntryData,
+  type EntryDataV3,
+  type Hlc,
+} from "../src/p2p/index.ts";
 
 const vaultKey = "5f9d1c3a7b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7";
-const nonceOf = (n: number) => Array.from({ length: 12 }, (_, i) => ((n * 16 + i + 1) & 0xff).toString(16).padStart(2, "0")).join("");
-const keyOf = (n: number) => Array.from({ length: 32 }, (_, i) => ((n * 32 + i) & 0xff).toString(16).padStart(2, "0")).join("");
-const fileId = (n: number) => `7c9e6679-7425-40de-944b-e07fc1f904${n.toString(16).padStart(2, "0")}`;
-const entryId = (n: number) => `3f2a8c1e-6b4d-4e9a-9c7f-1a2b3c4d5f${n.toString(16).padStart(2, "0")}`;
+const nonceOf = (n: number) =>
+  Array.from({ length: 12 }, (_, i) =>
+    ((n * 16 + i + 1) & 0xff).toString(16).padStart(2, "0"),
+  ).join("");
+const keyOf = (n: number) =>
+  Array.from({ length: 32 }, (_, i) => ((n * 32 + i) & 0xff).toString(16).padStart(2, "0")).join(
+    "",
+  );
+const fileId = (n: number) =>
+  `7c9e6679-7425-40de-944b-e07fc1f904${n.toString(16).padStart(2, "0")}`;
+const entryId = (n: number) =>
+  `3f2a8c1e-6b4d-4e9a-9c7f-1a2b3c4d5f${n.toString(16).padStart(2, "0")}`;
 const hlc = (ms: number, c: number, d: string): Hlc => ({ ms, c, d });
 const PATTERN = "byte[i] = (i * 31 + 7) & 0xff";
 
 // --- files ---
 
-async function fileVector(n: number, description: string, name: string, mime: string, bytes: Uint8Array, inline: boolean) {
+async function fileVector(
+  n: number,
+  description: string,
+  name: string,
+  mime: string,
+  bytes: Uint8Array,
+  inline: boolean,
+) {
   const id = fileId(n);
   const key = keyOf(n);
   const count = Math.ceil(bytes.length / FILE_CHUNK_SIZE);
   // File n uses nonces 2n+1.. (one per chunk; nonceOf wraps after 16); entries use 1 and 2, so all nonces differ.
   const nonces = Array.from({ length: count }, (_, i) => nonceOf(2 * n + 1 + i));
-  const enc = await encryptFile(bytes, { name, mime }, { id, key: fromHex(key), nonces: nonces.map(fromHex) });
+  const enc = await encryptFile(
+    bytes,
+    { name, mime },
+    { id, key: fromHex(key), nonces: nonces.map(fromHex) },
+  );
   return {
     description,
     id,
@@ -59,9 +84,22 @@ async function fileVector(n: number, description: string, name: string, mime: st
 
 const bigSize = FILE_CHUNK_SIZE + 1000;
 const files = [
-  await fileVector(1, "5-byte file, one chunk, full blobs", "notatka żółć.txt", "text/plain", utf8("Hello"), true),
-  await fileVector(2, `${bigSize}-byte file, two chunks, content by rule`, "skan dowodu.jpg", "image/jpeg",
-    Uint8Array.from({ length: bigSize }, (_, i) => (i * 31 + 7) & 0xff), false),
+  await fileVector(
+    1,
+    "5-byte file, one chunk, full blobs",
+    "notatka żółć.txt",
+    "text/plain",
+    utf8("Hello"),
+    true,
+  ),
+  await fileVector(
+    2,
+    `${bigSize}-byte file, two chunks, content by rule`,
+    "skan dowodu.jpg",
+    "image/jpeg",
+    Uint8Array.from({ length: bigSize }, (_, i) => (i * 31 + 7) & 0xff),
+    false,
+  ),
 ];
 const [small, big] = files.map((f) => f.attachment) as [Attachment, Attachment];
 
@@ -70,8 +108,18 @@ const [small, big] = files.map((f) => f.attachment) as [Attachment, Attachment];
 const canon = (d: EntryDataV3) => JSON.parse(serializeEntryData(d)) as EntryDataV3;
 const docEntry = (name: string, note: string, attachments: Attachment[], h: Hlc): EntryDataV3 =>
   canon({
-    v: 3, type: "document", name, note,
-    fields: { kind: "id_card", number: "ABC123456", fullName: "Jan Kowalski", issueDate: "2021-01-02", expiryDate: "2031-01-01", issuer: "Prezydent Miasta" },
+    v: 3,
+    type: "document",
+    name,
+    note,
+    fields: {
+      kind: "id_card",
+      number: "ABC123456",
+      fullName: "Jan Kowalski",
+      issueDate: "2021-01-02",
+      expiryDate: "2031-01-01",
+      issuer: "Prezydent Miasta",
+    },
     custom: [],
     attachments,
     hlc: h,
@@ -82,15 +130,20 @@ const extraNonce = (n: number) => `ee${n.toString(16).padStart(2, "0")}${"00".re
 // `rawPayload` replaces the stored text (e.g. a number written as 1.0); `payload` is then the raw text and
 // `canonicalPayload` what serializeEntryData gives for the parsed value.
 async function entry(
-  n: number, description: string, data: EntryDataV3, merge?: { winner: string; loser: string; hlc: Hlc },
+  n: number,
+  description: string,
+  data: EntryDataV3,
+  merge?: { winner: string; loser: string; hlc: Hlc },
   opts: { nonce?: string; rawPayload?: string } = {},
 ) {
   const id = entryId(n);
   const nonce = opts.nonce ?? nonceOf(n);
   const canonical = serializeEntryData(data);
   const payload = opts.rawPayload ?? canonical;
-  if (serializeEntryData(parseEntryData(JSON.parse(payload))) !== canonical) throw new Error(`parse mismatch: ${description}`);
-  if (JSON.stringify(parseEntryData(JSON.parse(payload))) !== JSON.stringify(data)) throw new Error(`parsed mismatch: ${description}`);
+  if (serializeEntryData(parseEntryData(JSON.parse(payload))) !== canonical)
+    throw new Error(`parse mismatch: ${description}`);
+  if (JSON.stringify(parseEntryData(JSON.parse(payload))) !== JSON.stringify(data))
+    throw new Error(`parsed mismatch: ${description}`);
   return {
     description,
     vaultKey,
@@ -109,16 +162,35 @@ async function entry(
 const winner = docEntry("Dowód osobisty", "zwycięzca", [big], hlc(1793404800500, 0, "device-a"));
 const loser = docEntry("Dowód", "przegrany", [small, big], hlc(1793404800400, 3, "device-b"));
 const mergeHlc = hlc(1793404800600, 0, "device-c");
-const merged = canon({ ...winner, attachments: mergeAttachments(winner.attachments, loser.attachments), hlc: mergeHlc });
+const merged = canon({
+  ...winner,
+  attachments: mergeAttachments(winner.attachments, loser.attachments),
+  hlc: mergeHlc,
+});
 
 const INVALID_ENTRY = "Invalid entry payload";
 const KEY = toBase64(new Uint8Array(32).fill(7));
 const SHA = "a".repeat(64);
 const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const att = (n = 1, over: Partial<Attachment> = {}): Attachment => ({
-  id: uuid(n), name: "a.txt", mime: "text/plain", size: 10, chunks: 1, sha256: SHA, key: KEY, ...over,
+  id: uuid(n),
+  name: "a.txt",
+  mime: "text/plain",
+  size: 10,
+  chunks: 1,
+  sha256: SHA,
+  key: KEY,
+  ...over,
 });
-const base = canon({ v: 3, type: "login", name: "n", note: "", fields: { username: "", password: "", totp: "", urls: [], androidApps: [] }, custom: [], hlc: hlc(5, 1, "dev") } as EntryDataV3);
+const base = canon({
+  v: 3,
+  type: "login",
+  name: "n",
+  note: "",
+  fields: { username: "", password: "", totp: "", urls: [], androidApps: [] },
+  custom: [],
+  hlc: hlc(5, 1, "dev"),
+} as EntryDataV3);
 // attachments sits between custom and hlc, as in a real payload.
 const withAtt = (attachments: unknown) => {
   const { hlc: h, ...rest } = base;
@@ -126,27 +198,77 @@ const withAtt = (attachments: unknown) => {
 };
 const withAttData = (attachments: Attachment[]) => canon({ ...base, attachments } as EntryDataV3);
 const entries = [
-  await entry(1, "document with two attachments", docEntry("Dowód osobisty", "przód i tył", [small, big], hlc(1793404800000, 1, "device-a"))),
-  await entry(2, "entry after an attachment merge (winner's list, then the loser's missing ids)", merged, {
-    winner: serializeEntryData(winner),
-    loser: serializeEntryData(loser),
-    hlc: mergeHlc,
-  }),
-  await entry(3, "40 descriptors (MAX_ATTACHMENTS_PARSED)", withAttData(Array.from({ length: 40 }, (_, i) => att(i + 1))), undefined, { nonce: extraNonce(3) }),
-  await entry(4, "name of exactly 255 UTF-16 units containing a surrogate pair (U+1F600)", withAttData([att(1, { name: "\u{1F600}" + "a".repeat(253) })]), undefined, { nonce: extraNonce(4) }),
-  await entry(5, "empty mime and a mime of 127 characters", withAttData([att(1, { mime: "" }), att(2, { mime: "m".repeat(127) })]), undefined, { nonce: extraNonce(5) }),
-  await entry(6, "name containing U+00A0 (not a forbidden character)", withAttData([att(1, { name: "a\u00a0b.txt" })]), undefined, { nonce: extraNonce(6) }),
-  await entry(7, "size 10485760 (MAX_FILE_SIZE) with chunks 40", withAttData([att(1, { size: 10485760, chunks: 40 })]), undefined, { nonce: extraNonce(7) }),
-  await entry(8, 'size written as 1.0 in the payload text: accepted as the integer 1 (payload is the raw text, canonicalPayload the canonical form)',
-    withAttData([att(1, { size: 1, chunks: 1 })]), undefined,
-    { nonce: extraNonce(8), rawPayload: serializeEntryData(withAttData([att(1, { size: 1, chunks: 1 })])).replace('"size":1,', '"size":1.0,') }),
+  await entry(
+    1,
+    "document with two attachments",
+    docEntry("Dowód osobisty", "przód i tył", [small, big], hlc(1793404800000, 1, "device-a")),
+  ),
+  await entry(
+    2,
+    "entry after an attachment merge (winner's list, then the loser's missing ids)",
+    merged,
+    {
+      winner: serializeEntryData(winner),
+      loser: serializeEntryData(loser),
+      hlc: mergeHlc,
+    },
+  ),
+  await entry(
+    3,
+    "40 descriptors (MAX_ATTACHMENTS_PARSED)",
+    withAttData(Array.from({ length: 40 }, (_, i) => att(i + 1))),
+    undefined,
+    { nonce: extraNonce(3) },
+  ),
+  await entry(
+    4,
+    "name of exactly 255 UTF-16 units containing a surrogate pair (U+1F600)",
+    withAttData([att(1, { name: "\u{1F600}" + "a".repeat(253) })]),
+    undefined,
+    { nonce: extraNonce(4) },
+  ),
+  await entry(
+    5,
+    "empty mime and a mime of 127 characters",
+    withAttData([att(1, { mime: "" }), att(2, { mime: "m".repeat(127) })]),
+    undefined,
+    { nonce: extraNonce(5) },
+  ),
+  await entry(
+    6,
+    "name containing U+00A0 (not a forbidden character)",
+    withAttData([att(1, { name: "a\u00a0b.txt" })]),
+    undefined,
+    { nonce: extraNonce(6) },
+  ),
+  await entry(
+    7,
+    "size 10485760 (MAX_FILE_SIZE) with chunks 40",
+    withAttData([att(1, { size: 10485760, chunks: 40 })]),
+    undefined,
+    { nonce: extraNonce(7) },
+  ),
+  await entry(
+    8,
+    "size written as 1.0 in the payload text: accepted as the integer 1 (payload is the raw text, canonicalPayload the canonical form)",
+    withAttData([att(1, { size: 1, chunks: 1 })]),
+    undefined,
+    {
+      nonce: extraNonce(8),
+      rawPayload: serializeEntryData(withAttData([att(1, { size: 1, chunks: 1 })])).replace(
+        '"size":1,',
+        '"size":1.0,',
+      ),
+    },
+  ),
 ];
 
 // --- rejected descriptors (every case of test/files/attachment.test.ts) ---
 
 const { key: _noKey, ...noKey } = att();
 // Same 32 bytes as KEY, but the unused low bits of the last Base64 digit are set.
-const nonCanonicalKey = KEY.slice(0, -2) + String.fromCharCode(KEY.charCodeAt(KEY.length - 2) + 1) + "=";
+const nonCanonicalKey =
+  KEY.slice(0, -2) + String.fromCharCode(KEY.charCodeAt(KEY.length - 2) + 1) + "=";
 
 const rejectedCases: [string, unknown][] = [
   ["empty list", []],
@@ -198,12 +320,24 @@ const rejected = rejectedCases.map(([description, attachments]) => {
 
 // --- mergeAttachments ---
 
-const [a1, a2, a3] = [att(1, { name: "f1.txt" }), att(2, { name: "f2.txt" }), att(3, { name: "f3.txt" })];
+const [a1, a2, a3] = [
+  att(1, { name: "f1.txt" }),
+  att(2, { name: "f2.txt" }),
+  att(3, { name: "f3.txt" }),
+];
 const renamed = att(2, { name: "renamed.txt" });
 const merge = [
-  { description: "winner's list, then the loser's missing ids in the loser's order", winner: [a1, a2], loser: [a2, a3] },
+  {
+    description: "winner's list, then the loser's missing ids in the loser's order",
+    winner: [a1, a2],
+    loser: [a2, a3],
+  },
   { description: "missing winner list counts as empty", winner: null, loser: [a3] },
-  { description: "same id on both sides: the winner's descriptor is kept", winner: [renamed], loser: [a2, a1] },
+  {
+    description: "same id on both sides: the winner's descriptor is kept",
+    winner: [renamed],
+    loser: [a2, a1],
+  },
 ].map((m) => ({ ...m, expected: mergeAttachments(m.winner ?? undefined, m.loser) }));
 
 // --- host (/p2p/v2/file) ---
@@ -214,7 +348,14 @@ const A = "123e4567-e89b-42d3-a456-426614174000";
 const B = "223e4567-e89b-42d3-a456-426614174000";
 const C = "323e4567-e89b-42d3-a456-426614174000";
 const D = "423e4567-e89b-42d3-a456-426614174000";
-const put = (id: string, index: number, chunks: number, blob: string, epoch = EPOCH) => ({ op: "put", epoch, id, index, chunks, blob });
+const put = (id: string, index: number, chunks: number, blob: string, epoch = EPOCH) => ({
+  op: "put",
+  epoch,
+  id,
+  index,
+  chunks,
+  blob,
+});
 const get = (id: string, index: number, epoch = EPOCH) => ({ op: "get", epoch, id, index });
 const status = (ids: string[], epoch = EPOCH) => ({ op: "status", epoch, ids });
 
@@ -224,10 +365,22 @@ type StepIn = [description: string, request: unknown, expand?: Expand];
 function steps(store: MemoryFileStore, list: StepIn[]) {
   return list.map(([description, request, expand]) => {
     const full = expand
-      ? { ...(request as object), [expand.field]: expand.field === "ids" ? Array.from({ length: expand.count }, () => expand.repeat) : expand.repeat.repeat(expand.count) }
+      ? {
+          ...(request as object),
+          [expand.field]:
+            expand.field === "ids"
+              ? Array.from({ length: expand.count }, () => expand.repeat)
+              : expand.repeat.repeat(expand.count),
+        }
       : request;
     const reply = processP2pFile(store, EPOCH, full, NOW);
-    return { description, request, ...(expand ? { expand } : {}), status: reply.status, body: reply.body };
+    return {
+      description,
+      request,
+      ...(expand ? { expand } : {}),
+      status: reply.status,
+      body: reply.body,
+    };
   });
 }
 
@@ -239,7 +392,10 @@ const hostSteps = steps(new MemoryFileStore(), [
   ["put the same chunk again (no change)", put(A, 0, 2, "AAAA")],
   ["put a different blob for a stored chunk", put(A, 0, 2, "BBBB")],
   ["put with another chunk count", put(A, 1, 3, "CCCC")],
-  ["put with another chunk count and a different blob for a stored chunk: 400 takes precedence over 409", put(A, 0, 3, "ZZZZ")],
+  [
+    "put with another chunk count and a different blob for a stored chunk: 400 takes precedence over 409",
+    put(A, 0, 3, "ZZZZ"),
+  ],
   ["put chunk 1 of 2", put(A, 1, 2, "BBBB")],
   ["status of a complete file", status([A])],
   ["status answers a duplicate id once per occurrence", status([A, B, A])],
@@ -247,7 +403,10 @@ const hostSteps = steps(new MemoryFileStore(), [
   ["get a chunk of an unknown file", get(B, 0)],
   ["get an index beyond the file's chunk count", get(A, 2)],
   ["status with another epoch", status([A], "other")],
-  ["malformed request with another epoch: 400 (validation before the epoch check)", { ...put(A, -1, 2, "AAAA"), epoch: "other" }],
+  [
+    "malformed request with another epoch: 400 (validation before the epoch check)",
+    { ...put(A, -1, 2, "AAAA"), epoch: "other" },
+  ],
   ["malformed unknown op with another epoch: 400", { op: "delete", epoch: "other" }],
   ["put with another epoch (nothing stored)", put(C, 0, 1, "AAAA", "other")],
   ["get with another epoch", get(A, 0, "other")],
@@ -263,7 +422,11 @@ const hostSteps = steps(new MemoryFileStore(), [
   ["malformed: index 0.5", { ...ok, index: 0.5 }],
   ["malformed: chunks 0", { ...ok, chunks: 0 }],
   ["malformed: chunks 41", { ...ok, chunks: 41 }],
-  ["malformed: blob longer than MAX_FILE_BLOB_LENGTH", { ...put(D, 0, 1, "") }, { field: "blob", repeat: "A", count: MAX_FILE_BLOB_LENGTH + 1 }],
+  [
+    "malformed: blob longer than MAX_FILE_BLOB_LENGTH",
+    { ...put(D, 0, 1, "") },
+    { field: "blob", repeat: "A", count: MAX_FILE_BLOB_LENGTH + 1 },
+  ],
   ["malformed: blob is a number", { ...ok, blob: 5 }],
   ["malformed: get with a bad id", get("x", 0)],
   ["malformed: get without index", { op: "get", epoch: EPOCH, id: A }],
@@ -272,7 +435,11 @@ const hostSteps = steps(new MemoryFileStore(), [
   ["malformed: status with a bad id", status([A, "nope"])],
   ["malformed: status ids not a list", { op: "status", epoch: EPOCH, ids: "x" }],
   ["status with 500 ids (the limit)", status([]), { field: "ids", repeat: A, count: 500 }],
-  ["put a blob of exactly MAX_FILE_BLOB_LENGTH", put(D, 0, 1, ""), { field: "blob", repeat: "A", count: MAX_FILE_BLOB_LENGTH }],
+  [
+    "put a blob of exactly MAX_FILE_BLOB_LENGTH",
+    put(D, 0, 1, ""),
+    { field: "blob", repeat: "A", count: MAX_FILE_BLOB_LENGTH },
+  ],
 ]);
 
 const CAPACITY = 10;
@@ -293,7 +460,11 @@ const orphanFiles = [
 const orphanStore = new MemoryFileStore();
 for (const f of orphanFiles) orphanStore.put(f.id, 0, 1, "AAAA", f.createdAt);
 const orphanUsed = new Set(orphanFiles.filter((f) => f.used).map((f) => f.id));
-const orphanCases = [T0 + ORPHAN_FILE_AGE_MS, T0 + ORPHAN_FILE_AGE_MS + 1, T0 + ORPHAN_FILE_AGE_MS + 3].map((now) => ({
+const orphanCases = [
+  T0 + ORPHAN_FILE_AGE_MS,
+  T0 + ORPHAN_FILE_AGE_MS + 1,
+  T0 + ORPHAN_FILE_AGE_MS + 3,
+].map((now) => ({
   now,
   expected: orphanFileIds(orphanStore, orphanUsed, now).sort(),
 }));
@@ -335,8 +506,16 @@ const out = {
     epoch: EPOCH,
     now: NOW,
     steps: hostSteps,
-    storage: { description: `store capacity ${CAPACITY} blob characters`, capacity: CAPACITY, steps: storageSteps },
-    orphan: { description: "unused files whose first chunk is older than ORPHAN_FILE_AGE_MS (strictly)", files: orphanFiles, cases: orphanCases },
+    storage: {
+      description: `store capacity ${CAPACITY} blob characters`,
+      capacity: CAPACITY,
+      steps: storageSteps,
+    },
+    orphan: {
+      description: "unused files whose first chunk is older than ORPHAN_FILE_AGE_MS (strictly)",
+      files: orphanFiles,
+      cases: orphanCases,
+    },
   },
 };
 const dir = new URL("../test-vectors/files/", import.meta.url);

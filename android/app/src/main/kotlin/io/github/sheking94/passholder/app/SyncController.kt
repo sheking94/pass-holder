@@ -53,10 +53,13 @@ class SyncController(
 
     private val lock = Any()
     private var server: SyncHttpServer? = null
+
     /** How many times [stop] was called. Guarded by [lock]; see [startTicket]. */
     private var stops = 0L
+
     /** The devices as last seen, to tell a new pairing or sync apart. Guarded by [lock]. */
     private var known: Map<String, StoredDevice> = emptyMap()
+
     @Volatile
     private var currentAddresses: List<String> = emptyList()
     private val lastActivityAt = AtomicLong(0)
@@ -83,7 +86,9 @@ class SyncController(
             val router = store.router(onActivity = { lastActivityAt.set(now()) }, addresses = { currentAddresses })
             lateinit var http: SyncHttpServer
             http = SyncHttpServer(
-                port, { path, body -> router.handle(path, body).also { afterRequest(http) } }, allowLocal = allowsLocal,
+                port,
+                { path, body -> router.handle(path, body).also { afterRequest(http) } },
+                allowLocal = allowsLocal,
             )
             val bound = try {
                 http.start()

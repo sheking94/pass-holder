@@ -22,14 +22,22 @@ class AppTrustTest {
     private val cert = Signature(byteArrayOf(1, 2, 3))
     private val old = Signature(byteArrayOf(9, 9))
 
-    private fun install(pkg: String, block: PackageInfo.() -> Unit) =
-        shadowOf(app.packageManager).installPackage(PackageInfo().apply { packageName = pkg; block() })
+    private fun install(pkg: String, block: PackageInfo.() -> Unit) = shadowOf(app.packageManager).installPackage(
+        PackageInfo().apply {
+            packageName = pkg
+            block()
+        },
+    )
 
     @Test
     @Config(sdk = [35])
     fun `signing history read on Android 9 and later`() {
         install("pl.bank") {
-            signingInfo = SigningInfo().also { shadowOf(it).setSignatures(arrayOf(cert)); shadowOf(it).setPastSigningCertificates(arrayOf(old, cert)) }
+            signingInfo =
+                SigningInfo().also {
+                    shadowOf(it).setSignatures(arrayOf(cert))
+                    shadowOf(it).setPastSigningCertificates(arrayOf(old, cert))
+                }
         }
         assertEquals(setOf(sha256Hex(old.toByteArray()), sha256Hex(cert.toByteArray())), SystemAppSigners(app).certs("pl.bank"))
         assertNull(SystemAppSigners(app).certs("pl.missing"))

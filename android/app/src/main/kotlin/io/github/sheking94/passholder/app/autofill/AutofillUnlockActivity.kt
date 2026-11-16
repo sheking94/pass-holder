@@ -50,5 +50,9 @@ private fun Intent.inlineSuggestionsRequest(): InlineSuggestionsRequest? =
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) parcelable(AutofillManager.EXTRA_INLINE_SUGGESTIONS_REQUEST) else null
 
 private inline fun <reified T : Parcelable> Intent.parcelable(name: String): T? =
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) getParcelableExtra(name, T::class.java)
-    else @Suppress("DEPRECATION") (getParcelableExtra(name) as? T)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        getParcelableExtra(name, T::class.java)
+    } else {
+        @Suppress("DEPRECATION")
+        (getParcelableExtra(name) as? T)
+    }

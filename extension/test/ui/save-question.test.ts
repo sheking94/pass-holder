@@ -5,7 +5,14 @@ import { byText, click, settle, setupPopup, teardownPopup } from "./fake-chrome.
 
 afterEach(teardownPopup);
 
-const INFO: SavePromptInfo = { id: "c1", host: "sklep.example.com", username: "jan", password: "s3cret", decision: "create", locked: false };
+const INFO: SavePromptInfo = {
+  id: "c1",
+  host: "sklep.example.com",
+  username: "jan",
+  password: "s3cret",
+  decision: "create",
+  locked: false,
+};
 const TAB = { id: 7, url: "https://sklep.example.com/login" };
 
 describe("pytanie o zapis po odblokowaniu", () => {
@@ -25,8 +32,13 @@ describe("pytanie o zapis po odblokowaniu", () => {
     await settle(() => app.textContent?.includes("Nowy login"));
     await click(byText(app, "Zapisz"));
     await settle(() => app.textContent?.includes("Zapisano login."));
-    expect(messages).toContainEqual({ target: "background", type: "save-answer", candidateId: "c1", answer: "save",
-      draft: { name: "sklep.example.com", username: "jan", password: "s3cret" } });
+    expect(messages).toContainEqual({
+      target: "background",
+      type: "save-answer",
+      candidateId: "c1",
+      answer: "save",
+      draft: { name: "sklep.example.com", username: "jan", password: "s3cret" },
+    });
     expect(app.querySelector(".tabs")).toBeTruthy();
   });
 

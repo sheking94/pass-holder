@@ -4,13 +4,19 @@ import { describeField, isVisible } from "../autofill/fill-page.ts";
 
 type FieldElement = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
 
-export interface ReadLogin { username: string; password: string; formSignature: string }
+export interface ReadLogin {
+  username: string;
+  password: string;
+  formSignature: string;
+}
 
 const NON_DATA_TYPES = new Set(["hidden", "submit", "button", "reset", "image"]);
 const VISIBLE_PASSWORD = "input[type=password]";
 
 function hasVisiblePassword(scope: ParentNode): boolean {
-  return Array.from(scope.querySelectorAll<HTMLInputElement>(VISIBLE_PASSWORD)).some((el) => isVisible(el));
+  return Array.from(scope.querySelectorAll<HTMLInputElement>(VISIBLE_PASSWORD)).some((el) =>
+    isVisible(el),
+  );
 }
 
 /** The form of the element, otherwise the nearest ancestor (up to body) holding a visible password field. */
@@ -36,7 +42,10 @@ export function formSignature(scope: ParentNode): string {
   return Array.from(keys).sort().join(",");
 }
 
-interface Described { el: HTMLInputElement; kind: autofill.FieldKind | null }
+interface Described {
+  el: HTMLInputElement;
+  kind: autofill.FieldKind | null;
+}
 
 function describedInputs(scope: ParentNode): Described[] {
   const out: Described[] = [];
@@ -55,8 +64,13 @@ export function readLogin(scope: ParentNode): ReadLogin | undefined {
     fields.find((f) => f.kind === "password" && f.el.type === "password" && filled(f));
   if (!passwordField) return undefined;
   const before = fields.slice(0, fields.indexOf(passwordField));
-  const userField = fields.find((f) => f.kind === "username") ?? before.find((f) => f.kind === "email");
-  return { username: userField?.el.value ?? "", password: passwordField.el.value, formSignature: formSignature(scope) };
+  const userField =
+    fields.find((f) => f.kind === "username") ?? before.find((f) => f.kind === "email");
+  return {
+    username: userField?.el.value ?? "",
+    password: passwordField.el.value,
+    formSignature: formSignature(scope),
+  };
 }
 
 /** Signatures of the scopes that hold a visible, empty password field (a login form awaiting input). */

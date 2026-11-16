@@ -1,6 +1,10 @@
 package io.github.sheking94.passholder.core.transfer
 
-import io.github.sheking94.passholder.core.p2p.*
+import io.github.sheking94.passholder.core.p2p.CustomField
+import io.github.sheking94.passholder.core.p2p.EntryContentV3
+import io.github.sheking94.passholder.core.p2p.LoginFields
+import io.github.sheking94.passholder.core.p2p.NoteFields
+import io.github.sheking94.passholder.core.p2p.PostalAddress
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Test
@@ -34,7 +38,12 @@ class CommonTest {
         val input = listOf(note("Łódź"), note("Lublin"), note("Same"), login("Same"), note("Zebra"))
         val copy = input.toList()
         val out = sortForExport(input)
-        assertEquals(listOf("Lublin/note", "Łódź/note", "Same/login", "Same/note", "Zebra/note"), out.map { "${it.name}/${it.fields.type}" })
+        assertEquals(
+            listOf("Lublin/note", "Łódź/note", "Same/login", "Same/note", "Zebra/note"),
+            out.map {
+                "${it.name}/${it.fields.type}"
+            },
+        )
         assertEquals(copy, input)
         assertEquals(listOf("login", "contact", "card", "note", "document"), ENTRY_TYPE_ORDER)
     }

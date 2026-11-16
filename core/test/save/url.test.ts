@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import { matchUrl } from "../../src/autofill/match.ts";
 import { saveName, saveUrl } from "../../src/save/url.ts";
 
-const vectors = JSON.parse(readFileSync(new URL("../../test-vectors/save/url.json", import.meta.url), "utf8")) as {
+const vectors = JSON.parse(
+  readFileSync(new URL("../../test-vectors/save/url.json", import.meta.url), "utf8"),
+) as {
   cases: { page: string; expected: string | null; name: string | null; why: string }[];
 };
 

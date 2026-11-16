@@ -1,13 +1,13 @@
 package io.github.sheking94.passholder.app
 
 import android.net.Uri
-import android.provider.Settings as AndroidSettings
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.robolectric.Shadows.shadowOf
+import android.provider.Settings as AndroidSettings
 
 /** A fake autofill state the test can flip, as if the user changed it in the system settings. */
 class FakeAutofillStatus(var enabled: Boolean) : AutofillStatus {

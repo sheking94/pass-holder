@@ -16,17 +16,26 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 
 class NordPassCsvTest {
-    private val header = "name,url,username,password,note,cardholdername,cardnumber,cvc,expirydate,zipcode,folder,full_name,phone_number,email,address1,address2,city,country,state,totp,shared_folder"
+    private val header =
+        "name,url,username,password,note,cardholdername,cardnumber,cvc,expirydate,zipcode,folder," +
+            "full_name,phone_number,email,address1,address2,city,country,state,totp,shared_folder"
 
     private val login = EntryContentV3(
-        "Poczta", "notatka",
-        LoginFields("jan", "p,\"a\"\nss", "JBSWY3DPEHPK3PXP", listOf("https://example.com"), emptyList()), emptyList(),
+        "Poczta",
+        "notatka",
+        LoginFields("jan", "p,\"a\"\nss", "JBSWY3DPEHPK3PXP", listOf("https://example.com"), emptyList()),
+        emptyList(),
     )
     private val card = EntryContentV3("Karta", "", CardFields("Jan Testowy", "4111111111111111", "12/30", "123", ""), emptyList())
     private val contact = EntryContentV3(
-        "Jan", "",
+        "Jan",
+        "",
         ContactFields(
-            "Jan", "Maria Testowy", "", listOf(LabeledValue("", "500100200")), listOf(LabeledValue("", "jan@example.com")),
+            "Jan",
+            "Maria Testowy",
+            "",
+            listOf(LabeledValue("", "500100200")),
+            listOf(LabeledValue("", "jan@example.com")),
             listOf(PostalAddress("", "ul. Przykładowa 1", "00-001", "Warszawa", "Polska")),
         ),
         emptyList(),
@@ -70,7 +79,10 @@ class NordPassCsvTest {
     fun shortRowTreatsMissingColumnsAsEmpty() {
         val r = NordPassCsv.parse("$header\nKrótki,https://example.com\n")
         assertTrue(r.skipped.isEmpty())
-        assertEquals(EntryContentV3("Krótki", "", LoginFields("", "", "", listOf("https://example.com"), emptyList()), emptyList()), r.entries[0])
+        assertEquals(
+            EntryContentV3("Krótki", "", LoginFields("", "", "", listOf("https://example.com"), emptyList()), emptyList()),
+            r.entries[0],
+        )
     }
 
     @Test
@@ -153,7 +165,8 @@ class NordPassCsvTest {
     @Test
     fun documentBecomesNoteLines() {
         val doc = EntryContentV3(
-            "Paszport", "uwaga",
+            "Paszport",
+            "uwaga",
             DocumentFields(DocumentKind.PASSPORT, "AB123", "Jan Testowy", "2020-01-01", "2030-01-01", "Wojewoda"),
             listOf(CustomField("Sekret", "x", true)),
         )
@@ -169,7 +182,8 @@ class NordPassCsvTest {
     fun extrasGoToNote() {
         val lf = login.fields as LoginFields
         val l = login.copy(
-            note = "", custom = listOf(CustomField("Pytanie", "Kolor?", false)),
+            note = "",
+            custom = listOf(CustomField("Pytanie", "Kolor?", false)),
             fields = lf.copy(urls = listOf("https://a.example.com", "https://b.example.com"), androidApps = listOf("com.example.app")),
         )
         assertEquals("https://a.example.com", exportedRow(l)["url"])
@@ -189,6 +203,9 @@ class NordPassCsvTest {
         assertEquals("Jan Maria Testowy", row["full_name"])
         assertEquals("500100200", row["phone_number"])
         assertEquals("ul. Przykładowa 1", row["address1"])
-        assertEquals("n\nTelefon (dom): 600\nTelefon: 700\nE-mail (praca): p@example.com\nAdres (biuro): Długa 2, Gdańsk\nData urodzenia: 1990-01-02", row["note"])
+        assertEquals(
+            "n\nTelefon (dom): 600\nTelefon: 700\nE-mail (praca): p@example.com\nAdres (biuro): Długa 2, Gdańsk\nData urodzenia: 1990-01-02",
+            row["note"],
+        )
     }
 }

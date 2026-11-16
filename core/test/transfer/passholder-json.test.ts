@@ -1,10 +1,15 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
-  exportPassHolderJson, isPassHolderJson, parsePassHolderJson, sortForExport, type ParsedImport,
+  exportPassHolderJson,
+  isPassHolderJson,
+  parsePassHolderJson,
+  sortForExport,
+  type ParsedImport,
 } from "../../src/transfer/index.ts";
 
-const read = (name: string) => readFileSync(new URL(`../../test-vectors/transfer/${name}`, import.meta.url), "utf8");
+const read = (name: string) =>
+  readFileSync(new URL(`../../test-vectors/transfer/${name}`, import.meta.url), "utf8");
 const file = read("passholder.json");
 const expected = JSON.parse(read("passholder.expected.json")) as ParsedImport;
 
@@ -14,14 +19,26 @@ describe("parsePassHolderJson", () => {
   });
 
   it("covers every entry type in the sample", () => {
-    expect(expected.entries.map((e) => e.type)).toEqual(["login", "contact", "card", "note", "document"]);
+    expect(expected.entries.map((e) => e.type)).toEqual([
+      "login",
+      "contact",
+      "card",
+      "note",
+      "document",
+    ]);
   });
 
   it("rejects other versions, formats and shapes", () => {
     const msg = "To nie jest plik PassHolder w wersji 3";
-    expect(() => parsePassHolderJson(JSON.stringify({ format: "passholder", version: 2, entries: [] }))).toThrow(msg);
-    expect(() => parsePassHolderJson(JSON.stringify({ format: "other", version: 3, entries: [] }))).toThrow(msg);
-    expect(() => parsePassHolderJson(JSON.stringify({ format: "passholder", version: 3, entries: {} }))).toThrow(msg);
+    expect(() =>
+      parsePassHolderJson(JSON.stringify({ format: "passholder", version: 2, entries: [] })),
+    ).toThrow(msg);
+    expect(() =>
+      parsePassHolderJson(JSON.stringify({ format: "other", version: 3, entries: [] })),
+    ).toThrow(msg);
+    expect(() =>
+      parsePassHolderJson(JSON.stringify({ format: "passholder", version: 3, entries: {} })),
+    ).toThrow(msg);
     expect(() => parsePassHolderJson("[]")).toThrow(msg);
     expect(() => parsePassHolderJson("null")).toThrow(msg);
   });
@@ -32,12 +49,23 @@ describe("parsePassHolderJson", () => {
     expect(r.entries).toHaveLength(5);
   });
 
-  it("skips an entry with an empty or blank name as \"brak nazwy\"", () => {
+  it('skips an entry with an empty or blank name as "brak nazwy"', () => {
     const entry = { type: "note", note: "", fields: {}, custom: [] };
-    const text = JSON.stringify({ format: "passholder", version: 3, entries: [{ ...entry, name: "  " }, { ...entry, name: "" }, { ...entry, name: "Ok" }] });
+    const text = JSON.stringify({
+      format: "passholder",
+      version: 3,
+      entries: [
+        { ...entry, name: "  " },
+        { ...entry, name: "" },
+        { ...entry, name: "Ok" },
+      ],
+    });
     expect(parsePassHolderJson(text)).toEqual({
       entries: [{ ...entry, name: "Ok" }],
-      skipped: [{ at: "wpis 1", reason: "brak nazwy" }, { at: "wpis 2", reason: "brak nazwy" }],
+      skipped: [
+        { at: "wpis 1", reason: "brak nazwy" },
+        { at: "wpis 2", reason: "brak nazwy" },
+      ],
     });
   });
 });
@@ -45,7 +73,10 @@ describe("parsePassHolderJson", () => {
 describe("exportPassHolderJson", () => {
   it("round-trips every entry type, sorted", () => {
     const text = exportPassHolderJson(expected.entries);
-    expect(parsePassHolderJson(text)).toEqual({ entries: sortForExport(expected.entries), skipped: [] });
+    expect(parsePassHolderJson(text)).toEqual({
+      entries: sortForExport(expected.entries),
+      skipped: [],
+    });
     expect(text.endsWith("}\n")).toBe(true);
     expect(JSON.parse(text)).toMatchObject({ format: "passholder", version: 3 });
   });
@@ -67,7 +98,14 @@ describe("parsePassHolderJson on an archive index", () => {
       { name: "skan.pdf", mime: "application/pdf", size: 10, path: "files/1-skan.pdf" },
       { name: "a:b?.jpg", mime: "image/jpeg", size: 20, path: "files/2-a_b_.jpg" },
     ];
-    const text = JSON.stringify({ format: "passholder", version: 3, entries: [{ ...entry, name: "Bez plików" }, { ...entry, attachments: files }] });
+    const text = JSON.stringify({
+      format: "passholder",
+      version: 3,
+      entries: [
+        { ...entry, name: "Bez plików" },
+        { ...entry, attachments: files },
+      ],
+    });
     expect(parsePassHolderJson(text)).toEqual({
       entries: [{ ...entry, name: "Bez plików" }, entry],
       skipped: [],
@@ -80,9 +118,17 @@ describe("parsePassHolderJson on an archive index", () => {
 
   it("has no files list for a plain export and still skips a malformed description", () => {
     const entry = { type: "note", name: "Umowa", note: "", fields: {}, custom: [] };
-    const plain = parsePassHolderJson(JSON.stringify({ format: "passholder", version: 3, entries: [entry] }));
+    const plain = parsePassHolderJson(
+      JSON.stringify({ format: "passholder", version: 3, entries: [entry] }),
+    );
     expect("files" in plain).toBe(false);
-    const bad = parsePassHolderJson(JSON.stringify({ format: "passholder", version: 3, entries: [{ ...entry, attachments: [{ name: "x" }] }] }));
+    const bad = parsePassHolderJson(
+      JSON.stringify({
+        format: "passholder",
+        version: 3,
+        entries: [{ ...entry, attachments: [{ name: "x" }] }],
+      }),
+    );
     expect(bad).toEqual({ entries: [], skipped: [{ at: "wpis 1", reason: "zły format wpisu" }] });
   });
 });

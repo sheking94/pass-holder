@@ -9,11 +9,17 @@ function text(value: string, placeholder?: string) {
 }
 
 export function documentForm(fields: p2p.DocumentFields): FieldsForm<"document"> {
-  const kind = h("select", {}, ...(Object.entries(DOCUMENT_KIND_LABELS) as [p2p.DocumentKind, string][]).map(([value, label]) => {
-    const option = h("option", { value }, label);
-    option.selected = value === fields.kind;
-    return option;
-  }));
+  const kind = h(
+    "select",
+    {},
+    ...(Object.entries(DOCUMENT_KIND_LABELS) as [p2p.DocumentKind, string][]).map(
+      ([value, label]) => {
+        const option = h("option", { value }, label);
+        option.selected = value === fields.kind;
+        return option;
+      },
+    ),
+  );
   const number = text(fields.number);
   const fullName = text(fields.fullName);
   const issueDate = text(fields.issueDate, "RRRR-MM-DD");

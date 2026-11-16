@@ -2,7 +2,13 @@ import { deflateRawSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { MAX_FILE_SIZE } from "../../src/files/attachment.ts";
 import {
-  ZIP_ENTRY_TOO_LARGE, ZIP_INVALID, ZipWriter, crc32, isZip, readZipEntry, readZipIndex,
+  ZIP_ENTRY_TOO_LARGE,
+  ZIP_INVALID,
+  ZipWriter,
+  crc32,
+  isZip,
+  readZipEntry,
+  readZipIndex,
 } from "../../src/transfer/zip.ts";
 
 const utf8 = (s: string) => new TextEncoder().encode(s);
@@ -22,7 +28,8 @@ function centralOffset(b: Uint8Array): number {
 
 function randomBytes(n: number): Uint8Array {
   const out = new Uint8Array(n);
-  for (let i = 0; i < n; i += 65536) crypto.getRandomValues(out.subarray(i, Math.min(n, i + 65536)));
+  for (let i = 0; i < n; i += 65536)
+    crypto.getRandomValues(out.subarray(i, Math.min(n, i + 65536)));
   return out;
 }
 
@@ -86,10 +93,16 @@ describe("ZipWriter and reader", () => {
   it("round-trips an empty file, incompressible bytes (stored) and zeros (deflated)", async () => {
     const random = randomBytes(300 * 1024);
     const zeros = new Uint8Array(300 * 1024);
-    const zip = await build([["empty.txt", new Uint8Array(0)], ["random.bin", random], ["zeros.bin", zeros]]);
+    const zip = await build([
+      ["empty.txt", new Uint8Array(0)],
+      ["random.bin", random],
+      ["zeros.bin", zeros],
+    ]);
     const index = readZipIndex(zip);
     expect(index.map((e) => [e.path, e.method, e.size])).toEqual([
-      ["empty.txt", 0, 0], ["random.bin", 0, random.length], ["zeros.bin", 8, zeros.length],
+      ["empty.txt", 0, 0],
+      ["random.bin", 0, random.length],
+      ["zeros.bin", 8, zeros.length],
     ]);
     expect(index[2]!.compressedSize).toBeLessThan(10000);
     expect(await readZipEntry(zip, index[0]!, MAX_FILE_SIZE)).toEqual(new Uint8Array(0));
@@ -118,7 +131,10 @@ describe("ZipWriter and reader", () => {
   });
 
   it("writes sizes in the local header (no data descriptor) and the first entry first", async () => {
-    const zip = await build([["a.txt", utf8("abc")], ["b.txt", utf8("de")]]);
+    const zip = await build([
+      ["a.txt", utf8("abc")],
+      ["b.txt", utf8("de")],
+    ]);
     const v = view(zip);
     expect(v.getUint16(6, true) & 0x0008).toBe(0);
     expect(v.getUint32(18, true)).toBe(3);
@@ -158,7 +174,10 @@ describe("readZipIndex rejects", () => {
   });
 
   it("a repeated name", async () => {
-    const zip = await build([["a.txt", utf8("1")], ["a.txt", utf8("2")]]);
+    const zip = await build([
+      ["a.txt", utf8("1")],
+      ["a.txt", utf8("2")],
+    ]);
     expect(() => readZipIndex(zip)).toThrow(ZIP_INVALID);
   });
 
@@ -169,7 +188,7 @@ describe("readZipIndex rejects", () => {
   });
 
   it("bytes that are not a ZIP", () => {
-    expect(() => readZipIndex(utf8("{\"format\":\"passholder\"}"))).toThrow(ZIP_INVALID);
+    expect(() => readZipIndex(utf8('{"format":"passholder"}'))).toThrow(ZIP_INVALID);
     expect(() => readZipIndex(new Uint8Array(0))).toThrow(ZIP_INVALID);
   });
 });

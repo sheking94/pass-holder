@@ -16,7 +16,10 @@ import { listView } from "./list.ts";
 const SAVED = "Zapisano lokalnie. Zsynchronizuj, gdy telefon będzie w trybie Synchronizacja.";
 const DELETED = "Usunięto lokalnie. Zsynchronizuj, żeby usunąć też na innych urządzeniach.";
 
-type Section<T extends p2p.EntryType> = (fields: FieldsOf<T>, status: HTMLElement) => FieldsForm<T> | Promise<FieldsForm<T>>;
+type Section<T extends p2p.EntryType> = (
+  fields: FieldsOf<T>,
+  status: HTMLElement,
+) => FieldsForm<T> | Promise<FieldsForm<T>>;
 
 /** The form section of each type (between „Nazwa” and „Notatka”). */
 const SECTIONS: { [T in p2p.EntryType]: Section<T> } = {
@@ -49,7 +52,11 @@ export async function editView(type: p2p.EntryType, id?: string): Promise<void> 
   const note = h("textarea", { rows: type === "note" ? 8 : 3 });
   note.value = base.note;
   const section = await (SECTIONS[type] as Section<p2p.EntryType>)(base.fields, status);
-  const files = await attachmentsEditor(base.attachments ?? [], status, () => void openEditTab(type, original && id));
+  const files = await attachmentsEditor(
+    base.attachments ?? [],
+    status,
+    () => void openEditTab(type, original && id),
+  );
   const custom = customFieldsEditor(base.custom, status);
 
   const save = () =>
@@ -94,12 +101,16 @@ export async function editView(type: p2p.EntryType, id?: string): Promise<void> 
       "div",
       { class: "actions" },
       h("button", { class: "primary", onclick: save }, "Zapisz"),
-      h("button", {
-        onclick: () => {
-          leaveEditTarget();
-          listView("", false, type);
+      h(
+        "button",
+        {
+          onclick: () => {
+            leaveEditTarget();
+            listView("", false, type);
+          },
         },
-      }, "Anuluj"),
+        "Anuluj",
+      ),
       original && remove,
     ),
     status,

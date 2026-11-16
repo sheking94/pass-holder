@@ -117,8 +117,7 @@ internal fun parse(raw: String, wwwBeforeDot: Boolean = false): ParsedUrl? {
     return ParsedUrl(https, rawHost, if (port == (if (https) "443" else "80")) "" else port)
 }
 
-private fun isExactOnlyHost(host: String): Boolean =
-    host == "localhost" || host.startsWith("[") || IPV4.matches(host)
+private fun isExactOnlyHost(host: String): Boolean = host == "localhost" || host.startsWith("[") || IPV4.matches(host)
 
 /** Matches one saved address against a page address (spec 3.1, rules 1-6). */
 fun matchUrl(pageUrl: String, savedUrl: String): MatchKind? {

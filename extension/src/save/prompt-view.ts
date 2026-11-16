@@ -29,7 +29,11 @@ export function promptView(info: SavePromptInfo, actions: PromptActions): HTMLEl
   const title = h("h1", {}, "Zapisać login w PassHolder?");
   const nameBox = h("div", {}, h("label", {}, "Nazwa"), name);
   // „Zapisz” replaces the entry's password: say so, and where the old one goes (review V3-S1).
-  const replaceHint = h("div", { class: "hint" }, "Obecne hasło trafi do pola „Poprzednie hasło” we wpisie.");
+  const replaceHint = h(
+    "div",
+    { class: "hint" },
+    "Obecne hasło trafi do pola „Poprzednie hasło” we wpisie.",
+  );
 
   // Only the answer to the latest preview counts: a slow earlier one must not overwrite a newer header.
   let decision: NonNullable<SavePreviewResponse>["decision"] = info.decision ?? "create";
@@ -37,9 +41,11 @@ export function promptView(info: SavePromptInfo, actions: PromptActions): HTMLEl
   let saving = false; // in flight or done: Zapisz stays off until a failure
   const refresh = (entryName?: string) => {
     title.textContent =
-      decision === "none" ? "Ten login jest już zapisany"
-      : decision === "update" ? `Zmiana hasła: ${entryName ?? info.entryName ?? ""}`
-      : "Nowy login";
+      decision === "none"
+        ? "Ten login jest już zapisany"
+        : decision === "update"
+          ? `Zmiana hasła: ${entryName ?? info.entryName ?? ""}`
+          : "Nowy login";
     nameBox.hidden = decision !== "create";
     replaceHint.hidden = decision !== "update";
     primary.disabled = saving || decision === "none" || password.value === "";
@@ -64,7 +70,10 @@ export function promptView(info: SavePromptInfo, actions: PromptActions): HTMLEl
     buttons.forEach((b) => (b.disabled = true));
     setStatus(status, "");
     try {
-      const draft = answer === "save" && !info.locked ? { name: name.value, username: username.value, password: password.value } : undefined;
+      const draft =
+        answer === "save" && !info.locked
+          ? { name: name.value, username: username.value, password: password.value }
+          : undefined;
       const result = await actions.answer(answer, draft);
       if (!result.ok) throw new Error(result.error ?? "Nie udało się zapisać.");
       if (answer === "save") {
@@ -94,7 +103,11 @@ export function promptView(info: SavePromptInfo, actions: PromptActions): HTMLEl
     button("Nie teraz", {}, () => void send("later")),
     button("Nigdy dla tej strony", { class: "small" }, () => void send("never")),
   );
-  const close = button("×", { class: "small close", "aria-label": "Zamknij", title: "Zamknij" }, () => void send("later"));
+  const close = button(
+    "×",
+    { class: "small close", "aria-label": "Zamknij", title: "Zamknij" },
+    () => void send("later"),
+  );
 
   if (info.locked) {
     return h(

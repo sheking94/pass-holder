@@ -72,7 +72,10 @@ class NodeDescriptorTest {
         val d = describeNode(
             attrs(
                 htmlAttrs = mapOf("name" to "n", "id" to "i", "label" to "l", "placeholder" to "p", "maxlength" to "5", "type" to "tel"),
-                idEntry = "x", hint = "h", contentDescription = "c", maxTextLength = 9,
+                idEntry = "x",
+                hint = "h",
+                contentDescription = "c",
+                maxTextLength = 9,
             ),
         )
         assertEquals(listOf("n", "i", "l", "p", "tel", 5), listOf(d.name, d.id, d.label, d.placeholder, d.type, d.maxLength))

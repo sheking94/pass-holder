@@ -15,7 +15,10 @@ class SyncControllerTest {
     private val dir = Files.createTempDirectory("sync").toFile()
     private val store = PhoneVaultStore(dir, TestSecretWrapper).apply { startRestore() }
     private var bound = -1
-    private val controller = SyncController(store, 0, addresses = { bound = it; listOf("http://127.0.0.1:$it") })
+    private val controller = SyncController(store, 0, addresses = {
+        bound = it
+        listOf("http://127.0.0.1:$it")
+    })
 
     @After
     fun cleanUp() {
@@ -50,7 +53,10 @@ class SyncControllerTest {
 
     @Test
     fun `a connection on a local address that is not allowed gets no answer`() {
-        val closed = SyncController(store, 0, addresses = { bound = it; emptyList() }, allowsLocal = { false })
+        val closed = SyncController(store, 0, addresses = {
+            bound = it
+            emptyList()
+        }, allowsLocal = { false })
         try {
             assertTrue(closed.start())
             assertFalse(listening(bound))

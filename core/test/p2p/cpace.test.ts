@@ -1,13 +1,33 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { concat, fromHex, randomBytes, toHex, utf8 } from "../../src/encoding.ts";
-import { _cpaceInternals, cpaceFinish, cpaceStart, lvCat, PAIRING_CI } from "../../src/p2p/cpace.ts";
+import {
+  _cpaceInternals,
+  cpaceFinish,
+  cpaceStart,
+  lvCat,
+  PAIRING_CI,
+} from "../../src/p2p/cpace.ts";
 
 const raw = JSON.parse(
   readFileSync(new URL("../../test-vectors/cpace-ristretto255.json", import.meta.url), "utf8"),
 ) as Record<
-  | "PRS" | "CI" | "sid" | "ADa" | "ADb" | "ya" | "yb" | "g" | "Ya" | "Yb" | "K" | "ISK_IR"
-  | "generator_string" | "generator_hash" | "invalid_Y1" | "invalid_Y2_identity",
+  | "PRS"
+  | "CI"
+  | "sid"
+  | "ADa"
+  | "ADb"
+  | "ya"
+  | "yb"
+  | "g"
+  | "Ya"
+  | "Yb"
+  | "K"
+  | "ISK_IR"
+  | "generator_string"
+  | "generator_hash"
+  | "invalid_Y1"
+  | "invalid_Y2_identity",
   string
 >;
 
@@ -91,8 +111,12 @@ describe("cpace", () => {
     const a = cpaceStart(utf8("12345678"), PAIRING_CI, randomBytes(16), new Uint8Array());
     const identityMessage = lvCat(new Uint8Array(32), new Uint8Array());
     const garbageMessage = lvCat(new Uint8Array(32).fill(0xff), new Uint8Array());
-    expect(() => cpaceFinish(a.state, identityMessage, "initiator")).toThrow("CPace: invalid peer element");
-    expect(() => cpaceFinish(a.state, garbageMessage, "initiator")).toThrow("CPace: invalid peer element");
+    expect(() => cpaceFinish(a.state, identityMessage, "initiator")).toThrow(
+      "CPace: invalid peer element",
+    );
+    expect(() => cpaceFinish(a.state, garbageMessage, "initiator")).toThrow(
+      "CPace: invalid peer element",
+    );
     // Draft B.3.11: Y_i1 (non-canonical) and Y_i2 == G.I must abort.
     expect(() => cpaceFinish(a.state, lvCat(v.invalidY1, v.ADb), "responder")).toThrow(
       "CPace: invalid peer element",

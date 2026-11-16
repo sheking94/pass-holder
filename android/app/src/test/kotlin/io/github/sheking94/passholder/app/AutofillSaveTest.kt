@@ -71,7 +71,9 @@ abstract class AutofillSaveTestBase {
     /** Runs with the candidate in place, before the activity starts. */
     protected open fun beforeLaunch() {}
 
-    protected fun age(ms: Long) { now += ms }
+    protected fun age(ms: Long) {
+        now += ms
+    }
 
     @After
     fun stop() {
@@ -81,8 +83,7 @@ abstract class AutofillSaveTestBase {
         app.clock = System::currentTimeMillis
     }
 
-    protected fun type(label: String, text: String) =
-        compose.onNode(hasSetTextAction() and hasText(label)).performTextReplacement(text)
+    protected fun type(label: String, text: String) = compose.onNode(hasSetTextAction() and hasText(label)).performTextReplacement(text)
 
     protected fun click(text: String) = compose.onNodeWithText(text).performClick()
 
@@ -98,8 +99,7 @@ abstract class AutofillSaveTestBase {
         return ShadowToast.getTextOfLatestToast()
     }
 
-    protected fun waitFor(text: String) =
-        compose.waitUntil(30_000) { compose.onAllNodes(hasText(text)).fetchSemanticsNodes().isNotEmpty() }
+    protected fun waitFor(text: String) = compose.waitUntil(30_000) { compose.onAllNodes(hasText(text)).fetchSemanticsNodes().isNotEmpty() }
 
     protected fun waitForResult(): Instrumentation.ActivityResult {
         compose.waitUntil(30_000) { finishing() }
@@ -290,7 +290,8 @@ class AutofillSaveReviewNoneTest : AutofillSaveTestBase() {
     override val unlockedAtStart = true
 
     override fun beforeLaunch() = app.phoneStore.upsertContent(
-        "1", EntryContentV3("Bank", "", LoginFields("jan", "nowe-haslo", androidApps = listOf("com.example.bank")), emptyList()),
+        "1",
+        EntryContentV3("Bank", "", LoginFields("jan", "nowe-haslo", androidApps = listOf("com.example.bank")), emptyList()),
     )
 
     @Test
@@ -307,7 +308,8 @@ class AutofillSaveReviewSameLoginTest : AutofillSaveTestBase() {
     override val unlockedAtStart = true
 
     override fun beforeLaunch() = app.phoneStore.upsertContent(
-        "1", EntryContentV3("Bank", "", LoginFields("anna", "nowe-haslo", androidApps = listOf("com.example.bank")), emptyList()),
+        "1",
+        EntryContentV3("Bank", "", LoginFields("anna", "nowe-haslo", androidApps = listOf("com.example.bank")), emptyList()),
     )
 
     @Test
@@ -393,7 +395,8 @@ class AutofillSaveReviewFreshEntriesTest : AutofillSaveTestBase() {
     fun `Zapisz decides on the vault as it is then`() {
         waitFor("Nowy login")
         app.phoneStore.upsertContent(
-            "1", EntryContentV3("Bank", "", LoginFields("jan", "nowe-haslo", androidApps = listOf("com.example.bank")), emptyList()),
+            "1",
+            EntryContentV3("Bank", "", LoginFields("jan", "nowe-haslo", androidApps = listOf("com.example.bank")), emptyList()),
         )
         click("Zapisz")
         assertEquals(Activity.RESULT_OK, waitForResult().resultCode)

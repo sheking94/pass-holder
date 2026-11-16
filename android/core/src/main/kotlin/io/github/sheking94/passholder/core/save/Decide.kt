@@ -22,12 +22,7 @@ private fun normalize(username: String) = username.trim().lowercase()
  * can be updated (review V3-S2). [related] (subdomain matches) only stop the question when the same login and
  * password are already saved there.
  */
-fun decideSave(
-    username: String,
-    password: String,
-    logins: List<SavedLogin>,
-    related: List<SavedLogin> = emptyList(),
-): SaveDecision {
+fun decideSave(username: String, password: String, logins: List<SavedLogin>, related: List<SavedLogin> = emptyList()): SaveDecision {
     if (password.isEmpty()) return SaveDecision.None
     val same = logins.filter { normalize(it.username) == normalize(username) }
     if ((same + related.filter { normalize(it.username) == normalize(username) }).any { it.password == password }) {

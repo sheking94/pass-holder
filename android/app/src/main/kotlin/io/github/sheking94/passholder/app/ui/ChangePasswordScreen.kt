@@ -25,9 +25,18 @@ fun ChangePasswordScreen(state: UiState, vm: AppViewModel) {
 
     FormColumn {
         Text("Zmień hasło główne", style = MaterialTheme.typography.headlineSmall)
-        PasswordField(current, { current = it; vm.clearError() }, "Obecne hasło główne")
-        PasswordField(new, { new = it; vm.clearError() }, "Nowe hasło główne")
-        PasswordField(repeat, { repeat = it; vm.clearError() }, "Powtórz nowe hasło", onDone = change)
+        PasswordField(current, {
+            current = it
+            vm.clearError()
+        }, "Obecne hasło główne")
+        PasswordField(new, {
+            new = it
+            vm.clearError()
+        }, "Nowe hasło główne")
+        PasswordField(repeat, {
+            repeat = it
+            vm.clearError()
+        }, "Powtórz nowe hasło", onDone = change)
         Text(
             "Co najmniej 12 znaków, bez popularnych haseł i prostych ciągów. Wpisy zostają bez zmian.",
             style = MaterialTheme.typography.bodySmall,

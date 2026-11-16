@@ -15,12 +15,7 @@ sealed interface NodeValue {
 
 enum class FillGroup { LOGIN, CARD, CONTACT }
 
-data class DatasetSpec<Id>(
-    val entryId: String,
-    val title: String,
-    val subtitle: String,
-    val values: List<Pair<Id, NodeValue>>,
-)
+data class DatasetSpec<Id>(val entryId: String, val title: String, val subtitle: String, val values: List<Pair<Id, NodeValue>>)
 
 /** The fields of one group with their kinds. */
 data class FillRequestPlan<Id>(val group: FillGroup, val nodes: List<Pair<AutofillNode<Id>, FieldKind>>)
@@ -28,7 +23,12 @@ data class FillRequestPlan<Id>(val group: FillGroup, val nodes: List<Pair<Autofi
 private const val MAX_DATASETS = 10
 
 private val CARD_KINDS = setOf(
-    FieldKind.CC_NAME, FieldKind.CC_NUMBER, FieldKind.CC_EXP, FieldKind.CC_EXP_MONTH, FieldKind.CC_EXP_YEAR, FieldKind.CC_CSC,
+    FieldKind.CC_NAME,
+    FieldKind.CC_NUMBER,
+    FieldKind.CC_EXP,
+    FieldKind.CC_EXP_MONTH,
+    FieldKind.CC_EXP_YEAR,
+    FieldKind.CC_CSC,
 )
 
 fun <Id> planRequest(nodes: List<AutofillNode<Id>>): FillRequestPlan<Id>? {
@@ -36,17 +36,25 @@ fun <Id> planRequest(nodes: List<AutofillNode<Id>>): FillRequestPlan<Id>? {
     val kinds = classified.map { it.second }.toSet()
     val group = when {
         FieldKind.USERNAME in kinds || FieldKind.PASSWORD in kinds -> FillGroup.LOGIN
+
         kinds.any { it in CARD_KINDS } -> FillGroup.CARD
+
         kinds.any { it != FieldKind.EMAIL && it != FieldKind.NEW_PASSWORD } -> FillGroup.CONTACT
-        FieldKind.EMAIL in kinds -> FillGroup.LOGIN // a lone e-mail field is the first step of a login
+
+        FieldKind.EMAIL in kinds -> FillGroup.LOGIN
+
+        // a lone e-mail field is the first step of a login
         else -> return null
     }
     val inGroup = classified.filter { (_, kind) ->
         when (group) {
             FillGroup.LOGIN -> kind == FieldKind.USERNAME || kind == FieldKind.PASSWORD || kind == FieldKind.EMAIL
+
             FillGroup.CARD -> kind in CARD_KINDS
-            FillGroup.CONTACT -> kind !in CARD_KINDS && kind != FieldKind.USERNAME &&
-                kind != FieldKind.PASSWORD && kind != FieldKind.NEW_PASSWORD
+
+            FillGroup.CONTACT ->
+                kind !in CARD_KINDS && kind != FieldKind.USERNAME &&
+                    kind != FieldKind.PASSWORD && kind != FieldKind.NEW_PASSWORD
         }
     }
     return FillRequestPlan(group, inGroup)
@@ -85,7 +93,9 @@ fun <Id> planDatasets(plan: FillRequestPlan<Id>, request: AppRequest, entries: L
             val f = it.content.fields as LoginFields
             AppCandidate(it.content.name, f.urls, f.androidApps)
         }
+
         FillGroup.CARD -> if (cardAllowed(request)) entries.filter { it.content.fields is CardFields } else emptyList()
+
         FillGroup.CONTACT -> entries.filter { it.content.fields is ContactFields }
     }
     return candidates.asSequence()

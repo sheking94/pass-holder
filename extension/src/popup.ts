@@ -14,8 +14,18 @@ async function start() {
   if (!(await store.getAccount())) return showConnect();
   if (MODE === "addresses") return addressesView();
   // The open page locks itself after 15 minutes without a click or a key (S1 of the security review).
-  watchIdle(store, { addEventListener: (type, listener, options) => window.addEventListener(type, listener, options), setInterval: (h, ms) => window.setInterval(h, ms) },
-    () => void showLocked("Sejf został zablokowany: 15 minut bez działania albo blokada w innym oknie PassHoldera."));
+  watchIdle(
+    store,
+    {
+      addEventListener: (type, listener, options) =>
+        window.addEventListener(type, listener, options),
+      setInterval: (h, ms) => window.setInterval(h, ms),
+    },
+    () =>
+      void showLocked(
+        "Sejf został zablokowany: 15 minut bez działania albo blokada w innym oknie PassHoldera.",
+      ),
+  );
   if (await store.resume()) return showUnlocked();
   await showLocked();
 }

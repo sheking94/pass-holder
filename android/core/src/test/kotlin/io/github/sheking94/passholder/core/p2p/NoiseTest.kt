@@ -74,11 +74,15 @@ class NoiseTest {
         assertEquals(raw.resp_remote_static, hex(initS.publicKey))
 
         val init = NoiseKK.initiator(
-            initS, unhex(raw.init_remote_static), unhex(raw.init_prologue),
+            initS,
+            unhex(raw.init_remote_static),
+            unhex(raw.init_prologue),
             NoiseKeys.fromPrivateKey(unhex(raw.init_ephemeral)),
         )
         val resp = NoiseKK.responder(
-            respS, unhex(raw.resp_remote_static), unhex(raw.resp_prologue),
+            respS,
+            unhex(raw.resp_remote_static),
+            unhex(raw.resp_prologue),
             NoiseKeys.fromPrivateKey(unhex(raw.resp_ephemeral)),
         )
         val (h1, h2) = raw.messages

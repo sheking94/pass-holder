@@ -7,8 +7,15 @@ export type FillPlan =
   | { kind: "card"; holder: string; number: string; expiry: string; cvc: string }
   | {
       kind: "contact";
-      firstName: string; lastName: string; email: string; tel: string;
-      street: string; postalCode: string; city: string; country: string; bday: string;
+      firstName: string;
+      lastName: string;
+      email: string;
+      tel: string;
+      street: string;
+      postalCode: string;
+      city: string;
+      country: string;
+      bday: string;
     };
 
 /** Stored birth dates are RRRR-MM-DD; anything that is not a real calendar date is dropped. */
@@ -32,9 +39,14 @@ export function planFor(entry: EntryContentV3): FillPlan | undefined {
       const a = f.addresses[0];
       return {
         kind: "contact",
-        firstName: f.firstName, lastName: f.lastName,
-        email: f.emails[0]?.value ?? "", tel: f.phones[0]?.value ?? "",
-        street: a?.street ?? "", postalCode: a?.postalCode ?? "", city: a?.city ?? "", country: a?.country ?? "",
+        firstName: f.firstName,
+        lastName: f.lastName,
+        email: f.emails[0]?.value ?? "",
+        tel: f.phones[0]?.value ?? "",
+        street: a?.street ?? "",
+        postalCode: a?.postalCode ?? "",
+        city: a?.city ?? "",
+        country: a?.country ?? "",
         bday: validBirthDate(f.birthDate),
       };
     }
@@ -44,7 +56,10 @@ export function planFor(entry: EntryContentV3): FillPlan | undefined {
 }
 
 /** First candidate that matches a <select> option by value or text (case-insensitive); returns the option value. */
-function selectOption(options: { value: string; text: string }[], candidates: string[]): string | undefined {
+function selectOption(
+  options: { value: string; text: string }[],
+  candidates: string[],
+): string | undefined {
   for (const candidate of candidates) {
     const c = candidate.toLowerCase();
     const hit = options.find((o) => o.value.toLowerCase() === c || o.text.toLowerCase() === c);
@@ -60,7 +75,12 @@ function parseExpiry(expiry: string): { month: string; year2: string } | undefin
 }
 
 /** Value text candidates for a field kind, most preferred first. */
-function candidates(plan: FillPlan, kind: FieldKind, field: FieldDescriptor, form: { hasUsernameField: boolean }): string[] {
+function candidates(
+  plan: FillPlan,
+  kind: FieldKind,
+  field: FieldDescriptor,
+  form: { hasUsernameField: boolean },
+): string[] {
   if (plan.kind === "login") {
     if (kind === "username") return [plan.username];
     if (kind === "password") return [plan.password];
@@ -71,9 +91,12 @@ function candidates(plan: FillPlan, kind: FieldKind, field: FieldDescriptor, for
     const exp = parseExpiry(plan.expiry);
     const isSelect = field.type.toLowerCase() === "select";
     switch (kind) {
-      case "ccName": return [plan.holder];
-      case "ccNumber": return [plan.number.replace(/\s+/g, "")];
-      case "ccCsc": return [plan.cvc];
+      case "ccName":
+        return [plan.holder];
+      case "ccNumber":
+        return [plan.number.replace(/\s+/g, "")];
+      case "ccCsc":
+        return [plan.cvc];
       case "ccExp": {
         if (!exp) return [];
         const long = (field.maxLength ?? 0) >= 7 || /rrrr|yyyy/i.test(field.placeholder);
@@ -88,27 +111,42 @@ function candidates(plan: FillPlan, kind: FieldKind, field: FieldDescriptor, for
         if (isSelect) return [full, exp.year2];
         return [field.maxLength === 2 ? exp.year2 : full];
       }
-      default: return [];
+      default:
+        return [];
     }
   }
   switch (kind) {
-    case "givenName": return [plan.firstName];
-    case "familyName": return [plan.lastName];
-    case "fullName": return [[plan.firstName, plan.lastName].filter((p) => p !== "").join(" ")];
-    case "email": return [plan.email];
-    case "tel": return [plan.tel];
-    case "street": return [plan.street];
-    case "postalCode": return [plan.postalCode];
-    case "city": return [plan.city];
-    case "country": return [plan.country];
-    case "bday": return [plan.bday];
-    default: return [];
+    case "givenName":
+      return [plan.firstName];
+    case "familyName":
+      return [plan.lastName];
+    case "fullName":
+      return [[plan.firstName, plan.lastName].filter((p) => p !== "").join(" ")];
+    case "email":
+      return [plan.email];
+    case "tel":
+      return [plan.tel];
+    case "street":
+      return [plan.street];
+    case "postalCode":
+      return [plan.postalCode];
+    case "city":
+      return [plan.city];
+    case "country":
+      return [plan.country];
+    case "bday":
+      return [plan.bday];
+    default:
+      return [];
   }
 }
 
 /** The text to type into a field, or undefined to leave the field untouched. */
 export function fillValue(
-  plan: FillPlan, kind: FieldKind, field: FieldDescriptor, form: { hasUsernameField: boolean },
+  plan: FillPlan,
+  kind: FieldKind,
+  field: FieldDescriptor,
+  form: { hasUsernameField: boolean },
 ): string | undefined {
   const wanted = candidates(plan, kind, field, form).filter((v) => v !== "");
   if (wanted.length === 0) return undefined;

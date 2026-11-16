@@ -7,11 +7,16 @@ import { extSender, scriptSender, setup, type PromptCall } from "./save-fixture.
 
 // startSaveWatch cannot be stopped: the listeners of earlier tests stay on the document, so turn their wiring off.
 let stop = (): void => undefined;
-afterEach(() => { stop(); document.body.innerHTML = ""; });
+afterEach(() => {
+  stop();
+  document.body.innerHTML = "";
+});
 
 async function wired() {
   let live = true;
-  stop = () => { live = false; };
+  stop = () => {
+    live = false;
+  };
   /** The fake question window of tab 7: the candidate it shows, or null when closed. */
   const windows: string[] = [];
   let open: string | null = null;
@@ -27,7 +32,10 @@ async function wired() {
   startSaveWatch(document, {
     send: (m) => {
       if (!live) return Promise.resolve(undefined);
-      const p = m.type === "save-candidate" ? s.sc.onCandidate(m, scriptSender()) : s.sc.onPending(m, scriptSender());
+      const p =
+        m.type === "save-candidate"
+          ? s.sc.onCandidate(m, scriptSender())
+          : s.sc.onPending(m, scriptSender());
       work.push(p);
       return p;
     },
@@ -53,8 +61,17 @@ describe("save prompt, page script with the service worker", () => {
     const id = s.shown();
     expect(id).toBe((await s.stored())["7"]!.id);
     expect(document.querySelector("iframe")).toBeNull();
-    const info = await s.sc.info({ target: "background", type: "save-info", candidateId: id! }, extSender);
-    expect(info).toMatchObject({ id, host: "shop.pl", username: "anna", decision: "create", locked: false });
+    const info = await s.sc.info(
+      { target: "background", type: "save-info", candidateId: id! },
+      extSender,
+    );
+    expect(info).toMatchObject({
+      id,
+      host: "shop.pl",
+      username: "anna",
+      decision: "create",
+      locked: false,
+    });
   }, 30_000);
 
   it("a second, different login on the same page points the same window at the new candidate", async () => {

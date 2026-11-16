@@ -7,8 +7,8 @@ import io.github.sheking94.passholder.app.TestSecretWrapper
 import io.github.sheking94.passholder.core.autofill.AppRequest
 import io.github.sheking94.passholder.core.p2p.CustomField
 import io.github.sheking94.passholder.core.p2p.EntryContentV3
-import io.github.sheking94.passholder.core.save.PREVIOUS_PASSWORD_LABEL
 import io.github.sheking94.passholder.core.p2p.LoginFields
+import io.github.sheking94.passholder.core.save.PREVIOUS_PASSWORD_LABEL
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Before
@@ -32,7 +32,8 @@ class SaveLoginTest {
     private fun browser(domain: String) = AppRequest("com.android.chrome", domain, "https", browserVerified = true, appVerified = true)
     private fun logins() = app.phoneStore.entries().map { it.id to it.content }
     private fun addGithub() = app.phoneStore.upsertContent(
-        "1", EntryContentV3("GitHub", "notatka", LoginFields("jkowalski", "s3cret", urls = listOf("https://github.com")), emptyList()),
+        "1",
+        EntryContentV3("GitHub", "notatka", LoginFields("jkowalski", "s3cret", urls = listOf("https://github.com")), emptyList()),
     )
 
     @Test
@@ -49,7 +50,10 @@ class SaveLoginTest {
     @Test
     fun `new login in an app saved under the package`() {
         app.appSigners = io.github.sheking94.passholder.app.AppSigners { setOf("cc") }
-        assertEquals(SaveOutcome.SAVED, saveLogin(app, SaveData(AppRequest("com.example.bank", null, null, appVerified = true), "jan", "pw"), label))
+        assertEquals(
+            SaveOutcome.SAVED,
+            saveLogin(app, SaveData(AppRequest("com.example.bank", null, null, appVerified = true), "jan", "pw"), label),
+        )
         val (_, content) = logins().single()
         assertEquals("Bank", content.name)
         assertEquals(listOf("com.example.bank"), (content.fields as LoginFields).androidApps)
@@ -76,7 +80,10 @@ class SaveLoginTest {
         assertEquals("1", id)
         // The replaced password stays in the hidden field „Poprzednie hasło” (review V3-S1).
         val previous = listOf(CustomField(PREVIOUS_PASSWORD_LABEL, "s3cret", hidden = true))
-        assertEquals(EntryContentV3("GitHub", "notatka", LoginFields("jkowalski", "new", urls = listOf("https://github.com")), previous), content)
+        assertEquals(
+            EntryContentV3("GitHub", "notatka", LoginFields("jkowalski", "new", urls = listOf("https://github.com")), previous),
+            content,
+        )
     }
 
     @Test

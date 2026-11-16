@@ -37,7 +37,9 @@ class TransferTest {
     @Test
     fun encryptedBitwardenShowsItsOwnMessage() {
         assertTrue(fail("""{"encrypted":true,"items":[]}""")!!.contains("Zaszyfrowany eksport Bitwarden"))
-        val protectedFile = """{"encrypted":true,"passwordProtected":true,"salt":"c2FsdA==","kdfType":0,"kdfIterations":600000,"encKeyValidation_DO_NOT_EDIT":"2.x","data":"2.y"}"""
+        val protectedFile =
+            """{"encrypted":true,"passwordProtected":true,"salt":"c2FsdA==","kdfType":0,"kdfIterations":600000,""" +
+                """"encKeyValidation_DO_NOT_EDIT":"2.x","data":"2.y"}"""
         assertTrue(fail(protectedFile)!!.contains("Zaszyfrowany eksport Bitwarden"))
     }
 

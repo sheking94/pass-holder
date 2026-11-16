@@ -54,7 +54,11 @@ class FileChunksTest {
         val bytes = sample(chunk * 2 + 5)
         val (a, blobs) = FileChunks.encrypt(bytes, "a.bin", "")
         val other = FileChunks.encryptFixed(
-            bytes, "a.bin", "", "123e4567-e89b-42d3-a456-426614174000", Encoding.fromBase64(a.key),
+            bytes,
+            "a.bin",
+            "",
+            "123e4567-e89b-42d3-a456-426614174000",
+            Encoding.fromBase64(a.key),
             (1..3).map { ByteArray(12) { _ -> it.toByte() } },
         )
         val bad = "File is corrupted"

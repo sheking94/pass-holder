@@ -2,17 +2,29 @@ import { describe, expect, it } from "vitest";
 import { p2p } from "@passholder/core";
 import * as files from "@passholder/core/files";
 import { AUTO_LOCK_MS, STORAGE_KEYS } from "../src/vault-store.ts";
-import { CODE, newBrowser, pairedBrowser, PASSWORD, PHONE_URL, type Network } from "./fake-phone.ts";
+import {
+  CODE,
+  newBrowser,
+  pairedBrowser,
+  PASSWORD,
+  PHONE_URL,
+  type Network,
+} from "./fake-phone.ts";
 
 /** 600 000 bytes: three chunks of FILE_CHUNK_SIZE. */
 const SIZE = 600_000;
 const bytesOf = (seed: number) => new Uint8Array(SIZE).map((_, i) => (i * 31 + seed) % 251);
 
-const encrypt = (seed = 1, name = "skan.pdf") => files.encryptFile(bytesOf(seed), { name, mime: "application/pdf" });
+const encrypt = (seed = 1, name = "skan.pdf") =>
+  files.encryptFile(bytesOf(seed), { name, mime: "application/pdf" });
 
 function loginWith(name: string, attachments: files.Attachment[] = []): p2p.EntryContentV3 {
   const login = p2p.emptyLogin(name);
-  return { ...login, fields: { ...login.fields, username: "u", password: "p" }, ...(attachments.length > 0 ? { attachments } : {}) };
+  return {
+    ...login,
+    fields: { ...login.fields, username: "u", password: "p" },
+    ...(attachments.length > 0 ? { attachments } : {}),
+  };
 }
 
 /** A second browser paired with the same phone. */
@@ -40,7 +52,13 @@ describe("attachments in the vault store", () => {
     expect(await a.store.fileUploaded(ef.attachment)).toBe(false);
 
     const ra = await a.store.sync();
-    expect(ra.files).toEqual({ uploaded: 1, downloaded: 0, pending: 0, corrupted: [], corruptedIds: [] });
+    expect(ra.files).toEqual({
+      uploaded: 1,
+      downloaded: 0,
+      pending: 0,
+      corrupted: [],
+      corruptedIds: [],
+    });
     expect(await a.store.fileUploaded(ef.attachment)).toBe(true);
     expect(a.phone.files.have(ef.attachment.id)).toEqual([0, 1, 2]);
 
@@ -48,7 +66,10 @@ describe("attachments in the vault store", () => {
     const rb = await b.store.sync((done, total) => progress.push([done, total]));
     expect(rb.files.downloaded).toBe(1);
     expect(rb.files.error).toBeUndefined();
-    expect(progress).toEqual([[0, 1], [1, 1]]);
+    expect(progress).toEqual([
+      [0, 1],
+      [1, 1],
+    ]);
     expect(await b.store.fileStatus(ef.attachment)).toBe("ready");
     expect(await b.store.fileUploaded(ef.attachment)).toBe(true);
     expect(await b.store.readFile(ef.attachment)).toEqual(bytesOf(1));
@@ -70,7 +91,13 @@ describe("attachments in the vault store", () => {
 
     const before = fileCalls(a.phone.calls);
     const second = await a.store.sync();
-    expect(second.files).toEqual({ uploaded: 1, downloaded: 0, pending: 0, corrupted: [], corruptedIds: [] });
+    expect(second.files).toEqual({
+      uploaded: 1,
+      downloaded: 0,
+      pending: 0,
+      corrupted: [],
+      corruptedIds: [],
+    });
     // status plus the two chunks the phone lacked.
     expect(fileCalls(a.phone.calls) - before).toBe(3);
     expect(a.phone.files.have(ef.attachment.id)).toEqual([0, 1, 2]);
@@ -122,7 +149,9 @@ describe("attachments in the vault store", () => {
       if (key === STORAGE_KEYS.vault) throw new Error("disk full");
       return set(key, value);
     };
-    await expect(a.store.putEntry("e1", loginWith("bank.pl", [ef.attachment]), [ef])).rejects.toThrow("disk full");
+    await expect(
+      a.store.putEntry("e1", loginWith("bank.pl", [ef.attachment]), [ef]),
+    ).rejects.toThrow("disk full");
     // The entry in memory refers to the file.
     expect(a.store.getEntry("e1")!.data.attachments).toEqual([ef.attachment]);
     expect(await a.files.ids()).toEqual([ef.attachment.id]);
@@ -169,7 +198,9 @@ describe("attachments in the vault store", () => {
     const ef = await encrypt(1);
     const other = await encrypt(2);
     // The phone holds chunks of another file under this id.
-    other.blobs.forEach((blob, i) => a.phone.files.put(ef.attachment.id, i, ef.attachment.chunks, blob, Date.now()));
+    other.blobs.forEach((blob, i) =>
+      a.phone.files.put(ef.attachment.id, i, ef.attachment.chunks, blob, Date.now()),
+    );
     await a.phone.addContent("e1", loginWith("bank.pl", [ef.attachment]));
 
     const first = await a.store.sync();
@@ -180,7 +211,13 @@ describe("attachments in the vault store", () => {
 
     const before = fileCalls(a.phone.calls);
     const second = await a.store.sync();
-    expect(second.files).toEqual({ uploaded: 0, downloaded: 0, pending: 0, corrupted: [], corruptedIds: [] });
+    expect(second.files).toEqual({
+      uploaded: 0,
+      downloaded: 0,
+      pending: 0,
+      corrupted: [],
+      corruptedIds: [],
+    });
     expect(fileCalls(a.phone.calls)).toBe(before);
     expect(await a.store.fileStatus(ef.attachment)).toBe("corrupted");
 
@@ -215,7 +252,9 @@ describe("attachments in the vault store", () => {
     const ef = await encrypt();
     clock += AUTO_LOCK_MS + 1;
 
-    await expect(a.store.putEntry("e1", loginWith("bank.pl", [ef.attachment]), [ef])).rejects.toThrow("Sejf jest zablokowany");
+    await expect(
+      a.store.putEntry("e1", loginWith("bank.pl", [ef.attachment]), [ef]),
+    ).rejects.toThrow("Sejf jest zablokowany");
     expect(await a.files.ids()).toEqual([]);
     await expect(a.store.readFile(ef.attachment)).rejects.toThrow("Sejf jest zablokowany");
   });
@@ -225,7 +264,20 @@ describe("attachments in the vault store", () => {
     const ef = await encrypt();
     // An id holding a login cannot take a note: refused after the type check, before anything is stored.
     await a.store.putEntry("e1", loginWith("bank.pl"));
-    await expect(a.store.putEntry("e1", { type: "note", name: "x", note: "", custom: [], fields: {}, attachments: [ef.attachment] } as unknown as p2p.EntryContentV3, [ef])).rejects.toThrow();
+    await expect(
+      a.store.putEntry(
+        "e1",
+        {
+          type: "note",
+          name: "x",
+          note: "",
+          custom: [],
+          fields: {},
+          attachments: [ef.attachment],
+        } as unknown as p2p.EntryContentV3,
+        [ef],
+      ),
+    ).rejects.toThrow();
     expect(await a.files.ids()).toEqual([]);
     // Too large an entry fails in upsert, after the files were stored.
     const huge = { ...loginWith("big"), note: "x".repeat(70_000), attachments: [ef.attachment] };
@@ -281,7 +333,9 @@ describe("attachments in the vault store", () => {
       await markComplete(id);
       clock += AUTO_LOCK_MS + 1;
     };
-    await expect(a.store.putEntry("e1", loginWith("bank.pl", [ef.attachment]), [ef])).rejects.toThrow("Sejf jest zablokowany");
+    await expect(
+      a.store.putEntry("e1", loginWith("bank.pl", [ef.attachment]), [ef]),
+    ).rejects.toThrow("Sejf jest zablokowany");
     expect(await a.files.ids()).toEqual([]);
     clock -= AUTO_LOCK_MS + 1;
     expect(a.store.getEntry("e1")).toBeUndefined();

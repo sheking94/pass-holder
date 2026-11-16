@@ -1,6 +1,5 @@
 package io.github.sheking94.passholder.core.autofill
 
-import java.io.File
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -8,6 +7,7 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonPrimitive
+import java.io.File
 
 internal fun readAutofillCases(name: String): List<JsonObject> {
     val text = File(System.getProperty("passholder.repoRoot"), "core/test-vectors/autofill/$name").readText()

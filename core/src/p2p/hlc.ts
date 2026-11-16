@@ -21,10 +21,17 @@ export function parseHlc(value: unknown): Hlc {
   if (typeof value !== "object" || value === null) throw new Error("Invalid HLC");
   const { ms, c, d } = value as Record<string, unknown>;
   if (
-    typeof ms !== "number" || !Number.isSafeInteger(ms) || ms < 0 ||
-    typeof c !== "number" || !Number.isSafeInteger(c) || c < 0 ||
-    typeof d !== "string" || d.length === 0 || d.length > MAX_DEVICE_ID_LENGTH
-  ) throw new Error("Invalid HLC");
+    typeof ms !== "number" ||
+    !Number.isSafeInteger(ms) ||
+    ms < 0 ||
+    typeof c !== "number" ||
+    !Number.isSafeInteger(c) ||
+    c < 0 ||
+    typeof d !== "string" ||
+    d.length === 0 ||
+    d.length > MAX_DEVICE_ID_LENGTH
+  )
+    throw new Error("Invalid HLC");
   return { ms, c, d };
 }
 

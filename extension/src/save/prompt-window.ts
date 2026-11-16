@@ -9,7 +9,12 @@ export const PROMPT_HEIGHT = 420;
 /** Badge text while the tab has a question waiting; clicking the icon shows it in the popup. */
 export const PROMPT_BADGE = "?";
 
-export interface Bounds { left: number; top: number; width: number; height: number }
+export interface Bounds {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
 
 export interface WindowApi {
   /** Bounds of the browser window holding the tab; undefined when unknown. */
@@ -63,7 +68,11 @@ export class PromptWindows {
         // The window is gone (closed while the service worker was stopped): open a new one.
       }
     }
-    const windowId = await this.api.open(this.url(candidateId), promptBounds(await this.api.tabWindow(tabId).catch(() => undefined)))
+    const windowId = await this.api
+      .open(
+        this.url(candidateId),
+        promptBounds(await this.api.tabWindow(tabId).catch(() => undefined)),
+      )
       .catch(() => undefined);
     if (windowId === undefined) return; // the badge still leads to the question in the popup
     all[String(tabId)] = { windowId, candidateId };
@@ -117,7 +126,13 @@ export function chromeWindowApi(): WindowApi {
       } catch {
         // "Bounds must be at least 50% within visible screen space" (the tab's window reaches off screen):
         // let Chrome place it.
-        w = await chrome.windows.create({ url, type: "popup", focused: true, width: bounds.width, height: bounds.height });
+        w = await chrome.windows.create({
+          url,
+          type: "popup",
+          focused: true,
+          width: bounds.width,
+          height: bounds.height,
+        });
       }
       return w?.id;
     },

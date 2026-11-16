@@ -2,19 +2,33 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { emptyLoginForms, formSignature, loginScope, readLogin } from "../../src/save/read-form.ts";
 
-function html(s: string): void { document.body.innerHTML = s; }
-function form(): HTMLFormElement { return document.querySelector("form")!; }
+function html(s: string): void {
+  document.body.innerHTML = s;
+}
+function form(): HTMLFormElement {
+  return document.querySelector("form")!;
+}
 
-afterEach(() => { document.body.innerHTML = ""; });
+afterEach(() => {
+  document.body.innerHTML = "";
+});
 
 describe("readLogin", () => {
   it("reads username and password", () => {
-    html(`<form><input name="username" value="jan"><input type="password" name="password" value="s3"></form>`);
-    expect(readLogin(form())).toEqual({ username: "jan", password: "s3", formSignature: "password,username" });
+    html(
+      `<form><input name="username" value="jan"><input type="password" name="password" value="s3"></form>`,
+    );
+    expect(readLogin(form())).toEqual({
+      username: "jan",
+      password: "s3",
+      formSignature: "password,username",
+    });
   });
 
   it("uses an email before the password when there is no username field", () => {
-    html(`<form><input name="email" autocomplete="off" value="jan@example.com"><input type="password" value="s3"></form>`);
+    html(
+      `<form><input name="email" autocomplete="off" value="jan@example.com"><input type="password" value="s3"></form>`,
+    );
     expect(readLogin(form())).toMatchObject({ username: "jan@example.com", password: "s3" });
   });
 
@@ -48,7 +62,9 @@ describe("readLogin", () => {
   });
 
   it("ignores hidden password fields", () => {
-    html(`<form><input name="username" value="jan"><input type="password" hidden value="x"></form>`);
+    html(
+      `<form><input name="username" value="jan"><input type="password" hidden value="x"></form>`,
+    );
     expect(readLogin(form())).toBeUndefined();
   });
 });
@@ -60,7 +76,9 @@ describe("loginScope", () => {
   });
 
   it("without a form returns the nearest ancestor with a visible password field", () => {
-    html(`<div id="outer"><div id="box"><input type="password" value="x"><button>Go</button></div></div>`);
+    html(
+      `<div id="outer"><div id="box"><input type="password" value="x"><button>Go</button></div></div>`,
+    );
     expect(loginScope(document.querySelector("button")!)).toBe(document.getElementById("box"));
   });
 

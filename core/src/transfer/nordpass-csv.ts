@@ -1,11 +1,35 @@
 import type { CustomField, DocumentKind, EntryContentV3 } from "../p2p/entry.ts";
 import { parseCsv, toCsv } from "./csv.ts";
-import { addressLine, labelled, sortForExport, type ImportSkip, type ParsedImport } from "./common.ts";
+import {
+  addressLine,
+  labelled,
+  sortForExport,
+  type ImportSkip,
+  type ParsedImport,
+} from "./common.ts";
 
 /** NordPass export header, in its order. Import finds columns by name, so the order there does not matter. */
 export const NORDPASS_COLUMNS = [
-  "name", "url", "username", "password", "note", "cardholdername", "cardnumber", "cvc", "expirydate", "zipcode",
-  "folder", "full_name", "phone_number", "email", "address1", "address2", "city", "country", "state", "totp",
+  "name",
+  "url",
+  "username",
+  "password",
+  "note",
+  "cardholdername",
+  "cardnumber",
+  "cvc",
+  "expirydate",
+  "zipcode",
+  "folder",
+  "full_name",
+  "phone_number",
+  "email",
+  "address1",
+  "address2",
+  "city",
+  "country",
+  "state",
+  "totp",
   "shared_folder",
 ] as const;
 
@@ -21,9 +45,13 @@ const DOCUMENT_KIND_NAMES: Record<DocumentKind, string> = {
 };
 
 const EMPTY_FILE = "Plik jest pusty";
-const NOT_NORDPASS = "To nie wygląda na eksport z NordPass: brak kolumn name/url w pierwszym wierszu";
+const NOT_NORDPASS =
+  "To nie wygląda na eksport z NordPass: brak kolumn name/url w pierwszym wierszu";
 const TYPES: Record<string, "login" | "note" | "card" | "contact"> = {
-  password: "login", note: "note", credit_card: "card", identity: "contact",
+  password: "login",
+  note: "note",
+  credit_card: "card",
+  identity: "contact",
 };
 /** Columns that do not make a row more than a note when guessing the type. */
 const NOTE_COLUMNS: readonly Column[] = ["name", "note", "folder", "shared_folder", "type"];
@@ -68,9 +96,15 @@ export function parseNordPassCsv(text: string): ParsedImport {
       kind = known;
     } else if (filled(get("cardnumber"))) {
       kind = "card";
-    } else if ((["full_name", "phone_number", "email", "address1"] as const).some((c) => filled(get(c)))) {
+    } else if (
+      (["full_name", "phone_number", "email", "address1"] as const).some((c) => filled(get(c)))
+    ) {
       kind = "contact";
-    } else if ([...index.keys()].every((c) => NOTE_COLUMNS.includes(c as Column) || !filled(get(c as Column)))) {
+    } else if (
+      [...index.keys()].every(
+        (c) => NOTE_COLUMNS.includes(c as Column) || !filled(get(c as Column)),
+      )
+    ) {
       kind = "note";
     } else {
       kind = "login";
@@ -87,8 +121,17 @@ export function parseNordPassCsv(text: string): ParsedImport {
     switch (kind) {
       case "login":
         entries.push({
-          type: "login", name, note, custom: [],
-          fields: { username: get("username"), password: get("password"), totp: get("totp"), urls: url ? [url] : [], androidApps: [] },
+          type: "login",
+          name,
+          note,
+          custom: [],
+          fields: {
+            username: get("username"),
+            password: get("password"),
+            totp: get("totp"),
+            urls: url ? [url] : [],
+            androidApps: [],
+          },
         });
         break;
       case "note":
@@ -96,8 +139,16 @@ export function parseNordPassCsv(text: string): ParsedImport {
         break;
       case "card":
         entries.push({
-          type: "card", name, note,
-          fields: { holder: get("cardholdername"), number: get("cardnumber"), expiry: get("expirydate"), cvc: get("cvc"), pin: "" },
+          type: "card",
+          name,
+          note,
+          fields: {
+            holder: get("cardholdername"),
+            number: get("cardnumber"),
+            expiry: get("expirydate"),
+            cvc: get("cvc"),
+            pin: "",
+          },
           custom: filled(get("zipcode")) ? [extra("Kod pocztowy", get("zipcode"))] : [],
         });
         break;
@@ -105,10 +156,20 @@ export function parseNordPassCsv(text: string): ParsedImport {
         const fullName = get("full_name").trim();
         const space = fullName.indexOf(" ");
         const street = [get("address1"), get("address2")].filter(filled).join(", ");
-        const address = { label: "", street, postalCode: get("zipcode"), city: get("city"), country: get("country") };
-        const hasAddress = ["address1", "address2", "zipcode", "city", "country"].some((c) => filled(get(c as Column)));
+        const address = {
+          label: "",
+          street,
+          postalCode: get("zipcode"),
+          city: get("city"),
+          country: get("country"),
+        };
+        const hasAddress = ["address1", "address2", "zipcode", "city", "country"].some((c) =>
+          filled(get(c as Column)),
+        );
         entries.push({
-          type: "contact", name, note,
+          type: "contact",
+          name,
+          note,
           fields: {
             firstName: space < 0 ? fullName : fullName.slice(0, space),
             lastName: space < 0 ? "" : fullName.slice(space + 1).trim(),
@@ -131,7 +192,8 @@ export function parseNordPassCsv(text: string): ParsedImport {
 
 // ---- export ----
 
-const line = (label: string, value: string): string[] => (value === "" ? [] : [`${label}: ${value}`]);
+const line = (label: string, value: string): string[] =>
+  value === "" ? [] : [`${label}: ${value}`];
 
 function exportRow(e: EntryContentV3): string[] {
   const v: Partial<Record<Column, string>> = { name: e.name };
@@ -139,13 +201,26 @@ function exportRow(e: EntryContentV3): string[] {
   switch (e.type) {
     case "login": {
       const f = e.fields;
-      Object.assign(v, { url: f.urls[0] ?? "", username: f.username, password: f.password, totp: f.totp });
-      lines = [...f.urls.slice(1).flatMap((u) => line("Adres strony", u)), ...f.androidApps.flatMap((a) => line("Aplikacja Androida", a))];
+      Object.assign(v, {
+        url: f.urls[0] ?? "",
+        username: f.username,
+        password: f.password,
+        totp: f.totp,
+      });
+      lines = [
+        ...f.urls.slice(1).flatMap((u) => line("Adres strony", u)),
+        ...f.androidApps.flatMap((a) => line("Aplikacja Androida", a)),
+      ];
       break;
     }
     case "card": {
       const f = e.fields;
-      Object.assign(v, { cardholdername: f.holder, cardnumber: f.number, cvc: f.cvc, expirydate: f.expiry });
+      Object.assign(v, {
+        cardholdername: f.holder,
+        cardnumber: f.number,
+        cvc: f.cvc,
+        expirydate: f.expiry,
+      });
       lines = line("PIN", f.pin);
       break;
     }
@@ -157,7 +232,13 @@ function exportRow(e: EntryContentV3): string[] {
       v.full_name = `${f.firstName} ${f.lastName}`.trim();
       v.phone_number = phone?.value ?? "";
       v.email = mail?.value ?? "";
-      if (addr) Object.assign(v, { address1: addr.street, zipcode: addr.postalCode, city: addr.city, country: addr.country });
+      if (addr)
+        Object.assign(v, {
+          address1: addr.street,
+          zipcode: addr.postalCode,
+          city: addr.city,
+          country: addr.country,
+        });
       lines = [
         ...phones.flatMap((p) => line(labelled("Telefon", p.label), p.value)),
         ...mails.flatMap((m) => line(labelled("E-mail", m.label), m.value)),
@@ -171,9 +252,12 @@ function exportRow(e: EntryContentV3): string[] {
     case "document": {
       const f = e.fields;
       lines = [
-        ...line("Rodzaj dokumentu", DOCUMENT_KIND_NAMES[f.kind] ?? ""), ...line("Numer", f.number),
-        ...line("Imię i nazwisko", f.fullName), ...line("Data wydania", f.issueDate),
-        ...line("Data ważności", f.expiryDate), ...line("Wystawca", f.issuer),
+        ...line("Rodzaj dokumentu", DOCUMENT_KIND_NAMES[f.kind] ?? ""),
+        ...line("Numer", f.number),
+        ...line("Imię i nazwisko", f.fullName),
+        ...line("Data wydania", f.issueDate),
+        ...line("Data ważności", f.expiryDate),
+        ...line("Wystawca", f.issuer),
       ];
       break;
     }

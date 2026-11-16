@@ -11,7 +11,8 @@ afterEach(() => {
 });
 
 const SAVED = "Zapisano lokalnie. Zsynchronizuj, gdy telefon będzie w trybie Synchronizacja.";
-const DOWNLOAD_WARNING = "Pobierasz plik, który zostanie odszyfrowany i będzie dostępny na tym urządzeniu.";
+const DOWNLOAD_WARNING =
+  "Pobierasz plik, który zostanie odszyfrowany i będzie dostępny na tym urządzeniu.";
 const TAB_WARNING =
   "Formularz otworzy się w karcie. Niezapisane zmiany z tego okna przepadną – najpierw zapisz wpis, jeśli coś zmieniłeś.";
 
@@ -25,7 +26,15 @@ function doc(name = "Dowód"): p2p.EntryContentV3 {
 
 /** A valid descriptor of a file this browser does not have (as if added on the phone). */
 function remoteAttachment(name = "skan.pdf"): files.Attachment {
-  return { id: crypto.randomUUID(), name, mime: "application/pdf", size: 1000, chunks: 1, sha256: "0".repeat(64), key: btoa("\0".repeat(32)) };
+  return {
+    id: crypto.randomUUID(),
+    name,
+    mime: "application/pdf",
+    size: 1000,
+    chunks: 1,
+    sha256: "0".repeat(64),
+    key: btoa("\0".repeat(32)),
+  };
 }
 
 function chooseFile(app: Element, file: File) {
@@ -45,7 +54,8 @@ async function save(app: Element) {
   await settle(() => app.querySelector(".status")?.textContent === SAVED);
 }
 
-const photo = () => new File([new Uint8Array([1, 2, 3, 4, 5])], "dowod.jpg", { type: "image/jpeg" });
+const photo = () =>
+  new File([new Uint8Array([1, 2, 3, 4, 5])], "dowod.jpg", { type: "image/jpeg" });
 
 /** The page as a tab (the file chooser works there). */
 async function inTab(entries: { id: string; content: p2p.EntryContentV3 }[] = []) {
@@ -62,7 +72,9 @@ function captureDownloads() {
     return `blob:${b.type}|${b.size}`;
   };
   URL.revokeObjectURL = () => undefined;
-  vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+  vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+    this: HTMLAnchorElement,
+  ) {
     const [type, size] = this.href.replace(/^blob:/, "").split("|");
     downloads.push({ name: this.download, type: type!, size: Number(size) });
   });
@@ -93,7 +105,11 @@ describe("attachments section in a tab", () => {
   it("refuses the 21st file", async () => {
     const { app, editView } = await inTab();
     await editView("document");
-    for (let i = 0; i < 20; i++) await addFile(app, new File([new Uint8Array([i + 1])], `plik${i}.txt`, { type: "text/plain" }));
+    for (let i = 0; i < 20; i++)
+      await addFile(
+        app,
+        new File([new Uint8Array([i + 1])], `plik${i}.txt`, { type: "text/plain" }),
+      );
     chooseFile(app, photo());
     await settle(() => status(app) === "Najwyżej 20 plików we wpisie");
     expect(app.querySelector(".status")!.classList.contains("error")).toBe(true);
@@ -168,7 +184,9 @@ describe("attachments section in a tab", () => {
   it("a file not here yet waits for a sync, a corrupted one says so; neither can be downloaded", async () => {
     const waiting = remoteAttachment("skan.pdf");
     const broken = remoteAttachment("zly.pdf");
-    const { app, editView, local } = await inTab([{ id: "d1", content: { ...doc(), attachments: [waiting, broken] } }]);
+    const { app, editView, local } = await inTab([
+      { id: "d1", content: { ...doc(), attachments: [waiting, broken] } },
+    ]);
     await local.set({ corruptFiles: [broken.id] });
     await editView("document", "d1");
     await settle(() => rows(app).length === 2);
@@ -184,7 +202,9 @@ describe("attachments section, robustness", () => {
   it("a file whose state cannot be read waits for a sync instead of breaking the form", async () => {
     const a = remoteAttachment("skan.pdf");
     const b = remoteAttachment("dowod.pdf");
-    const { app, store, editView } = await inTab([{ id: "d1", content: { ...doc(), attachments: [a, b] } }]);
+    const { app, store, editView } = await inTab([
+      { id: "d1", content: { ...doc(), attachments: [a, b] } },
+    ]);
     vi.spyOn(store, "fileStatus").mockImplementation(async (x) => {
       if (x.id === a.id) throw new Error("idb gone");
       return "ready";
@@ -237,7 +257,9 @@ describe("attachments section in the popup", () => {
     expect(createdTabs).toEqual([]);
     await click(byText(app, "+ Dodaj plik"));
     await click(byText(box()!, "Otwórz w karcie"));
-    expect(createdTabs).toEqual(["chrome-extension://passholder/popup.html?edit&type=document&id=d1"]);
+    expect(createdTabs).toEqual([
+      "chrome-extension://passholder/popup.html?edit&type=document&id=d1",
+    ]);
     expect(close).toHaveBeenCalled();
   }, 30_000);
 
@@ -324,7 +346,11 @@ describe("list and sync", () => {
     listView("", false, "document");
     const seen: string[] = [];
     const statusEl = app.querySelector(".status")!;
-    new MutationObserver(() => seen.push(statusEl.textContent ?? "")).observe(statusEl, { childList: true, characterData: true, subtree: true });
+    new MutationObserver(() => seen.push(statusEl.textContent ?? "")).observe(statusEl, {
+      childList: true,
+      characterData: true,
+      subtree: true,
+    });
     await click(byText(app, "Synchronizuj"));
     await settle(() => statusEl.textContent?.startsWith("Zsynchronizowano"));
     expect(statusEl.textContent).toContain(" Pliki: wysłano 1, pobrano 0.");
@@ -340,13 +366,26 @@ describe("filesNote", () => {
     await setupPopup();
     const { filesNote } = await import("../../src/views/list.ts");
     expect(filesNote(none)).toEqual({ text: "", error: false });
-    expect(filesNote({ ...none, uploaded: 2, downloaded: 1 })).toEqual({ text: " Pliki: wysłano 2, pobrano 1.", error: false });
-    expect(filesNote({ ...none, pending: 3 })).toEqual({ text: " Nie wszystkie pliki zsynchronizowane (3 czeka).", error: false });
+    expect(filesNote({ ...none, uploaded: 2, downloaded: 1 })).toEqual({
+      text: " Pliki: wysłano 2, pobrano 1.",
+      error: false,
+    });
+    expect(filesNote({ ...none, pending: 3 })).toEqual({
+      text: " Nie wszystkie pliki zsynchronizowane (3 czeka).",
+      error: false,
+    });
     expect(filesNote({ ...none, error: "Zaktualizuj aplikację na telefonie" })).toEqual({
       text: " Nie wszystkie pliki zsynchronizowane: Zaktualizuj aplikację na telefonie.",
       error: true,
     });
-    expect(filesNote({ ...none, downloaded: 1, corrupted: ["a.pdf", "b.jpg"], corruptedIds: ["1", "2"] })).toEqual({
+    expect(
+      filesNote({
+        ...none,
+        downloaded: 1,
+        corrupted: ["a.pdf", "b.jpg"],
+        corruptedIds: ["1", "2"],
+      }),
+    ).toEqual({
       text: " Pliki: wysłano 0, pobrano 1. Uszkodzone pliki: a.pdf, b.jpg.",
       error: true,
     });

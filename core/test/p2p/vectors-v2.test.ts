@@ -87,9 +87,19 @@ describe("test vectors v2", () => {
         // Old v2 content: not written any more, but read as a login.
         const parsed = parseEntryData(await decryptPayloadV2(key, e.id, e.blob));
         expect(parsed).toMatchObject({
-          v: 3, type: "login", name: e.data.name, note: "",
-          fields: { username: e.data.username, password: e.data.password, totp: "", urls: [], androidApps: [] },
-          custom: [], hlc: e.data.hlc,
+          v: 3,
+          type: "login",
+          name: e.data.name,
+          note: "",
+          fields: {
+            username: e.data.username,
+            password: e.data.password,
+            totp: "",
+            urls: [],
+            androidApps: [],
+          },
+          custom: [],
+          hlc: e.data.hlc,
         });
       } else {
         expect(await encryptPayloadV2(key, e.id, e.data, fromHex(e.nonce))).toBe(e.blob);
@@ -113,7 +123,9 @@ describe("test vectors v2", () => {
     it(`pairingMessage: ${m.description}`, async () => {
       const key = fromHex(m.key);
       expect(pairingAad(m.kind, m.from)).toBe(m.aad);
-      expect(await sealPairingMessage(key, m.kind, m.from, m.value as never, fromHex(m.nonce))).toBe(m.blob);
+      expect(
+        await sealPairingMessage(key, m.kind, m.from, m.value as never, fromHex(m.nonce)),
+      ).toBe(m.blob);
       expect(await openPairingMessage(key, m.kind, m.from, m.blob)).toEqual(m.value);
     });
   }

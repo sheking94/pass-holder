@@ -71,7 +71,8 @@ function checkBase64(value: unknown, field: string, length?: number): Uint8Array
     throw new Error(`${field} is not valid Base64`);
   }
   if (toBase64(bytes) !== value) throw new Error(`${field} is not canonical Base64`);
-  if (length !== undefined && bytes.length !== length) throw new Error(`${field} must be ${length} bytes`);
+  if (length !== undefined && bytes.length !== length)
+    throw new Error(`${field} must be ${length} bytes`);
   if (bytes.length === 0) throw new Error(`${field} must not be empty`);
   return bytes;
 }
@@ -83,8 +84,10 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 function parseIdentity(v: unknown): DeviceIdentity {
   if (!isRecord(v)) throw new Error("Identity must be an object");
   const { deviceId, name, staticPublicKey } = v;
-  if (typeof deviceId !== "string" || deviceId.length < 1 || deviceId.length > 64) throw new Error("Invalid deviceId");
-  if (typeof name !== "string" || name.length < 1 || name.length > MAX_DEVICE_NAME_LENGTH) throw new Error("Invalid name");
+  if (typeof deviceId !== "string" || deviceId.length < 1 || deviceId.length > 64)
+    throw new Error("Invalid deviceId");
+  if (typeof name !== "string" || name.length < 1 || name.length > MAX_DEVICE_NAME_LENGTH)
+    throw new Error("Invalid name");
   checkBase64(staticPublicKey, "staticPublicKey", 32);
   return { deviceId, name, staticPublicKey: staticPublicKey as string };
 }
@@ -100,9 +103,13 @@ function parseVaultInfo(v: unknown): VaultInfo {
   if (
     !Array.isArray(addresses) ||
     addresses.length > MAX_ADDRESSES ||
-    !addresses.every((a) => typeof a === "string" && a.length >= 1 && a.length <= MAX_ADDRESS_LENGTH)
+    !addresses.every(
+      (a) => typeof a === "string" && a.length >= 1 && a.length <= MAX_ADDRESS_LENGTH,
+    )
   ) {
-    throw new Error(`addresses must be at most ${MAX_ADDRESSES} strings of 1..${MAX_ADDRESS_LENGTH} chars`);
+    throw new Error(
+      `addresses must be at most ${MAX_ADDRESSES} strings of 1..${MAX_ADDRESS_LENGTH} chars`,
+    );
   }
   return {
     epoch: epoch as string,

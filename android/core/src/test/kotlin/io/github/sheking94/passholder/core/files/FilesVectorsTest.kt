@@ -99,7 +99,12 @@ class FilesVectorsTest {
             val nonces = f.jsonObject.getValue("nonces").jsonArray.map { Encoding.fromHex(it.jsonPrimitive.content) }
             val a = attachmentOf(f.jsonObject.getValue("attachment"))
             val enc = FileChunks.encryptFixed(
-                bytes, f.str("name"), f.str("mime"), f.str("id"), Encoding.fromHex(f.str("key")), nonces,
+                bytes,
+                f.str("name"),
+                f.str("mime"),
+                f.str("id"),
+                Encoding.fromHex(f.str("key")),
+                nonces,
             )
             assertEquals(a, enc.attachment)
             val aads = f.jsonObject.getValue("aads").jsonArray.map { it.jsonPrimitive.content }

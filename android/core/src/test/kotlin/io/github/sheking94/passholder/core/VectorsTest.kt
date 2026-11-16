@@ -2,20 +2,32 @@ package io.github.sheking94.passholder.core
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
-import org.junit.jupiter.api.Assertions.assertEquals
 import java.io.File
 
 @Serializable
 private data class KdfVector(
-    val description: String, val password: String, val passwordUtf8Nfc: String, val kdf: KdfParams,
-    val masterKey: String, val encKey: String, val authKey: String,
+    val description: String,
+    val password: String,
+    val passwordUtf8Nfc: String,
+    val kdf: KdfParams,
+    val masterKey: String,
+    val encKey: String,
+    val authKey: String,
 )
 
 @Serializable
-private data class SealVector(val description: String, val key: String, val plaintextHex: String, val aad: String, val nonce: String, val blob: String)
+private data class SealVector(
+    val description: String,
+    val key: String,
+    val plaintextHex: String,
+    val aad: String,
+    val nonce: String,
+    val blob: String,
+)
 
 @Serializable
 private data class Vectors(val kdf: List<KdfVector>, val seal: List<SealVector>)

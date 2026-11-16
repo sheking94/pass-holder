@@ -49,7 +49,13 @@ class TransferZipScreenTest : ScreenTestBase() {
         val stored = app().phoneStore.addFile(body.copyOf(), "umowa:2026?.txt", "text/plain")
         // Described but not on the phone (waiting for sync): left out and counted.
         val waiting = Attachment(
-            "00000000-0000-4000-8000-000000000009", "skan.pdf", "application/pdf", 10, 1, "0".repeat(64), Encoding.toBase64(ByteArray(32)),
+            "00000000-0000-4000-8000-000000000009",
+            "skan.pdf",
+            "application/pdf",
+            10,
+            1,
+            "0".repeat(64),
+            Encoding.toBase64(ByteArray(32)),
         )
         putEntry(EntryContentV3("bank.pl", "", LoginFields("jan.kowalski", "s3cret-haslo"), emptyList(), listOf(stored, waiting)))
         waitFor("bank.pl 📎 2")
@@ -73,7 +79,10 @@ class TransferZipScreenTest : ScreenTestBase() {
         var confirmed = false
         compose.runOnIdle { vm.confirmExport(masterPassword) { confirmed = true } }
         // The check resumes on the main looper, which Robolectric runs only when told to.
-        compose.waitUntil(60_000) { shadowOf(Looper.getMainLooper()).idle(); confirmed }
+        compose.waitUntil(60_000) {
+            shadowOf(Looper.getMainLooper()).idle()
+            confirmed
+        }
         compose.runOnIdle { vm.exportArchiveTo(Uri.fromFile(target)) }
         waitFor(
             "Wyeksportowano 1 wpis i 1 plik. Pominięto 1 plik, który czeka na synchronizację albo jest uszkodzony. " +
@@ -83,7 +92,12 @@ class TransferZipScreenTest : ScreenTestBase() {
         val read = HashMap<String, ByteArray>()
         val parsed = ArchiveReader(FileInputStream(target)).use { r ->
             r.readIndex().also { p ->
-                r.forEachFile(p.entries.flatMap { e -> e.files.map { it.path } }.toSet(), { path, reason -> skips[path] = reason }) { path, b ->
+                r.forEachFile(
+                    p.entries.flatMap { e ->
+                        e.files.map { it.path }
+                    }.toSet(),
+                    { path, reason -> skips[path] = reason },
+                ) { path, b ->
                     read[path] = b.copyOf()
                 }
             }
@@ -132,7 +146,10 @@ class TransferZipImportTest : ScreenTestBase() {
         assertEquals(files, filesOnDisk().sorted())
 
         // passholder.json taken out of the archive: the entries only, the files listed as skipped.
-        val index = ZipInputStream(kotlinArchive().inputStream()).use { z -> z.nextEntry; z.readBytes() }
+        val index = ZipInputStream(kotlinArchive().inputStream()).use { z ->
+            z.nextEntry
+            z.readBytes()
+        }
         compose.runOnIdle { vm.importFrom(Uri.fromFile(File(dir, "passholder.json").apply { writeBytes(index) })) }
         waitFor(
             "Pominięto 2 pliki: wpis 2, Zażółć ?.txt: importuj całe archiwum ZIP; wpis 2, a:b?.jpg: importuj całe archiwum ZIP.",
@@ -153,18 +170,21 @@ class TransferZipLockTest : ScreenTestBase() {
         var filesWhenLocked = -1
         val uri = Uri.parse("content://test.docs/archive.zip")
         // Handed out in small pieces; once the reader is inside the second file, the vault locks (as the auto-lock would).
-        shadowOf(app().contentResolver).registerInputStreamSupplier(uri, Supplier<InputStream> {
-            object : FilterInputStream(kotlinArchive().inputStream()) {
-                private var position = 0
-                override fun read(b: ByteArray, off: Int, len: Int): Int {
-                    if (position >= 1500 && filesWhenLocked < 0) {
-                        filesWhenLocked = filesOnDisk().size
-                        app().phoneStore.lock()
+        shadowOf(app().contentResolver).registerInputStreamSupplier(
+            uri,
+            Supplier<InputStream> {
+                object : FilterInputStream(kotlinArchive().inputStream()) {
+                    private var position = 0
+                    override fun read(b: ByteArray, off: Int, len: Int): Int {
+                        if (position >= 1500 && filesWhenLocked < 0) {
+                            filesWhenLocked = filesOnDisk().size
+                            app().phoneStore.lock()
+                        }
+                        return super.read(b, off, minOf(len, 256)).also { if (it > 0) position += it }
                     }
-                    return super.read(b, off, minOf(len, 256)).also { if (it > 0) position += it }
                 }
-            }
-        })
+            },
+        )
 
         compose.runOnIdle { vm.importFrom(uri) }
         waitFor("PassHolder jest zablokowany")

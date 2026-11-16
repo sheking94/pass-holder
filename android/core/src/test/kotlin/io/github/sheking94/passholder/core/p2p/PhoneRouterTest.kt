@@ -127,7 +127,11 @@ class PhoneRouterTest {
         val hostKey = NoiseKeys.generate()
         val key = NoiseKeys.generate()
         val host = P2pHost(
-            hostKey, { listOf(PairedDevice("a", "a", key.publicKey)) }, MemorySyncStore(), "e", { emptyList() },
+            hostKey,
+            { listOf(PairedDevice("a", "a", key.publicKey)) },
+            MemorySyncStore(),
+            "e",
+            { emptyList() },
             files = io.github.sheking94.passholder.core.files.MemoryFileStore(),
         )
         val router = PhoneRouter(pairing, { host }, { count++ })

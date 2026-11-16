@@ -21,7 +21,14 @@ class HostStateTest {
 
     private object XorWrapper : SecretWrapper {
         override fun wrap(secret: ByteArray): String = Encoding.toBase64(ByteArray(secret.size) { (secret[it].toInt() xor 0x5A).toByte() })
-        override fun unwrap(wrapped: String): ByteArray = Encoding.fromBase64(wrapped).let { b -> ByteArray(b.size) { (b[it].toInt() xor 0x5A).toByte() } }
+        override fun unwrap(wrapped: String): ByteArray = Encoding.fromBase64(wrapped).let { b ->
+            ByteArray(b.size) {
+                (
+                    b[it].toInt() xor
+                        0x5A
+                    ).toByte()
+            }
+        }
     }
 
     private fun store(wrapper: SecretWrapper = PlainSecretWrapper) = HostStateStore(File(dir, "host.json"), wrapper)
