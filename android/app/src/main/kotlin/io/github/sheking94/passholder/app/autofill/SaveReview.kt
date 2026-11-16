@@ -30,12 +30,19 @@ data class SaveDraft(val name: String, val username: String, val password: Strin
     override fun toString() = "SaveDraft(name=$name)"
 }
 
-/** The vault's logins for [request], in `matchApp` order. */
-private fun matchingLogins(request: AppRequest, entries: List<PhoneEntry>): List<PhoneEntry> =
-    matchApp(request, entries.filter { it.content.fields is LoginFields }) {
-        val f = it.content.fields as LoginFields
-        AppCandidate(it.content.name, f.urls, f.androidApps)
+/** The vault's logins for a request, in `matchApp` order: only [exact] may be updated (review V3-S2). */
+private class MatchingLogins(val exact: List<PhoneEntry>, val related: List<PhoneEntry>)
+
+private fun matchingLogins(request: AppRequest, entries: List<PhoneEntry>): MatchingLogins {
+    val logins = entries.filter { it.content.fields is LoginFields }
+    val candidate = { e: PhoneEntry ->
+        val f = e.content.fields as LoginFields
+        AppCandidate(e.content.name, f.urls, f.androidApps)
     }
+    val exactIds = matchApp(request, logins, exactOnly = true, candidate = candidate).map { it.id }.toSet()
+    val all = matchApp(request, logins, candidate = candidate)
+    return MatchingLogins(all.filter { it.id in exactIds }, all.filter { it.id !in exactIds })
+}
 
 private fun PhoneEntry.savedLogin(): SavedLogin {
     val f = content.fields as LoginFields
@@ -52,15 +59,18 @@ class SaveReview(val data: SaveData, entries: List<PhoneEntry>, private val appL
     val target: SaveTarget? = saveTargetFor(data.app)
 
     private val saved: List<SavedLogin>
+    /** Subdomain matches: they only tell that the login is saved already. */
+    private val related: List<SavedLogin>
     private val names: Map<String, String>
 
     init {
         val logins = matchingLogins(data.app, entries)
-        saved = logins.map { it.savedLogin() }
-        names = logins.associate { it.id to it.content.name }
+        saved = logins.exact.map { it.savedLogin() }
+        related = logins.related.map { it.savedLogin() }
+        names = logins.exact.associate { it.id to it.content.name }
     }
 
-    fun decision(draft: SaveDraft): SaveDecision = decideSave(draft.username, draft.password, saved)
+    fun decision(draft: SaveDraft): SaveDecision = decideSave(draft.username, draft.password, saved, related)
 
     /** The submitted login; the name as a new entry would get it (spec 3.3). */
     fun initialDraft(): SaveDraft {
@@ -87,7 +97,7 @@ class SaveReview(val data: SaveData, entries: List<PhoneEntry>, private val appL
 
     private fun intent(draft: SaveDraft): SaveDecision {
         // A password longer than every saved one equals none of them, so only the username decides.
-        val probe = draft.password.ifEmpty { saved.joinToString("") { it.password } + "x" }
+        val probe = draft.password.ifEmpty { (saved + related).joinToString("") { it.password } + "x" }
         return decision(draft.copy(password = probe))
     }
 }
@@ -106,7 +116,8 @@ fun saveReviewed(app: PassHolderApp, review: SaveReview, draft: SaveDraft): Save
     if (!store.isUnlocked) return SaveOutcome.LOCKED
     val target = review.target ?: return SaveOutcome.NOTHING
     val logins = matchingLogins(review.data.app, store.entries())
-    return when (val decision = decideSave(draft.username, draft.password, logins.map { it.savedLogin() })) {
+    val decision = decideSave(draft.username, draft.password, logins.exact.map { it.savedLogin() }, logins.related.map { it.savedLogin() })
+    return when (decision) {
         SaveDecision.None -> SaveOutcome.NOTHING
         SaveDecision.Create -> {
             val name = draft.name.trim().ifEmpty { review.initialDraft().name }
@@ -117,7 +128,7 @@ fun saveReviewed(app: PassHolderApp, review: SaveReview, draft: SaveDraft): Save
             SaveOutcome.SAVED
         }
         is SaveDecision.Update -> {
-            val entry = logins.first { it.id == decision.id }
+            val entry = logins.exact.first { it.id == decision.id }
             store.upsertContent(entry.id, withPassword(entry.content, draft.password))
             SaveOutcome.UPDATED
         }

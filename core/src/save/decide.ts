@@ -13,13 +13,23 @@ type LoginEntry = EntryContentV3 & { type: "login" };
 
 const normalize = (username: string) => username.trim().toLowerCase();
 
-/** Whether to save a submitted login (spec 3.2); `logins` are in `matchLogins` order. */
-export function decideSave(username: string, password: string, logins: readonly SavedLogin[]): SaveDecision {
+/**
+ * Whether to save a submitted login (spec 3.2). `logins` are the exact-host matches in `matchLogins` order: only they
+ * can be updated (review V3-S2). `related` (subdomain matches) only stop the question when the same login and
+ * password are already saved there.
+ */
+export function decideSave(
+  username: string,
+  password: string,
+  logins: readonly SavedLogin[],
+  related: readonly SavedLogin[] = [],
+): SaveDecision {
   if (password === "") return { kind: "none" };
-  const [first, ...rest] = logins.filter((l) => normalize(l.username) === normalize(username));
-  if (!first) return { kind: "create" };
-  if (first.password === password || rest.some((l) => l.password === password)) return { kind: "none" };
-  return { kind: "update", id: first.id };
+  const same = (l: SavedLogin) => normalize(l.username) === normalize(username);
+  const sameLogins = logins.filter(same);
+  if ([...sameLogins, ...related.filter(same)].some((l) => l.password === password)) return { kind: "none" };
+  const first = sameLogins[0];
+  return first ? { kind: "update", id: first.id } : { kind: "create" };
 }
 
 /** New login for a `saveUrl` address (spec 3.3). */

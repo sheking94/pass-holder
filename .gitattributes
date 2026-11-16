@@ -7,3 +7,4 @@ android/gradlew text eol=lf
 *.jar binary
 core/test-vectors/transfer/*.json text eol=lf
 core/test-vectors/transfer/*.csv -text
+android/core/src/main/resources/**/public_suffix_rules.txt eol=lf

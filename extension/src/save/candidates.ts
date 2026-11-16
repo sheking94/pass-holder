@@ -53,6 +53,7 @@ interface Candidate {
 }
 
 type Candidates = Record<string, Candidate>;
+type SavedLogin = save.SavedLogin & { entryName: string };
 type Answer = { ok: true } | { ok: false; error: string };
 
 const GONE = "Pytanie o zapis wygasło";
@@ -145,20 +146,25 @@ export class SaveCandidates {
     return found && (await this.forTab(found.tabId));
   }
 
-  /** Saved logins matching the candidate's address; null when the vault is locked. */
-  private async matching(store: VaultStore, c: Candidate, touch: boolean): Promise<Array<{ id: string; entryName: string; username: string; password: string }> | null> {
+  /**
+   * Saved logins for the candidate's address; null when the vault is locked. Only `exact` (same host) may be updated
+   * (review V3-S2); `related` (subdomain matches) only tell that the login is saved already.
+   */
+  private async matching(store: VaultStore, c: Candidate, touch: boolean): Promise<{ exact: SavedLogin[]; related: SavedLogin[] } | null> {
     if (!(await store.resume({ touch }))) return null;
-    return autofill
-      .matchLogins(c.url, store.listEntries("login"), (e) => ({ name: e.data.name, urls: e.data.type === "login" ? e.data.fields.urls : [] }))
-      .flatMap((e) => (e.data.type === "login"
-        ? [{ id: e.id, entryName: e.data.name, username: e.data.fields.username, password: e.data.fields.password }]
-        : []));
+    const entries = store.listEntries("login");
+    const candidate = (e: (typeof entries)[number]) => ({ name: e.data.name, urls: e.data.type === "login" ? e.data.fields.urls : [] });
+    const exactIds = new Set(autofill.matchLogins(c.url, entries, candidate, { exactOnly: true }).map((e) => e.id));
+    const all = autofill.matchLogins(c.url, entries, candidate).flatMap((e) => (e.data.type === "login"
+      ? [{ id: e.id, entryName: e.data.name, username: e.data.fields.username, password: e.data.fields.password }]
+      : []));
+    return { exact: all.filter((l) => exactIds.has(l.id)), related: all.filter((l) => !exactIds.has(l.id)) };
   }
 
   /** What to do with the given login and password; null when the vault is locked. */
   private async decideFor(store: VaultStore, c: Candidate, username: string, password: string, touch: boolean): Promise<save.SaveDecision | null> {
     const logins = await this.matching(store, c, touch);
-    return logins && save.decideSave(username, password, logins);
+    return logins && save.decideSave(username, password, logins.exact, logins.related);
   }
 
   /** What to do with the candidate; null when the vault is locked. */
@@ -247,7 +253,7 @@ export class SaveCandidates {
     if (decision === null) return { ...base, password: "", decision: null, locked: true };
     const info = { ...base, password: c.password, decision: decision.kind, locked: false };
     if (decision.kind !== "update") return info;
-    return { ...info, entryName: (await this.matching(this.deps.store(), c, false))?.find((l) => l.id === decision.id)?.entryName };
+    return { ...info, entryName: (await this.matching(this.deps.store(), c, false))?.exact.find((l) => l.id === decision.id)?.entryName };
   }
 
   preview(m: SavePreviewMessage, s: Sender): Promise<SavePreviewResponse> {
@@ -262,13 +268,13 @@ export class SaveCandidates {
     if (!logins) return undefined;
     // Without a password only the login counts (like the phone's review): update the first entry with it, else create.
     const wanted = m.username.trim().toLowerCase();
-    const sameLogin = logins.find((l) => l.username.trim().toLowerCase() === wanted);
+    const sameLogin = logins.exact.find((l) => l.username.trim().toLowerCase() === wanted);
     const decision =
-      m.password !== "" ? save.decideSave(m.username, m.password, logins)
+      m.password !== "" ? save.decideSave(m.username, m.password, logins.exact, logins.related)
       : sameLogin ? { kind: "update" as const, id: sameLogin.id }
       : { kind: "create" as const };
     if (decision.kind !== "update") return { decision: decision.kind };
-    return { decision: "update", entryName: logins.find((l) => l.id === decision.id)?.entryName };
+    return { decision: "update", entryName: logins.exact.find((l) => l.id === decision.id)?.entryName };
   }
 
   answer(m: SaveAnswerMessage, s: Sender): Promise<Answer> {

@@ -157,6 +157,61 @@
         "kind": "none"
       },
       "why": "empty password: nothing to save"
+    },
+    {
+      "username": "jan",
+      "password": "pw",
+      "logins": [],
+      "related": [
+        {
+          "id": "a",
+          "username": "jan",
+          "password": "pw"
+        }
+      ],
+      "expected": {
+        "kind": "none"
+      },
+      "why": "same login and password saved for the parent domain: no question"
+    },
+    {
+      "username": "jan",
+      "password": "new",
+      "logins": [],
+      "related": [
+        {
+          "id": "a",
+          "username": "jan",
+          "password": "pw"
+        }
+      ],
+      "expected": {
+        "kind": "create"
+      },
+      "why": "a parent-domain login is never updated from a subdomain"
+    },
+    {
+      "username": "jan",
+      "password": "new",
+      "logins": [
+        {
+          "id": "b",
+          "username": "jan",
+          "password": "old"
+        }
+      ],
+      "related": [
+        {
+          "id": "a",
+          "username": "jan",
+          "password": "pw"
+        }
+      ],
+      "expected": {
+        "kind": "update",
+        "id": "b"
+      },
+      "why": "the exact-host login is updated"
     }
   ]
 }

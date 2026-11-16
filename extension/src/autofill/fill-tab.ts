@@ -79,7 +79,10 @@ export async function fillTab(store: VaultStore, tabs: TabApi, tabId: number, en
   return filled > 0 ? { ok: true } : fail(NO_FIELDS[plan.kind]);
 }
 
-/** The Ctrl+Shift+L shortcut: fills when exactly one login matches the page, otherwise shows the popup. */
+/**
+ * The Ctrl+Shift+L shortcut: fills when exactly one login is saved for the page's exact host, otherwise shows the popup
+ * (a subdomain match always needs a choice there, review V3-S2).
+ */
 export async function onFillCommand(
   store: VaultStore,
   tabs: TabApi,
@@ -87,7 +90,12 @@ export async function onFillCommand(
   openPopup: () => Promise<void>,
 ): Promise<void> {
   if (tab?.id === undefined || !tab.url || !(await store.resume())) return openPopup();
-  const matches = matchLogins(tab.url, store.listEntries("login"), (e) => ({ name: e.data.name, urls: e.data.type === "login" ? e.data.fields.urls : [] }));
+  const matches = matchLogins(
+    tab.url,
+    store.listEntries("login"),
+    (e) => ({ name: e.data.name, urls: e.data.type === "login" ? e.data.fields.urls : [] }),
+    { exactOnly: true },
+  );
   if (matches.length !== 1) return openPopup();
   const result = await fillTab(store, tabs, tab.id, matches[0]!.id);
   if (!result.ok) await openPopup();

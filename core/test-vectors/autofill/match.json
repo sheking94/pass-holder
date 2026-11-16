@@ -125,6 +125,66 @@
       "saved": "google.com",
       "expected": "subdomain",
       "why": "login subdomain"
+    },
+    {
+      "page": "https://user.github.io",
+      "saved": "github.io",
+      "expected": null,
+      "why": "saved host is a public suffix (private section)"
+    },
+    {
+      "page": "https://x.user.github.io",
+      "saved": "user.github.io",
+      "expected": "subdomain",
+      "why": "subdomain inside one registrable domain under a private suffix"
+    },
+    {
+      "page": "https://other.github.io",
+      "saved": "user.github.io",
+      "expected": null,
+      "why": "sibling under a public suffix"
+    },
+    {
+      "page": "https://shop.co.uk",
+      "saved": "co.uk",
+      "expected": null,
+      "why": "saved host is a public suffix (ICANN section)"
+    },
+    {
+      "page": "https://mail.example.co.uk",
+      "saved": "example.co.uk",
+      "expected": "subdomain",
+      "why": "subdomain under a two-label suffix"
+    },
+    {
+      "page": "https://x.blogspot.com",
+      "saved": "https://www.blogspot.com",
+      "expected": null,
+      "why": "www stripped to a public suffix"
+    },
+    {
+      "page": "https://a.b.kawasaki.jp",
+      "saved": "b.kawasaki.jp",
+      "expected": null,
+      "why": "wildcard rule: b.kawasaki.jp is a public suffix"
+    },
+    {
+      "page": "https://a.city.kawasaki.jp",
+      "saved": "city.kawasaki.jp",
+      "expected": "subdomain",
+      "why": "exception rule: city.kawasaki.jp is registrable"
+    },
+    {
+      "page": "https://a.b.example",
+      "saved": "b.example",
+      "expected": "subdomain",
+      "why": "unknown TLD uses the default rule"
+    },
+    {
+      "page": "https://a.example",
+      "saved": "example",
+      "expected": null,
+      "why": "unknown TLD itself is a public suffix"
     }
   ]
 }

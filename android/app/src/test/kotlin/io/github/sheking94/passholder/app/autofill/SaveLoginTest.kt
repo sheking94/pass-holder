@@ -5,7 +5,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.github.sheking94.passholder.app.PassHolderApp
 import io.github.sheking94.passholder.app.TestSecretWrapper
 import io.github.sheking94.passholder.core.autofill.AppRequest
+import io.github.sheking94.passholder.core.p2p.CustomField
 import io.github.sheking94.passholder.core.p2p.EntryContentV3
+import io.github.sheking94.passholder.core.save.PREVIOUS_PASSWORD_LABEL
 import io.github.sheking94.passholder.core.p2p.LoginFields
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -72,14 +74,9 @@ class SaveLoginTest {
         assertEquals(SaveOutcome.UPDATED, saveLogin(app, SaveData(browser("github.com"), " JKowalski ", "new"), label))
         val (id, content) = logins().single()
         assertEquals("1", id)
-        // Group 1 of the V3 review: the old password is kept in a hidden custom field.
-        assertEquals(
-            EntryContentV3(
-                "GitHub", "notatka", LoginFields("jkowalski", "new", urls = listOf("https://github.com")),
-                listOf(io.github.sheking94.passholder.core.p2p.CustomField(io.github.sheking94.passholder.core.save.PREVIOUS_PASSWORD_LABEL, "s3cret", true)),
-            ),
-            content,
-        )
+        // The replaced password stays in the hidden field „Poprzednie hasło” (review V3-S1).
+        val previous = listOf(CustomField(PREVIOUS_PASSWORD_LABEL, "s3cret", hidden = true))
+        assertEquals(EntryContentV3("GitHub", "notatka", LoginFields("jkowalski", "new", urls = listOf("https://github.com")), previous), content)
     }
 
     @Test

@@ -425,7 +425,7 @@ Każda grupa to jeden wątek i jeden PR, w tej kolejności:
 1. **Pytanie o zapis i wypełnianie we wtyczce:** V3-S1, V3-N3, V3-S4, V3-I4 (`isTrusted`, ochrona panelu, widoczność
    pól, nadawca `fill`). **Zrobione** (2026-11-15), zob. „Stan poprawek” niżej.
 2. **Dopasowanie adresów:** V3-S2 i V3-N5 (lista sufiksów publicznych w TS i Kotlinie, skrót tylko przy dokładnym
-   dopasowaniu, brak schematu = `http`).
+   dopasowaniu, brak schematu = `http`). **Zrobione** (2026-11-15), zob. „Stan poprawek” niżej.
 3. **Zaufane przeglądarki na Androidzie:** V3-S3 (certyfikaty podpisu). **Zrobione.**
 4. **Serwer telefonu:** V3-N1, V3-N2 (limit sesji na urządzenie, odrzucenie powtórzeń, aktywność po uwierzytelnieniu,
    `Origin`/`Content-Type`, interfejsy).
@@ -458,4 +458,19 @@ Każda grupa to jeden wątek i jeden PR, w tej kolejności:
     nieprzykrytych (`elementFromPoint`; etykieta pola nad nim się nie liczy). Sprawdzone w Chromium. Android
     (`ViewNodeReader`, wspomniany w raporcie jako „podobnie”) bez zmian: poza grupą 1, do osobnego wątku.
   - V3-I4: `fill` i `password-copied` tylko ze stron wtyczki (`sender.url` `chrome-extension://<id>/`).
-
+- **Grupa 2 (V3-S2, V3-N5), 2026-11-15:**
+  - V3-S2: wbudowana Public Suffix List (ICANN i prywatne, 10 449 reguł z publicsuffix.org, w ASCII), jedna lista
+    generowana skryptem `core/scripts/gen-psl.ts` do `core/src/autofill/psl-rules.ts` i zasobu Kotlina
+    `public_suffix_rules.txt` (test pilnuje, że są równe). Subdomena pasuje tylko, gdy zapisany host leży w domenie
+    rejestrowalnej strony: wpis `github.io` czy `co.uk` nie pasuje do cudzych subdomen. Ctrl+Shift+L wypełnia tylko
+    login dokładnego hosta (`matchLogins(..., { exactOnly: true })`), inaczej otwiera okienko. Pytanie o zapis
+    (wtyczka i telefon) zmienia hasło tylko we wpisie dokładnego hosta; login i hasło zapisane dla domeny nadrzędnej
+    tylko wyciszają pytanie (`decideSave(..., related)`), więc logowanie na `accounts.google.com` z wpisem
+    `google.com` nie pyta za każdym razem. Zostaje (zgodnie z decyzją): „Pasujące do tej strony” i podpowiedzi na
+    telefonie nadal pokazują wpis domeny na jej subdomenach (np. `ktos.serwis.pl`, gdy `serwis.pl` nie jest na PSL),
+    ale wymagają wyboru użytkownika. Koszt: paczki wtyczki `background.js` i `popup.js` większe o ok. 160 KB.
+  - V3-N5: brak schematu od przeglądarki (`webScheme`, Android 8.0–8.1) = `http` (`pageScheme`): bez loginów `https`
+    (i adresów bez schematu), bez kart, nowy login jako `http://domena`. Zapis bez podglądu na 8.x zostaje, ale nie
+    zmieni już wpisu `https` ani wpisu domeny nadrzędnej. Na Androidzie 9+ przeglądarka podaje schemat
+    (`ViewStructure.setWebDomain` dostaje pełny adres; założenie z kodu Androida), więc bez zmian w działaniu; na
+    prawdziwym telefonie niesprawdzone (T30).

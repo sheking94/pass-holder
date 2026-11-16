@@ -50,7 +50,8 @@
     {
       "request": {
         "packageName": "com.android.chrome",
-        "webDomain": "accounts.google.com"
+        "webDomain": "accounts.google.com",
+        "webScheme": "https"
       },
       "logins": [
         {
@@ -276,6 +277,49 @@
         "Chrome login"
       ],
       "why": "unverified browser is treated as an ordinary app"
+    },
+    {
+      "request": {
+        "packageName": "com.android.chrome",
+        "webDomain": "bank.pl"
+      },
+      "logins": [
+        {
+          "name": "Bank",
+          "urls": [
+            "bank.pl"
+          ],
+          "androidApps": []
+        },
+        {
+          "name": "Bank https",
+          "urls": [
+            "https://bank.pl"
+          ],
+          "androidApps": []
+        }
+      ],
+      "expected": [],
+      "why": "no reported scheme counts as http: https logins are not offered (review V3-N5)"
+    },
+    {
+      "request": {
+        "packageName": "com.android.chrome",
+        "webDomain": "bank.pl"
+      },
+      "logins": [
+        {
+          "name": "Bank http",
+          "urls": [
+            "http://bank.pl"
+          ],
+          "androidApps": []
+        }
+      ],
+      "expected": [
+        "Bank http"
+      ],
+      "why": "no reported scheme still matches saved http"
     }
   ]
 }

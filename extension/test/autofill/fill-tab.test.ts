@@ -151,6 +151,27 @@ describe("onFillCommand", () => {
     expect(t2.injected).toEqual([]);
   }, 30_000);
 
+  it("opens the popup when the only login matches as a subdomain (review V3-S2)", async () => {
+    const { store } = await setup();
+    const p = popup();
+    const t = fakeTabs("https://x.bank.pl/");
+    await onFillCommand(store, t.api, { id: 7, url: "https://x.bank.pl/" }, p.open);
+    expect(p.calls.n).toBe(1);
+    expect(t.injected).toEqual([]);
+    // The popup's „Wypełnij” still fills it: the user chose the login.
+    expect(await fillTab(store, t.api, 7, "l1")).toEqual({ ok: true });
+  }, 30_000);
+
+  it("fills the only exact login even with subdomain matches next to it", async () => {
+    const { store } = await setup();
+    await store.putEntry("l2", login("Bank X", ["https://x.bank.pl"]));
+    const p = popup();
+    const t = fakeTabs("https://x.bank.pl/");
+    await onFillCommand(store, t.api, { id: 7, url: "https://x.bank.pl/" }, p.open);
+    expect(p.calls.n).toBe(0);
+    expect(t.injected).toHaveLength(1);
+  }, 30_000);
+
   it("opens the popup when locked or the tab is unknown, and when the fill fails", async () => {
     const { store, session } = await setup();
     const unknown = popup();

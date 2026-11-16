@@ -1,6 +1,7 @@
 package io.github.sheking94.passholder.core.save
 
 import io.github.sheking94.passholder.core.autofill.AppRequest
+import io.github.sheking94.passholder.core.autofill.pageScheme
 import io.github.sheking94.passholder.core.p2p.CustomField
 import io.github.sheking94.passholder.core.p2p.EntryContentV3
 import io.github.sheking94.passholder.core.p2p.LoginFields
@@ -16,12 +17,23 @@ sealed interface SaveDecision {
 
 private fun normalize(username: String) = username.trim().lowercase()
 
-/** Whether to save a submitted login (spec 3.2); [logins] are in `matchLogins` order. */
-fun decideSave(username: String, password: String, logins: List<SavedLogin>): SaveDecision {
+/**
+ * Whether to save a submitted login (spec 3.2). [logins] are the exact-host matches in `matchLogins` order: only they
+ * can be updated (review V3-S2). [related] (subdomain matches) only stop the question when the same login and
+ * password are already saved there.
+ */
+fun decideSave(
+    username: String,
+    password: String,
+    logins: List<SavedLogin>,
+    related: List<SavedLogin> = emptyList(),
+): SaveDecision {
     if (password.isEmpty()) return SaveDecision.None
     val same = logins.filter { normalize(it.username) == normalize(username) }
+    if ((same + related.filter { normalize(it.username) == normalize(username) }).any { it.password == password }) {
+        return SaveDecision.None
+    }
     val first = same.firstOrNull() ?: return SaveDecision.Create
-    if (same.any { it.password == password }) return SaveDecision.None
     return SaveDecision.Update(first.id)
 }
 
@@ -34,7 +46,7 @@ sealed interface SaveTarget {
 fun saveTargetFor(request: AppRequest): SaveTarget? {
     val domain = request.webDomain
     if (request.browserVerified && !domain.isNullOrEmpty()) {
-        val url = saveUrl("${request.webScheme ?: "https"}://$domain") ?: return null
+        val url = saveUrl("${pageScheme(request)}://$domain") ?: return null
         return SaveTarget.Web(url)
     }
     return if (request.packageName.isEmpty()) null else SaveTarget.App(request.packageName)

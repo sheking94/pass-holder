@@ -47,3 +47,16 @@ describe("matchLogins", () => {
     expect(matchLogins("chrome://settings", [{ name: "S", urls: ["settings"] }], id)).toEqual([]);
   });
 });
+
+describe("matchLogins exactOnly", () => {
+  const id = (x: { name: string; urls: string[] }) => x;
+
+  it("leaves out subdomain matches", () => {
+    const items = [
+      { name: "Domain", urls: ["example.com"] },
+      { name: "Host", urls: ["x.example.com"] },
+    ];
+    expect(matchLogins("https://x.example.com", items, id, { exactOnly: true }).map((x) => x.name)).toEqual(["Host"]);
+    expect(matchLogins("https://y.example.com", items, id, { exactOnly: true })).toEqual([]);
+  });
+});

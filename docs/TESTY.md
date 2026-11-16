@@ -52,9 +52,9 @@ katalogu pakietu.
 
 | Pakiet | Pliki | Testy | Uwagi |
 |---|---|---|---|
-| `core` | 36 | 644 | w tym `core/test/p2p/`, `core/test/files/`, `core/test/autofill/` i `core/test/save/` |
-| `extension` | 35 | 410 | w tym widoki w happy-dom (`extension/test/ui/`), `extension/test/autofill/` i `extension/test/save/`; `background.ts` bez testów (logika w `fill-tab.ts` i `save/candidates.ts`) |
-| `android/core` | 49 | 787 | 5 pomijane bez `PASSHOLDER_INTEROP_TEST=1`; w tym `autofill/` (wektory `core/test-vectors/autofill/`) i `save/` (wektory `core/test-vectors/save/`) |
+| `core` | 37 | 678 | w tym `core/test/p2p/`, `core/test/files/`, `core/test/autofill/` i `core/test/save/` |
+| `extension` | 35 | 413 | w tym widoki w happy-dom (`extension/test/ui/`), `extension/test/autofill/` i `extension/test/save/`; `background.ts` bez testów (logika w `fill-tab.ts` i `save/candidates.ts`) |
+| `android/core` | 50 | 818 | 5 pomijane bez `PASSHOLDER_INTEROP_TEST=1`; w tym `autofill/` (wektory `core/test-vectors/autofill/`) i `save/` (wektory `core/test-vectors/save/`) |
 | `android/app` | 39 | 222 | Robolectric, zrzuty ekranów; w tym `autofill/`, ekrany autouzupełniania, zapis po odblokowaniu i załączniki (16 klas, po jednym teście), eksport i import ZIP (`TransferZip*`) |
 
 ## Co testują pliki
@@ -96,9 +96,12 @@ znakami, spacją, cyframi, „résumé”/„resume”); generuje je `core/scrip
 wymusza `eol=lf` dla `core/test-vectors/transfer/*.json` i `-text` dla wszystkich `core/test-vectors/transfer/*.csv` (CRLF w plikach),
 żeby Windows (`autocrlf`) nie zmieniał bajtów.
 
-`core/test/autofill/*.test.ts` (3 pliki) odtwarzają wektory `core/test-vectors/autofill/`: `match.json` (host, subdomena,
-`www.`, schemat, port, IP, `evilgoogle.com`), `fields.json` (opis pola → rodzaj) i `values.json` (karta: formaty
-ważności, `<select>`; kontakt, data urodzenia); w Kotlinie te same pliki dojdą w kroku Android.
+`core/test/autofill/*.test.ts` (4 pliki) odtwarzają wektory `core/test-vectors/autofill/`: `match.json` (host, subdomena,
+`www.`, schemat, port, IP, `evilgoogle.com`, sufiksy publiczne: `github.io`, `co.uk`, reguły `*.` i `!`), `psl.json`
+(sufiks publiczny i domena rejestrowalna), `fields.json` (opis pola → rodzaj) i `values.json` (karta: formaty
+ważności, `<select>`; kontakt, data urodzenia); w Kotlinie te same pliki sprawdza `MatchVectorsTest` (plus
+`app.json`: strona bez schematu = `http`). `psl.test.ts` sprawdza też, że zasób Kotlina
+`public_suffix_rules.txt` ma te same reguły co `psl-rules.ts`.
 
 `v3.json` (sekcje `limits`, `entries`, `rejected`, `oldPaths`) trzyma po jednym wpisie każdego typu, stary wpis v2,
 nagrobek, 22 przykłady odrzucane i odpowiedzi na stare ścieżki; odtwarza go `npm run gen-vectors-v3 -w core`,
@@ -435,6 +438,14 @@ zapisu się nie otwiera; dobre hasło → okno zapisu, plik zapisany. (3) **PIN 
 kartach („Otwórz w karcie”), wpisz zły PIN w obu prawie naraz: licznik spada o 2. (4) **Odłącz (I3):** na jakiejś
 stronie wybierz „Nigdy” w pytaniu o zapis, potem „Odłącz tę przeglądarkę” i sparuj ponownie: na tej stronie pytanie
 znowu się pojawia. (5) **CI (N7):** po scaleniu na GitHubie zakładka Actions → „CI” zielone. Zapisz wynik i wersję Chrome.
+
+**T30. Przegląd V3, grupa 2 (dopasowanie adresów).** Sejf otwarty, jeden login z adresem `example.com` (albo
+własną domeną z subdomeną). (1) **Skrót (S2):** na `https://x.example.com` Ctrl+Shift+L otwiera okienko zamiast
+wypełniać; „Pasujące do tej strony” nadal pokazuje login, **Wypełnij** działa. Na `https://example.com` skrót
+wypełnia od razu. (2) **Zapis (S2):** pytanie o zapis włączone, na subdomenie zaloguj się tym samym loginem z innym
+hasłem: okno mówi „Nowy login”, wpis `example.com` zostaje bez zmian. (3) **PSL:** login z adresem `github.io`
+nie pasuje do `https://<ktoś>.github.io`. (4) **Android (N5):** tylko na Androidzie 8.0–8.1: na stronie w Chrome
+login z adresem bez schematu nie jest podpowiadany, z adresem `http://` tak. Zapisz wynik i wersję Chrome/Androida.
 
 ## Zależności (przegląd bezpieczeństwa I5)
 
