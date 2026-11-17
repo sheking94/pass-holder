@@ -9,6 +9,9 @@ import java.util.Locale
 object MasterPasswordRules {
     const val MIN_LENGTH = 12
 
+    /** The rules in one line, under the password fields. */
+    const val HINT = "Co najmniej $MIN_LENGTH znaków, bez popularnych haseł i prostych ciągów"
+
     /** Fragments of the most common passwords (Polish and English); see [problem]. */
     private val COMMON_FRAGMENTS = listOf(
         "password", "passw0rd", "hasło", "haslo", "qwerty", "qwertz", "asdfgh", "zxcvbn", "admin",

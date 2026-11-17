@@ -2,6 +2,7 @@ package io.github.sheking94.passholder.core.p2p
 
 import io.github.sheking94.passholder.core.Encoding
 import io.github.sheking94.passholder.core.ErrorCode
+import io.github.sheking94.passholder.core.GCM_TAG_BYTES
 import io.github.sheking94.passholder.core.PassHolderException
 import kotlinx.serialization.json.JsonElement
 import java.io.ByteArrayOutputStream
@@ -9,7 +10,7 @@ import java.io.ByteArrayOutputStream
 /** Splits a JSON payload into ordered Noise transport frames (Base64) and back. */
 object Frames {
     /** Noise transport message limit (65535) minus the 16-byte AEAD tag. */
-    const val MAX_FRAME_PLAINTEXT = 65519
+    const val MAX_FRAME_PLAINTEXT = MAX_NOISE_MESSAGE - GCM_TAG_BYTES
 
     /** Most frames a 1 MiB body may legitimately carry. */
     const val MAX_FRAMES = 18

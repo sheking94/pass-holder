@@ -2,6 +2,7 @@ package io.github.sheking94.passholder.core.transfer
 
 import io.github.sheking94.passholder.core.Encoding
 import io.github.sheking94.passholder.core.ErrorCode
+import io.github.sheking94.passholder.core.MIB
 import io.github.sheking94.passholder.core.PassHolderException
 import io.github.sheking94.passholder.core.files.Attachments
 import java.io.Closeable
@@ -31,12 +32,14 @@ class ArchiveReader internal constructor(private val input: InputStream, private
         const val FLAG_ENCRYPTED = 0x0001
         const val FLAG_DESCRIPTOR = 0x0008
         const val MARKER_32 = 0xffffffffL
+        const val METHOD_STORED = 0
+        const val METHOD_DEFLATE = 8
 
         /**
          * Inflated output the whole archive may produce beyond what its index describes: past the declared size of
          * a described file, all of an entry the index does not describe. Past it the archive is refused.
          */
-        const val MAX_EXCESS = 64L * 1024 * 1024
+        const val MAX_EXCESS = 64L * MIB
 
         /** Longest entry name accepted, in UTF-8 bytes; names are kept to detect repeats. */
         const val MAX_NAME_BYTES = 1024
@@ -172,7 +175,11 @@ class ArchiveReader internal constructor(private val input: InputStream, private
         val nameBytes = bytes(nameLength)
         skip(extraLength.toLong())
         val descriptor = flags and FLAG_DESCRIPTOR != 0
-        if (flags and FLAG_ENCRYPTED != 0 || (method != 0 && method != 8) || (descriptor && method == 0)) invalid()
+        if (flags and FLAG_ENCRYPTED != 0 || (method != METHOD_STORED && method != METHOD_DEFLATE) ||
+            (descriptor && method == METHOD_STORED)
+        ) {
+            invalid()
+        }
         if (csize == MARKER_32 || size == MARKER_32) invalid()
         val name = Encoding.fromUtf8OrNull(nameBytes) ?: invalid()
         if (!names.add(name) || names.size > PassHolderZip.MAX_ZIP_ENTRIES) invalid()
@@ -205,7 +212,7 @@ class ArchiveReader internal constructor(private val input: InputStream, private
             if (nameLength > MAX_NAME_BYTES) invalid()
             val name = Encoding.fromUtf8OrNull(bytes(nameLength)) ?: invalid()
             skip(extraLength.toLong() + commentLength)
-            if (flags and FLAG_ENCRYPTED != 0 || (method != 0 && method != 8) || disk != 0) invalid()
+            if (flags and FLAG_ENCRYPTED != 0 || (method != METHOD_STORED && method != METHOD_DEFLATE) || disk != 0) invalid()
             if (csize == MARKER_32 || size == MARKER_32 || localAt == MARKER_32 || localAt >= start) invalid()
             if (name !in names || !seen.add(name)) invalid()
             sig = u32()
@@ -227,7 +234,7 @@ class ArchiveReader internal constructor(private val input: InputStream, private
 
     /** The entry's data: its bytes when [limit] is given and not passed, else read past ([limit] null: [Data.Skipped]). */
     private fun readData(e: Local, limit: Int?): Data = when {
-        e.method == 0 -> readStored(e, limit)
+        e.method == METHOD_STORED -> readStored(e, limit)
         e.descriptor -> inflateUntilEnd(e, limit)
         else -> inflateKnown(e, limit)
     }

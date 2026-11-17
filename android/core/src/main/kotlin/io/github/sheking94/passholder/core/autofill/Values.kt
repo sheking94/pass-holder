@@ -1,11 +1,10 @@
 package io.github.sheking94.passholder.core.autofill
 
+import io.github.sheking94.passholder.core.FieldFormats
 import io.github.sheking94.passholder.core.p2p.CardFields
 import io.github.sheking94.passholder.core.p2p.ContactFields
 import io.github.sheking94.passholder.core.p2p.EntryContent
 import io.github.sheking94.passholder.core.p2p.LoginFields
-import java.time.DateTimeException
-import java.time.LocalDate
 import java.util.Locale
 
 /** Port of core/src/autofill/values.ts. */
@@ -25,19 +24,8 @@ sealed interface FillPlan {
     ) : FillPlan
 }
 
-// [0-9], not \\d: on Android (ICU) \\d also matches non-ASCII digits.
-private val BIRTH_DATE = Regex("^([0-9]{4})-([0-9]{2})-([0-9]{2})$")
-
 /** Stored birth dates are RRRR-MM-DD; anything that is not a real calendar date is dropped. */
-private fun validBirthDate(s: String): String {
-    val m = BIRTH_DATE.matchEntire(s) ?: return ""
-    return try {
-        LocalDate.of(m.groupValues[1].toInt(), m.groupValues[2].toInt(), m.groupValues[3].toInt())
-        s
-    } catch (_: DateTimeException) {
-        ""
-    }
-}
+private fun validBirthDate(s: String): String = if (FieldFormats.isCalendarDate(s)) s else ""
 
 fun planFor(entry: EntryContent): FillPlan? = when (val f = entry.fields) {
     is LoginFields -> FillPlan.Login(f.username, f.password)
@@ -69,8 +57,6 @@ private fun selectOption(options: List<FieldOption>, candidates: List<String>): 
     return null
 }
 
-private val EXPIRY = Regex("^(0[1-9]|1[0-2])/(\\d{2})$")
-
 private fun candidates(plan: FillPlan, kind: FieldKind, field: FieldDescriptor, hasUsernameField: Boolean): List<String> {
     when (plan) {
         is FillPlan.Login -> return when {
@@ -81,7 +67,7 @@ private fun candidates(plan: FillPlan, kind: FieldKind, field: FieldDescriptor, 
         }
 
         is FillPlan.Card -> {
-            val m = EXPIRY.matchEntire(plan.expiry)
+            val m = FieldFormats.CARD_EXPIRY.matchEntire(plan.expiry)
             val month = m?.groupValues?.get(1)
             val year2 = m?.groupValues?.get(2)
             val isSelect = field.type.lowercase(Locale.ROOT) == "select"

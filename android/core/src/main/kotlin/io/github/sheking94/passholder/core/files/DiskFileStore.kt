@@ -1,6 +1,7 @@
 package io.github.sheking94.passholder.core.files
 
 import io.github.sheking94.passholder.core.AtomicFiles
+import io.github.sheking94.passholder.core.MIB
 import io.github.sheking94.passholder.core.p2p.P2pJson
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
@@ -88,6 +89,6 @@ class DiskFileStore(
     }
 
     companion object {
-        const val MIN_FREE_BYTES = 52_428_800L
+        const val MIN_FREE_BYTES = 50L * MIB
     }
 }

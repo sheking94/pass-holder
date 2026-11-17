@@ -1,6 +1,7 @@
 package io.github.sheking94.passholder.app
 
 import android.net.NetworkCapabilities
+import io.github.sheking94.passholder.core.p2p.LocalAddresses
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -42,10 +43,10 @@ class SyncNetworksTest {
 
     @Test
     fun `tailscale range is 100 64 0 0 slash 10`() {
-        assertTrue(SyncNetworks.isTailscale(InetAddress.getByName("100.64.0.0")))
-        assertTrue(SyncNetworks.isTailscale(InetAddress.getByName("100.127.255.255")))
-        assertFalse(SyncNetworks.isTailscale(InetAddress.getByName("100.128.0.0")))
-        assertFalse(SyncNetworks.isTailscale(InetAddress.getByName("100.63.255.255")))
-        assertFalse(SyncNetworks.isTailscale(InetAddress.getByName("::1")))
+        assertTrue(LocalAddresses.isTailscale(InetAddress.getByName("100.64.0.0")))
+        assertTrue(LocalAddresses.isTailscale(InetAddress.getByName("100.127.255.255")))
+        assertFalse(LocalAddresses.isTailscale(InetAddress.getByName("100.128.0.0")))
+        assertFalse(LocalAddresses.isTailscale(InetAddress.getByName("100.63.255.255")))
+        assertFalse(LocalAddresses.isTailscale(InetAddress.getByName("::1")))
     }
 }

@@ -1,5 +1,6 @@
 package io.github.sheking94.passholder.core.transfer
 
+import io.github.sheking94.passholder.core.p2p.DocumentKind
 import io.github.sheking94.passholder.core.p2p.EntryCodec
 import io.github.sheking94.passholder.core.p2p.EntryContent
 import io.github.sheking94.passholder.core.p2p.PostalAddress
@@ -16,6 +17,28 @@ data class ImportSkip(val at: String, val reason: String)
 
 /** [files]: file descriptions left out (an archive index imported as plain JSON), shown like skipped files. */
 data class ParsedImport(val entries: List<EntryContent>, val skipped: List<ImportSkip>, val files: List<ImportSkip> = emptyList())
+
+/** Polish names of document kinds: written into exports and shown in the app. */
+val DOCUMENT_KIND_NAMES: Map<DocumentKind, String> = mapOf(
+    DocumentKind.ID_CARD to "Dowód osobisty",
+    DocumentKind.PASSPORT to "Paszport",
+    DocumentKind.DRIVING_LICENSE to "Prawo jazdy",
+    DocumentKind.STUDENT_ID to "Legitymacja",
+    DocumentKind.OTHER to "Inny",
+)
+
+/** Polish labels of document fields in exports (Bitwarden custom fields, NordPass note lines). */
+object DocumentLabels {
+    const val KIND = "Rodzaj dokumentu"
+    const val FULL_NAME = "Imię i nazwisko"
+    const val ISSUE_DATE = "Data wydania"
+    const val EXPIRY_DATE = "Data ważności"
+    const val ISSUER = "Wystawca"
+}
+
+/** [ImportSkip] reasons shared by the importers. */
+const val SKIP_BAD_ENTRY = "zły format wpisu"
+const val SKIP_NO_NAME = "brak nazwy"
 
 /** Order of entry types in exports when names are equal. */
 val ENTRY_TYPE_ORDER = listOf("login", "contact", "card", "note", "document")

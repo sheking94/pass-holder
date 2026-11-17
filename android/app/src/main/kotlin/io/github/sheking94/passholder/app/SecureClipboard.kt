@@ -32,7 +32,8 @@ object SecureClipboard {
     fun copyPassword(context: Context, label: String, password: String) {
         val clip = ClipData.newPlainText(label, password)
         // Android 13+ then hides the text in the "copied" preview and keyboard suggestions.
-        val key = if (Build.VERSION.SDK_INT >= 33) ClipDescription.EXTRA_IS_SENSITIVE else "android.content.extra.IS_SENSITIVE"
+        val tiramisu = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+        val key = if (tiramisu) ClipDescription.EXTRA_IS_SENSITIVE else "android.content.extra.IS_SENSITIVE"
         clip.description.extras = PersistableBundle().apply { putBoolean(key, true) }
         clipboard(context).setPrimaryClip(clip)
         scheduleClear(context, password)
@@ -77,7 +78,8 @@ class ClearClipboardWorker(context: Context, params: WorkerParameters) : Corouti
         val current = runCatching { clipboard.primaryClip?.getItemAt(0)?.coerceToText(applicationContext)?.toString() }.getOrNull()
         val sameProcess = inputData.getString(KEY_ID) == SecureClipboard.keyId
         if (current != null && sameProcess && !sameTag(SecureClipboard.tag(current), inputData.getString(KEY_TAG))) return Result.success()
-        if (Build.VERSION.SDK_INT >= 28) clipboard.clearPrimaryClip() else clipboard.setPrimaryClip(ClipData.newPlainText("", ""))
+        val canClear = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
+        if (canClear) clipboard.clearPrimaryClip() else clipboard.setPrimaryClip(ClipData.newPlainText("", ""))
         return Result.success()
     }
 

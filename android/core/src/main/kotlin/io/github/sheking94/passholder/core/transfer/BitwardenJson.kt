@@ -1,6 +1,7 @@
 package io.github.sheking94.passholder.core.transfer
 
 import io.github.sheking94.passholder.core.ErrorCode
+import io.github.sheking94.passholder.core.FieldFormats
 import io.github.sheking94.passholder.core.PassHolderException
 import io.github.sheking94.passholder.core.p2p.CardFields
 import io.github.sheking94.passholder.core.p2p.ContactFields
@@ -25,12 +26,12 @@ object BitwardenJson {
     private const val ANDROID_PREFIX = "androidapp://"
     private val DOCUMENT_KINDS = DocumentKind.entries.associateBy { it.json }
 
-    private const val L_KIND = "Rodzaj dokumentu"
+    private const val L_KIND = DocumentLabels.KIND
     private const val L_NUMBER = "Numer dokumentu"
-    private const val L_FULL_NAME = "Imię i nazwisko"
-    private const val L_ISSUE = "Data wydania"
-    private const val L_EXPIRY = "Data ważności"
-    private const val L_ISSUER = "Wystawca"
+    private const val L_FULL_NAME = DocumentLabels.FULL_NAME
+    private const val L_ISSUE = DocumentLabels.ISSUE_DATE
+    private const val L_EXPIRY = DocumentLabels.EXPIRY_DATE
+    private const val L_ISSUER = DocumentLabels.ISSUER
     private const val L_PIN = "PIN"
 
     /** True for an object with an `items` array (used to detect the file kind). */
@@ -170,7 +171,7 @@ object BitwardenJson {
         val type = num(item["type"])
         if (type == null || type !in listOf(1.0, 2.0, 3.0, 4.0)) return "typ ${s(item["type"])} nie jest obsługiwany"
         val name = s(item["name"])
-        if (name.jsTrim() == "") return "brak nazwy"
+        if (name.jsTrim() == "") return SKIP_NO_NAME
         val note = s(item["notes"])
         val fields = importFields(item["fields"])
         return when (type) {
@@ -230,7 +231,7 @@ object BitwardenJson {
         val entries = mutableListOf<EntryContent>()
         val skipped = mutableListOf<ImportSkip>()
         ((doc as JsonObject)["items"] as JsonArray).forEachIndexed { i, item ->
-            val r: Any = if (item is JsonObject) importItem(item) else "zły format wpisu"
+            val r: Any = if (item is JsonObject) importItem(item) else SKIP_BAD_ENTRY
             if (r is String) skipped.add(ImportSkip("wpis ${i + 1}", r)) else entries.add(r as EntryContent)
         }
         return ParsedImport(entries, skipped)
@@ -255,8 +256,6 @@ object BitwardenJson {
         values.forEach { map[it.first] = it.second }
         return JsonObject(map)
     }
-
-    private val EXPIRY = Regex("""(0[1-9]|1[0-2])/(\d{2})""")
 
     private fun exportItem(e: EntryContent): JsonObject {
         val extra = mutableListOf<JsonObject>()
@@ -285,7 +284,7 @@ object BitwardenJson {
             }
 
             is CardFields -> {
-                val m = EXPIRY.matchEntire(f.expiry)
+                val m = FieldFormats.CARD_EXPIRY.matchEntire(f.expiry)
                 type = 3
                 bodyKey = "card"
                 if (f.pin != "") extra.add(field(L_PIN, f.pin, true))

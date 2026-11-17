@@ -23,6 +23,7 @@ import io.github.sheking94.passholder.app.AppViewModel
 import io.github.sheking94.passholder.app.SyncUiState
 import io.github.sheking94.passholder.app.UiState
 import io.github.sheking94.passholder.core.p2p.PairingOffer
+import io.github.sheking94.passholder.core.p2p.PhoneSync
 import kotlinx.coroutines.delay
 
 /** "Synchronizacja": the phone waits for the extension on the addresses shown; "Dodaj wtyczkę" gives a pairing code. */
@@ -39,7 +40,7 @@ fun SyncScreen(state: UiState, vm: AppViewModel) {
             PairingCode(sync, vm, newCodeHint = "Kod wygasł lub został użyty. Dodaj wtyczkę ponownie, aby dostać nowy kod.")
             Button(onClick = vm::addExtension, enabled = !state.busy) { Text("Dodaj wtyczkę") }
             Text(
-                "Ekran nie zgaśnie, dopóki działa tryb synchronizacji. Wyłączy się sam po 5 min bez synchronizacji i po wyjściu z aplikacji. Działa tylko w Wi-Fi i Tailscale.",
+                "Ekran nie zgaśnie, dopóki działa tryb synchronizacji. Wyłączy się sam po ${PhoneSync.SYNC_IDLE_MS / 60_000} min bez synchronizacji i po wyjściu z aplikacji. Działa tylko w Wi-Fi i Tailscale.",
                 style = MaterialTheme.typography.bodySmall,
             )
         } else {

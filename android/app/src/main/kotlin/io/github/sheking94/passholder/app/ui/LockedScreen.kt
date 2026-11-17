@@ -21,6 +21,7 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.sheking94.passholder.app.AppViewModel
 import io.github.sheking94.passholder.app.UiState
+import io.github.sheking94.passholder.app.UiTexts
 import kotlinx.coroutines.flow.first
 
 /**
@@ -36,7 +37,7 @@ fun LockedScreen(state: UiState, vm: AppViewModel) {
     val biometricEnabled by vm.biometricEnabled.collectAsStateWithLifecycle()
     val activity = LocalActivity.current
     val fingerprint = rememberFingerprintDialog(vm)
-    val unlockWithFinger = { fingerprint.show("Odblokuj PassHolder", vm::cipherToUnlockBiometric, vm::onBiometricUnlockAuthorized) }
+    val unlockWithFinger = { fingerprint.show(UiTexts.UNLOCK_TITLE, vm::cipherToUnlockBiometric, vm::onBiometricUnlockAuthorized) }
 
     val timesLeftApp by vm.timesLeftApp.collectAsStateWithLifecycle()
 

@@ -2,7 +2,9 @@ package io.github.sheking94.passholder.core.p2p
 
 import io.github.sheking94.passholder.core.Encoding
 import io.github.sheking94.passholder.core.ErrorCode
+import io.github.sheking94.passholder.core.KEY_BYTES
 import io.github.sheking94.passholder.core.PassHolderException
+import io.github.sheking94.passholder.core.RANDOM_ID_BYTES
 import io.github.sheking94.passholder.core.StrictJson
 import io.github.sheking94.passholder.core.files.FileHost
 import io.github.sheking94.passholder.core.files.FileStore
@@ -123,7 +125,7 @@ class P2pHost(
         } catch (_: IllegalArgumentException) {
             return HostReply.error(400, "malformed request")
         }
-        val ephemeral = Encoding.toBase64(message.copyOf(minOf(message.size, 32)))
+        val ephemeral = Encoding.toBase64(message.copyOf(minOf(message.size, KEY_BYTES)))
         // handle() already pruned the expired sessions.
         synchronized(sessions) { refusal(ephemeral, device.deviceId) }?.let { return it }
         val reply: ByteArray
@@ -137,7 +139,7 @@ class P2pHost(
             if (e.code != ErrorCode.NOISE_FAILED) throw e
             return HostReply.error(400, "handshake failed")
         }
-        val id = Encoding.toBase64(Encoding.randomBytes(16))
+        val id = Encoding.toBase64(Encoding.randomBytes(RANDOM_ID_BYTES))
         val session = Session(
             device.deviceId,
             device.staticPublicKey.copyOf(),

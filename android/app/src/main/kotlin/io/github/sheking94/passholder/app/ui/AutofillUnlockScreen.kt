@@ -14,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.dp
 import io.github.sheking94.passholder.app.Status
+import io.github.sheking94.passholder.app.UiTexts
 
 /**
  * The screen behind the "Odblokuj PassHolder" suggestion: the master password, or the fingerprint when it is on.
@@ -33,7 +34,7 @@ fun AutofillUnlockScreen(
     val unlock = { if (!busy) onUnlock(password) }
 
     FormColumn {
-        Text("Odblokuj PassHolder", style = MaterialTheme.typography.headlineSmall)
+        Text(UiTexts.UNLOCK_TITLE, style = MaterialTheme.typography.headlineSmall)
         PasswordField(password, { password = it }, "Hasło główne", onDone = unlock)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = unlock, enabled = !busy) { Text("Odblokuj") }

@@ -17,6 +17,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import io.github.sheking94.passholder.app.AppViewModel
+import io.github.sheking94.passholder.app.MasterPasswordRules
 import io.github.sheking94.passholder.app.UiState
 
 /** No vault on the phone yet: a new one, or the one the extension still has after the old phone was lost. */
@@ -47,7 +48,7 @@ fun StartScreen(state: UiState, vm: AppViewModel) {
             PasswordField(password, { password = it }, "Hasło główne")
             PasswordField(repeat, { repeat = it }, "Powtórz hasło główne", onDone = create)
             Text(
-                "Co najmniej 12 znaków, bez popularnych haseł i prostych ciągów (np. zdanie z kilku słów). Hasła głównego nie da się odzyskać: bez niego nie otworzysz sejfu.",
+                "${MasterPasswordRules.HINT} (np. zdanie z kilku słów). Hasła głównego nie da się odzyskać: bez niego nie otworzysz sejfu.",
                 style = MaterialTheme.typography.bodySmall,
             )
             Button(onClick = create, enabled = !state.busy) { Text("Załóż sejf") }

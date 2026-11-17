@@ -34,7 +34,7 @@ class AutofillSaveActivity : AutofillAuthActivity() {
         val data = model.candidate ?: app.pendingSave.take()?.also { model.candidate = it }
         if (data == null) {
             // The candidate expired while this screen was open.
-            toast("Minęły 2 minuty – zaloguj się ponownie, aby zapisać")
+            toast("Minęły ${PendingSave.TTL_MS / 60_000} minuty – zaloguj się ponownie, aby zapisać")
             return AfterUnlock.Deliver(null)
         }
         val review = try {

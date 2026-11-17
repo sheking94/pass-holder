@@ -6,7 +6,6 @@ import io.github.sheking94.passholder.core.p2p.CardFields
 import io.github.sheking94.passholder.core.p2p.ContactFields
 import io.github.sheking94.passholder.core.p2p.CustomField
 import io.github.sheking94.passholder.core.p2p.DocumentFields
-import io.github.sheking94.passholder.core.p2p.DocumentKind
 import io.github.sheking94.passholder.core.p2p.EntryContent
 import io.github.sheking94.passholder.core.p2p.LabeledValue
 import io.github.sheking94.passholder.core.p2p.LoginFields
@@ -20,14 +19,6 @@ object NordPassCsv {
         "name", "url", "username", "password", "note", "cardholdername", "cardnumber", "cvc", "expirydate", "zipcode",
         "folder", "full_name", "phone_number", "email", "address1", "address2", "city", "country", "state", "totp",
         "shared_folder",
-    )
-
-    private val DOCUMENT_KIND_NAMES = mapOf(
-        DocumentKind.ID_CARD to "Dowód osobisty",
-        DocumentKind.PASSPORT to "Paszport",
-        DocumentKind.DRIVING_LICENSE to "Prawo jazdy",
-        DocumentKind.STUDENT_ID to "Legitymacja",
-        DocumentKind.OTHER to "Inny",
     )
 
     private val TYPES = mapOf("password" to "login", "note" to "note", "credit_card" to "card", "identity" to "contact")
@@ -193,12 +184,12 @@ object NordPassCsv {
             is NoteFields -> {}
 
             is DocumentFields -> {
-                lines += line("Rodzaj dokumentu", DOCUMENT_KIND_NAMES[f.kind] ?: "")
+                lines += line(DocumentLabels.KIND, DOCUMENT_KIND_NAMES[f.kind] ?: "")
                 lines += line("Numer", f.number)
-                lines += line("Imię i nazwisko", f.fullName)
-                lines += line("Data wydania", f.issueDate)
-                lines += line("Data ważności", f.expiryDate)
-                lines += line("Wystawca", f.issuer)
+                lines += line(DocumentLabels.FULL_NAME, f.fullName)
+                lines += line(DocumentLabels.ISSUE_DATE, f.issueDate)
+                lines += line(DocumentLabels.EXPIRY_DATE, f.expiryDate)
+                lines += line(DocumentLabels.ISSUER, f.issuer)
             }
         }
         e.custom.forEach { lines += line(it.label, it.value) }

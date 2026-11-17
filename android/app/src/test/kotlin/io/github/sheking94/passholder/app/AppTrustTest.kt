@@ -5,6 +5,7 @@ import android.content.pm.Signature
 import android.content.pm.SigningInfo
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.github.sheking94.passholder.core.Encoding
 import io.github.sheking94.passholder.core.autofill.AppRequest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -39,7 +40,10 @@ class AppTrustTest {
                     shadowOf(it).setPastSigningCertificates(arrayOf(old, cert))
                 }
         }
-        assertEquals(setOf(sha256Hex(old.toByteArray()), sha256Hex(cert.toByteArray())), SystemAppSigners(app).certs("pl.bank"))
+        assertEquals(
+            setOf(Encoding.sha256Hex(old.toByteArray()), Encoding.sha256Hex(cert.toByteArray())),
+            SystemAppSigners(app).certs("pl.bank"),
+        )
         assertNull(SystemAppSigners(app).certs("pl.missing"))
     }
 
@@ -48,7 +52,7 @@ class AppTrustTest {
     fun `signatures read below Android 9`() {
         @Suppress("DEPRECATION")
         install("pl.bank") { signatures = arrayOf(cert) }
-        assertEquals(setOf(sha256Hex(cert.toByteArray())), SystemAppSigners(app).certs("pl.bank"))
+        assertEquals(setOf(Encoding.sha256Hex(cert.toByteArray())), SystemAppSigners(app).certs("pl.bank"))
     }
 
     @Test

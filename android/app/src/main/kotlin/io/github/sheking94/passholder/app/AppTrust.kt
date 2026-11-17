@@ -5,9 +5,9 @@ import android.content.pm.PackageManager
 import android.content.pm.Signature
 import android.os.Build
 import androidx.core.content.edit
+import io.github.sheking94.passholder.core.Encoding
 import io.github.sheking94.passholder.core.autofill.AppRequest
 import io.github.sheking94.passholder.core.autofill.verifyApp
-import java.security.MessageDigest
 
 /** SHA-256 digests (lowercase hex) of an installed package's signing certificates; null when it cannot be read. */
 fun interface AppSigners {
@@ -34,13 +34,11 @@ class SystemAppSigners(private val context: Context) : AppSigners {
             @Suppress("DEPRECATION")
             pm.getPackageInfo(packageName, PackageManager.GET_SIGNATURES).signatures
         }
-        signatures?.takeIf { it.isNotEmpty() }?.map { sha256Hex(it.toByteArray()) }?.toSet()
+        signatures?.takeIf { it.isNotEmpty() }?.map { Encoding.sha256Hex(it.toByteArray()) }?.toSet()
     } catch (_: PackageManager.NameNotFoundException) {
         null
     }
 }
-
-internal fun sha256Hex(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 
 /**
  * Who the phone trusts to ask for logins (security review V3-S3): browsers by their known certificates, the apps of

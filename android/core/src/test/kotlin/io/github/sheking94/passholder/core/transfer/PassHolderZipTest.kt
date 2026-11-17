@@ -1,9 +1,9 @@
 package io.github.sheking94.passholder.core.transfer
 
+import io.github.sheking94.passholder.core.Encoding
 import io.github.sheking94.passholder.core.ErrorCode
 import io.github.sheking94.passholder.core.PassHolderException
 import io.github.sheking94.passholder.core.files.Attachment
-import io.github.sheking94.passholder.core.files.FileChunks
 import io.github.sheking94.passholder.core.p2p.EntryCodec
 import io.github.sheking94.passholder.core.p2p.EntryContent
 import io.github.sheking94.passholder.core.p2p.LoginFields
@@ -48,7 +48,7 @@ class PassHolderZipTest {
         mime,
         bodies.getValue(name).size.toLong(),
         1,
-        FileChunks.sha256Hex(bodies.getValue(name)),
+        Encoding.sha256Hex(bodies.getValue(name)),
         "A".repeat(43) + "=",
     )
 
@@ -114,7 +114,7 @@ class PassHolderZipTest {
     private fun indexOf(bytes: ByteArray, sub: ByteArray, from: Int = 0): Int =
         (from..bytes.size - sub.size).first { i -> sub.indices.all { bytes[i + it] == sub[it] } }
 
-    private fun sha(b: ByteArray) = FileChunks.sha256Hex(b)
+    private fun sha(b: ByteArray) = Encoding.sha256Hex(b)
 
     /** archive.expected.json as (content, files with sha256, position). */
     private fun expectedArchive(): List<Triple<EntryContent, List<Pair<ArchivedFile, String>>, Int>> {

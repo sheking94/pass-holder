@@ -24,14 +24,15 @@ object LocalAddresses {
     fun format(addresses: List<InetAddress>, port: Int): List<String> = addresses
         .filterIsInstance<Inet4Address>()
         .filter { !it.isLoopbackAddress && !it.isLinkLocalAddress }
-        .map { it.hostAddress }
-        .distinct()
+        .distinctBy { it.hostAddress }
         .sortedBy { isTailscale(it) }
         .take(Pairing.MAX_ADDRESSES)
-        .map { "http://$it:$port" }
+        .map { "http://${it.hostAddress}:$port" }
 
-    private fun isTailscale(ip: String): Boolean {
-        val parts = ip.split('.')
-        return parts[0] == "100" && (parts[1].toInt() and 0xc0) == 64
+    /** Tailscale gives each device an address in 100.64.0.0/10. */
+    fun isTailscale(address: InetAddress): Boolean {
+        if (address !is Inet4Address) return false
+        val b = address.address
+        return b[0].toInt() and 0xff == 100 && (b[1].toInt() and 0xc0) == 64
     }
 }

@@ -15,9 +15,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import io.github.sheking94.passholder.app.AppViewModel
-import io.github.sheking94.passholder.app.entries.DOCUMENT_KIND_LABELS
 import io.github.sheking94.passholder.app.ui.PlainField
 import io.github.sheking94.passholder.core.p2p.DocumentFields
+import io.github.sheking94.passholder.core.transfer.DOCUMENT_KIND_NAMES
 
 /** Document section: kind (dropdown), number, full name, issue and expiry dates, issuer. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -26,7 +26,7 @@ fun DocumentForm(fields: DocumentFields, onChange: (DocumentFields) -> Unit, vm:
     var expanded by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(expanded, { expanded = it }) {
         OutlinedTextField(
-            value = DOCUMENT_KIND_LABELS[fields.kind].orEmpty(),
+            value = DOCUMENT_KIND_NAMES[fields.kind].orEmpty(),
             onValueChange = {},
             readOnly = true,
             label = { Text("Rodzaj") },
@@ -34,7 +34,7 @@ fun DocumentForm(fields: DocumentFields, onChange: (DocumentFields) -> Unit, vm:
             modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
         )
         ExposedDropdownMenu(expanded, { expanded = false }) {
-            for ((kind, label) in DOCUMENT_KIND_LABELS) {
+            for ((kind, label) in DOCUMENT_KIND_NAMES) {
                 DropdownMenuItem(text = { Text(label) }, onClick = {
                     onChange(fields.copy(kind = kind))
                     expanded = false

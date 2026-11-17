@@ -11,6 +11,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import io.github.sheking94.passholder.app.AppViewModel
+import io.github.sheking94.passholder.app.MasterPasswordRules
 import io.github.sheking94.passholder.app.UiState
 
 /** "Zmień hasło główne" (from Ustawienia): the current password, the new one twice. "Anuluj" and back go to Ustawienia. */
@@ -38,7 +39,7 @@ fun ChangePasswordScreen(state: UiState, vm: AppViewModel) {
             vm.clearError()
         }, "Powtórz nowe hasło", onDone = change)
         Text(
-            "Co najmniej 12 znaków, bez popularnych haseł i prostych ciągów. Wpisy zostają bez zmian.",
+            "${MasterPasswordRules.HINT}. Wpisy zostają bez zmian.",
             style = MaterialTheme.typography.bodySmall,
         )
         Text(

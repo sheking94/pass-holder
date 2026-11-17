@@ -110,7 +110,7 @@ class FilesVectorsTest {
             val aads = f.jsonObject.getValue("aads").jsonArray.map { it.jsonPrimitive.content }
             assertEquals(aads, enc.blobs.indices.map { FileChunks.aad(a.id, it, a.chunks) })
             val hashes = f.jsonObject.getValue("blobSha256").jsonArray.map { it.jsonPrimitive.content }
-            assertEquals(hashes, enc.blobs.map { FileChunks.sha256Hex(it.toByteArray(Charsets.UTF_8)) })
+            assertEquals(hashes, enc.blobs.map { Encoding.sha256Hex(it.toByteArray(Charsets.UTF_8)) })
             assertEquals(f.str("lastBlob"), enc.blobs.last())
             f.jsonObject["blobs"]?.let { b ->
                 assertEquals(b.jsonArray.map { it.jsonPrimitive.content }, enc.blobs)

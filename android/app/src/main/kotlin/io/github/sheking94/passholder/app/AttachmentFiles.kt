@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.result.contract.ActivityResultContract
+import io.github.sheking94.passholder.core.MIB
 import io.github.sheking94.passholder.core.files.Attachments
 import java.io.IOException
 import java.io.InputStream
@@ -19,9 +20,9 @@ data class PickedFile(val name: String, val mime: String, val bytes: ByteArray)
  * attachment screens. Kept out of the screens and the ViewModel so the limits can be tested without them.
  */
 object AttachmentFiles {
-    const val TOO_MANY = "Najwyżej 20 plików we wpisie"
+    val TOO_MANY = "Najwyżej ${Attachments.MAX_ATTACHMENTS_PER_ENTRY} plików we wpisie"
     const val EMPTY = "Plik jest pusty"
-    const val TOO_LARGE = "Plik jest za duży (limit 10 MB)"
+    val TOO_LARGE = "Plik jest za duży (limit ${Attachments.MAX_FILE_SIZE / MIB} MB)"
     const val BAD_NAME = "Nieprawidłowa nazwa pliku"
 
     const val WAITING = "czeka na synchronizację"
