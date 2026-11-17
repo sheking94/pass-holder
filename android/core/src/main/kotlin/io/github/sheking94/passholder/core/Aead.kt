@@ -15,8 +15,14 @@ object Aead {
     /** Bytes [seal] adds to the plaintext: version (1) + nonce (12) + tag (16) = 29. */
     const val SEAL_OVERHEAD_BYTES = 1 + GCM_NONCE_BYTES + GCM_TAG_BYTES
 
-    /** [nonce] is only for test vectors; normal callers leave it out and get a random one. */
-    fun seal(key: ByteArray, plaintext: ByteArray, aad: String, nonce: ByteArray = Encoding.randomBytes(GCM_NONCE_BYTES)): String {
+    /** Seals with a random nonce. */
+    fun seal(key: ByteArray, plaintext: ByteArray, aad: String): String = seal(key, plaintext, aad, Encoding.randomBytes(GCM_NONCE_BYTES))
+
+    /**
+     * [seal] with a caller-given nonce. Production code passes a fresh random one (as [seal] and `FileChunks.encrypt`
+     * do); a fixed nonce is only for test vectors: reusing a nonce with the same key breaks AES-GCM.
+     */
+    internal fun seal(key: ByteArray, plaintext: ByteArray, aad: String, nonce: ByteArray): String {
         require(key.size == KEY_BYTES) { "Key must be 32 bytes" }
         require(nonce.size == GCM_NONCE_BYTES) { "Nonce must be 12 bytes" }
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")

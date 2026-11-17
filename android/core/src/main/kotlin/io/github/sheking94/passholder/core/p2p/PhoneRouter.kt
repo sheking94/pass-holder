@@ -54,7 +54,7 @@ class PhoneRouter(
         val reply = try {
             when (path) {
                 P2pPaths.PING -> HostReply(200, buildJsonObject { put("ok", true) }.toString())
-                in SYNC_PATHS -> host()?.handle(path, body) ?: HostReply.error(503, "vault not ready")
+                in SYNC_PATHS -> host()?.handle(path, obj) ?: HostReply.error(503, "vault not ready")
                 else -> pairing.handle(path, obj) ?: HostReply.error(404, "not found")
             }
         } catch (e: Exception) {

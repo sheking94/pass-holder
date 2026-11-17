@@ -113,7 +113,9 @@ a w Kotlinie sprawdza `P2pVectorsV3Test`.
 
 `v2.json` zawiera sekcje `hlcCompare`, `entryPayload`, `pairingKey`, `pairingMessage`, `frames`, `paging`
 oraz odnośniki do `cpace-ristretto255.json` i `noise-kk.json`. Odtwarza je `npm run gen-vectors-v2 -w core`;
-wartości losowe mają stałe klucze i nonce.
+wartości losowe mają stałe klucze i nonce. Stałe wartości podają osobne funkcje testowe (`sealWithNonce`,
+`encryptFileFixed`, `NoiseKK.*WithEphemeral`, `_cpaceInternals.startWithScalar`; w Kotlinie przeciążenia `internal`),
+nie parametry funkcji produkcyjnych.
 
 ### `extension/test/`
 

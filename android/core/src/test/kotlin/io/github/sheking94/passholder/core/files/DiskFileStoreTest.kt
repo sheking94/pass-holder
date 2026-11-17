@@ -47,8 +47,8 @@ class DiskFileStoreTest {
     @Test
     fun survivesReopen() {
         val a = open()
-        a.put(id, 0, 3, "x0", 42)
-        a.put(id, 2, 3, "x2", 42)
+        a.put(FileChunk(id, 0, 3, "x0"), 42)
+        a.put(FileChunk(id, 2, 3, "x2"), 42)
         val b = open()
         assertEquals(3, b.chunks(id))
         assertEquals(listOf(0, 2), b.have(id))
@@ -61,7 +61,7 @@ class DiskFileStoreTest {
     @Test
     fun leftoverTmpFilesAreRemovedOnOpen() {
         val a = open()
-        a.put(id, 0, 4, "x0", 1)
+        a.put(FileChunk(id, 0, 4, "x0"), 1)
         File(dir, "$id/3.tmp").writeText("partial")
         File(dir, "$id/meta.json.tmp").writeText("{")
         val b = open()
@@ -107,8 +107,8 @@ class DiskFileStoreTest {
     @Test
     fun deleteAndClearRemoveDirectories() {
         val s = open()
-        s.put(id, 0, 1, "a", 1)
-        s.put(id2, 0, 1, "b", 1)
+        s.put(FileChunk(id, 0, 1, "a"), 1)
+        s.put(FileChunk(id2, 0, 1, "b"), 1)
         s.delete(id)
         assertFalse(File(dir, id).exists())
         assertEquals(listOf(id2), s.ids())

@@ -102,9 +102,7 @@ class FilesVectorsTest {
                 bytes,
                 f.str("name"),
                 f.str("mime"),
-                f.str("id"),
-                Encoding.fromHex(f.str("key")),
-                nonces,
+                FileSecrets(f.str("id"), Encoding.fromHex(f.str("key")), nonces),
             )
             assertEquals(a, enc.attachment)
             val aads = f.jsonObject.getValue("aads").jsonArray.map { it.jsonPrimitive.content }
@@ -138,7 +136,7 @@ class FilesVectorsTest {
         val store = MemoryFileStore()
         val used = mutableSetOf<String>()
         for (f in o.getValue("files").jsonArray) {
-            store.put(f.str("id"), 0, 1, "AAAA", f.int("createdAt"))
+            store.put(FileChunk(f.str("id"), 0, 1, "AAAA"), f.int("createdAt"))
             if (f.jsonObject.getValue("used").jsonPrimitive.content == "true") used += f.str("id")
         }
         for (c in o.getValue("cases").jsonArray) {

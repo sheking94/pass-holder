@@ -46,62 +46,76 @@ export const MAX_ENTRY_ID_LENGTH = 128;
 const isRevision = (v: unknown): v is number =>
   typeof v === "number" && Number.isSafeInteger(v) && v >= 0;
 
+/** A decrypted sync request the host refuses; the message is the error text of the 400 answer. */
+export class InvalidSyncRequestError extends Error {}
+
+const invalid = (error: string): never => {
+  throw new InvalidSyncRequestError(error);
+};
+
 /**
- * Checks a decrypted sync request before anything is written. Returns the error text for a 400, or undefined.
- * Every change is checked against the store first, so a bad change never leaves earlier ones applied.
+ * Checks the shape of a decrypted sync request and returns it as a typed request. Extra fields are dropped.
+ * Throws InvalidSyncRequestError.
  */
-export function validateP2pSyncRequest(
-  store: SyncStore,
-  epoch: string,
-  request: unknown,
-): string | undefined {
-  if (!isRecord(request)) return "malformed sync request";
-  const r = request;
-  if (typeof r.epoch !== "string" || !isRevision(r.sinceRevision) || !Array.isArray(r.changes))
-    return "malformed sync request";
-  if (r.changes.length > MAX_CHANGES_PER_REQUEST) return "too many changes";
+export function parseP2pSyncRequest(request: unknown): P2pSyncRequest {
+  if (!isRecord(request)) return invalid("malformed sync request");
+  const { epoch, sinceRevision, changes } = request;
+  if (typeof epoch !== "string" || !isRevision(sinceRevision) || !Array.isArray(changes))
+    return invalid("malformed sync request");
+  if (changes.length > MAX_CHANGES_PER_REQUEST) return invalid("too many changes");
   const ids = new Set<string>();
-  for (const c of r.changes as unknown[]) {
-    if (!isRecord(c)) return "malformed change";
-    const { id, baseRevision, deleted, blob } = c;
-    if (
-      typeof id !== "string" ||
-      id.length < 1 ||
-      id.length > MAX_ENTRY_ID_LENGTH ||
-      !isRevision(baseRevision) ||
-      typeof deleted !== "boolean" ||
-      typeof blob !== "string"
-    )
-      return "malformed change";
-    if (blob.length > MAX_ENTRY_BLOB_LENGTH) return "blob too large";
-    if (ids.has(id)) return "duplicate change";
-    ids.add(id);
-  }
-  // A request from another epoch is not processed, so its base revisions do not matter.
-  if (r.epoch !== epoch) return undefined;
-  // A client ahead of this store sees a restored phone and starts over; its changes are not processed either.
-  if ((r.sinceRevision as number) > store.currentRevision()) return undefined;
-  for (const c of r.changes as ChangeRequest[]) {
-    if (c.baseRevision !== 0 && store.get(c.id) === undefined) return "unknown base revision";
-  }
-  return undefined;
+  const parsed = (changes as unknown[]).map((c): ChangeRequest => {
+    const change = parseChange(c);
+    if (ids.has(change.id)) return invalid("duplicate change");
+    ids.add(change.id);
+    return change;
+  });
+  return { epoch, sinceRevision, changes: parsed };
+}
+
+function parseChange(c: unknown): ChangeRequest {
+  if (!isRecord(c)) return invalid("malformed change");
+  const { id, baseRevision, deleted, blob } = c;
+  if (
+    typeof id !== "string" ||
+    id.length < 1 ||
+    id.length > MAX_ENTRY_ID_LENGTH ||
+    !isRevision(baseRevision) ||
+    typeof deleted !== "boolean" ||
+    typeof blob !== "string"
+  )
+    return invalid("malformed change");
+  if (blob.length > MAX_ENTRY_BLOB_LENGTH) return invalid("blob too large");
+  return { id, baseRevision, deleted, blob };
 }
 
 /**
- * Host side of P2P sync. A request from another epoch, or with sinceRevision ahead of the store, is not processed:
- * the client only learns the epoch and revision.
- * Throws (before any write) when validateP2pSyncRequest rejects the request.
+ * Whether the host processes the request's changes. A request from another epoch, or with sinceRevision ahead of
+ * the store (the phone was restored, the client resets itself, see syncVault), only learns the epoch and revision.
+ */
+function isProcessed(store: SyncStore, epoch: string, request: P2pSyncRequest): boolean {
+  return request.epoch === epoch && request.sinceRevision <= store.currentRevision();
+}
+
+/** Every change with a base revision must name a record the store has. Throws InvalidSyncRequestError. */
+function checkBaseRevisions(store: SyncStore, request: P2pSyncRequest): void {
+  for (const c of request.changes) {
+    if (c.baseRevision !== 0 && store.get(c.id) === undefined) invalid("unknown base revision");
+  }
+}
+
+/**
+ * Host side of P2P sync: parses the decrypted request (once), checks it against the store and answers.
+ * Throws InvalidSyncRequestError before any write when the request is refused.
  */
 export function processP2pSync(
   store: SyncStore,
   epoch: string,
   addresses: string[],
-  request: P2pSyncRequest,
+  rawRequest: unknown,
 ): P2pSyncResponse {
-  const error = validateP2pSyncRequest(store, epoch, request);
-  if (error !== undefined) throw new Error(error);
-  // sinceRevision ahead of the store: the phone was restored, so the client resets itself (see syncVault).
-  if (request.epoch !== epoch || request.sinceRevision > store.currentRevision()) {
+  const request = parseP2pSyncRequest(rawRequest);
+  if (!isProcessed(store, epoch, request)) {
     return {
       epoch,
       currentRevision: store.currentRevision(),
@@ -112,10 +126,35 @@ export function processP2pSync(
       more: false,
     };
   }
-  const { sinceRevision, changes } = request;
-  const result = processSync(store, { sinceRevision, changes });
-  const sorted = [...result.changes].sort((a, b) => a.revision - b.revision);
-  // Conflicts first, then changes; the first record always goes in, then while the running sum fits the budget.
+  checkBaseRevisions(store, request);
+  const result = processSync(store, request);
+  const page = pageRecords(result.conflicts, result.changes);
+  // Records skipped below this revision were answered in accepted or conflicts, so nothing is lost. Omitted
+  // conflicts leave their changes dirty on the client, which sends them again.
+  const currentRevision = !page.more
+    ? result.currentRevision
+    : (page.changes.at(-1)?.revision ?? request.sinceRevision);
+  return {
+    epoch,
+    currentRevision,
+    accepted: result.accepted,
+    conflicts: page.conflicts,
+    changes: page.changes,
+    addresses,
+    more: page.more,
+  };
+}
+
+/**
+ * Cuts the answer to the round budget: conflicts first, then changes by revision (at most MAX_CHANGES_PER_RESPONSE).
+ * The first record always goes in, then each one while the running sum of blob characters fits
+ * MAX_BLOB_BYTES_PER_ROUND. `more` tells whether anything was left out.
+ */
+function pageRecords(
+  allConflicts: RemoteRecord[],
+  allChanges: RemoteRecord[],
+): { conflicts: RemoteRecord[]; changes: RemoteRecord[]; more: boolean } {
+  const sorted = [...allChanges].sort((a, b) => a.revision - b.revision);
   let budget = MAX_BLOB_BYTES_PER_ROUND;
   let included = 0;
   const fits = (r: RemoteRecord): boolean => {
@@ -124,23 +163,20 @@ export function processP2pSync(
     included++;
     return true;
   };
-  const conflicts: RemoteRecord[] = [];
-  for (const r of result.conflicts) {
-    if (!fits(r)) break;
-    conflicts.push(r);
+  const conflicts = takeWhile(allConflicts, fits);
+  const changes =
+    conflicts.length === allConflicts.length
+      ? takeWhile(sorted.slice(0, MAX_CHANGES_PER_RESPONSE), fits)
+      : [];
+  const more = conflicts.length < allConflicts.length || changes.length < sorted.length;
+  return { conflicts, changes, more };
+}
+
+function takeWhile<T>(items: T[], accept: (item: T) => boolean): T[] {
+  const taken: T[] = [];
+  for (const item of items) {
+    if (!accept(item)) break;
+    taken.push(item);
   }
-  const page: RemoteRecord[] = [];
-  if (conflicts.length === result.conflicts.length) {
-    for (const r of sorted) {
-      if (page.length >= MAX_CHANGES_PER_RESPONSE || !fits(r)) break;
-      page.push(r);
-    }
-  }
-  if (conflicts.length === result.conflicts.length && page.length === sorted.length) {
-    return { ...result, conflicts, changes: page, epoch, addresses, more: false };
-  }
-  // Records skipped below this revision were answered in accepted or conflicts, so nothing is lost. Omitted
-  // conflicts leave their changes dirty on the client, which sends them again.
-  const currentRevision = page.length > 0 ? page[page.length - 1]!.revision : sinceRevision;
-  return { ...result, conflicts, changes: page, currentRevision, epoch, addresses, more: true };
+  return taken;
 }

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { seal } from "../../src/cipher.ts";
+import { sealWithNonce } from "../../src/cipher.ts";
 import { fromHex, utf8 } from "../../src/encoding.ts";
 import {
   decryptPayload,
@@ -85,7 +85,9 @@ describe("test-vectors/v3.json", () => {
         if (e.payload.startsWith('{"v":3')) expect(serializeEntryData(data)).toBe(e.payload);
       }
       // The blob is the seal of the exact payload text.
-      expect(await seal(key, utf8(e.payload), entryAad(e.id), fromHex(e.nonce))).toBe(e.blob);
+      expect(await sealWithNonce(key, utf8(e.payload), entryAad(e.id), fromHex(e.nonce))).toBe(
+        e.blob,
+      );
       const opened = await decryptPayload(key, e.id, e.blob);
       expect(e.deleted ? parseTombstoneData(opened) : parseEntryData(opened)).toEqual(data);
     });

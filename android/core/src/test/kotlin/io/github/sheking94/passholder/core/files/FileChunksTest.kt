@@ -58,9 +58,11 @@ class FileChunksTest {
             bytes,
             "a.bin",
             "",
-            "123e4567-e89b-42d3-a456-426614174000",
-            Encoding.fromBase64(a.key),
-            (1..3).map { ByteArray(12) { _ -> it.toByte() } },
+            FileSecrets(
+                "123e4567-e89b-42d3-a456-426614174000",
+                Encoding.fromBase64(a.key),
+                (1..3).map { ByteArray(12) { _ -> it.toByte() } },
+            ),
         )
         val bad = ErrorCode.FILE_CORRUPTED
         fails(bad) { FileChunks.decrypt(a, listOf(blobs[1], blobs[0], blobs[2])) }

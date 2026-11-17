@@ -1,5 +1,5 @@
 import { concat, fromBase64, randomBytes, toBase64, toHex } from "../encoding.ts";
-import { open, seal } from "../cipher.ts";
+import { open, sealWithNonce } from "../cipher.ts";
 import { PassHolderError } from "../errors.ts";
 import {
   FILE_CHUNK_SIZE,
@@ -9,7 +9,7 @@ import {
   isAttachmentName,
   type Attachment,
 } from "./attachment.ts";
-import { KEY_BYTES } from "../sizes.ts";
+import { GCM_NONCE_BYTES, KEY_BYTES } from "../sizes.ts";
 
 /** A file whose chunks do not match its descriptor (count, size, SHA-256 or AES-GCM). */
 const corrupted = (cause?: unknown) =>
@@ -29,29 +29,60 @@ export async function sha256Hex(bytes: Uint8Array): Promise<string> {
   return toHex(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes as BufferSource)));
 }
 
-/**
- * `fixed` (id, key, one nonce per chunk) exists ONLY for test vectors; normally everything is random.
- * WARNING: never pass it in production code. Reusing a nonce with the same key breaks AES-GCM
- * (confidentiality and authenticity are lost).
- */
+/** Id, key and one nonce per chunk of a file being encrypted. */
+export interface FileSecrets {
+  id: string;
+  key: Uint8Array;
+  nonces: Uint8Array[];
+}
+
+/** Encrypts a file with a random id, key and nonces. */
 export async function encryptFile(
   bytes: Uint8Array,
   meta: { name: string; mime: string },
-  fixed?: { id: string; key: Uint8Array; nonces: Uint8Array[] },
 ): Promise<EncryptedFile> {
+  checkFileInput(bytes, meta.name);
+  const chunks = chunkCount(bytes.length);
+  const nonces = Array.from({ length: chunks }, () => randomBytes(GCM_NONCE_BYTES));
+  return buildEncryptedFile(bytes, meta, {
+    id: crypto.randomUUID(),
+    key: randomBytes(KEY_BYTES),
+    nonces,
+  });
+}
+
+/**
+ * `encryptFile` with fixed secrets, ONLY for test vectors and their generators. Never call it in production code:
+ * reusing a nonce with the same key breaks AES-GCM (confidentiality and authenticity are lost).
+ */
+export async function encryptFileFixed(
+  bytes: Uint8Array,
+  meta: { name: string; mime: string },
+  secrets: FileSecrets,
+): Promise<EncryptedFile> {
+  checkFileInput(bytes, meta.name);
+  if (secrets.nonces.length !== chunkCount(bytes.length))
+    throw new Error("Nonce count must equal chunk count");
+  return buildEncryptedFile(bytes, meta, secrets);
+}
+
+function checkFileInput(bytes: Uint8Array, name: string): void {
   if (bytes.length === 0) throw new PassHolderError("FILE_EMPTY", "Empty file");
   if (bytes.length > MAX_FILE_SIZE) throw new PassHolderError("FILE_TOO_LARGE", "File too large");
-  if (!isAttachmentName(meta.name))
-    throw new PassHolderError("FILE_INVALID_NAME", "Invalid file name");
-  const id = fixed?.id ?? crypto.randomUUID();
-  const key = fixed?.key ?? randomBytes(KEY_BYTES);
-  const chunks = chunkCount(bytes.length);
-  if (fixed && fixed.nonces.length !== chunks)
-    throw new Error("Nonce count must equal chunk count");
+  if (!isAttachmentName(name)) throw new PassHolderError("FILE_INVALID_NAME", "Invalid file name");
+}
+
+/** One chunk per nonce; the caller checked the input and the nonce count. */
+async function buildEncryptedFile(
+  bytes: Uint8Array,
+  meta: { name: string; mime: string },
+  { id, key, nonces }: FileSecrets,
+): Promise<EncryptedFile> {
+  const chunks = nonces.length;
   const blobs: string[] = [];
   for (let i = 0; i < chunks; i++) {
     const part = bytes.subarray(i * FILE_CHUNK_SIZE, (i + 1) * FILE_CHUNK_SIZE);
-    blobs.push(await seal(key, part, fileChunkAad(id, i, chunks), fixed?.nonces[i]));
+    blobs.push(await sealWithNonce(key, part, fileChunkAad(id, i, chunks), nonces[i]!));
   }
   const attachment: Attachment = {
     id,

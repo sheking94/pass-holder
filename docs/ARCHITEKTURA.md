@@ -36,21 +36,21 @@ Formatowanie i lint dla całego repo: `.editorconfig`, `.prettierrc.json`, `.pre
 | `src/encoding.ts` | UTF-8 z normalizacją NFC, Base64, hex, `randomBytes`, `concat` / `concatAll`, `sameBytes` (porównanie w stałym czasie) |
 | `src/strict-json.ts` | pomocniki ścisłego JSON: `isRecord`, `hasExactKeys`, `requireString` (patrz „Wspólne pomocniki” niżej) |
 | `src/kdf.ts` | Argon2id, HKDF (`encKey`), granice `MIN_KDF` / `MAX_KDF` |
-| `src/cipher.ts` | AES-256-GCM w formacie `0x01 ‖ nonce ‖ szyfrogram ‖ tag` (`seal`, `open`) |
+| `src/cipher.ts` | AES-256-GCM w formacie `0x01 ‖ nonce ‖ szyfrogram ‖ tag` (`seal`, `open`; `sealWithNonce` dla wektorów) |
 | `src/vault.ts` | klucz sejfu: `newVaultKey`, `wrapVaultKey`, `unwrapVaultKey` |
 | `src/protocol.ts` | `RemoteRecord`, `SyncStore`, `processSync`, `MemorySyncStore`: logika hosta (numery `revision`, `baseRevision`); `processSync` i `MemorySyncStore` to host wzorcowy (tylko testy i skrypty) |
 | `src/generator.ts` | generator haseł (CSPRNG z odrzucaniem, Fisher-Yates) |
 | `src/p2p/hlc.ts` | hybrydowy zegar logiczny (HLC) do rozstrzygania konfliktów |
 | `src/p2p/entry.ts` | wpis v3 i nagrobek: typy, ścisły parser (`parseEntryData`, `parseTombstoneData`, `parseEntryContent` dla wpisu bez `v` i `hlc`), zwarta serializacja w stałej kolejności kluczy, limit `MAX_ENTRY_BLOB_LENGTH`, odczyt v2 jako login; AAD `passholder/v2/entry/<id>` |
-| `src/p2p/sync.ts` | sejf wtyczki (`LocalVault`) i `syncVault`; budżet bajtów żądania, rundy ucięte (`more`) poza limitem ponowień po konflikcie (`MAX_CONFLICT_RESYNCS` = 3; wszystkie rundy razem: `MAX_SYNC_ROUNDS`) |
-| `src/p2p/host-sync.ts` | strona hosta: `validateP2pSyncRequest` (też blob ≤ 64 KiB), `processP2pSync` (na `processSync`), epoka, stronicowanie po 500 zmianach i `MAX_BLOB_BYTES_PER_ROUND` (tnie też `conflicts`) |
-| `src/p2p/cpace.ts`, `pairing.ts`, `pair-client.ts` | parowanie: CPace, kod 8 cyfr, zapieczętowane tożsamości, klient HTTP parowania wtyczki |
+| `src/p2p/sync.ts` | sejf wtyczki (`LocalVault`) i `syncVault` (odpowiedź: `markAccepted`, potem `resolveRemote` dla każdego rekordu); budżet bajtów żądania, rundy ucięte (`more`) poza limitem ponowień po konflikcie (`MAX_CONFLICT_RESYNCS` = 3; wszystkie rundy razem: `MAX_SYNC_ROUNDS`) |
+| `src/p2p/host-sync.ts` | strona hosta: `parseP2pSyncRequest` (kształt, też blob ≤ 64 KiB; błąd `InvalidSyncRequestError`), `processP2pSync` (parsuje raz, na `processSync`), epoka, `pageRecords`: stronicowanie po 500 zmianach i `MAX_BLOB_BYTES_PER_ROUND` (tnie też `conflicts`) |
+| `src/p2p/cpace.ts`, `pairing.ts`, `pair-client.ts` | parowanie: CPace, kod 8 cyfr, zapieczętowane wiadomości (`sealIdentity`/`openIdentity`, `sealVaultInfo`/`openVaultInfo`), klient HTTP parowania wtyczki |
 | `src/p2p/noise.ts`, `frames.ts`, `transport.ts` | Noise KK (każdy błąd: kod `NOISE_FAILED`), ramki, `noiseTransport` i `callP2pHost`; stałe ścieżek `P2P_*_PATH` (`/p2p/v2/*` i parowanie `/p2p/v1/*`), `responseString`, 404 na uzgadnianiu → kod `PHONE_UPDATE_REQUIRED`; `P2pHostError` (status ≠ 200: `HOST_ERROR` albo `DEVICE_NOT_PAIRED`), `malformedResponse()` (`HOST_MALFORMED`) |
 | `src/p2p/host.ts`, `host-reply.ts` | `P2pHost`: referencyjny host (uzgadnianie, sesje, sync; tylko testy i skrypty, telefon ma host w Kotlinie); `/p2p/v1/handshake` i `/p2p/v1/sync` → 410; `HostReply` i `errorReply` (wspólne z `files/host-files.ts`) |
 | `src/files/attachment.ts` | opis załącznika: stałe (`MAX_FILE_SIZE`, `FILE_CHUNK_SIZE`, limity 20/40), `parseAttachments`, `attachmentJson` (stała kolejność kluczy), `canAddAttachment`, wzorzec UUID v4 |
-| `src/files/chunks.ts` | szyfrowanie pliku kawałkami: `encryptFile`, `decryptChunk`, `decryptFile` (rozmiar, `sha256`), AAD `passholder/v3/file/<id>/<i>/<n>` |
-| `src/files/host-files.ts` | strona hosta `/p2p/v2/file`: `FileStore`, `MemoryFileStore`, `processP2pFile` (`status`/`put`/`get`, 400/404/409/507), `orphanFileIds` (24 h) |
-| `src/files/client.ts` | klient: `LocalFileStore`, `syncFiles` (wysyłanie i pobieranie brakujących kawałków, `uploadedEpoch`), `noiseFileTransport`, `pruneLocalFiles` |
+| `src/files/chunks.ts` | szyfrowanie pliku kawałkami: `encryptFile` (`encryptFileFixed` dla wektorów), `decryptChunk`, `decryptFile` (rozmiar, `sha256`), AAD `passholder/v3/file/<id>/<i>/<n>` |
+| `src/files/host-files.ts` | strona hosta `/p2p/v2/file`: `FileStore` (`put(FileChunk, now)`), `MemoryFileStore`, `processP2pFile` (parsowanie do typu, potem funkcja na operację `status`/`put`/`get`; 400/404/409/507), `orphanFileIds` (24 h) |
+| `src/files/client.ts` | klient: `LocalFileStore`, `syncFiles(vault, files, send, { onProgress, skip })` (plan, potem wysyłanie i pobieranie brakujących kawałków, `uploadedEpoch`), `noiseFileTransport`, `pruneLocalFiles` |
 | `src/files/merge.ts` | `mergeAttachments`: łączenie list załączników przy konflikcie (używa `src/p2p/sync.ts`) |
 | `src/transfer/` | import i eksport plików, czyste funkcje (bez DOM i `chrome.*`): `common.ts` (`contentKey`, `sortForExport`), `csv.ts` (RFC 4180), `passholder-json.ts`, `bitwarden-json.ts`, `nordpass-csv.ts`, `detect.ts` (`parseImportFile`, `exportFile`), `zip.ts` (CRC-32, zapis i odczyt ZIP, deflate przez `CompressionStream`, limity zip-bomb), `passholder-zip.ts` (`exportPassHolderZip`, `openPassHolderZip`: indeks + pliki, `ArchiveEntry.position`; `exportArchive` / `importArchive` to metody `VaultStore`); pliki przykładowe w `test-vectors/transfer/` |
 | `src/autofill/` | autouzupełnianie, czyste funkcje (bez DOM i `chrome.*`, podścieżka `@passholder/core/autofill`): `match.ts` (`matchUrl`, `matchLogins` z `exactOnly`), `psl.ts` (`publicSuffix`, `registrableDomain`; reguły w wygenerowanym `psl-rules.ts`, skrypt `scripts/gen-psl.ts`), `fields.ts` (`classifyField` po opisie pola), `keywords.ts` (słowa kluczowe PL/EN), `values.ts` (`planFor` → `FillPlan`, `fillValue`: karta, `<select>`, kontakt); wektory `test-vectors/autofill/{match,psl,fields,values}.json` |
@@ -121,10 +121,10 @@ Dwa moduły Gradle: `core` (czysta JVM, testy bez emulatora) i `app` (Jetpack Co
 | `Protocol.kt` | `RemoteRecord`, `ChangeRequest`, `Accepted`, `SyncResponse` |
 | `p2p/Hlc.kt`, `Entry.kt`, `P2pJson.kt` | HLC, wpis v3 (`EntryCodec`: modele, ścisły parser, serializacja w kolejności z TypeScriptu, limit, odczyt v2 jako login), wspólny `Json` |
 | `p2p/RistrettoPoint.kt`, `Cpace.kt`, `Pairing.kt`, `PairingHost.kt`, `ReportError.kt` | parowanie: grupa, CPace, kod i zapieczętowane wiadomości, strona telefonu po HTTP; `reportError` (wspólny dla hostów: błąd zgłaszany bez wpływu na odpowiedź) |
-| `p2p/Noise.kt`, `Frames.kt`, `P2pHost.kt`, `HostSync.kt`, `P2pPaths.kt` | Noise KK, ramki, host synchronizacji (`/p2p/v2/*`, stare ścieżki → 410; `HostReply.error`), stałe ścieżek HTTP, `processSync` i budżet bajtów rundy |
+| `p2p/Noise.kt`, `Frames.kt`, `P2pHost.kt`, `HostSync.kt`, `P2pPaths.kt` | Noise KK, ramki, host synchronizacji (`/p2p/v2/*`, stare ścieżki → 410; `HostReply.error`; `handle` przyjmuje bajty albo gotowy `JsonObject` z `PhoneRouter`), stałe ścieżek HTTP, `HostSync.parse` (błąd `InvalidSyncRequest` → 400), `processSync` i budżet bajtów rundy (`pageRecords`) |
 | `p2p/SyncHttpServer.kt`, `PhoneRouter.kt`, `LocalAddresses.kt` | serwer HTTP na porcie 8787 z limitami, trasy `/p2p/v1/pair/*`, `/p2p/v1/ping` i `/p2p/v2/*` (stare `/p2p/v1/handshake` i `/sync` przekazane do hosta, który odpowiada 410), adresy telefonu |
 | `transfer/Common.kt`, `Csv.kt`, `JsonText.kt`, `PassHolderJson.kt`, `BitwardenJson.kt`, `NordPassCsv.kt`, `Transfer.kt`, `PassHolderZip.kt`, `ArchiveReader.kt` | pakiet `core.transfer`: ZIP bez `ZipInputStream` (własny strumieniowy parser: CRC i pomijanie pliku bez rozpakowania, budżet rozpakowywania; zapis `java.util.zip`); port `core/src/transfer/` (`contentKey`, `sortForExport` na `RuleBasedCollator` zgodnym z wektorem `sort.json`, CSV RFC 4180, serializacja JSON jak `JSON.stringify`, `Transfer.parseImportFile` i `exportFile`); te same pliki przykładowe z `core/test-vectors/transfer/` |
-| `files/Attachment.kt`, `FileChunks.kt`, `FileHost.kt`, `DiskFileStore.kt` | pliki w sejfie (port `core/src/files/` bez klienta): opis załącznika (stałe, ścisły parser), szyfrowanie kawałkami, host `/p2p/v2/file` (`FileHost`, `FileStore`) i magazyn na dysku telefonu (`p2p/files/`, zapis przez `AtomicFiles.write`); `P2pHost` dostaje magazyn jako ostatni parametr |
+| `files/Attachment.kt`, `FileChunks.kt`, `FileHost.kt`, `DiskFileStore.kt` | pliki w sejfie (port `core/src/files/` bez klienta): opis załącznika (stałe, ścisły parser), szyfrowanie kawałkami (`FileSecrets`), host `/p2p/v2/file` (`FileHost`: `parse` do `FileRequest`, funkcja na operację; `FileStore.put(FileChunk, now)`) i magazyn na dysku telefonu (`p2p/files/`, zapis przez `AtomicFiles.write`); `P2pHost` dostaje magazyn jako ostatni parametr |
 | `p2p/PhoneVaultStore.kt`, `PhoneVault.kt`, `FileSyncStore.kt`, `HostState.kt` | sejf telefonu: tworzenie, odtwarzanie, blokada (15 min), wpisy (`entries()` zwraca wszystkie typy, `upsertContent` zapisuje dokładnie podaną treść i odmawia nadpisania wpisu innego typu), urządzenia; pliki `records.jsonl` i `host.json`; import: `importContents` (duplikaty po `contentKey`, jeden zapis) i `allContents`; pliki: `addFile`, `isFileComplete`, `readFile`, `pruneFiles`, `discardFiles` (kasuje podane pliki poza używanymi przez żywy wpis), kasowanie przy zmianie epoki |
 | `autofill/Keywords.kt`, `Fields.kt`, `Values.kt`, `Match.kt`, `PublicSuffix.kt` | port `core/src/autofill/` 1:1 (`classifyField`, `planFor`, `fillValue`, `matchUrl` z własnym parserem adresu, `matchLogins`, `publicSuffix`/`registrableDomain` z zasobu `public_suffix_rules.txt`) na tych samych wektorach `{match,psl,fields,values}.json`; `matchApp`: przeglądarka zweryfikowana podpisem (`AppRequest.browserVerified`; 13 pakietów z certyfikatami SHA-256 w `TRUSTED_BROWSERS`) z `webDomain` → `matchLogins` (brak `webScheme` = `http`, `pageScheme`), inaczej loginy z pakietem w `androidApps`, po nazwie, tylko przy `appVerified`; `verifyApp` ustawia obie flagi z certyfikatów pakietu i zapamiętanych (V3-S3); wektory `test-vectors/autofill/app.json` (tylko Kotlin) |
 | `autofill/Planner.kt` | `planRequest`: grupa formularza (login, karta, kontakt) i jej pola; `planDatasets`: pasujące wpisy → wartości pól (`ListIndex` dla list), bez wpisów bez wartości, najwyżej 10; generyczne po typie id pola, więc testowane bez Androida |
@@ -304,6 +304,35 @@ Teksty, które trafiają do plików eksportu, są w rdzeniu (`transfer/common.ts
 `DocumentLabels` (etykiety pól dokumentu w Bitwarden i NordPass; numer ma różne etykiety: „Numer dokumentu” i „Numer”)
 oraz powody pominięcia `SKIP_BAD_ENTRY` i `SKIP_NO_NAME`. Kopertę pliku PassHolder (`format`, `version: 3`, `entries`)
 buduje jedna funkcja: `passHolderJsonText` / `PassHolderJson.text`, dla eksportu JSON i dla indeksu ZIP.
+
+## Protokół synchronizacji i plików
+
+Ustalone w grupie G8 przeglądu czystości kodu V3. Zachowanie i wektory testowe się nie zmieniły.
+
+- **Żądanie parsowane raz.** Host zamienia odszyfrowany JSON na typ jedną funkcją (`parseP2pSyncRequest` /
+  `HostSync.parse`, w plikach `parseRequest` / `FileHost.parse`), która zwraca gotowe żądanie albo zgłasza błąd
+  z tekstem odpowiedzi 400 (`InvalidSyncRequestError` / `InvalidSyncRequest`). Bez ponownego czytania pól i bez `!!`.
+  `processP2pSync` / `HostSync.process` wołają ją same; host (`P2pHost`) nie waliduje osobno, tylko zamienia ten błąd
+  na 400. Sprawdzenie `baseRevision` w magazynie (`checkBaseRevisions`) jest w tej samej blokadzie co zapis.
+- **Jedna funkcja, jedna praca.** Odpowiedź telefonu w kliencie: `markAccepted` (rewizje przyjętych zmian) i
+  `resolveRemote` (jeden rekord: HLC, łączenie załączników, starsza wersja ignorowana). Faza plików: `planFiles`,
+  `uploadAll`, `downloadAll`. Host: `pageRecords` tnie odpowiedź do budżetu; host plików ma funkcję na operację.
+  `P2pHost.handshake` (Kotlin) ma osobne `respond` (Noise), `PairingHost.finish` osobne `completePairing`,
+  `SyncHttpServer.readRequest` osobne `parseHeaders`, `contentLength`, `readBody`.
+- **Mniej parametrów.** Wspólny stan to obiekt: `SyncContext` (sejf, klucz, zegar), `FileContext` (magazyn,
+  transport, epoka), `FileSyncOptions` (`onProgress`, `skip`), `FileChunk` (`id`, `index`, `chunks`, `blob`) w
+  `FileStore.put(chunk, now)`, `FileSecrets` (`id`, klucz, nonce) w szyfrowaniu plików.
+- **JSON parsowany raz na telefonie.** `PhoneRouter` parsuje ciało i podaje `JsonObject` do `P2pHost.handle`.
+  Limit `MAX_BODY_BYTES` sprawdza wtedy `SyncHttpServer` (przed czytaniem ciała); wariant z bajtami sprawdza go sam.
+- **Parowanie typowane.** TS ma pary `sealIdentity`/`openIdentity` i `sealVaultInfo`/`openVaultInfo` jak Kotlin
+  (bez `kind` i rzutowań). Pola sprawdzane raz: `checkBase64` zwraca sprawdzony tekst.
+- **Zaczepy testowe poza publicznym API.** Funkcje produkcyjne nie mają parametrów „tylko dla wektorów”. Stała
+  losowość ma osobne funkcje: TS `sealWithNonce`, `encryptFileFixed`, `NoiseKK.initiatorWithEphemeral` /
+  `responderWithEphemeral`, `_cpaceInternals.startWithScalar`; Kotlin przeciążenia `internal` (`Aead.seal(…, nonce)`,
+  `Pairing.sealIdentity(…, nonce)`, `Cpace.start(…, ya)`, `NoiseKK.initiator(…, e)`, `FileChunks.encryptFixed`).
+  Wektory pary i wpisów w TS sprawdza `sealWithNonce` na tym samym tekście JSON, który pieczętuje kod produkcyjny.
+- **Poza G8:** `VaultStore.repair`, `decideFor` i konstruktor `VaultStore` (G10), `ResponseBuilder` i
+  `BiometricUnlock.authenticate` (G14), bo te grupy i tak zmieniają te pliki.
 
 ## Przepływ autouzupełniania (Chrome)
 

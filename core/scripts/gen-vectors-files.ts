@@ -2,10 +2,10 @@
 // All randomness is replaced by fixed ids, keys, nonces and times, so two runs give an identical file.
 // Run: npm run gen-vectors-files -w core
 import { mkdirSync, writeFileSync } from "node:fs";
-import { seal } from "../src/cipher.ts";
+import { sealWithNonce } from "../src/cipher.ts";
 import { fromHex, toBase64, toHex, utf8 } from "../src/encoding.ts";
 import {
-  encryptFile,
+  encryptFileFixed,
   fileChunkAad,
   FILE_CHUNK_SIZE,
   MAX_ATTACHMENTS_PARSED,
@@ -60,7 +60,7 @@ async function fileVector(
   const count = Math.ceil(bytes.length / FILE_CHUNK_SIZE);
   // File n uses nonces 2n+1.. (one per chunk; nonceOf wraps after 16); entries use 1 and 2, so all nonces differ.
   const nonces = Array.from({ length: count }, (_, i) => nonceOf(2 * n + 1 + i));
-  const enc = await encryptFile(
+  const enc = await encryptFileFixed(
     bytes,
     { name, mime },
     { id, key: fromHex(key), nonces: nonces.map(fromHex) },
@@ -152,7 +152,7 @@ async function entry(
     payload,
     ...(opts.rawPayload !== undefined ? { canonicalPayload: canonical } : {}),
     parsed: data,
-    blob: await seal(fromHex(vaultKey), utf8(payload), entryAad(id), fromHex(nonce)),
+    blob: await sealWithNonce(fromHex(vaultKey), utf8(payload), entryAad(id), fromHex(nonce)),
     ...(merge ? { merge } : {}),
   };
 }
@@ -458,7 +458,8 @@ const orphanFiles = [
   { id: C, createdAt: T0 + 2, used: false },
 ];
 const orphanStore = new MemoryFileStore();
-for (const f of orphanFiles) orphanStore.put(f.id, 0, 1, "AAAA", f.createdAt);
+for (const f of orphanFiles)
+  orphanStore.put({ id: f.id, index: 0, chunks: 1, blob: "AAAA" }, f.createdAt);
 const orphanUsed = new Set(orphanFiles.filter((f) => f.used).map((f) => f.id));
 const orphanCases = [
   T0 + ORPHAN_FILE_AGE_MS,

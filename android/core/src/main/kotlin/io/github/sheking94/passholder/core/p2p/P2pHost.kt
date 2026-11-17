@@ -76,15 +76,24 @@ class P2pHost(
     /** Ephemeral keys (first 32 bytes, Base64) of accepted handshakes, oldest first. Guarded by the sessions lock. */
     private val seen = LinkedHashSet<String>()
 
+    /** Handles a raw request body: refuses one over [MAX_BODY_BYTES], parses the JSON only for the paths that read it. */
     fun handle(path: String, body: ByteArray): HostReply {
         if (body.size > MAX_BODY_BYTES) return HostReply.error(413, "body too large")
+        return route(path) { parseObject(body) }
+    }
+
+    /** Handles a body already parsed as a JSON object, e.g. by [PhoneRouter] (the HTTP server enforces [MAX_BODY_BYTES]). */
+    fun handle(path: String, body: JsonObject): HostReply = route(path) { body }
+
+    /** [body] gives the request as a JSON object, or null when it is not one. */
+    private fun route(path: String, body: () -> JsonObject?): HostReply {
         synchronized(sessions) { prune() }
         return when (path) {
-            P2pPaths.HANDSHAKE -> handshake(body)
+            P2pPaths.HANDSHAKE -> body()?.let(::handshake) ?: malformed()
 
-            P2pPaths.SYNC -> sync(body)
+            P2pPaths.SYNC -> body()?.let(::sync) ?: malformed()
 
-            P2pPaths.FILE -> if (files != null) file(files, body) else HostReply.error(404, "not found")
+            P2pPaths.FILE -> if (files != null) body()?.let { file(files, it) } ?: malformed() else HostReply.error(404, "not found")
 
             // The v1 sync protocol is gone; tell old clients to update instead of pretending the path is unknown.
             P2pPaths.LEGACY_HANDSHAKE, P2pPaths.LEGACY_SYNC -> HostReply.error(410, "update required")
@@ -92,6 +101,8 @@ class P2pHost(
             else -> HostReply.error(404, "not found")
         }
     }
+
+    private fun malformed() = HostReply.error(400, "malformed request")
 
     /** 400 for a copy of an accepted message, 503 when the table or the device's share is full. Caller holds the lock. */
     private fun refusal(ephemeral: String, deviceId: String): HostReply? = when {
@@ -114,39 +125,22 @@ class P2pHost(
         null
     }
 
-    private fun handshake(body: ByteArray): HostReply {
-        val obj = parseObject(body) ?: return HostReply.error(400, "malformed request")
-        val deviceId = StrictJson.string(obj["deviceId"])
-        val messageText = StrictJson.string(obj["message"])
-        if (deviceId == null || messageText == null) return HostReply.error(400, "malformed request")
+    private fun handshake(body: JsonObject): HostReply {
+        val deviceId = StrictJson.string(body["deviceId"])
+        val messageText = StrictJson.string(body["message"])
+        if (deviceId == null || messageText == null) return malformed()
         val device = devices().firstOrNull { it.deviceId == deviceId } ?: return HostReply.error(403, "device not paired")
         val message = try {
             Encoding.fromBase64(messageText)
         } catch (_: IllegalArgumentException) {
-            return HostReply.error(400, "malformed request")
+            return malformed()
         }
         val ephemeral = Encoding.toBase64(message.copyOf(minOf(message.size, KEY_BYTES)))
         // handle() already pruned the expired sessions.
         synchronized(sessions) { refusal(ephemeral, device.deviceId) }?.let { return it }
-        val reply: ByteArray
-        val ciphers: TransportCiphers
-        try {
-            val noise = NoiseKK.responder(staticKey, device.staticPublicKey, P2P_PROLOGUE)
-            noise.readMessage(message)
-            reply = noise.writeMessage(ByteArray(0))
-            ciphers = noise.split()
-        } catch (e: PassHolderException) {
-            if (e.code != ErrorCode.NOISE_FAILED) throw e
-            return HostReply.error(400, "handshake failed")
-        }
+        val (reply, ciphers) = respond(device, message) ?: return HostReply.error(400, "handshake failed")
         val id = Encoding.toBase64(Encoding.randomBytes(RANDOM_ID_BYTES))
-        val session = Session(
-            device.deviceId,
-            device.staticPublicKey.copyOf(),
-            ciphers.send,
-            ciphers.recv,
-            now() + SESSION_TTL_MS,
-        )
+        val session = Session(device.deviceId, device.staticPublicKey.copyOf(), ciphers.send, ciphers.recv, now() + SESSION_TTL_MS)
         synchronized(sessions) {
             // Concurrent handshakes may have filled the map or used the same message since the check above.
             refusal(ephemeral, device.deviceId)?.let { return it }
@@ -163,20 +157,30 @@ class P2pHost(
         )
     }
 
+    /** Noise KK as responder: reads the first message, writes the reply; null when the message does not pass Noise. */
+    private fun respond(device: PairedDevice, message: ByteArray): Pair<ByteArray, TransportCiphers>? = try {
+        val noise = NoiseKK.responder(staticKey, device.staticPublicKey, P2P_PROLOGUE)
+        noise.readMessage(message)
+        val reply = noise.writeMessage(ByteArray(0))
+        reply to noise.split()
+    } catch (e: PassHolderException) {
+        if (e.code != ErrorCode.NOISE_FAILED) throw e
+        null
+    }
+
     /**
      * The steps shared by sync and file requests: body, one-time session, device still paired, decrypting the frames.
      * Then [process] gets the session and the decrypted request.
      */
-    private fun withSession(body: ByteArray, process: (Session, JsonElement) -> HostReply): HostReply {
-        val obj = parseObject(body) ?: return HostReply.error(400, "malformed request")
-        val sessionId = StrictJson.string(obj["session"])
-        val frameArray = obj["frames"] as? JsonArray
+    private fun withSession(body: JsonObject, process: (Session, JsonElement) -> HostReply): HostReply {
+        val sessionId = StrictJson.string(body["session"])
+        val frameArray = body["frames"] as? JsonArray
         if (sessionId == null || frameArray == null ||
             frameArray.size < 1 || frameArray.size > Frames.MAX_FRAMES
         ) {
-            return HostReply.error(400, "malformed request")
+            return malformed()
         }
-        val frames = frameArray.map { StrictJson.string(it) ?: return HostReply.error(400, "malformed request") }
+        val frames = frameArray.map { StrictJson.string(it) ?: return malformed() }
         // One attempt per session, whatever the outcome.
         val session = synchronized(sessions) { sessions.remove(sessionId) }
         if (session == null || session.expiresAt <= now()) return HostReply.error(401, "unknown or expired session")
@@ -202,11 +206,12 @@ class P2pHost(
         return HostReply(200, buildJsonObject { put("frames", JsonArray(encrypted.map { JsonPrimitive(it) })) }.toString())
     }
 
-    private fun sync(body: ByteArray): HostReply = withSession(body) { session, request ->
-        synchronized(store) { HostSync.validate(store, epoch, request) }?.let { return@withSession HostReply.error(400, it) }
+    private fun sync(body: JsonObject): HostReply = withSession(body) { session, request ->
         val reply = try {
             val response = HostSync.process(store, epoch, addresses(), request)
             encrypted(session, P2pJson.json.encodeToString(P2pSyncResponse.serializer(), response))
+        } catch (e: InvalidSyncRequest) {
+            return@withSession HostReply.error(400, e.message ?: "malformed sync request")
         } catch (e: Exception) {
             reportError(onError, e)
             return@withSession HostReply.error(500, "internal error")
@@ -221,7 +226,7 @@ class P2pHost(
     }
 
     /** A 200 file answer goes out encrypted, any other status in plaintext (like host.ts). */
-    private fun file(files: FileStore, body: ByteArray): HostReply = withSession(body) { session, request ->
+    private fun file(files: FileStore, body: JsonObject): HostReply = withSession(body) { session, request ->
         try {
             val reply = FileHost.process(files, epoch, request, now())
             if (reply.status == 200) encrypted(session, reply.body.toString()) else HostReply(reply.status, reply.body.toString())

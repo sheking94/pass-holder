@@ -11,14 +11,22 @@ async function importKey(rawKey: Uint8Array, usage: KeyUsage): Promise<CryptoKey
 }
 
 /**
- * AES-256-GCM. Output is Base64 of: version (1 byte) || nonce (12 bytes) || ciphertext || tag (16 bytes).
- * `nonce` is only for test vectors; normal callers leave it out and get a random one.
+ * AES-256-GCM with a random nonce.
+ * Output is Base64 of: version (1 byte) || nonce (12 bytes) || ciphertext || tag (16 bytes).
  */
-export async function seal(
+export function seal(key: Uint8Array, plaintext: Uint8Array, aad: string): Promise<string> {
+  return sealWithNonce(key, plaintext, aad, randomBytes(GCM_NONCE_BYTES));
+}
+
+/**
+ * `seal` with a caller-given nonce. Production code passes a fresh random one (as `seal` and `encryptFile` do);
+ * a fixed nonce is only for test vectors: reusing a nonce with the same key breaks AES-GCM.
+ */
+export async function sealWithNonce(
   key: Uint8Array,
   plaintext: Uint8Array,
   aad: string,
-  nonce: Uint8Array = randomBytes(GCM_NONCE_BYTES),
+  nonce: Uint8Array,
 ): Promise<string> {
   if (nonce.length !== GCM_NONCE_BYTES) throw new Error("Nonce must be 12 bytes");
   const ciphertext = await crypto.subtle.encrypt(

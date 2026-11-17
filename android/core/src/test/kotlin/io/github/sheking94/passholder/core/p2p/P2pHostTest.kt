@@ -3,6 +3,7 @@ package io.github.sheking94.passholder.core.p2p
 import io.github.sheking94.passholder.core.ChangeRequest
 import io.github.sheking94.passholder.core.Encoding
 import io.github.sheking94.passholder.core.RemoteRecord
+import io.github.sheking94.passholder.core.files.FileChunk
 import io.github.sheking94.passholder.core.files.FileChunks
 import io.github.sheking94.passholder.core.files.FileStore
 import io.github.sheking94.passholder.core.files.MemoryFileStore
@@ -606,7 +607,7 @@ class P2pHostTest {
     fun fileStoreFailureIs500() {
         val errors = ArrayList<Throwable>()
         val broken = object : FileStore by MemoryFileStore() {
-            override fun put(id: String, index: Int, chunks: Int, blob: String, now: Long) = throw IllegalStateException("disk gone")
+            override fun put(chunk: FileChunk, now: Long) = throw IllegalStateException("disk gone")
         }
         val hostKey = NoiseKeys.generate()
         val key = NoiseKeys.generate()

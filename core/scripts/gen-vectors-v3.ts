@@ -2,7 +2,7 @@
 // All randomness is replaced by a fixed key and fixed, distinct nonces.
 // Run: npm run gen-vectors-v3 -w core
 import { writeFileSync } from "node:fs";
-import { seal } from "../src/cipher.ts";
+import { sealWithNonce } from "../src/cipher.ts";
 import { fromHex, utf8 } from "../src/encoding.ts";
 import {
   entryAad,
@@ -146,7 +146,7 @@ async function entry(
     deleted,
     payload,
     parsed,
-    blob: await seal(fromHex(vaultKey), utf8(payload), entryAad(id), fromHex(nonceOf(n))),
+    blob: await sealWithNonce(fromHex(vaultKey), utf8(payload), entryAad(id), fromHex(nonceOf(n))),
   };
 }
 

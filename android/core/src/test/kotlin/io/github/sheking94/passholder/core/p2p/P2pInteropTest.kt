@@ -2,6 +2,7 @@ package io.github.sheking94.passholder.core.p2p
 
 import io.github.sheking94.passholder.core.Encoding
 import io.github.sheking94.passholder.core.files.Attachment
+import io.github.sheking94.passholder.core.files.FileChunk
 import io.github.sheking94.passholder.core.files.FileChunks
 import io.github.sheking94.passholder.core.files.MemoryFileStore
 import io.github.sheking94.passholder.core.login
@@ -155,7 +156,7 @@ class P2pInteropTest {
         // A file added on the phone: complete in its store, described by an entry.
         val original = ByteArray(300_000) { (it * 13 + 5).toByte() }
         val enc = FileChunks.encrypt(original, "z-telefonu.bin", "application/octet-stream")
-        enc.blobs.forEachIndexed { i, blob -> files.put(enc.attachment.id, i, enc.blobs.size, blob, 0L) }
+        enc.blobs.forEachIndexed { i, blob -> files.put(FileChunk(enc.attachment.id, i, enc.blobs.size, blob), 0L) }
         f.vault.upsertContent(
             "phone-1",
             EntryContent("z-telefonu.pl", "", LoginFields("jan", "x"), emptyList(), listOf(enc.attachment)),

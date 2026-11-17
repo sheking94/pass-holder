@@ -40,6 +40,9 @@ data class P2pSyncResponse(
     val more: Boolean,
 )
 
+/** A decrypted sync request the host refuses; [message] is the error text of the 400 answer. */
+class InvalidSyncRequest(message: String) : IllegalArgumentException(message)
+
 /** Host side of P2P sync: validation, epoch check, conflict detection and paging. */
 object HostSync {
     const val MAX_CHANGES_PER_REQUEST = 500
@@ -48,79 +51,84 @@ object HostSync {
     const val MAX_BLOB_BYTES_PER_ROUND = 512 * KIB
 
     /**
-     * Checks a decrypted sync request before anything is written. Returns the error text for a 400, or null.
-     * Every change is checked against the store first, so a bad change never leaves earlier ones applied.
+     * Checks the shape of a decrypted sync request and returns it as a typed request (port of parseP2pSyncRequest in
+     * host-sync.ts). Built by hand so extra fields are ignored the way the TypeScript host does.
+     * Throws [InvalidSyncRequest].
      */
-    fun validate(store: SyncStore, epoch: String, request: JsonElement): String? {
-        if (request !is JsonObject) return "malformed sync request"
-        val requestEpoch = StrictJson.string(request["epoch"])
+    fun parse(request: JsonElement): P2pSyncRequest {
+        if (request !is JsonObject) throw InvalidSyncRequest("malformed sync request")
+        val epoch = StrictJson.string(request["epoch"])
         val since = P2pJson.safeLong(request["sinceRevision"])
         val changes = request["changes"] as? JsonArray
-        if (requestEpoch == null || since == null || changes == null) return "malformed sync request"
-        if (changes.size > MAX_CHANGES_PER_REQUEST) return "too many changes"
+        if (epoch == null || since == null || changes == null) throw InvalidSyncRequest("malformed sync request")
+        if (changes.size > MAX_CHANGES_PER_REQUEST) throw InvalidSyncRequest("too many changes")
         val ids = HashSet<String>()
-        for (c in changes) {
-            if (c !is JsonObject) return "malformed change"
-            val id = StrictJson.string(c["id"])
-            if (id == null || id.isEmpty() || id.length > MAX_ENTRY_ID_LENGTH ||
-                P2pJson.safeLong(c["baseRevision"]) == null ||
-                StrictJson.boolean(c["deleted"]) == null || StrictJson.string(c["blob"]) == null
-            ) {
-                return "malformed change"
-            }
-            if (StrictJson.string(c["blob"])!!.length > EntryCodec.MAX_BLOB_LENGTH) return "blob too large"
-            if (!ids.add(id)) return "duplicate change"
+        val parsed = changes.map { c ->
+            parseChange(c).also { if (!ids.add(it.id)) throw InvalidSyncRequest("duplicate change") }
         }
-        // A request from another epoch is not processed, so its base revisions do not matter.
-        if (requestEpoch != epoch) return null
-        // A client ahead of this store sees a restored phone and starts over; its changes are not processed either.
-        if (since > store.currentRevision()) return null
-        for (c in changes) {
-            c as JsonObject
-            val id = StrictJson.string(c["id"])!!
-            if (P2pJson.safeLong(c["baseRevision"]) != 0L && store.get(id) == null) {
-                return "unknown base revision"
-            }
+        return P2pSyncRequest(epoch, since, parsed)
+    }
+
+    private fun parseChange(c: JsonElement): ChangeRequest {
+        if (c !is JsonObject) throw InvalidSyncRequest("malformed change")
+        val id = StrictJson.string(c["id"])
+        val baseRevision = P2pJson.safeLong(c["baseRevision"])
+        val deleted = StrictJson.boolean(c["deleted"])
+        val blob = StrictJson.string(c["blob"])
+        if (id == null || id.isEmpty() || id.length > MAX_ENTRY_ID_LENGTH || baseRevision == null || deleted == null || blob == null) {
+            throw InvalidSyncRequest("malformed change")
         }
-        return null
+        if (blob.length > EntryCodec.MAX_BLOB_LENGTH) throw InvalidSyncRequest("blob too large")
+        return ChangeRequest(id, baseRevision, deleted, blob)
     }
 
     /**
-     * Host side of P2P sync. A request from another epoch, or with sinceRevision ahead of the store, is not processed:
-     * the client only learns the epoch and revision.
-     * Throws IllegalArgumentException (before any write) when [validate] rejects the request.
+     * Whether the host processes the request's changes. A request from another epoch, or with sinceRevision ahead of
+     * the store (the phone was restored, the client starts over), only learns the epoch and revision.
      */
-    fun process(store: SyncStore, epoch: String, addresses: List<String>, request: JsonElement): P2pSyncResponse = synchronized(store) {
-        validate(store, epoch, request)?.let { throw IllegalArgumentException(it) }
-        // Validated, so the shape is known; built by hand to ignore extra fields the way the TypeScript host does.
-        val obj = request as JsonObject
-        val parsed = P2pSyncRequest(
-            epoch = StrictJson.string(obj["epoch"])!!,
-            sinceRevision = P2pJson.safeLong(obj["sinceRevision"])!!,
-            changes = (obj["changes"] as JsonArray).map { c ->
-                c as JsonObject
-                ChangeRequest(
-                    id = StrictJson.string(c["id"])!!,
-                    baseRevision = P2pJson.safeLong(c["baseRevision"])!!,
-                    deleted = StrictJson.boolean(c["deleted"])!!,
-                    blob = StrictJson.string(c["blob"])!!,
-                )
-            },
-        )
-        if (parsed.epoch != epoch || parsed.sinceRevision > store.currentRevision()) {
-            return@synchronized P2pSyncResponse(
-                epoch,
-                store.currentRevision(),
-                emptyList(),
-                emptyList(),
-                emptyList(),
-                addresses,
-                false,
-            )
+    private fun isProcessed(store: SyncStore, epoch: String, request: P2pSyncRequest): Boolean =
+        request.epoch == epoch && request.sinceRevision <= store.currentRevision()
+
+    /** Every change with a base revision must name a record the store has. Throws [InvalidSyncRequest]. */
+    internal fun checkBaseRevisions(store: SyncStore, request: P2pSyncRequest) {
+        for (c in request.changes) {
+            if (c.baseRevision != 0L && store.get(c.id) == null) throw InvalidSyncRequest("unknown base revision")
         }
-        val result = processSync(store, parsed.sinceRevision, parsed.changes)
-        val sorted = result.changes.sortedBy { it.revision }
-        // Conflicts first, then changes; the first record always goes in, then while the running sum fits.
+    }
+
+    /**
+     * Host side of P2P sync: parses the decrypted request (once), checks it against the store and answers.
+     * Throws [InvalidSyncRequest] (before any write) when the request is refused.
+     */
+    fun process(store: SyncStore, epoch: String, addresses: List<String>, request: JsonElement): P2pSyncResponse {
+        val parsed = parse(request)
+        return synchronized(store) {
+            if (!isProcessed(store, epoch, parsed)) {
+                return@synchronized P2pSyncResponse(epoch, store.currentRevision(), emptyList(), emptyList(), emptyList(), addresses, false)
+            }
+            checkBaseRevisions(store, parsed)
+            val result = processSync(store, parsed.sinceRevision, parsed.changes)
+            val page = pageRecords(result.conflicts, result.changes)
+            // Records skipped below this revision were answered in accepted or conflicts, so nothing is lost.
+            // Omitted conflicts leave their changes dirty on the client, which sends them again.
+            val currentRevision = when {
+                !page.more -> result.currentRevision
+                page.changes.isNotEmpty() -> page.changes.last().revision
+                else -> parsed.sinceRevision
+            }
+            P2pSyncResponse(epoch, currentRevision, result.accepted, page.conflicts, page.changes, addresses, page.more)
+        }
+    }
+
+    private class Page(val conflicts: List<RemoteRecord>, val changes: List<RemoteRecord>, val more: Boolean)
+
+    /**
+     * Cuts the answer to the round budget: conflicts first, then changes by revision (at most
+     * [MAX_CHANGES_PER_RESPONSE]). The first record always goes in, then each one while the running sum of blob
+     * characters fits [MAX_BLOB_BYTES_PER_ROUND]. [Page.more] tells whether anything was left out.
+     */
+    private fun pageRecords(allConflicts: List<RemoteRecord>, allChanges: List<RemoteRecord>): Page {
+        val sorted = allChanges.sortedBy { it.revision }
         var budget = MAX_BLOB_BYTES_PER_ROUND
         var included = 0
         fun fits(r: RemoteRecord): Boolean {
@@ -129,33 +137,9 @@ object HostSync {
             included++
             return true
         }
-        val conflicts = ArrayList<RemoteRecord>()
-        for (r in result.conflicts) {
-            if (!fits(r)) break
-            conflicts.add(r)
-        }
-        val page = ArrayList<RemoteRecord>()
-        if (conflicts.size == result.conflicts.size) {
-            for (r in sorted) {
-                if (page.size >= MAX_CHANGES_PER_RESPONSE || !fits(r)) break
-                page.add(r)
-            }
-        }
-        if (conflicts.size == result.conflicts.size && page.size == sorted.size) {
-            return@synchronized P2pSyncResponse(
-                epoch,
-                result.currentRevision,
-                result.accepted,
-                conflicts,
-                page,
-                addresses,
-                false,
-            )
-        }
-        // Records skipped below this revision were answered in accepted or conflicts, so nothing is lost.
-        // Omitted conflicts leave their changes dirty on the client, which sends them again.
-        val currentRevision = if (page.isNotEmpty()) page.last().revision else parsed.sinceRevision
-        P2pSyncResponse(epoch, currentRevision, result.accepted, conflicts, page, addresses, true)
+        val conflicts = allConflicts.takeWhile(::fits)
+        val changes = if (conflicts.size == allConflicts.size) sorted.take(MAX_CHANGES_PER_RESPONSE).takeWhile(::fits) else emptyList()
+        return Page(conflicts, changes, more = conflicts.size < allConflicts.size || changes.size < sorted.size)
     }
 
     /** Host-side sync logic (port of processSync in core/src/protocol.ts); the host never reads entries. */

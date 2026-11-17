@@ -2,12 +2,11 @@
 // All randomness is replaced by fixed keys and nonces. cpace and noiseKk only point at their own vector files.
 // Run: npm run gen-vectors-v2 -w core
 import { writeFileSync } from "node:fs";
-import { seal } from "../src/cipher.ts";
+import { sealWithNonce } from "../src/cipher.ts";
 import { fromBase64, fromHex, toHex, utf8 } from "../src/encoding.ts";
 import {
   CipherState,
   compareHlc,
-  encryptPayload,
   entryAad,
   MAX_CHANGES_PER_REQUEST,
   MAX_CHANGES_PER_RESPONSE,
@@ -15,7 +14,7 @@ import {
   MAX_FRAME_PLAINTEXT,
   pairingAad,
   pairingKey,
-  sealPairingMessage,
+  serializeEntryData,
   type Hlc,
   type PairingKind,
   type PairingRole,
@@ -75,13 +74,18 @@ async function entryVector(
     nonce: nonceHex,
     blob:
       "name" in data
-        ? await seal(
+        ? await sealWithNonce(
             fromHex(vaultKey),
             utf8(JSON.stringify(data)),
             entryAad(entryId),
             fromHex(nonceHex),
           )
-        : await encryptPayload(fromHex(vaultKey), entryId, data, fromHex(nonceHex)),
+        : await sealWithNonce(
+            fromHex(vaultKey),
+            utf8(serializeEntryData(data)),
+            entryAad(entryId),
+            fromHex(nonceHex),
+          ),
   };
 }
 
@@ -131,7 +135,12 @@ async function pairingVector(
     value,
     aad: pairingAad(kind, from),
     nonce: nonceHex,
-    blob: await sealPairingMessage(fromHex(pairKey), kind, from, value as never, fromHex(nonceHex)),
+    blob: await sealWithNonce(
+      fromHex(pairKey),
+      utf8(JSON.stringify(value)),
+      pairingAad(kind, from),
+      fromHex(nonceHex),
+    ),
   };
 }
 

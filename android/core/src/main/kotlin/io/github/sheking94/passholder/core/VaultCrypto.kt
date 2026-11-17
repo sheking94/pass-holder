@@ -6,8 +6,7 @@ object VaultCrypto {
 
     fun newVaultKey(): ByteArray = Encoding.randomBytes(KEY_BYTES)
 
-    fun wrapVaultKey(encKey: ByteArray, vaultKey: ByteArray, nonce: ByteArray? = null): String =
-        if (nonce == null) Aead.seal(encKey, vaultKey, VAULT_KEY_AAD) else Aead.seal(encKey, vaultKey, VAULT_KEY_AAD, nonce)
+    fun wrapVaultKey(encKey: ByteArray, vaultKey: ByteArray): String = Aead.seal(encKey, vaultKey, VAULT_KEY_AAD)
 
     /** Throws if the master password is wrong (the GCM tag does not verify). */
     fun unwrapVaultKey(encKey: ByteArray, wrapped: String): ByteArray {

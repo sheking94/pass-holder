@@ -126,19 +126,18 @@ object Cpace {
     /** K = scalar_mult_vfy(y, Y_peer), with y as 32 little-endian bytes. */
     internal fun sharedPoint(y: ByteArray, peer: ByteArray): ByteArray = scalarMultVfy(bytesToScalarLE(y), peer)
 
-    /**
-     * Starts a CPace run. `message` is lv_cat(Y, ad) and is sent to the peer.
-     * [ya] (32 bytes, little-endian) is only for reproducing test vectors.
-     */
-    fun start(prs: ByteArray, ci: ByteArray, sid: ByteArray, ad: ByteArray): CpaceStart = start(prs, ci, sid, ad, null)
+    /** Starts a CPace run with a random scalar. `message` is lv_cat(Y, ad) and is sent to the peer. */
+    fun start(prs: ByteArray, ci: ByteArray, sid: ByteArray, ad: ByteArray): CpaceStart = startWith(prs, ci, sid, ad, sampleScalar())
 
-    internal fun start(prs: ByteArray, ci: ByteArray, sid: ByteArray, ad: ByteArray, ya: ByteArray?): CpaceStart {
-        val y = if (ya == null) {
-            sampleScalar()
-        } else {
-            require(ya.size == 32) { "CPace: scalar must be 32 bytes" }
-            bytesToScalarLE(ya).also { require(it.signum() != 0) { "CPace: zero scalar" } }
-        }
+    /** [start] with a fixed scalar [ya] (32 bytes, little-endian), ONLY to reproduce the draft vector. */
+    internal fun start(prs: ByteArray, ci: ByteArray, sid: ByteArray, ad: ByteArray, ya: ByteArray): CpaceStart {
+        require(ya.size == 32) { "CPace: scalar must be 32 bytes" }
+        val y = bytesToScalarLE(ya)
+        require(y.signum() != 0) { "CPace: zero scalar" }
+        return startWith(prs, ci, sid, ad, y)
+    }
+
+    private fun startWith(prs: ByteArray, ci: ByteArray, sid: ByteArray, ad: ByteArray, y: BigInteger): CpaceStart {
         val ownY = generator(prs, ci, sid).multiply(y).encode()
         return CpaceStart(CpaceState(y, ownY, ad.copyOf(), sid.copyOf()), lvCat(ownY, ad))
     }

@@ -8,12 +8,8 @@ export function newVaultKey(): Uint8Array {
   return randomBytes(KEY_BYTES);
 }
 
-export function wrapVaultKey(
-  encKey: Uint8Array,
-  vaultKey: Uint8Array,
-  nonce?: Uint8Array,
-): Promise<string> {
-  return seal(encKey, vaultKey, VAULT_KEY_AAD, nonce);
+export function wrapVaultKey(encKey: Uint8Array, vaultKey: Uint8Array): Promise<string> {
+  return seal(encKey, vaultKey, VAULT_KEY_AAD);
 }
 
 /** Throws if the master password is wrong (the GCM tag does not verify). */

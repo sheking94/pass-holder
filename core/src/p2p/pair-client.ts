@@ -4,10 +4,12 @@ import { fromBase64, toBase64, utf8 } from "../encoding.ts";
 import { PassHolderError } from "../errors.ts";
 import { cpaceFinish, cpaceStart, PAIRING_CI } from "./cpace.ts";
 import {
-  openPairingMessage,
+  openIdentity,
+  openVaultInfo,
   PAIRING_CODE_LENGTH,
   pairingKey,
-  sealPairingMessage,
+  sealIdentity,
+  sealVaultInfo,
   type DeviceIdentity,
   type VaultInfo,
 } from "./pairing.ts";
@@ -107,15 +109,9 @@ export async function pairWithPhone(o: {
 
   const request: Record<string, string> = {
     sid,
-    identity: await sealPairingMessage(key, "identity", "initiator", o.identity),
+    identity: await sealIdentity(key, "initiator", o.identity),
   };
-  if (mode === "restore")
-    request.vaultInfo = await sealPairingMessage(
-      key,
-      "vault-info",
-      "initiator",
-      o.restore as VaultInfo,
-    );
+  if (mode === "restore") request.vaultInfo = await sealVaultInfo(key, "initiator", o.restore!);
   const finished = await callP2pHost(o.post, `${url}${P2P_PAIR_FINISH_PATH}`, request, {
     403: "PAIRING_WRONG_CODE",
     404: "PAIRING_NOT_WAITING",
@@ -124,18 +120,8 @@ export async function pairWithPhone(o: {
   let phone: DeviceIdentity;
   let vaultInfo: VaultInfo;
   try {
-    phone = (await openPairingMessage(
-      key,
-      "identity",
-      "responder",
-      responseString(finished.identity),
-    )) as DeviceIdentity;
-    vaultInfo = (await openPairingMessage(
-      key,
-      "vault-info",
-      "responder",
-      responseString(finished.vaultInfo),
-    )) as VaultInfo;
+    phone = await openIdentity(key, "responder", responseString(finished.identity));
+    vaultInfo = await openVaultInfo(key, "responder", responseString(finished.vaultInfo));
   } catch (error) {
     throw malformedResponse(error);
   }

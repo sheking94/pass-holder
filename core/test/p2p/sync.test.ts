@@ -15,7 +15,7 @@ import {
   entryBlobLength,
   MAX_BLOB_BYTES_PER_ROUND,
   MAX_ENTRY_BLOB_LENGTH,
-  validateP2pSyncRequest,
+  parseP2pSyncRequest,
   type EntryContent,
   HlcClock,
   liveEntries,
@@ -578,15 +578,11 @@ describe("p2p sync: v3 entries and byte budget", () => {
       sinceRevision: 0,
       changes: [{ id: "1", baseRevision: 0, deleted: false, blob: "x".repeat(len) }],
     });
-    expect(validateP2pSyncRequest(s.store, s.epoch, request(MAX_ENTRY_BLOB_LENGTH + 1))).toBe(
+    expect(() => parseP2pSyncRequest(request(MAX_ENTRY_BLOB_LENGTH + 1))).toThrow("blob too large");
+    expect(() => parseP2pSyncRequest(request(MAX_ENTRY_BLOB_LENGTH + 1, "other"))).toThrow(
       "blob too large",
     );
-    expect(
-      validateP2pSyncRequest(s.store, s.epoch, request(MAX_ENTRY_BLOB_LENGTH + 1, "other")),
-    ).toBe("blob too large");
-    expect(
-      validateP2pSyncRequest(s.store, s.epoch, request(MAX_ENTRY_BLOB_LENGTH)),
-    ).toBeUndefined();
+    expect(() => parseP2pSyncRequest(request(MAX_ENTRY_BLOB_LENGTH))).not.toThrow();
   });
 
   it("upsert rejects too large entry", () => {

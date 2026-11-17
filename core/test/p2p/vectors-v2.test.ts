@@ -5,23 +5,24 @@ import {
   CipherState,
   compareHlc,
   decryptPayload,
-  encryptPayload,
   entryAad,
   MAX_CHANGES_PER_REQUEST,
   MAX_CHANGES_PER_RESPONSE,
   MAX_FRAMES,
   MAX_FRAME_PLAINTEXT,
-  openPairingMessage,
+  openIdentity,
+  openVaultInfo,
   parseEntryData,
   pairingAad,
   pairingKey,
-  sealPairingMessage,
+  serializeEntryData,
   type Hlc,
   type PairingKind,
   type PairingRole,
   type TombstoneData,
 } from "../../src/p2p/index.ts";
 import { encryptFrames } from "../../src/p2p/frames.ts";
+import { sealWithNonce } from "../../src/cipher.ts";
 
 /** The v2 live entry content, still present in v2.json as the old format a v3 reader must accept. */
 interface LegacyEntryData {
@@ -102,7 +103,8 @@ describe("test vectors v2", () => {
           hlc: e.data.hlc,
         });
       } else {
-        expect(await encryptPayload(key, e.id, e.data, fromHex(e.nonce))).toBe(e.blob);
+        const plaintext = utf8(serializeEntryData(e.data));
+        expect(await sealWithNonce(key, plaintext, entryAad(e.id), fromHex(e.nonce))).toBe(e.blob);
       }
     });
   }
@@ -123,10 +125,10 @@ describe("test vectors v2", () => {
     it(`pairingMessage: ${m.description}`, async () => {
       const key = fromHex(m.key);
       expect(pairingAad(m.kind, m.from)).toBe(m.aad);
-      expect(
-        await sealPairingMessage(key, m.kind, m.from, m.value as never, fromHex(m.nonce)),
-      ).toBe(m.blob);
-      expect(await openPairingMessage(key, m.kind, m.from, m.blob)).toEqual(m.value);
+      const plaintext = utf8(JSON.stringify(m.value));
+      expect(await sealWithNonce(key, plaintext, m.aad, fromHex(m.nonce))).toBe(m.blob);
+      const open = m.kind === "identity" ? openIdentity : openVaultInfo;
+      expect(await open(key, m.from, m.blob)).toEqual(m.value);
     });
   }
 

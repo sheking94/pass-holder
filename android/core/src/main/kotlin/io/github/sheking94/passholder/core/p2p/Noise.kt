@@ -209,9 +209,15 @@ class NoiseKK private constructor(
     }
 
     companion object {
-        fun initiator(s: KeyPair, rs: ByteArray, prologue: ByteArray, e: KeyPair? = null): NoiseKK = NoiseKK(true, s, rs, prologue, e)
+        fun initiator(s: KeyPair, rs: ByteArray, prologue: ByteArray): NoiseKK = NoiseKK(true, s, rs, prologue, null)
 
-        fun responder(s: KeyPair, rs: ByteArray, prologue: ByteArray, e: KeyPair? = null): NoiseKK = NoiseKK(false, s, rs, prologue, e)
+        fun responder(s: KeyPair, rs: ByteArray, prologue: ByteArray): NoiseKK = NoiseKK(false, s, rs, prologue, null)
+
+        /** [initiator] with a fixed ephemeral key pair [e], ONLY for test vectors. */
+        internal fun initiator(s: KeyPair, rs: ByteArray, prologue: ByteArray, e: KeyPair): NoiseKK = NoiseKK(true, s, rs, prologue, e)
+
+        /** [responder] with a fixed ephemeral key pair [e], ONLY for test vectors. */
+        internal fun responder(s: KeyPair, rs: ByteArray, prologue: ByteArray, e: KeyPair): NoiseKK = NoiseKK(false, s, rs, prologue, e)
     }
 
     @Synchronized

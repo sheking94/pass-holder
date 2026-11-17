@@ -193,9 +193,7 @@ async function phoneStatus(
  * file incomplete (so a later run can download it) and yields "pending".
  */
 async function upload(
-  files: LocalFileStore,
-  send: P2pFileTransport,
-  epoch: string,
+  { files, send, epoch }: FileContext,
   a: Attachment,
   phoneHas: number[],
 ): Promise<"done" | "pending"> {
@@ -221,9 +219,7 @@ async function upload(
  * whole file. Returns "pending" when the phone lost a chunk meanwhile.
  */
 async function download(
-  files: LocalFileStore,
-  send: P2pFileTransport,
-  epoch: string,
+  { files, send, epoch }: FileContext,
   a: Attachment,
 ): Promise<"done" | "pending" | "corrupted"> {
   const corrupted = async () => {
@@ -259,19 +255,45 @@ async function download(
   return "done";
 }
 
+export interface FileSyncOptions {
+  /** Called with (done, total) before the first transfer and after each file. */
+  onProgress?: (done: number, total: number) => void;
+  /** Ids that are not candidates (e.g. files known to be corrupted): not worked on, not counted as pending. */
+  skip?: ReadonlySet<string>;
+}
+
+/** What one file phase does: files to upload (with the chunks the phone already has) and files to download. */
+interface FilePlan {
+  uploads: { a: Attachment; phoneHas: number[] }[];
+  downloads: Attachment[];
+  /** Files neither side has complete. */
+  pending: number;
+}
+
+/** The local store, the phone and the epoch one file phase works with. */
+interface FileContext {
+  files: LocalFileStore;
+  send: P2pFileTransport;
+  epoch: string;
+}
+
+/** A file phase in progress: its context, the result so far and the progress callback. */
+interface FileRun extends FileContext {
+  result: FileSyncResult;
+  progress: (done: number) => void;
+}
+
 /**
  * File phase after an entry sync: uploads complete local files the phone (of the vault's epoch) does not have yet,
  * then downloads used files that are complete on the phone but not here. No retries: a transport error is thrown
  * after whatever was already stored, and the next run resumes from the missing chunks. A per-file refusal during
- * upload (host status 409 or 400) only counts the file as pending. Ids in `skip` (e.g. files known to be corrupted)
- * are not candidates: they are not worked on and do not count as pending.
+ * upload (host status 409 or 400) only counts the file as pending.
  */
 export async function syncFiles(
   vault: LocalVault,
   files: LocalFileStore,
   send: P2pFileTransport,
-  onProgress?: (done: number, total: number) => void,
-  skip?: ReadonlySet<string>,
+  options: FileSyncOptions = {},
 ): Promise<FileSyncResult> {
   const result: FileSyncResult = {
     uploaded: 0,
@@ -282,7 +304,28 @@ export async function syncFiles(
   };
   // An unknown epoch is sent as "" and makes the phone answer with its own (FILE_SYNC_EPOCH_MISMATCH).
   const epoch = vault.epoch ?? "";
-  // Only files that may need work: not complete here, or complete but not yet on this epoch's phone.
+  const ctx: FileContext = { files, send, epoch };
+  const plan = await planFiles(ctx, vault, options.skip);
+  result.pending += plan.pending;
+  const total = plan.uploads.length + plan.downloads.length;
+  // So a screen can show "0 of N" before the first (possibly slow) transfer.
+  if (total > 0) options.onProgress?.(0, total);
+  const run: FileRun = { ...ctx, result, progress: (done) => options.onProgress?.(done, total) };
+  await uploadAll(run, plan.uploads);
+  await downloadAll(run, plan.downloads, plan.uploads.length);
+  return result;
+}
+
+/**
+ * Asks the phone about the files that may need work (not complete here, or complete but not yet on this epoch's
+ * phone) and sorts them into uploads, downloads and pending. A file both sides have is marked uploaded right away.
+ */
+async function planFiles(
+  { files, send, epoch }: FileContext,
+  vault: LocalVault,
+  skip: ReadonlySet<string> | undefined,
+): Promise<FilePlan> {
+  const plan: FilePlan = { uploads: [], downloads: [], pending: 0 };
   const candidates: { a: Attachment; local: LocalFileState | undefined }[] = [];
   for (const a of usedAttachments(vault).values()) {
     if (skip?.has(a.id)) continue;
@@ -290,60 +333,58 @@ export async function syncFiles(
     if (local?.complete && local.uploadedEpoch === epoch) continue;
     candidates.push({ a, local });
   }
-  if (candidates.length === 0) return result;
+  if (candidates.length === 0) return plan;
   const status = await phoneStatus(
     send,
     epoch,
     candidates.map((c) => c.a.id),
   );
-
-  const uploads: { a: Attachment; phoneHas: number[] }[] = [];
-  const downloads: Attachment[] = [];
   for (const { a, local } of candidates) {
     const phone = status.get(a.id);
-    if (local?.complete) {
-      if (phone?.complete) {
-        // Nothing to send: the phone already has it (e.g. another plugin uploaded the same file).
-        await files.markUploaded(a.id, epoch);
-        continue;
-      }
-      uploads.push({ a, phoneHas: phone?.have ?? [] });
+    if (local?.complete && phone?.complete) {
+      // Nothing to send: the phone already has it (e.g. another plugin uploaded the same file).
+      await files.markUploaded(a.id, epoch);
+    } else if (local?.complete) {
+      plan.uploads.push({ a, phoneHas: phone?.have ?? [] });
     } else if (phone?.complete) {
-      downloads.push(a);
+      plan.downloads.push(a);
     } else {
-      result.pending++;
+      plan.pending++;
     }
   }
+  return plan;
+}
 
-  const total = uploads.length + downloads.length;
+async function uploadAll(run: FileRun, uploads: FilePlan["uploads"]): Promise<void> {
   let done = 0;
-  // So a screen can show "0 of N" before the first (possibly slow) transfer.
-  if (total > 0) onProgress?.(0, total);
   for (const { a, phoneHas } of uploads) {
     let outcome: "done" | "pending";
     try {
-      outcome = await upload(files, send, epoch, a, phoneHas);
+      outcome = await upload(run, a, phoneHas);
     } catch (error) {
       // The phone refused this file (chunk differs / chunk count mismatch): leave it for later, go on with the rest.
       if (!(error instanceof P2pHostError && (error.status === 409 || error.status === 400)))
         throw error;
       outcome = "pending";
     }
-    if (outcome === "done") result.uploaded++;
-    else result.pending++;
-    onProgress?.(++done, total);
+    if (outcome === "done") run.result.uploaded++;
+    else run.result.pending++;
+    run.progress(++done);
   }
+}
+
+/** `done` is the number of files finished before the downloads (the uploads). */
+async function downloadAll(run: FileRun, downloads: Attachment[], done: number): Promise<void> {
   for (const a of downloads) {
-    const outcome = await download(files, send, epoch, a);
-    if (outcome === "done") result.downloaded++;
-    else if (outcome === "pending") result.pending++;
+    const outcome = await download(run, a);
+    if (outcome === "done") run.result.downloaded++;
+    else if (outcome === "pending") run.result.pending++;
     else {
-      result.corrupted.push(a.name);
-      result.corruptedIds.push(a.id);
+      run.result.corrupted.push(a.name);
+      run.result.corruptedIds.push(a.id);
     }
-    onProgress?.(++done, total);
+    run.progress(++done);
   }
-  return result;
 }
 
 /**

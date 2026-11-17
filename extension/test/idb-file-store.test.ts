@@ -189,7 +189,9 @@ describe("IdbFileStore", () => {
 
     const b = newStore();
     const progress: [number, number][] = [];
-    expect(await files.syncFiles(vault, b, plugin("b"), (d, t) => progress.push([d, t]))).toEqual({
+    expect(
+      await files.syncFiles(vault, b, plugin("b"), { onProgress: (d, t) => progress.push([d, t]) }),
+    ).toEqual({
       uploaded: 0,
       downloaded: 1,
       pending: 0,

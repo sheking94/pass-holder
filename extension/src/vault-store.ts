@@ -1046,13 +1046,10 @@ export class VaultStore {
     };
     let outcome: FilesOutcome;
     try {
-      outcome = await files.syncFiles(
-        vault,
-        this.fileStore,
-        whileUnlocked,
+      outcome = await files.syncFiles(vault, this.fileStore, whileUnlocked, {
         onProgress,
-        new Set(known),
-      );
+        skip: new Set(known),
+      });
       for (const id of outcome.corruptedIds) corrupt.add(id);
       await pruneUnusedFiles(vault, this.fileStore);
     } catch (error) {

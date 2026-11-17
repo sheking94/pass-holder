@@ -2,7 +2,7 @@
 // Run: npm run gen-vectors -w core
 import { writeFileSync } from "node:fs";
 import { deriveMasterKey, splitMasterKey, type KdfParams } from "../src/kdf.ts";
-import { seal } from "../src/cipher.ts";
+import { sealWithNonce } from "../src/cipher.ts";
 import { VAULT_KEY_AAD } from "../src/vault.ts";
 import { fromHex, toBase64, toHex, utf8 } from "../src/encoding.ts";
 
@@ -41,7 +41,7 @@ async function sealVector(
     plaintextHex: toHex(plaintext),
     aad,
     nonce: nonceHex,
-    blob: await seal(fromHex(keyHex), plaintext, aad, fromHex(nonceHex)),
+    blob: await sealWithNonce(fromHex(keyHex), plaintext, aad, fromHex(nonceHex)),
   };
 }
 

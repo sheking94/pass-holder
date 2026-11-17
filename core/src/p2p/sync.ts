@@ -201,21 +201,40 @@ function addAddresses(vault: LocalVault, addresses: string[]): void {
     if (!vault.addresses.includes(address)) vault.addresses.push(address);
 }
 
+/** What one syncVault call works on: the local vault, its key and this device's clock. */
+interface SyncContext {
+  vault: LocalVault;
+  vaultKey: Uint8Array;
+  clock: HlcClock;
+}
+
 /**
- * Applies the phone's answer (same epoch). Conflicts are resolved by HLC: a dirty local change wins only when
- * its HLC is greater, and a remote version older than the local one is never taken. Returns true when something local must be pushed again: a local change won a conflict, or
- * the attachment lists were merged and the merged entry was saved as a new local change (even if the remote won).
+ * Applies the phone's answer (same epoch). Returns true when something local must be pushed again: a local change
+ * won a conflict, or the attachment lists were merged and the merged entry was saved as a new local change.
  */
 async function applyResponse(
-  vault: LocalVault,
-  clock: HlcClock,
+  ctx: SyncContext,
   response: P2pSyncResponse,
   sent: Map<string, Hlc>,
-  vaultKey: Uint8Array,
 ): Promise<boolean> {
-  for (const { id, revision } of response.accepted) {
+  markAccepted(ctx, response.accepted, sent);
+  let needsResync = false;
+  for (const record of [...response.conflicts, ...response.changes]) {
+    if (await resolveRemote(ctx, record)) needsResync = true;
+  }
+  ctx.vault.lastSyncRevision = response.currentRevision;
+  addAddresses(ctx.vault, response.addresses);
+  return needsResync;
+}
+
+/** Records the revisions the phone gave to our changes. */
+function markAccepted(
+  { vault, clock }: SyncContext,
+  accepted: P2pSyncResponse["accepted"],
+  sent: Map<string, Hlc>,
+): void {
+  for (const { id, revision } of accepted) {
     const entry = vault.entries.get(id);
-    const sentHlc = sent.get(id);
     if (!entry) {
       // Deleted while its first push was in flight: the phone now has it, so it needs a tombstone.
       vault.entries.set(id, {
@@ -225,57 +244,68 @@ async function applyResponse(
         deleted: true,
         data: { hlc: clock.tick() },
       });
-    } else {
-      // Changed while in flight: the phone has the older version, keep the newer one dirty.
-      const unchanged = sentHlc !== undefined && compareHlc(entry.data.hlc, sentHlc) === 0;
-      vault.entries.set(id, { ...entry, revision, dirty: !unchanged });
-    }
-  }
-
-  let needsResync = false;
-  for (const record of [...response.conflicts, ...response.changes]) {
-    const remote = await decodeRemote(vaultKey, record);
-    clock.observe(remote.data.hlc);
-    const local = vault.entries.get(record.id);
-    const localWins = local?.dirty === true && compareHlc(local.data.hlc, remote.data.hlc) > 0;
-    // Both versions live and the local one unsent: the HLC picks the entry, but the attachment lists are merged.
-    const merged =
-      local?.dirty && !local.deleted && !remote.deleted
-        ? localWins
-          ? mergeEntryAttachments(local.data, remote.data, clock)
-          : mergeEntryAttachments(remote.data, local.data, clock)
-        : undefined;
-    if (localWins) {
-      vault.entries.set(
-        record.id,
-        merged
-          ? { id: record.id, revision: record.revision, dirty: true, deleted: false, data: merged }
-          : { ...local!, revision: record.revision },
-      );
-      needsResync = true;
-    } else if (merged) {
-      // The remote version wins but lacks some local files: keep it with the merged list as a new local change.
-      vault.entries.set(record.id, {
-        id: record.id,
-        revision: record.revision,
-        dirty: true,
-        deleted: false,
-        data: merged,
-      });
-      needsResync = true;
-    } else if (local && compareHlc(remote.data.hlc, local.data.hlc) < 0) {
-      // Security review V3-I2: an older version than the one known here (an old ciphertext replayed under a new
-      // revision) is ignored. Every edit observes the HLC it overwrites, so a real newer version never has a
-      // smaller one. The entry keeps its revision: a later local edit meets a conflict and wins it by HLC.
       continue;
-    } else {
-      vault.entries.set(record.id, remote);
     }
+    // Changed while in flight: the phone has the older version, keep the newer one dirty.
+    const sentHlc = sent.get(id);
+    const unchanged = sentHlc !== undefined && compareHlc(entry.data.hlc, sentHlc) === 0;
+    vault.entries.set(id, { ...entry, revision, dirty: !unchanged });
   }
+}
 
-  vault.lastSyncRevision = response.currentRevision;
-  addAddresses(vault, response.addresses);
-  return needsResync;
+/**
+ * Takes one remote record (a conflict or a change). Conflicts are resolved by HLC: a dirty local change wins only
+ * when its HLC is greater, and a remote version older than the local one is never taken. Returns true when the
+ * entry must be pushed again (the local change won, or merged attachment lists made a new local change).
+ */
+async function resolveRemote(
+  { vault, vaultKey, clock }: SyncContext,
+  record: RemoteRecord,
+): Promise<boolean> {
+  const remote = await decodeRemote(vaultKey, record);
+  clock.observe(remote.data.hlc);
+  const local = vault.entries.get(record.id);
+  const localWins = local?.dirty === true && compareHlc(local.data.hlc, remote.data.hlc) > 0;
+  const merged = mergeUnsentAttachments(local, remote, localWins, clock);
+  if (merged) {
+    // Whichever side won, the merged entry is a new local change (the remote one lacked some local files).
+    vault.entries.set(record.id, {
+      id: record.id,
+      revision: record.revision,
+      dirty: true,
+      deleted: false,
+      data: merged,
+    });
+    return true;
+  }
+  if (localWins) {
+    vault.entries.set(record.id, { ...local!, revision: record.revision });
+    return true;
+  }
+  if (local && compareHlc(remote.data.hlc, local.data.hlc) < 0) {
+    // Security review V3-I2: an older version than the one known here (an old ciphertext replayed under a new
+    // revision) is ignored. Every edit observes the HLC it overwrites, so a real newer version never has a
+    // smaller one. The entry keeps its revision: a later local edit meets a conflict and wins it by HLC.
+    return false;
+  }
+  vault.entries.set(record.id, remote);
+  return false;
+}
+
+/**
+ * Both versions live and the local one unsent: the HLC picks the entry, but the attachment lists are merged.
+ * Returns the merged entry, or undefined when there is nothing to merge.
+ */
+function mergeUnsentAttachments(
+  local: LocalEntry | undefined,
+  remote: LocalEntry,
+  localWins: boolean,
+  clock: HlcClock,
+): EntryData | undefined {
+  if (!local?.dirty || local.deleted || remote.deleted) return undefined;
+  return localWins
+    ? mergeEntryAttachments(local.data, remote.data, clock)
+    : mergeEntryAttachments(remote.data, local.data, clock);
 }
 
 /**
@@ -332,7 +362,7 @@ export async function syncVault(
       resyncs = 0;
       continue;
     }
-    const needsResync = await applyResponse(vault, clock, response, sent, vaultKey);
+    const needsResync = await applyResponse({ vault, vaultKey, clock }, response, sent);
     // A round whose answer was cut (more) resolves at least one record, so it is paging, not a conflict ping-pong.
     if (needsResync && !response.more && ++resyncs >= MAX_CONFLICT_RESYNCS)
       throw new PassHolderError("SYNC_NOT_SETTLED", "Sync did not settle, try again");
