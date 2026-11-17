@@ -8,6 +8,7 @@ import {
   PassHolderError,
   p2p,
   randomBytes,
+  sameBytes,
   seal,
   toBase64,
   transfer,
@@ -227,13 +228,6 @@ function storedView(e: p2p.LocalEntry): StoredEntry | undefined {
   if (e.deleted) return undefined;
   const { v, hlc, ...data } = e.data;
   return { id: e.id, dirty: e.dirty, data: data as p2p.EntryContent };
-}
-
-function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a[i]! ^ b[i]!;
-  return diff === 0;
 }
 
 /** One typed address as http://IPv4:port; throws a message that names a wrong one. */

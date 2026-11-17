@@ -1,6 +1,7 @@
 // A small ZIP writer and reader for the PassHolder archive. Deflate is done by the platform
 // (CompressionStream / DecompressionStream "deflate-raw"). No ZIP64, encryption or multi-disk archives.
 
+import { concatAll } from "../encoding.ts";
 import { hasErrorCode, PassHolderError } from "../errors.ts";
 
 /** Most entries a readable archive may hold. */
@@ -67,17 +68,7 @@ async function deflateRaw(bytes: Uint8Array): Promise<Uint8Array> {
   const reader = stream.readable.getReader();
   for (let r = await reader.read(); !r.done; r = await reader.read()) chunks.push(r.value);
   await writing;
-  return concat(chunks);
-}
-
-function concat(chunks: readonly Uint8Array[]): Uint8Array {
-  const out = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0));
-  let at = 0;
-  for (const c of chunks) {
-    out.set(c, at);
-    at += c.length;
-  }
-  return out;
+  return concatAll(chunks);
 }
 
 interface Pending {
@@ -303,5 +294,5 @@ async function inflateRaw(data: Uint8Array, maxSize: number): Promise<Uint8Array
     if (hasErrorCode(error, "ZIP_ENTRY_TOO_LARGE")) throw error;
     invalid(error);
   }
-  return concat(chunks);
+  return concatAll(chunks);
 }

@@ -3,6 +3,8 @@
  * (android/core/.../files/FileHost.kt). Client code (p2p/sync.ts, files/client.ts) imports only the types and
  * limits from here. The extension's tests drive this host as a fake phone.
  */
+import { errorReply, type HostReply } from "../p2p/host-reply.ts";
+import { isRecord } from "../strict-json.ts";
 import { MAX_FILE_BLOB_LENGTH, MAX_FILE_CHUNKS, UUID_V4 } from "./attachment.ts";
 
 /** Files nobody references and older than this are removed by the host's cleanup. */
@@ -99,12 +101,7 @@ export interface P2pFileStatus {
   complete: boolean;
 }
 
-type Reply = { status: number; body: unknown };
-
-const fail = (status: number, error: string): Reply => ({ status, body: { error } });
-const MALFORMED = fail(400, "malformed file request");
-const isRecord = (v: unknown): v is Record<string, unknown> =>
-  typeof v === "object" && v !== null && !Array.isArray(v);
+const MALFORMED = errorReply(400, "malformed file request");
 const isUuid = (v: unknown): v is string => typeof v === "string" && UUID_V4.test(v);
 const isInt = (v: unknown, min: number, max: number): v is number =>
   typeof v === "number" && Number.isInteger(v) && v >= min && v <= max;
@@ -144,7 +141,7 @@ export function processP2pFile(
   epoch: string,
   request: unknown,
   now: number,
-): Reply {
+): HostReply {
   const req = parseRequest(request);
   if (!req) return MALFORMED;
   if (req.epoch !== epoch) return { status: 200, body: { epoch } };
@@ -160,12 +157,13 @@ export function processP2pFile(
     }
     case "put": {
       const known = store.chunks(req.id);
-      if (known !== undefined && known !== req.chunks) return fail(400, "chunk count mismatch");
+      if (known !== undefined && known !== req.chunks)
+        return errorReply(400, "chunk count mismatch");
       const existing = store.get(req.id, req.index);
       if (existing !== undefined) {
-        if (existing !== req.blob) return fail(409, "chunk differs");
+        if (existing !== req.blob) return errorReply(409, "chunk differs");
       } else {
-        if (!store.canStore(req.blob.length)) return fail(507, "insufficient storage");
+        if (!store.canStore(req.blob.length)) return errorReply(507, "insufficient storage");
         store.put(req.id, req.index, req.chunks, req.blob, now);
       }
       return { status: 200, body: { have: store.have(req.id).length } };
@@ -173,7 +171,7 @@ export function processP2pFile(
     case "get": {
       const chunks = store.chunks(req.id);
       const blob = store.get(req.id, req.index);
-      if (chunks === undefined || blob === undefined) return fail(404, "chunk not found");
+      if (chunks === undefined || blob === undefined) return errorReply(404, "chunk not found");
       return { status: 200, body: { chunks, blob } };
     }
   }

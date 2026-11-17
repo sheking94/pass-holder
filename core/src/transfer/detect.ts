@@ -1,6 +1,7 @@
 import { PassHolderError } from "../errors.ts";
 import type { EntryContent } from "../p2p/entry.ts";
 import type { ParsedImport } from "./common.ts";
+import { isRecord } from "../strict-json.ts";
 import { exportBitwardenJson, isBitwardenJson, parseBitwardenJson } from "./bitwarden-json.ts";
 import { exportNordPassCsv, parseNordPassCsv } from "./nordpass-csv.ts";
 import { exportPassHolderJson, isPassHolderJson, parsePassHolderJson } from "./passholder-json.ts";
@@ -29,11 +30,7 @@ export function parseImportFile(text: string): { format: TransferFormat; parsed:
 
 /** A Bitwarden encrypted export has no `items` (password-protected: salt + data); parseBitwardenJson explains why it is refused. */
 function isEncryptedBitwarden(value: unknown): boolean {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    (value as Record<string, unknown>).encrypted === true
-  );
+  return isRecord(value) && value.encrypted === true;
 }
 
 export function exportFile(format: TransferFormat, entries: readonly EntryContent[]): string {

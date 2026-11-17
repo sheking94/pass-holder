@@ -1,13 +1,11 @@
 package io.github.sheking94.passholder.core.transfer
 
+import io.github.sheking94.passholder.core.Encoding
 import io.github.sheking94.passholder.core.ErrorCode
 import io.github.sheking94.passholder.core.PassHolderException
 import io.github.sheking94.passholder.core.files.Attachments
 import java.io.Closeable
 import java.io.InputStream
-import java.nio.ByteBuffer
-import java.nio.charset.CharacterCodingException
-import java.nio.charset.CodingErrorAction
 import java.util.zip.CRC32
 import java.util.zip.DataFormatException
 import java.util.zip.Inflater
@@ -87,7 +85,7 @@ class ArchiveReader internal constructor(private val input: InputStream, private
             else -> throw notArchive()
         }
         val parsed = try {
-            PassHolderZip.parseIndex(strictUtf8(bytes) ?: throw notArchive())
+            PassHolderZip.parseIndex(Encoding.fromUtf8OrNull(bytes) ?: throw notArchive())
         } catch (e: PassHolderException) {
             if (e.code != ErrorCode.IMPORT_NOT_PASSHOLDER) throw e
             throw notArchive(e)
@@ -176,7 +174,7 @@ class ArchiveReader internal constructor(private val input: InputStream, private
         val descriptor = flags and FLAG_DESCRIPTOR != 0
         if (flags and FLAG_ENCRYPTED != 0 || (method != 0 && method != 8) || (descriptor && method == 0)) invalid()
         if (csize == MARKER_32 || size == MARKER_32) invalid()
-        val name = strictUtf8(nameBytes) ?: invalid()
+        val name = Encoding.fromUtf8OrNull(nameBytes) ?: invalid()
         if (!names.add(name) || names.size > PassHolderZip.MAX_ZIP_ENTRIES) invalid()
         return Local(name, method, descriptor, crc, csize, size)
     }
@@ -205,7 +203,7 @@ class ArchiveReader internal constructor(private val input: InputStream, private
             skip(6) // attributes
             val localAt = u32()
             if (nameLength > MAX_NAME_BYTES) invalid()
-            val name = strictUtf8(bytes(nameLength)) ?: invalid()
+            val name = Encoding.fromUtf8OrNull(bytes(nameLength)) ?: invalid()
             skip(extraLength.toLong() + commentLength)
             if (flags and FLAG_ENCRYPTED != 0 || (method != 0 && method != 8) || disk != 0) invalid()
             if (csize == MARKER_32 || size == MARKER_32 || localAt == MARKER_32 || localAt >= start) invalid()
@@ -416,16 +414,6 @@ class ArchiveReader internal constructor(private val input: InputStream, private
             pos += take
             left -= take
         }
-    }
-
-    private fun strictUtf8(bytes: ByteArray): String? = try {
-        Charsets.UTF_8.newDecoder()
-            .onMalformedInput(CodingErrorAction.REPORT)
-            .onUnmappableCharacter(CodingErrorAction.REPORT)
-            .decode(ByteBuffer.wrap(bytes))
-            .toString()
-    } catch (_: CharacterCodingException) {
-        null
     }
 
     private fun invalid(): Nothing = throw PassHolderException(ErrorCode.ZIP_INVALID)

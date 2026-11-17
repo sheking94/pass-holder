@@ -1,5 +1,6 @@
 package io.github.sheking94.passholder.core.transfer
 
+import io.github.sheking94.passholder.core.StrictJson.appendQuoted
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -19,7 +20,7 @@ object JsonText {
         when (v) {
             is JsonNull -> sb.append("null")
 
-            is JsonPrimitive -> if (v.isString) str(sb, v.content) else sb.append(v.content)
+            is JsonPrimitive -> if (v.isString) appendQuoted(sb, v.content) else sb.append(v.content)
 
             is JsonArray -> {
                 if (v.isEmpty()) {
@@ -47,7 +48,7 @@ object JsonText {
                     if (!first) sb.append(',')
                     first = false
                     indent(sb, depth + 1)
-                    str(sb, k)
+                    appendQuoted(sb, k)
                     sb.append(": ")
                     write(sb, x, depth + 1)
                 }
@@ -55,38 +56,5 @@ object JsonText {
                 sb.append('}')
             }
         }
-    }
-
-    /** JS string escaping: quote, backslash, C0 controls (short forms, else lowercase \u00xx), lone surrogates as \uxxxx. */
-    private fun str(sb: StringBuilder, s: String) {
-        sb.append('"')
-        for ((i, ch) in s.withIndex()) {
-            when {
-                ch == '"' -> sb.append("\\\"")
-
-                ch == '\\' -> sb.append("\\\\")
-
-                ch == '\b' -> sb.append("\\b")
-
-                ch == '\u000C' -> sb.append("\\f")
-
-                ch == '\n' -> sb.append("\\n")
-
-                ch == '\r' -> sb.append("\\r")
-
-                ch == '\t' -> sb.append("\\t")
-
-                ch < ' ' -> sb.append("\\u").append(String.format("%04x", ch.code))
-
-                ch.isHighSurrogate() && !(i + 1 < s.length && s[i + 1].isLowSurrogate()) ->
-                    sb.append("\\u").append(String.format("%04x", ch.code))
-
-                ch.isLowSurrogate() && !(i > 0 && s[i - 1].isHighSurrogate()) ->
-                    sb.append("\\u").append(String.format("%04x", ch.code))
-
-                else -> sb.append(ch)
-            }
-        }
-        sb.append('"')
     }
 }

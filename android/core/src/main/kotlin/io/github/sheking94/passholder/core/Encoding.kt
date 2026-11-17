@@ -14,16 +14,25 @@ object Encoding {
     /** UTF-8 bytes of a string, normalized to NFC so the same password typed on any device gives the same bytes. */
     fun utf8(text: String): ByteArray = Normalizer.normalize(text, Normalizer.Form.NFC).toByteArray(Charsets.UTF_8)
 
-    /** Strict UTF-8 decoding: invalid bytes throw instead of turning into replacement characters. */
+    /** Strict UTF-8 decoding: invalid bytes throw IllegalArgumentException instead of turning into replacement characters. */
     fun fromUtf8(bytes: ByteArray): String = try {
-        Charsets.UTF_8.newDecoder()
-            .onMalformedInput(CodingErrorAction.REPORT)
-            .onUnmappableCharacter(CodingErrorAction.REPORT)
-            .decode(ByteBuffer.wrap(bytes))
-            .toString()
+        decodeUtf8Strict(bytes)
     } catch (e: CharacterCodingException) {
         throw IllegalArgumentException("Invalid UTF-8", e)
     }
+
+    /** Strict UTF-8 decoding like [fromUtf8]; null for invalid bytes. */
+    fun fromUtf8OrNull(bytes: ByteArray): String? = try {
+        decodeUtf8Strict(bytes)
+    } catch (_: CharacterCodingException) {
+        null
+    }
+
+    private fun decodeUtf8Strict(bytes: ByteArray): String = Charsets.UTF_8.newDecoder()
+        .onMalformedInput(CodingErrorAction.REPORT)
+        .onUnmappableCharacter(CodingErrorAction.REPORT)
+        .decode(ByteBuffer.wrap(bytes))
+        .toString()
 
     /** Standard Base64 with padding (RFC 4648 §4), the same as btoa() in the TypeScript core. */
     fun toBase64(bytes: ByteArray): String = Base64.getEncoder().encodeToString(bytes)

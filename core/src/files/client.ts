@@ -1,4 +1,5 @@
 import { hasErrorCode, PassHolderError } from "../errors.ts";
+import { isRecord } from "../strict-json.ts";
 import { liveEntries, type LocalVault } from "../p2p/sync.ts";
 import {
   malformedResponse,
@@ -145,8 +146,6 @@ export interface FileSyncResult {
   corruptedIds: string[];
 }
 
-const isRecord = (v: unknown): v is Record<string, unknown> =>
-  typeof v === "object" && v !== null && !Array.isArray(v);
 const isIndex = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 0;
 
 /**

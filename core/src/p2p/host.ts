@@ -3,7 +3,9 @@
  * (android/core/.../p2p/P2pHost.kt). Client code (p2p/sync.ts, files/client.ts) imports only the types and
  * limits from here. The extension's tests drive this host as a fake phone.
  */
-import { fromBase64, randomBytes, toBase64, utf8 } from "../encoding.ts";
+import { fromBase64, randomBytes, sameBytes, toBase64, utf8 } from "../encoding.ts";
+import { isRecord } from "../strict-json.ts";
+import { errorReply, type HostReply } from "./host-reply.ts";
 import { decryptFrames, encryptFrames, MAX_FRAMES } from "./frames.ts";
 import type { SyncStore } from "../protocol.ts";
 import { processP2pSync, validateP2pSyncRequest, type P2pSyncRequest } from "./host-sync.ts";
@@ -36,8 +38,6 @@ interface Session {
   expiresAt: number;
 }
 
-type Reply = { status: number; body: unknown };
-
 const MAX_BODY_BYTES = 1024 * 1024;
 const SESSION_TTL_MS = 60_000;
 /** Most sessions alive at once; a handshake beyond that gets 503 until some expire or are used. */
@@ -51,12 +51,8 @@ export const MAX_SESSIONS_PER_DEVICE = 4;
  */
 export const MAX_SEEN_HANDSHAKES = 4096;
 
-const fail = (status: number, error: string): Reply => ({ status, body: { error } });
-const isRecord = (v: unknown): v is Record<string, unknown> =>
-  typeof v === "object" && v !== null && !Array.isArray(v);
-
-const sameBytes = (a: Uint8Array, b: Uint8Array) =>
-  a.length === b.length && a.every((x, i) => x === b[i]);
+/** Paths of the removed v1 sync protocol; the host answers them with 410 so old clients ask for an update. */
+const LEGACY_SYNC_PATHS: readonly string[] = ["/p2p/v1/handshake", "/p2p/v1/sync"];
 
 function decodeBase64(value: unknown): Uint8Array | undefined {
   if (typeof value !== "string") return undefined;
@@ -81,9 +77,9 @@ export class P2pHost {
     this.#options = o;
   }
 
-  async handle(path: string, body: unknown): Promise<Reply> {
+  async handle(path: string, body: unknown): Promise<HostReply> {
     if (utf8(JSON.stringify(body) ?? "").length > MAX_BODY_BYTES)
-      return fail(413, "body too large");
+      return errorReply(413, "body too large");
     this.#prune();
     if (path === P2P_HANDSHAKE_PATH) return this.#handshake(body);
     if (path === P2P_SYNC_PATH)
@@ -95,9 +91,8 @@ export class P2pHost {
       );
     }
     // The v1 sync protocol is gone; tell old clients to update instead of pretending the path is unknown.
-    if (path === "/p2p/v1/handshake" || path === "/p2p/v1/sync")
-      return fail(410, "update required");
-    return fail(404, "not found");
+    if (LEGACY_SYNC_PATHS.includes(path)) return errorReply(410, "update required");
+    return errorReply(404, "not found");
   }
 
   #now(): number {
@@ -109,15 +104,15 @@ export class P2pHost {
     for (const [id, s] of this.#sessions) if (s.expiresAt <= now) this.#sessions.delete(id);
   }
 
-  async #handshake(body: unknown): Promise<Reply> {
+  async #handshake(body: unknown): Promise<HostReply> {
     if (!isRecord(body) || typeof body.deviceId !== "string" || typeof body.message !== "string")
-      return fail(400, "malformed request");
+      return errorReply(400, "malformed request");
     const device = this.#options.devices().find((d) => d.deviceId === body.deviceId);
-    if (!device) return fail(403, "device not paired");
+    if (!device) return errorReply(403, "device not paired");
     const message = decodeBase64(body.message);
-    if (!message) return fail(400, "malformed request");
+    if (!message) return errorReply(400, "malformed request");
     const ephemeral = toBase64(message.subarray(0, 32));
-    if (this.#seen.has(ephemeral)) return fail(400, "replayed handshake");
+    if (this.#seen.has(ephemeral)) return errorReply(400, "replayed handshake");
     // handle() already pruned the expired sessions.
     const refused = this.#sessionLimitReply(device.deviceId);
     if (refused) return refused;
@@ -131,10 +126,10 @@ export class P2pHost {
       await noise.readMessage(message);
       reply = await noise.writeMessage(new Uint8Array());
     } catch {
-      return fail(400, "handshake failed");
+      return errorReply(400, "handshake failed");
     }
     // Other calls may have run during the awaits: check again, then record without awaiting in between.
-    if (this.#seen.has(ephemeral)) return fail(400, "replayed handshake");
+    if (this.#seen.has(ephemeral)) return errorReply(400, "replayed handshake");
     const refusedNow = this.#sessionLimitReply(device.deviceId);
     if (refusedNow) return refusedNow;
     this.#remember(ephemeral);
@@ -151,11 +146,11 @@ export class P2pHost {
   }
 
   /** A 503 reply when the table, or this device's share of it, is full; undefined when there is room. */
-  #sessionLimitReply(deviceId: string): Reply | undefined {
-    if (this.#sessions.size >= MAX_SESSIONS) return fail(503, "too many sessions");
+  #sessionLimitReply(deviceId: string): HostReply | undefined {
+    if (this.#sessions.size >= MAX_SESSIONS) return errorReply(503, "too many sessions");
     let own = 0;
     for (const s of this.#sessions.values()) if (s.deviceId === deviceId) own++;
-    return own >= MAX_SESSIONS_PER_DEVICE ? fail(503, "too many sessions") : undefined;
+    return own >= MAX_SESSIONS_PER_DEVICE ? errorReply(503, "too many sessions") : undefined;
   }
 
   #remember(ephemeral: string): void {
@@ -165,7 +160,7 @@ export class P2pHost {
   }
 
   /** Common part of the one-request-per-session paths; `process` returns a reply whose 200 body gets encrypted. */
-  async #runSession(body: unknown, process: (request: unknown) => Reply): Promise<Reply> {
+  async #runSession(body: unknown, process: (request: unknown) => HostReply): Promise<HostReply> {
     if (
       !isRecord(body) ||
       typeof body.session !== "string" ||
@@ -174,12 +169,12 @@ export class P2pHost {
       body.frames.length > MAX_FRAMES ||
       !body.frames.every((f) => typeof f === "string")
     )
-      return fail(400, "malformed request");
+      return errorReply(400, "malformed request");
     const session = this.#sessions.get(body.session);
     // One attempt per session, whatever the outcome.
     this.#sessions.delete(body.session);
     if (!session || session.expiresAt <= this.#now())
-      return fail(401, "unknown or expired session");
+      return errorReply(401, "unknown or expired session");
     // The device may have been removed (or re-paired with another key) after the handshake.
     const stillPaired = this.#options
       .devices()
@@ -187,26 +182,26 @@ export class P2pHost {
         (d) =>
           d.deviceId === session.deviceId && sameBytes(d.staticPublicKey, session.staticPublicKey),
       );
-    if (!stillPaired) return fail(403, "device not paired");
+    if (!stillPaired) return errorReply(403, "device not paired");
     let request: unknown;
     try {
       request = await decryptFrames(session.recv, body.frames as string[]);
     } catch {
-      return fail(400, "cannot decrypt request");
+      return errorReply(400, "cannot decrypt request");
     }
     try {
       const reply = process(request);
       if (reply.status !== 200) return reply;
       return { status: 200, body: { frames: await encryptFrames(session.send, reply.body) } };
     } catch {
-      return fail(500, "internal error");
+      return errorReply(500, "internal error");
     }
   }
 
-  #processSync(request: unknown): Reply {
+  #processSync(request: unknown): HostReply {
     const sync = request as P2pSyncRequest;
     const invalid = validateP2pSyncRequest(this.#options.store, this.#options.epoch, sync);
-    if (invalid !== undefined) return fail(400, invalid);
+    if (invalid !== undefined) return errorReply(400, invalid);
     return {
       status: 200,
       body: processP2pSync(

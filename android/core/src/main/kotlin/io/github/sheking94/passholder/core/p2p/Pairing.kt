@@ -5,12 +5,12 @@ import io.github.sheking94.passholder.core.Aead
 import io.github.sheking94.passholder.core.Encoding
 import io.github.sheking94.passholder.core.Kdf
 import io.github.sheking94.passholder.core.KdfParams
+import io.github.sheking94.passholder.core.StrictJson
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import org.bouncycastle.crypto.digests.SHA256Digest
 import org.bouncycastle.crypto.generators.HKDFBytesGenerator
 import org.bouncycastle.crypto.params.HKDFParameters
@@ -108,12 +108,13 @@ object Pairing {
     }
 
     private fun string(value: JsonElement?, field: String): String {
-        require(value is JsonPrimitive && value.isString) { "$field must be a string" }
-        return value.content
+        val text = StrictJson.string(value)
+        require(text != null) { "$field must be a string" }
+        return text
     }
 
     private fun boundedString(value: JsonElement?, field: String, max: Int): String {
-        val text = (value as? JsonPrimitive)?.takeIf { it.isString }?.content
+        val text = StrictJson.string(value)
         require(text != null && text.length in 1..max) { "Invalid $field" }
         return text
     }
@@ -142,7 +143,7 @@ object Pairing {
         Kdf.assertAcceptable(kdf)
         checkBase64(v["wrappedVaultKey"], "wrappedVaultKey")
         val addresses = v["addresses"]
-        val list = (addresses as? JsonArray)?.map { (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content }
+        val list = (addresses as? JsonArray)?.map(StrictJson::string)
         require(
             list != null && list.size <= MAX_ADDRESSES &&
                 list.all { it != null && it.length in 1..MAX_ADDRESS_LENGTH },

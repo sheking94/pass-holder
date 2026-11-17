@@ -1,4 +1,5 @@
 import { PassHolderError } from "../errors.ts";
+import { isRecord, type JsonObject } from "../strict-json.ts";
 import type { CardFields, CustomField, DocumentKind, EntryContent } from "../p2p/entry.ts";
 import {
   addressLine,
@@ -26,15 +27,9 @@ const L_ISSUE = "Data wydania";
 const L_EXPIRY = "Data ważności";
 const L_ISSUER = "Wystawca";
 
-type Obj = Record<string, unknown>;
-
-function isObj(value: unknown): value is Obj {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 /** True for an object with an `items` array (used to detect the file kind). */
 export function isBitwardenJson(value: unknown): boolean {
-  return isObj(value) && Array.isArray(value.items);
+  return isRecord(value) && Array.isArray(value.items);
 }
 
 /** null, undefined and non-text values become "". */
@@ -52,7 +47,7 @@ function importFields(raw: unknown): CustomField[] {
   if (!Array.isArray(raw)) return [];
   const out: CustomField[] = [];
   for (const f of raw) {
-    if (!isObj(f)) continue;
+    if (!isRecord(f)) continue;
     switch (f.type) {
       case 1:
         out.push(custom(s(f.name), s(f.value), true));
@@ -71,7 +66,7 @@ function importFields(raw: unknown): CustomField[] {
 
 const L_PIN = "PIN";
 
-function importCard(c: Obj, pin: string): CardFields {
+function importCard(c: JsonObject, pin: string): CardFields {
   const month = s(c.expMonth).trim();
   const year = s(c.expYear).trim();
   return {
@@ -83,7 +78,12 @@ function importCard(c: Obj, pin: string): CardFields {
   };
 }
 
-function importIdentity(name: string, note: string, id: Obj, fields: CustomField[]): EntryContent {
+function importIdentity(
+  name: string,
+  note: string,
+  id: JsonObject,
+  fields: CustomField[],
+): EntryContent {
   const kindIdx = fields.findIndex((f) => f.label === L_KIND && DOCUMENT_KINDS.includes(f.value));
   const isDocument = kindIdx >= 0;
   const address = {
@@ -171,7 +171,7 @@ function importIdentity(name: string, note: string, id: Obj, fields: CustomField
   };
 }
 
-function importItem(item: Obj): EntryContent | string {
+function importItem(item: JsonObject): EntryContent | string {
   if (![1, 2, 3, 4].includes(item.type as number))
     return `typ ${s(item.type)} nie jest obsługiwany`;
   const name = s(item.name);
@@ -180,11 +180,11 @@ function importItem(item: Obj): EntryContent | string {
   const fields = importFields(item.fields);
   switch (item.type) {
     case 1: {
-      const login = isObj(item.login) ? item.login : {};
+      const login = isRecord(item.login) ? item.login : {};
       const urls: string[] = [];
       const androidApps: string[] = [];
       for (const u of Array.isArray(login.uris) ? login.uris : []) {
-        const uri = isObj(u) ? s(u.uri) : "";
+        const uri = isRecord(u) ? s(u.uri) : "";
         if (uri === "") continue;
         if (uri.startsWith(ANDROID_PREFIX)) androidApps.push(uri.slice(ANDROID_PREFIX.length));
         else urls.push(uri);
@@ -206,7 +206,7 @@ function importItem(item: Obj): EntryContent | string {
     case 2:
       return { type: "note", name, note, fields: {}, custom: fields };
     case 3: {
-      const card = isObj(item.card) ? item.card : {};
+      const card = isRecord(item.card) ? item.card : {};
       const brand = s(card.brand);
       const pinIdx = fields.findIndex((f) => f.label === L_PIN);
       const pin = pinIdx < 0 ? "" : fields.splice(pinIdx, 1)[0]!.value;
@@ -219,7 +219,7 @@ function importItem(item: Obj): EntryContent | string {
       };
     }
     default:
-      return importIdentity(name, note, isObj(item.identity) ? item.identity : {}, fields);
+      return importIdentity(name, note, isRecord(item.identity) ? item.identity : {}, fields);
   }
 }
 
@@ -231,13 +231,13 @@ export function parseBitwardenJson(text: string): ParsedImport {
   } catch (error) {
     throw notBitwarden(error);
   }
-  if (isObj(doc) && doc.encrypted === true)
+  if (isRecord(doc) && doc.encrypted === true)
     throw new PassHolderError("IMPORT_BITWARDEN_ENCRYPTED", "Encrypted Bitwarden export");
   if (!isBitwardenJson(doc)) throw notBitwarden();
   const entries: EntryContent[] = [];
   const skipped: ImportSkip[] = [];
   (doc as { items: unknown[] }).items.forEach((item, i) => {
-    const r = isObj(item) ? importItem(item) : "zły format wpisu";
+    const r = isRecord(item) ? importItem(item) : "zły format wpisu";
     if (typeof r === "string") skipped.push({ at: `wpis ${i + 1}`, reason: r });
     else entries.push(r);
   });
@@ -280,9 +280,9 @@ const EMPTY_IDENTITY = {
   licenseNumber: null,
 };
 
-function exportItem(e: EntryContent): Obj {
+function exportItem(e: EntryContent): JsonObject {
   const extra: BwField[] = [];
-  let body: Obj;
+  let body: JsonObject;
   let type: number;
   switch (e.type) {
     case "login": {

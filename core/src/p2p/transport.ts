@@ -1,5 +1,6 @@
 import { fromBase64, toBase64 } from "../encoding.ts";
 import { PassHolderError, type ErrorCode } from "../errors.ts";
+import { requireString } from "../strict-json.ts";
 import { decryptFrames, encryptFrames, MAX_FRAMES } from "./frames.ts";
 import type { P2pSyncResponse } from "./host-sync.ts";
 import { NoiseKK, P2P_PROLOGUE, type KeyPair } from "./noise.ts";
@@ -8,6 +9,11 @@ import type { P2pTransport } from "./sync.ts";
 export const P2P_HANDSHAKE_PATH = "/p2p/v2/handshake";
 export const P2P_SYNC_PATH = "/p2p/v2/sync";
 export const P2P_FILE_PATH = "/p2p/v2/file";
+// Pairing still speaks v1: only the sync protocol moved to v2.
+export const P2P_PING_PATH = "/p2p/v1/ping";
+export const P2P_PAIR_HELLO_PATH = "/p2p/v1/pair/hello";
+export const P2P_PAIR_START_PATH = "/p2p/v1/pair/start";
+export const P2P_PAIR_FINISH_PATH = "/p2p/v1/pair/finish";
 
 export type FetchJson = (url: string, body: unknown) => Promise<{ status: number; body: unknown }>;
 
@@ -63,10 +69,8 @@ export async function callP2pHost(
   return b;
 }
 
-const str = (v: unknown): string => {
-  if (typeof v !== "string") throw malformedResponse();
-  return v;
-};
+/** A string field of a host answer; anything else throws code HOST_MALFORMED. */
+export const responseString = (v: unknown): string => requireString(v, () => malformedResponse());
 
 export interface NoiseClientOptions {
   baseUrl: string;
@@ -94,10 +98,13 @@ export async function noiseRequest(
     { deviceId: o.deviceId, message: toBase64(first) },
     { 404: "PHONE_UPDATE_REQUIRED" },
   );
-  await noise.readMessage(fromBase64(str(hs.message)));
+  await noise.readMessage(fromBase64(responseString(hs.message)));
   const { send, recv } = noise.split();
   const frames = await encryptFrames(send, request);
-  const res = await callP2pHost(o.post, `${base}${path}`, { session: str(hs.session), frames });
+  const res = await callP2pHost(o.post, `${base}${path}`, {
+    session: responseString(hs.session),
+    frames,
+  });
   const incoming = res.frames;
   if (
     !Array.isArray(incoming) ||

@@ -2,6 +2,7 @@ package io.github.sheking94.passholder.core.transfer
 
 import io.github.sheking94.passholder.core.ErrorCode
 import io.github.sheking94.passholder.core.PassHolderException
+import io.github.sheking94.passholder.core.StrictJson
 import io.github.sheking94.passholder.core.files.Attachments
 import io.github.sheking94.passholder.core.files.jsonInt
 import io.github.sheking94.passholder.core.p2p.EntryCodec
@@ -10,7 +11,6 @@ import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
@@ -44,16 +44,13 @@ object PassHolderJson {
 
     private val FILE_KEYS = setOf("name", "mime", "size", "path")
 
-    private fun string(value: JsonElement?): String? =
-        if (value is JsonPrimitive && value !is JsonNull && value.isString) value.content else null
-
     /** A file description, or null when it breaks a rule. */
     private fun parseArchivedFile(value: JsonElement): ArchivedFile? {
         if (value !is JsonObject || value.keys != FILE_KEYS) return null
-        val name = string(value["name"])?.takeIf(Attachments::isName) ?: return null
-        val mime = string(value["mime"])?.takeIf(Attachments::isMime) ?: return null
+        val name = StrictJson.string(value["name"])?.takeIf(Attachments::isName) ?: return null
+        val mime = StrictJson.string(value["mime"])?.takeIf(Attachments::isMime) ?: return null
         val size = jsonInt(value["size"], 1, Attachments.MAX_FILE_SIZE.toLong()) ?: return null
-        val path = string(value["path"])?.takeIf { it != "" } ?: return null
+        val path = StrictJson.string(value["path"])?.takeIf { it != "" } ?: return null
         return ArchivedFile(name, mime, size.toInt(), path)
     }
 

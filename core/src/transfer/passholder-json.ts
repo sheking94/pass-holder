@@ -6,16 +6,12 @@ import {
 } from "../files/attachment.ts";
 import { PassHolderError } from "../errors.ts";
 import { parseEntryContent, type EntryContent } from "../p2p/entry.ts";
+import { hasExactKeys, isRecord } from "../strict-json.ts";
 import { sortForExport, type ImportSkip, type ParsedImport } from "./common.ts";
 
 /** True for an object carrying the PassHolder format marker (used to detect the file kind). */
 export function isPassHolderJson(value: unknown): boolean {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    (value as Record<string, unknown>).format === "passholder"
-  );
+  return isRecord(value) && value.format === "passholder";
 }
 
 export function exportPassHolderJson(entries: readonly EntryContent[]): string {
@@ -59,12 +55,8 @@ const FILE_KEYS = ["name", "mime", "size", "path"];
 
 /** A file description, or undefined when it breaks a rule. */
 function parseArchivedFile(value: unknown): ArchivedFile | undefined {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
-  const o = value as Record<string, unknown>;
-  const own = Object.keys(o);
-  if (own.length !== FILE_KEYS.length || !FILE_KEYS.every((k) => Object.hasOwn(o, k)))
-    return undefined;
-  const { name, mime, size, path } = o;
+  if (!hasExactKeys(value, FILE_KEYS)) return undefined;
+  const { name, mime, size, path } = value;
   if (typeof name !== "string" || !isAttachmentName(name)) return undefined;
   if (typeof mime !== "string" || !isAttachmentMime(mime)) return undefined;
   if (typeof size !== "number" || !Number.isInteger(size) || size < 1 || size > MAX_FILE_SIZE)

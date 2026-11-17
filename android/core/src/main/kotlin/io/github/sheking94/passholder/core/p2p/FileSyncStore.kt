@@ -1,10 +1,9 @@
 package io.github.sheking94.passholder.core.p2p
 
+import io.github.sheking94.passholder.core.AtomicFiles
 import io.github.sheking94.passholder.core.RemoteRecord
 import java.io.File
 import java.io.FileOutputStream
-import java.nio.file.Files
-import java.nio.file.StandardCopyOption
 
 /**
  * File-backed [SyncStore]: JSON Lines, one RemoteRecord per line, every put appended and fsynced.
@@ -60,15 +59,9 @@ class FileSyncStore internal constructor(private val file: File, private val app
     }
 
     private fun rewrite() {
-        val tmp = File(file.path + ".tmp")
-        FileOutputStream(tmp).use { out ->
-            val content = records.values.sortedBy { it.revision }
-                .joinToString("") { P2pJson.json.encodeToString(RemoteRecord.serializer(), it) + "\n" }
-            out.write(content.toByteArray(Charsets.UTF_8))
-            out.flush()
-            out.fd.sync()
-        }
-        Files.move(tmp.toPath(), file.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+        val content = records.values.sortedBy { it.revision }
+            .joinToString("") { P2pJson.json.encodeToString(RemoteRecord.serializer(), it) + "\n" }
+        AtomicFiles.write(file, content.toByteArray(Charsets.UTF_8))
     }
 
     override fun get(id: String): RemoteRecord? = records[id]

@@ -1,6 +1,7 @@
 package io.github.sheking94.passholder.core.files
 
 import io.github.sheking94.passholder.core.Encoding
+import io.github.sheking94.passholder.core.StrictJson
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -85,10 +86,7 @@ object Attachments {
 
     private fun fail(): Nothing = throw IllegalArgumentException(INVALID_ENTRY)
 
-    private fun str(value: JsonElement?): String {
-        if (value !is JsonPrimitive || value is JsonNull || !value.isString) fail()
-        return value.content
-    }
+    private fun str(value: JsonElement?): String = StrictJson.string(value) ?: fail()
 
     private fun canonicalKey(key: String): Boolean = try {
         val bytes = Encoding.fromBase64(key)

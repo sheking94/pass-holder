@@ -1,9 +1,9 @@
 package io.github.sheking94.passholder.core.p2p
 
 import io.github.sheking94.passholder.core.Encoding
+import io.github.sheking94.passholder.core.StrictJson
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.security.GeneralSecurityException
@@ -66,17 +66,15 @@ class PairingHost(
     /** Null when [path] is not a pairing path. [body] is already known to be a JSON object. */
     @Synchronized
     fun handle(path: String, body: JsonObject): HostReply? = when (path) {
-        "/p2p/v1/pair/hello" -> hello()
-        "/p2p/v1/pair/start" -> start(body)
-        "/p2p/v1/pair/finish" -> finish(body)
+        P2pPaths.PAIR_HELLO -> hello()
+        P2pPaths.PAIR_START -> start(body)
+        P2pPaths.PAIR_FINISH -> finish(body)
         else -> null
     }
 
-    private fun fail(status: Int, error: String) = HostReply(status, buildJsonObject { put("error", error) }.toString())
+    private fun malformed() = HostReply.error(400, "malformed request")
 
-    private fun malformed() = fail(400, "malformed request")
-
-    private fun noPairing() = fail(404, "no pairing")
+    private fun noPairing() = HostReply.error(404, "no pairing")
 
     private fun usableOffer(): PairingOffer? {
         val o = offer ?: return null
@@ -90,7 +88,7 @@ class PairingHost(
 
     /** A string field that is valid Base64; null when it is missing, not a string or not Base64. */
     private fun base64Field(value: JsonElement?): String? {
-        val text = (value as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return null
+        val text = StrictJson.string(value) ?: return null
         return try {
             Encoding.fromBase64(text)
             text
@@ -130,7 +128,7 @@ class PairingHost(
             key = Pairing.key(Cpace.finish(cpace.state, Encoding.fromBase64(messageText), CpaceRole.RESPONDER))
             reply = cpace.message
         } catch (_: IllegalArgumentException) {
-            return fail(400, "pairing failed")
+            return HostReply.error(400, "pairing failed")
         }
         pending = PendingFinish(o.sid, o.mode, key, now() + PAIRING_FINISH_TTL_MS)
         return HostReply(200, buildJsonObject { put("message", Encoding.toBase64(reply)) }.toString())
@@ -156,7 +154,7 @@ class PairingHost(
             restored = vaultInfoBlob?.let { Pairing.openVaultInfo(p.key, CpaceRole.INITIATOR, it) }
         } catch (_: GeneralSecurityException) {
             // Does not open under the key: the extension used another code.
-            return fail(403, "pairing failed")
+            return HostReply.error(403, "pairing failed")
         } catch (_: IllegalArgumentException) {
             return malformed()
         }
@@ -173,7 +171,7 @@ class PairingHost(
             )
         } catch (e: Exception) {
             reportError(onError, e)
-            fail(500, "internal error")
+            HostReply.error(500, "internal error")
         }
     }
 }

@@ -1,5 +1,6 @@
 package io.github.sheking94.passholder.core.files
 
+import io.github.sheking94.passholder.core.StrictJson
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -44,14 +45,12 @@ object FileHost {
 
     private fun isUuid(v: JsonElement?): Boolean = v is JsonPrimitive && v.isString && Attachments.UUID_V4.matches(v.content)
 
-    private fun string(v: JsonElement?): String? = (v as? JsonPrimitive)?.takeIf { it.isString }?.content
-
     /** Handles one decoded /p2p/v2/file request; the store is locked for the duration of the call. */
     fun process(store: FileStore, epoch: String, request: JsonElement, now: Long): FileReply {
         if (request !is JsonObject) return MALFORMED
-        val reqEpoch = string(request["epoch"]) ?: return MALFORMED
+        val reqEpoch = StrictJson.string(request["epoch"]) ?: return MALFORMED
         val max = Attachments.MAX_FILE_CHUNKS.toLong()
-        return when (string(request["op"])) {
+        return when (StrictJson.string(request["op"])) {
             "status" -> {
                 val ids = request["ids"] as? JsonArray ?: return MALFORMED
                 if (ids.size > Attachments.MAX_STATUS_IDS || !ids.all(::isUuid)) return MALFORMED
@@ -75,10 +74,10 @@ object FileHost {
                 if (!isUuid(request["id"])) return MALFORMED
                 val chunks = jsonInt(request["chunks"], 1, max) ?: return MALFORMED
                 val index = jsonInt(request["index"], 0, chunks - 1) ?: return MALFORMED
-                val blob = string(request["blob"]) ?: return MALFORMED
+                val blob = StrictJson.string(request["blob"]) ?: return MALFORMED
                 if (blob.length > Attachments.MAX_FILE_BLOB_LENGTH) return MALFORMED
                 if (reqEpoch != epoch) return epochReply(epoch)
-                val id = string(request["id"])!!
+                val id = StrictJson.string(request["id"])!!
                 synchronized(store) {
                     val known = store.chunks(id)
                     if (known != null && known != chunks.toInt()) return fail(400, "chunk count mismatch")
@@ -97,7 +96,7 @@ object FileHost {
                 if (!isUuid(request["id"])) return MALFORMED
                 val index = jsonInt(request["index"], 0, max - 1) ?: return MALFORMED
                 if (reqEpoch != epoch) return epochReply(epoch)
-                val id = string(request["id"])!!
+                val id = StrictJson.string(request["id"])!!
                 synchronized(store) {
                     val chunks = store.chunks(id)
                     val blob = store.get(id, index.toInt())
