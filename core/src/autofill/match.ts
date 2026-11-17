@@ -1,3 +1,4 @@
+import { parseWebAddress, type WebAddress } from "../web-address.ts";
 import { registrableDomain } from "./psl.ts";
 
 export interface MatchCandidate {
@@ -7,31 +8,9 @@ export interface MatchCandidate {
 
 export type MatchKind = "exact" | "subdomain";
 
-interface ParsedUrl {
-  scheme: "http:" | "https:";
-  host: string;
-  /** Port as written in the URL; empty means the scheme default. */
-  port: string;
-}
-
 const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/;
 
-function parse(raw: string): ParsedUrl | undefined {
-  const text = raw.trim();
-  let url: URL;
-  try {
-    url = new URL(text.includes("://") ? text : `https://${text}`);
-  } catch {
-    return undefined;
-  }
-  if (url.protocol !== "http:" && url.protocol !== "https:") return undefined;
-  const host = url.hostname
-    .toLowerCase()
-    .replace(/\.$/, "")
-    .replace(/^www\./, "");
-  if (host === "") return undefined;
-  return { scheme: url.protocol, host, port: url.port };
-}
+const parse = (raw: string): WebAddress | undefined => parseWebAddress(raw, { assumeHttps: true });
 
 function isExactOnlyHost(host: string): boolean {
   return host === "localhost" || host.startsWith("[") || IPV4.test(host);

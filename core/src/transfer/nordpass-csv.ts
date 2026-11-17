@@ -1,5 +1,6 @@
 import { PassHolderError } from "../errors.ts";
-import type { CustomField, EntryContent } from "../p2p/entry.ts";
+import type { ContactFields, CustomField, EntryContent } from "../p2p/entry.ts";
+import { hostOf } from "../web-address.ts";
 import { parseCsv, toCsv } from "./csv.ts";
 import {
   addressLine,
@@ -37,8 +38,11 @@ export const NORDPASS_COLUMNS = [
 ] as const;
 
 type Column = (typeof NORDPASS_COLUMNS)[number] | "type";
+type Kind = "login" | "note" | "card" | "contact";
+/** One CSV row: the text of a column, "" when the file has no such column. */
+type Row = (column: Column) => string;
 
-const TYPES: Record<string, "login" | "note" | "card" | "contact"> = {
+const TYPES: Record<string, Kind> = {
   password: "login",
   note: "note",
   credit_card: "card",
@@ -46,18 +50,90 @@ const TYPES: Record<string, "login" | "note" | "card" | "contact"> = {
 };
 /** Columns that do not make a row more than a note when guessing the type. */
 const NOTE_COLUMNS: readonly Column[] = ["name", "note", "folder", "shared_folder", "type"];
+const CONTACT_COLUMNS = ["full_name", "phone_number", "email", "address1"] as const;
+const ADDRESS_COLUMNS = ["address1", "address2", "zipcode", "city", "country"] as const;
 
-/** Host of a URL without "www.", or the text itself if it is not a URL. Used when a row has no name. */
-function nameFromUrl(url: string): string {
-  try {
-    return new URL(url.includes("://") ? url : `https://${url}`).hostname.replace(/^www\./, "");
-  } catch {
-    return url;
-  }
-}
+/** Host of a URL (see hostOf), or the text itself if it has none. Used when a row has no name. */
+const nameFromUrl = (url: string): string => hostOf(url) ?? url;
 
 const extra = (label: string, value: string): CustomField => ({ label, value, hidden: false });
 const filled = (v: string): boolean => v.trim() !== "";
+
+/**
+ * The entry type of a row: the declared "type" column, else guessed from the filled columns (`columns`: all
+ * columns of the file); a skip reason for a declared type PassHolder does not know.
+ */
+function guessKind(row: Row, columns: readonly string[]): { kind: Kind } | { skip: string } {
+  const declared = row("type").trim();
+  if (declared !== "") {
+    const key = declared.toLowerCase();
+    return Object.hasOwn(TYPES, key)
+      ? { kind: TYPES[key]! }
+      : { skip: `typ „${declared}” nie jest obsługiwany` };
+  }
+  if (filled(row("cardnumber"))) return { kind: "card" };
+  if (CONTACT_COLUMNS.some((c) => filled(row(c)))) return { kind: "contact" };
+  const onlyNoteColumns = columns.every(
+    (c) => NOTE_COLUMNS.includes(c as Column) || !filled(row(c as Column)),
+  );
+  return { kind: onlyNoteColumns ? "note" : "login" };
+}
+
+function contactFields(row: Row): ContactFields {
+  const fullName = row("full_name").trim();
+  const space = fullName.indexOf(" ");
+  const hasAddress = ADDRESS_COLUMNS.some((c) => filled(row(c)));
+  const address = {
+    label: "",
+    street: [row("address1"), row("address2")].filter(filled).join(", "),
+    postalCode: row("zipcode"),
+    city: row("city"),
+    country: row("country"),
+  };
+  return {
+    firstName: space < 0 ? fullName : fullName.slice(0, space),
+    lastName: space < 0 ? "" : fullName.slice(space + 1).trim(),
+    birthDate: "",
+    phones: filled(row("phone_number")) ? [{ label: "", value: row("phone_number") }] : [],
+    emails: filled(row("email")) ? [{ label: "", value: row("email") }] : [],
+    addresses: hasAddress ? [address] : [],
+  };
+}
+
+/** The entry of a row of the given kind, named `name`. */
+function rowToEntry(row: Row, kind: Kind, name: string): EntryContent {
+  const note = row("note");
+  switch (kind) {
+    case "login": {
+      const url = row("url").trim();
+      const fields = {
+        username: row("username"),
+        password: row("password"),
+        totp: row("totp"),
+        urls: url ? [url] : [],
+        androidApps: [],
+      };
+      return { type: "login", name, note, custom: [], fields };
+    }
+    case "note":
+      return { type: "note", name, note, fields: {}, custom: [] };
+    case "card": {
+      const fields = {
+        holder: row("cardholdername"),
+        number: row("cardnumber"),
+        expiry: row("expirydate"),
+        cvc: row("cvc"),
+        pin: "",
+      };
+      const custom = filled(row("zipcode")) ? [extra("Kod pocztowy", row("zipcode"))] : [];
+      return { type: "card", name, note, fields, custom };
+    }
+    case "contact": {
+      const custom = filled(row("state")) ? [extra("Województwo/stan", row("state"))] : [];
+      return { type: "contact", name, note, fields: contactFields(row), custom };
+    }
+  }
+}
 
 /** Throws code IMPORT_EMPTY_FILE or IMPORT_NOT_NORDPASS for an empty or unrecognised file; a row that cannot be taken is skipped as "wiersz N" (header is 1). */
 export function parseNordPassCsv(text: string): ParsedImport {
@@ -66,118 +142,28 @@ export function parseNordPassCsv(text: string): ParsedImport {
   const index = new Map(header.fields.map((name, i) => [name.trim().toLowerCase(), i]));
   if (!index.has("name") && !index.has("url"))
     throw new PassHolderError("IMPORT_NOT_NORDPASS", "No name/url columns in the first row");
+  const columns = [...index.keys()];
 
   const entries: EntryContent[] = [];
   const skipped: ImportSkip[] = [];
   for (const { line, fields } of rows) {
-    const get = (column: Column): string => {
+    const row: Row = (column) => {
       const i = index.get(column);
       return i === undefined ? "" : (fields[i] ?? "");
     };
     const at = `wiersz ${line}`;
-
-    let kind: "login" | "note" | "card" | "contact";
-    const declared = get("type").trim();
-    if (declared !== "") {
-      const key = declared.toLowerCase();
-      const known = Object.hasOwn(TYPES, key) ? TYPES[key] : undefined;
-      if (!known) {
-        skipped.push({ at, reason: `typ „${declared}” nie jest obsługiwany` });
-        continue;
-      }
-      kind = known;
-    } else if (filled(get("cardnumber"))) {
-      kind = "card";
-    } else if (
-      (["full_name", "phone_number", "email", "address1"] as const).some((c) => filled(get(c)))
-    ) {
-      kind = "contact";
-    } else if (
-      [...index.keys()].every(
-        (c) => NOTE_COLUMNS.includes(c as Column) || !filled(get(c as Column)),
-      )
-    ) {
-      kind = "note";
-    } else {
-      kind = "login";
+    const guess = guessKind(row, columns);
+    if ("skip" in guess) {
+      skipped.push({ at, reason: guess.skip });
+      continue;
     }
-
-    const url = get("url").trim();
-    const name = get("name").trim() || (url ? nameFromUrl(url) : "");
+    const url = row("url").trim();
+    const name = row("name").trim() || (url ? nameFromUrl(url) : "");
     if (name === "") {
       skipped.push({ at, reason: "brak nazwy i adresu" });
       continue;
     }
-    const note = get("note");
-
-    switch (kind) {
-      case "login":
-        entries.push({
-          type: "login",
-          name,
-          note,
-          custom: [],
-          fields: {
-            username: get("username"),
-            password: get("password"),
-            totp: get("totp"),
-            urls: url ? [url] : [],
-            androidApps: [],
-          },
-        });
-        break;
-      case "note":
-        entries.push({ type: "note", name, note, fields: {}, custom: [] });
-        break;
-      case "card":
-        entries.push({
-          type: "card",
-          name,
-          note,
-          fields: {
-            holder: get("cardholdername"),
-            number: get("cardnumber"),
-            expiry: get("expirydate"),
-            cvc: get("cvc"),
-            pin: "",
-          },
-          custom: filled(get("zipcode")) ? [extra("Kod pocztowy", get("zipcode"))] : [],
-        });
-        break;
-      case "contact": {
-        const fullName = get("full_name").trim();
-        const space = fullName.indexOf(" ");
-        const street = [get("address1"), get("address2")].filter(filled).join(", ");
-        const address = {
-          label: "",
-          street,
-          postalCode: get("zipcode"),
-          city: get("city"),
-          country: get("country"),
-        };
-        const hasAddress = ["address1", "address2", "zipcode", "city", "country"].some((c) =>
-          filled(get(c as Column)),
-        );
-        entries.push({
-          type: "contact",
-          name,
-          note,
-          fields: {
-            firstName: space < 0 ? fullName : fullName.slice(0, space),
-            lastName: space < 0 ? "" : fullName.slice(space + 1).trim(),
-            birthDate: "",
-            phones: filled(get("phone_number")) ? [{ label: "", value: get("phone_number") }] : [],
-            emails: filled(get("email")) ? [{ label: "", value: get("email") }] : [],
-            addresses: hasAddress ? [address] : [],
-          },
-          custom: filled(get("state")) ? [extra("Województwo/stan", get("state"))] : [],
-        });
-        break;
-      }
-      default:
-        // Unreachable while kind is one of the four; a row must never vanish silently.
-        skipped.push({ at, reason: "nieznany typ wpisu" });
-    }
+    entries.push(rowToEntry(row, guess.kind, name));
   }
   return { entries, skipped };
 }
