@@ -13,10 +13,10 @@ class MemoryFileStore(private val capacity: Long = Long.MAX_VALUE) : FileStore {
 
     override fun get(id: String, index: Int) = files[id]?.blobs?.get(index)
 
-    override fun put(id: String, index: Int, chunks: Int, blob: String, now: Long) {
-        val file = files.getOrPut(id) { Stored(chunks, now) }
-        used += blob.length - (file.blobs[index]?.length ?: 0)
-        file.blobs[index] = blob
+    override fun put(chunk: FileChunk, now: Long) {
+        val file = files.getOrPut(chunk.id) { Stored(chunk.chunks, now) }
+        used += chunk.blob.length - (file.blobs[chunk.index]?.length ?: 0)
+        file.blobs[chunk.index] = chunk.blob
     }
 
     override fun canStore(bytes: Long) = bytes <= capacity - used

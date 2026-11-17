@@ -10,6 +10,7 @@ import io.github.sheking94.passholder.core.VaultCrypto
 import io.github.sheking94.passholder.core.checkCode
 import io.github.sheking94.passholder.core.files.Attachment
 import io.github.sheking94.passholder.core.files.DiskFileStore
+import io.github.sheking94.passholder.core.files.FileChunk
 import io.github.sheking94.passholder.core.files.FileChunks
 import io.github.sheking94.passholder.core.files.FileHost
 import io.github.sheking94.passholder.core.files.FileStore
@@ -101,9 +102,9 @@ class PhoneVaultStore(
     private class ResettableFileStore(val inner: DiskFileStore) : FileStore by inner {
         var closed = false
 
-        override fun put(id: String, index: Int, chunks: Int, blob: String, now: Long) {
+        override fun put(chunk: FileChunk, now: Long) {
             check(!closed) { "File store was reset" }
-            inner.put(id, index, chunks, blob, now)
+            inner.put(chunk, now)
         }
 
         override fun delete(id: String) {
@@ -423,7 +424,7 @@ class PhoneVaultStore(
         synchronized(store) {
             checkCode(store.canStore(encrypted.blobs.sumOf { it.length.toLong() }), ErrorCode.NO_SPACE)
             val at = now()
-            encrypted.blobs.forEachIndexed { i, blob -> store.put(attachment.id, i, attachment.chunks, blob, at) }
+            encrypted.blobs.forEachIndexed { i, blob -> store.put(FileChunk(attachment.id, i, attachment.chunks, blob), at) }
         }
         touch()
         return attachment

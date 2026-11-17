@@ -3,6 +3,7 @@ package io.github.sheking94.passholder.core.p2p
 
 import io.github.sheking94.passholder.core.Aead
 import io.github.sheking94.passholder.core.Encoding
+import io.github.sheking94.passholder.core.GCM_NONCE_BYTES
 import io.github.sheking94.passholder.core.KEY_BYTES
 import io.github.sheking94.passholder.core.Kdf
 import io.github.sheking94.passholder.core.KdfParams
@@ -70,16 +71,17 @@ object Pairing {
 
     /** [from] is the role of the caller (the sealer). */
     fun sealIdentity(key: ByteArray, from: CpaceRole, value: DeviceIdentity): String =
-        seal(key, PairingKind.IDENTITY, from, P2pJson.json.encodeToString(value), null)
+        sealIdentity(key, from, value, Encoding.randomBytes(GCM_NONCE_BYTES))
 
     fun sealVaultInfo(key: ByteArray, from: CpaceRole, value: VaultInfo): String =
-        seal(key, PairingKind.VAULT_INFO, from, P2pJson.json.encodeToString(value), null)
+        sealVaultInfo(key, from, value, Encoding.randomBytes(GCM_NONCE_BYTES))
 
-    /** [nonce] is only for test vectors. */
-    internal fun sealIdentity(key: ByteArray, from: CpaceRole, value: DeviceIdentity, nonce: ByteArray?): String =
+    /** [sealIdentity] with a fixed [nonce], ONLY for test vectors. */
+    internal fun sealIdentity(key: ByteArray, from: CpaceRole, value: DeviceIdentity, nonce: ByteArray): String =
         seal(key, PairingKind.IDENTITY, from, P2pJson.json.encodeToString(value), nonce)
 
-    internal fun sealVaultInfo(key: ByteArray, from: CpaceRole, value: VaultInfo, nonce: ByteArray?): String =
+    /** [sealVaultInfo] with a fixed [nonce], ONLY for test vectors. */
+    internal fun sealVaultInfo(key: ByteArray, from: CpaceRole, value: VaultInfo, nonce: ByteArray): String =
         seal(key, PairingKind.VAULT_INFO, from, P2pJson.json.encodeToString(value), nonce)
 
     /** [from] is the role of the side that sealed the message (the peer of the caller). */
@@ -89,17 +91,17 @@ object Pairing {
     fun openVaultInfo(key: ByteArray, from: CpaceRole, blob: String): VaultInfo =
         parseVaultInfo(openJson(key, PairingKind.VAULT_INFO, from, blob))
 
-    private fun seal(key: ByteArray, kind: PairingKind, from: CpaceRole, json: String, nonce: ByteArray?): String {
-        val plaintext = Encoding.utf8(json)
-        val aad = aad(kind, from)
-        return if (nonce == null) Aead.seal(key, plaintext, aad) else Aead.seal(key, plaintext, aad, nonce)
-    }
+    private fun seal(key: ByteArray, kind: PairingKind, from: CpaceRole, json: String, nonce: ByteArray): String =
+        Aead.seal(key, Encoding.utf8(json), aad(kind, from), nonce)
 
     private fun openJson(key: ByteArray, kind: PairingKind, from: CpaceRole, blob: String): JsonElement =
         P2pJson.json.parseToJsonElement(Encoding.fromUtf8(Aead.open(key, blob, aad(kind, from))))
 
-    /** Strict Base64: must decode and re-encode to the same text, with an exact decoded length when given. */
-    private fun checkBase64(value: JsonElement?, field: String, length: Int? = null) {
+    /**
+     * Strict Base64: must decode and re-encode to the same text, with an exact decoded length when given.
+     * Returns the checked text.
+     */
+    private fun checkBase64(value: JsonElement?, field: String, length: Int? = null): String {
         val text = string(value, field)
         val bytes = try {
             Encoding.fromBase64(text)
@@ -109,6 +111,7 @@ object Pairing {
         require(Encoding.toBase64(bytes) == text) { "$field is not canonical Base64" }
         require(length == null || bytes.size == length) { "$field must be $length bytes" }
         require(bytes.isNotEmpty()) { "$field must not be empty" }
+        return text
     }
 
     private fun string(value: JsonElement?, field: String): String {
@@ -127,37 +130,36 @@ object Pairing {
         require(v is JsonObject) { "Identity must be an object" }
         val deviceId = boundedString(v["deviceId"], "deviceId", MAX_DEVICE_ID_LENGTH)
         val name = boundedString(v["name"], "name", MAX_DEVICE_NAME_LENGTH)
-        checkBase64(v["staticPublicKey"], "staticPublicKey", KEY_BYTES)
-        return DeviceIdentity(deviceId, name, string(v["staticPublicKey"], "staticPublicKey"))
+        return DeviceIdentity(deviceId, name, checkBase64(v["staticPublicKey"], "staticPublicKey", KEY_BYTES))
     }
 
     private fun parseVaultInfo(v: JsonElement): VaultInfo {
         require(v is JsonObject) { "Vault info must be an object" }
-        checkBase64(v["epoch"], "epoch", RANDOM_ID_BYTES)
+        val epoch = checkBase64(v["epoch"], "epoch", RANDOM_ID_BYTES)
         val kdfObject = v["kdf"]
         require(kdfObject is JsonObject) { "Invalid kdf" }
-        checkBase64(kdfObject["salt"], "kdf.salt", SALT_BYTES)
+        val salt = checkBase64(kdfObject["salt"], "kdf.salt", SALT_BYTES)
         val kdf = KdfParams(
             alg = string(kdfObject["alg"], "kdf.alg"),
-            salt = string(kdfObject["salt"], "kdf.salt"),
+            salt = salt,
             memoryKiB = kdfInt(kdfObject["memoryKiB"], "kdf.memoryKiB"),
             iterations = kdfInt(kdfObject["iterations"], "kdf.iterations"),
             parallelism = kdfInt(kdfObject["parallelism"], "kdf.parallelism"),
         )
         Kdf.assertAcceptable(kdf)
-        checkBase64(v["wrappedVaultKey"], "wrappedVaultKey")
-        val addresses = v["addresses"]
-        val list = (addresses as? JsonArray)?.map(StrictJson::string)
-        require(
-            list != null && list.size <= MAX_ADDRESSES &&
-                list.all { it != null && it.length in 1..MAX_ADDRESS_LENGTH },
-        ) { "addresses must be at most $MAX_ADDRESSES strings of 1..$MAX_ADDRESS_LENGTH chars" }
-        return VaultInfo(
-            epoch = string(v["epoch"], "epoch"),
-            kdf = kdf,
-            wrappedVaultKey = string(v["wrappedVaultKey"], "wrappedVaultKey"),
-            addresses = list.map { it!! },
-        )
+        val wrappedVaultKey = checkBase64(v["wrappedVaultKey"], "wrappedVaultKey")
+        val addresses = parseAddresses(v["addresses"])
+        return VaultInfo(epoch = epoch, kdf = kdf, wrappedVaultKey = wrappedVaultKey, addresses = addresses)
+    }
+
+    private fun parseAddresses(value: JsonElement?): List<String> {
+        val error = "addresses must be at most $MAX_ADDRESSES strings of 1..$MAX_ADDRESS_LENGTH chars"
+        require(value is JsonArray && value.size <= MAX_ADDRESSES) { error }
+        return value.map { a ->
+            val text = StrictJson.string(a)
+            require(text != null && text.length in 1..MAX_ADDRESS_LENGTH) { error }
+            text
+        }
     }
 
     /** A JSON integer that fits an Int; anything else is rejected before the KDF bounds are checked. */

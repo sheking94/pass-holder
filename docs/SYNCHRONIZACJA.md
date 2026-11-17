@@ -160,7 +160,7 @@ Reguła: lokalny wpis `dirty` wygrywa tylko z większym HLC; inaczej wygrywa wer
 zrobiona po zobaczeniu innej zawsze ma większy HLC, nawet przy rozjechanych zegarach.
 
 **Starsza wersja z telefonu (przegląd V3-I2):** wtyczka nie przyjmuje rekordu z HLC mniejszym niż znany jej dla tego
-`id`, także gdy lokalny wpis nie jest `dirty` (`applyResponse` w `core/src/p2p/sync.ts`). Przy poprawnym działaniu
+`id`, także gdy lokalny wpis nie jest `dirty` (`resolveRemote` w `core/src/p2p/sync.ts`). Przy poprawnym działaniu
 taki rekord nie powstaje, bo każda edycja obserwuje HLC nadpisywanej wersji; pojawia się tylko, gdy ktoś z kontrolą
 nad danymi telefonu poda stary szyfrogram pod nową rewizją (stare hasło, usunięty wpis znowu żywy). Wpis zostaje
 lokalnie z dawną rewizją, więc następna edycja we wtyczce trafia na konflikt i wygrywa go większym HLC.
@@ -223,7 +223,7 @@ zawsze jest obiektem JSON.
 
 ### 5.2. Walidacja żądania sync
 
-`validateP2pSyncRequest` / `HostSync.validate` (400, nic nie zapisane): `epoch` tekstem, `sinceRevision`
+`parseP2pSyncRequest` / `HostSync.parse` i `checkBaseRevisions` (400, nic nie zapisane): `epoch` tekstem, `sinceRevision`
 bezpieczną liczbą całkowitą ≥ 0, najwyżej 500 zmian, w każdej `id` 1..128 znaków, `baseRevision` ≥ 0,
 `deleted` logiczne, `blob` tekstem o długości ≤ 65536 (`blob too large`). Powtórzone `id` → `duplicate change`; `baseRevision != 0` dla
 nieznanego `id` → `unknown base revision`. Gdy `sinceRevision > currentRevision` (telefon cofnięty), host

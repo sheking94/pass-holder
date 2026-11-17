@@ -209,38 +209,54 @@ class SyncHttpServer(
         val lines = readHeaderLines(input)
         val parts = lines[0].split(' ')
         if (parts.size != 3 || !parts[2].startsWith("HTTP/1.")) throw HttpError(400, "bad request")
+        val headers = parseHeaders(lines.drop(1))
+        val host = headers["host"] ?: throw HttpError(400, "bad request")
+        if (!isAllowedHost(host)) throw HttpError(403, "forbidden host")
+        if (parts[0] != "POST") throw HttpError(405, "method not allowed")
+        val length = contentLength(headers)
+        val origin = headers["origin"]
+        if (origin != null && !origin.startsWith("chrome-extension://")) throw HttpError(403, "forbidden origin")
+        val type = headers["content-type"]?.substringBefore(';')?.trim()?.lowercase()
+        if (type != "application/json") throw HttpError(415, "unsupported media type")
+        return parts[1].substringBefore('?') to readBody(input, length)
+    }
+
+    /** Header names in lower case; a repeated Content-Length or Host with another value is a 400. */
+    private fun parseHeaders(lines: List<String>): Map<String, String> {
         val headers = HashMap<String, String>()
-        for (line in lines.drop(1)) {
+        for (line in lines) {
             val colon = line.indexOf(':')
             if (colon <= 0) throw HttpError(400, "bad request")
             val name = line.substring(0, colon).lowercase()
             val value = line.substring(colon + 1).trim()
-            if (name == "content-length" && headers[name] != null && headers[name] != value) {
+            val previous = headers[name]
+            if ((name == "content-length" || name == "host") && previous != null && previous != value) {
                 throw HttpError(400, "bad request")
             }
-            if (name == "host" && headers[name] != null && headers[name] != value) throw HttpError(400, "bad request")
             headers[name] = value
         }
-        val host = headers["host"] ?: throw HttpError(400, "bad request")
-        if (!isAllowedHost(host)) throw HttpError(403, "forbidden host")
-        if (parts[0] != "POST") throw HttpError(405, "method not allowed")
+        return headers
+    }
+
+    /** The declared body length: required, decimal, at most [P2pHost.MAX_BODY_BYTES]; chunked bodies are not supported. */
+    private fun contentLength(headers: Map<String, String>): Int {
         if (headers.containsKey("transfer-encoding")) throw HttpError(501, "not implemented")
         val raw = headers["content-length"] ?: throw HttpError(411, "length required")
         if (raw.isEmpty() || !raw.all { it in '0'..'9' } || raw.length > 10) throw HttpError(400, "bad request")
         val length = raw.toLong()
         if (length > P2pHost.MAX_BODY_BYTES) throw HttpError(413, "body too large")
-        val origin = headers["origin"]
-        if (origin != null && !origin.startsWith("chrome-extension://")) throw HttpError(403, "forbidden origin")
-        val type = headers["content-type"]?.substringBefore(';')?.trim()?.lowercase()
-        if (type != "application/json") throw HttpError(415, "unsupported media type")
-        val body = ByteArray(length.toInt())
+        return length.toInt()
+    }
+
+    private fun readBody(input: InputStream, length: Int): ByteArray {
+        val body = ByteArray(length)
         var read = 0
         while (read < body.size) {
             val n = input.read(body, read, body.size - read)
             if (n < 0) throw IOException("unexpected EOF")
             read += n
         }
-        return parts[1].substringBefore('?') to body
+        return body
     }
 
     /** Reads request line and headers up to the blank line, at most MAX_HEADER_BYTES in total. */

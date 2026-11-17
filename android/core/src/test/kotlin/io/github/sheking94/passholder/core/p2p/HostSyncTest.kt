@@ -37,6 +37,15 @@ class HostSyncTest {
         if (changes != null) put("changes", changes)
     }
 
+    /** The 400 text the host gives this request, or null: shape first, base revisions only for a processed request. */
+    private fun validate(store: SyncStore, epoch: String, request: JsonElement): String? = try {
+        val parsed = HostSync.parse(request)
+        if (parsed.epoch == epoch && parsed.sinceRevision <= store.currentRevision()) HostSync.checkBaseRevisions(store, parsed)
+        null
+    } catch (e: InvalidSyncRequest) {
+        e.message
+    }
+
     private fun num(text: String): JsonElement = P2pJson.json.parseToJsonElement(text)
 
     private fun withField(c: JsonElement, key: String, value: JsonElement): JsonElement = JsonObject((c as JsonObject) + (key to value))
@@ -192,7 +201,7 @@ class HostSyncTest {
             ok to "duplicate change",
         )
         for ((c, message) in bad) {
-            assertEquals(message, HostSync.validate(store, epoch, request(0, ok, c)), c.toString())
+            assertEquals(message, validate(store, epoch, request(0, ok, c)), c.toString())
             val e =
                 assertThrows(IllegalArgumentException::class.java, {
                     HostSync.process(store, epoch, emptyList(), request(0, ok, c))
@@ -201,7 +210,7 @@ class HostSyncTest {
             assertEquals(0, store.currentRevision())
             assertNull(store.get("ok"))
         }
-        assertNull(HostSync.validate(store, epoch, request(0, changeJson("x".repeat(128)))))
+        assertNull(validate(store, epoch, request(0, changeJson("x".repeat(128)))))
     }
 
     @Test
@@ -217,11 +226,11 @@ class HostSyncTest {
             null,
         )
         for (v in values) {
-            assertEquals("malformed sync request", HostSync.validate(store, epoch, requestRaw(v)), "$v")
+            assertEquals("malformed sync request", validate(store, epoch, requestRaw(v)), "$v")
             assertThrows(IllegalArgumentException::class.java) { HostSync.process(store, epoch, emptyList(), requestRaw(v)) }
             assertEquals(0, store.currentRevision())
         }
-        assertNull(HostSync.validate(store, epoch, requestRaw(num("0"))))
+        assertNull(validate(store, epoch, requestRaw(num("0"))))
     }
 
     @Test
@@ -243,7 +252,7 @@ class HostSyncTest {
             requestRaw(num("0"), null),
             requestRaw(num("0"), JsonPrimitive("c")),
         )
-        for (s in shapes) assertEquals("malformed sync request", HostSync.validate(store, epoch, s), s.toString())
+        for (s in shapes) assertEquals("malformed sync request", validate(store, epoch, s), s.toString())
     }
 
     @Test
@@ -251,9 +260,9 @@ class HostSyncTest {
         val store = MemorySyncStore()
         assertEquals(
             "unknown base revision",
-            HostSync.validate(store, epoch, request(0, changeJson("a"), changeJson("ghost", 5))),
+            validate(store, epoch, request(0, changeJson("a"), changeJson("ghost", 5))),
         )
-        assertNull(HostSync.validate(store, epoch, request(0, changeJson("ghost", 5), epoch = "")))
+        assertNull(validate(store, epoch, request(0, changeJson("ghost", 5), epoch = "")))
         assertEquals(0, store.currentRevision())
     }
 
@@ -312,12 +321,12 @@ class HostSyncTest {
             ChangeRequest.serializer(),
             ChangeRequest("a", 0, false, "x".repeat(n)),
         )
-        assertNull(HostSync.validate(store, epoch, request(0, withBlob(EntryCodec.MAX_BLOB_LENGTH))))
-        assertEquals("blob too large", HostSync.validate(store, epoch, request(0, withBlob(EntryCodec.MAX_BLOB_LENGTH + 1))))
+        assertNull(validate(store, epoch, request(0, withBlob(EntryCodec.MAX_BLOB_LENGTH))))
+        assertEquals("blob too large", validate(store, epoch, request(0, withBlob(EntryCodec.MAX_BLOB_LENGTH + 1))))
         // The check comes before the epoch check.
         assertEquals(
             "blob too large",
-            HostSync.validate(store, epoch, request(0, withBlob(EntryCodec.MAX_BLOB_LENGTH + 1), epoch = "other")),
+            validate(store, epoch, request(0, withBlob(EntryCodec.MAX_BLOB_LENGTH + 1), epoch = "other")),
         )
         val e = assertThrows(IllegalArgumentException::class.java) {
             HostSync.process(store, epoch, emptyList(), request(0, withBlob(EntryCodec.MAX_BLOB_LENGTH + 1)))

@@ -32,9 +32,9 @@ class FileHostTest {
             Thread.yield()
             return inner.get(id, index)
         }
-        override fun put(id: String, index: Int, chunks: Int, blob: String, now: Long) {
+        override fun put(chunk: FileChunk, now: Long) {
             puts++
-            inner.put(id, index, chunks, blob, now)
+            inner.put(chunk, now)
         }
         override fun canStore(bytes: Long) = inner.canStore(bytes)
         override fun createdAt(id: String) = inner.createdAt(id)

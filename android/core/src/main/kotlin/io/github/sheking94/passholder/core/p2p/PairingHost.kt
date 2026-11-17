@@ -158,20 +158,23 @@ class PairingHost(
         } catch (_: IllegalArgumentException) {
             return malformed()
         }
-        return try {
-            onPaired(StoredDevice(peer.deviceId, peer.name, peer.staticPublicKey, now()), restored)
-            val own = identity()
-            val info = vaultInfo(restored)
-            HostReply(
-                200,
-                buildJsonObject {
-                    put("identity", Pairing.sealIdentity(p.key, CpaceRole.RESPONDER, own))
-                    put("vaultInfo", Pairing.sealVaultInfo(p.key, CpaceRole.RESPONDER, info))
-                }.toString(),
-            )
-        } catch (e: Exception) {
-            reportError(onError, e)
-            HostReply.error(500, "internal error")
-        }
+        return completePairing(p, peer, restored)
+    }
+
+    /** Stores the new device (and the restored vault) and answers with the phone's identity and vault info, sealed. */
+    private fun completePairing(p: PendingFinish, peer: DeviceIdentity, restored: VaultInfo?): HostReply = try {
+        onPaired(StoredDevice(peer.deviceId, peer.name, peer.staticPublicKey, now()), restored)
+        val own = identity()
+        val info = vaultInfo(restored)
+        HostReply(
+            200,
+            buildJsonObject {
+                put("identity", Pairing.sealIdentity(p.key, CpaceRole.RESPONDER, own))
+                put("vaultInfo", Pairing.sealVaultInfo(p.key, CpaceRole.RESPONDER, info))
+            }.toString(),
+        )
+    } catch (e: Exception) {
+        reportError(onError, e)
+        HostReply.error(500, "internal error")
     }
 }

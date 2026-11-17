@@ -3,6 +3,7 @@ package io.github.sheking94.passholder.core.files
 import io.github.sheking94.passholder.core.Aead
 import io.github.sheking94.passholder.core.Encoding
 import io.github.sheking94.passholder.core.ErrorCode
+import io.github.sheking94.passholder.core.GCM_NONCE_BYTES
 import io.github.sheking94.passholder.core.KEY_BYTES
 import io.github.sheking94.passholder.core.PassHolderException
 import io.github.sheking94.passholder.core.requireCode
@@ -11,6 +12,9 @@ import java.util.UUID
 /** Result of [FileChunks.encrypt]: the descriptor plus one Base64 blob per chunk. */
 data class EncryptedFile(val attachment: Attachment, val blobs: List<String>)
 
+/** Id, key and one nonce per chunk of a file being encrypted (same as FileSecrets in core/src/files/chunks.ts). */
+internal class FileSecrets(val id: String, val key: ByteArray, val nonces: List<ByteArray>)
+
 /** Chunked file encryption, same as core/src/files/chunks.ts. Errors are [PassHolderException]s with the TS codes. */
 object FileChunks {
     /** AAD binding a chunk to its file, position and total count. */
@@ -18,26 +22,18 @@ object FileChunks {
 
     fun encrypt(bytes: ByteArray, name: String, mime: String): EncryptedFile {
         checkInput(bytes, name)
-        val chunks = Attachments.chunkCount(bytes.size.toLong())
-        return build(bytes, name, mime, UUID.randomUUID().toString(), Encoding.randomBytes(KEY_BYTES), chunks) { null }
+        val nonces = List(Attachments.chunkCount(bytes.size.toLong())) { Encoding.randomBytes(GCM_NONCE_BYTES) }
+        return build(bytes, name, mime, FileSecrets(UUID.randomUUID().toString(), Encoding.randomBytes(KEY_BYTES), nonces))
     }
 
     /**
-     * ONLY for test vectors (fixed id, key and one nonce per chunk). Never use in production code:
+     * [encrypt] with fixed secrets, ONLY for test vectors. Never use in production code:
      * reusing a nonce with the same key breaks AES-GCM.
      */
-    internal fun encryptFixed(
-        bytes: ByteArray,
-        name: String,
-        mime: String,
-        id: String,
-        key: ByteArray,
-        nonces: List<ByteArray>,
-    ): EncryptedFile {
+    internal fun encryptFixed(bytes: ByteArray, name: String, mime: String, secrets: FileSecrets): EncryptedFile {
         checkInput(bytes, name)
-        val chunks = Attachments.chunkCount(bytes.size.toLong())
-        require(nonces.size == chunks) { "Nonce count must equal chunk count" }
-        return build(bytes, name, mime, id, key, chunks) { nonces[it] }
+        require(secrets.nonces.size == Attachments.chunkCount(bytes.size.toLong())) { "Nonce count must equal chunk count" }
+        return build(bytes, name, mime, secrets)
     }
 
     private fun checkInput(bytes: ByteArray, name: String) {
@@ -46,30 +42,23 @@ object FileChunks {
         requireCode(Attachments.isName(name), ErrorCode.FILE_INVALID_NAME)
     }
 
-    private fun build(
-        bytes: ByteArray,
-        name: String,
-        mime: String,
-        id: String,
-        key: ByteArray,
-        chunks: Int,
-        nonce: (Int) -> ByteArray?,
-    ): EncryptedFile {
+    /** One chunk per nonce; the caller checked the input and the nonce count. */
+    private fun build(bytes: ByteArray, name: String, mime: String, secrets: FileSecrets): EncryptedFile {
+        val chunks = secrets.nonces.size
         val blobs = (0 until chunks).map { i ->
             val from = i * Attachments.FILE_CHUNK_SIZE
             val part = bytes.copyOfRange(from, minOf(bytes.size, from + Attachments.FILE_CHUNK_SIZE))
-            val n = nonce(i)
-            if (n == null) Aead.seal(key, part, aad(id, i, chunks)) else Aead.seal(key, part, aad(id, i, chunks), n)
+            Aead.seal(secrets.key, part, aad(secrets.id, i, chunks), secrets.nonces[i])
         }
         val attachment = Attachment(
-            id = id,
+            id = secrets.id,
             name = name,
             // An unusable MIME type is normalized to "" (application/octet-stream) instead of failing.
             mime = if (Attachments.isMime(mime)) mime else "",
             size = bytes.size.toLong(),
             chunks = chunks,
             sha256 = Encoding.sha256Hex(bytes),
-            key = Encoding.toBase64(key),
+            key = Encoding.toBase64(secrets.key),
         )
         return EncryptedFile(attachment, blobs)
     }

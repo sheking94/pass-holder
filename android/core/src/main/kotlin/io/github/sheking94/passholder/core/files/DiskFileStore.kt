@@ -60,17 +60,17 @@ class DiskFileStore(
         return if (f.isFile) f.readText(Charsets.UTF_8) else null
     }
 
-    override fun put(id: String, index: Int, chunks: Int, blob: String, now: Long) {
-        require(valid(id)) { "Invalid file id" }
-        val d = File(dir, id)
+    override fun put(chunk: FileChunk, now: Long) {
+        require(valid(chunk.id)) { "Invalid file id" }
+        val d = File(dir, chunk.id)
         d.mkdirs()
-        if (readMeta(id) == null) {
+        if (readMeta(chunk.id) == null) {
             AtomicFiles.write(
                 File(d, "meta.json"),
-                P2pJson.json.encodeToString(Meta.serializer(), Meta(chunks, now)).toByteArray(Charsets.UTF_8),
+                P2pJson.json.encodeToString(Meta.serializer(), Meta(chunk.chunks, now)).toByteArray(Charsets.UTF_8),
             )
         }
-        AtomicFiles.write(File(d, index.toString()), blob.toByteArray(Charsets.UTF_8))
+        AtomicFiles.write(File(d, chunk.index.toString()), chunk.blob.toByteArray(Charsets.UTF_8))
     }
 
     override fun canStore(bytes: Long) = freeSpace() - bytes >= minFree
