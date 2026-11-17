@@ -6,26 +6,26 @@ import {
   applyVaultInfo,
   clockForVault,
   compareHlc,
-  decryptPayloadV2,
-  deleteEntryV2,
+  decryptPayload,
+  deleteEntry,
   emptyLogin,
-  emptyVaultV2,
-  encryptPayloadV2,
+  emptyVault,
+  encryptPayload,
   ENTRY_TOO_LARGE_TO_SYNC,
   entryBlobLength,
   MAX_BLOB_BYTES_PER_ROUND,
   MAX_ENTRY_BLOB_LENGTH,
   validateP2pSyncRequest,
-  type EntryContentV3,
+  type EntryContent,
   HlcClock,
-  liveEntriesV2,
+  liveEntries,
   MAX_CHANGES_PER_REQUEST,
   MAX_CHANGES_PER_RESPONSE,
   MAX_SYNC_ROUNDS,
   processP2pSync,
-  syncVaultV2,
-  upsertEntryV2,
-  type LocalVaultV2,
+  syncVault,
+  upsertEntry,
+  type LocalVault,
   type P2pSyncRequest,
   type P2pSyncResponse,
   type P2pTransport,
@@ -35,7 +35,7 @@ import { MAX_ATTACHMENTS_PARSED, type Attachment } from "../../src/files/index.t
 
 const newEpoch = () => toBase64(randomBytes(16));
 const ADDRESS = "192.168.1.5:8787";
-const login = (name: string, username = "u", password = "p"): EntryContentV3 => ({
+const login = (name: string, username = "u", password = "p"): EntryContent => ({
   ...emptyLogin(name),
   fields: { username, password, totp: "", urls: [], androidApps: [] },
 });
@@ -49,25 +49,25 @@ function setup(epoch = newEpoch()) {
     async (r) =>
       structuredClone(processP2pSync(store, e, [ADDRESS], structuredClone(r)));
   const send = transport(epoch);
-  const sync = (vault: LocalVaultV2, clock: HlcClock) => syncVaultV2(vault, vaultKey, clock, send);
+  const sync = (vault: LocalVault, clock: HlcClock) => syncVault(vault, vaultKey, clock, send);
   return { store, vaultKey, epoch, send, sync, transport };
 }
 
-const names = (v: LocalVaultV2) =>
-  liveEntriesV2(v)
+const names = (v: LocalVault) =>
+  liveEntries(v)
     .map((e) => e.data.name)
     .sort();
 
 describe("p2p sync", () => {
   it("moves entries between two devices and learns the epoch and addresses", async () => {
     const { sync, epoch } = setup();
-    const phone = emptyVaultV2();
-    const ext = emptyVaultV2();
+    const phone = emptyVault();
+    const ext = emptyVault();
     const phoneClock = new HlcClock("phone", () => 1000);
     const extClock = new HlcClock("ext", () => 1000);
 
-    upsertEntryV2(phone, phoneClock, "1", entry("Bank"));
-    upsertEntryV2(phone, phoneClock, "2", entry("Mail"));
+    upsertEntry(phone, phoneClock, "1", entry("Bank"));
+    upsertEntry(phone, phoneClock, "2", entry("Mail"));
     await sync(phone, phoneClock);
     await sync(ext, extClock);
 
@@ -75,7 +75,7 @@ describe("p2p sync", () => {
     expect(ext.addresses).toEqual([ADDRESS]);
     expect(names(ext)).toEqual(["Bank", "Mail"]);
 
-    upsertEntryV2(ext, extClock, "3", entry("Shop"));
+    upsertEntry(ext, extClock, "3", entry("Shop"));
     await sync(ext, extClock);
     await sync(phone, phoneClock);
     expect(names(phone)).toEqual(["Bank", "Mail", "Shop"]);
@@ -85,15 +85,15 @@ describe("p2p sync", () => {
 
   it("a later edit wins even when its device clock is far behind", async () => {
     const { sync } = setup();
-    const phone = emptyVaultV2();
-    const ext = emptyVaultV2();
+    const phone = emptyVault();
+    const ext = emptyVault();
     const phoneClock = new HlcClock("phone", () => 1_000_000);
     const extClock = new HlcClock("ext", () => 10);
 
-    upsertEntryV2(phone, phoneClock, "1", entry("Old"));
+    upsertEntry(phone, phoneClock, "1", entry("Old"));
     await sync(phone, phoneClock);
     await sync(ext, extClock);
-    upsertEntryV2(ext, extClock, "1", entry("New"));
+    upsertEntry(ext, extClock, "1", entry("New"));
     await sync(ext, extClock);
     await sync(phone, phoneClock);
 
@@ -103,17 +103,17 @@ describe("p2p sync", () => {
 
   it("ignores an older version of an entry replayed by the host under a new revision (V3-I2)", async () => {
     const { sync, store } = setup();
-    const phone = emptyVaultV2();
-    const ext = emptyVaultV2();
+    const phone = emptyVault();
+    const ext = emptyVault();
     let t = 1000;
     const phoneClock = new HlcClock("phone", () => t);
     const extClock = new HlcClock("ext", () => t);
 
-    upsertEntryV2(phone, phoneClock, "1", entry("Old"));
+    upsertEntry(phone, phoneClock, "1", entry("Old"));
     await sync(phone, phoneClock);
     const old = structuredClone(store.get("1")!);
     t = 2000;
-    upsertEntryV2(phone, phoneClock, "1", entry("New"));
+    upsertEntry(phone, phoneClock, "1", entry("New"));
     await sync(phone, phoneClock);
     await sync(ext, extClock);
     expect(names(ext)).toEqual(["New"]);
@@ -125,7 +125,7 @@ describe("p2p sync", () => {
 
     // The extension's next edit still reaches the host (conflict, won by HLC).
     t = 3000;
-    upsertEntryV2(ext, extClock, "1", entry("Newest"));
+    upsertEntry(ext, extClock, "1", entry("Newest"));
     await sync(ext, extClock);
     await sync(phone, phoneClock);
     expect(names(phone)).toEqual(["Newest"]);
@@ -137,27 +137,27 @@ describe("p2p sync", () => {
     ["delete then edit", "edit"],
   ])("edit versus delete: %s, the later operation wins", async (_label, winner) => {
     const { sync } = setup();
-    const phone = emptyVaultV2();
-    const ext = emptyVaultV2();
+    const phone = emptyVault();
+    const ext = emptyVault();
     let t = 1000;
     const phoneClock = new HlcClock("phone", () => t);
     const extClock = new HlcClock("ext", () => t);
 
-    upsertEntryV2(phone, phoneClock, "1", entry("Start"));
+    upsertEntry(phone, phoneClock, "1", entry("Start"));
     await sync(phone, phoneClock);
     await sync(ext, extClock);
 
     // Both change offline; the order is decided by the clock at the time of the operation.
     if (winner === "delete") {
       t = 2000;
-      upsertEntryV2(phone, phoneClock, "1", entry("Edited"));
+      upsertEntry(phone, phoneClock, "1", entry("Edited"));
       t = 3000;
-      deleteEntryV2(ext, extClock, "1");
+      deleteEntry(ext, extClock, "1");
     } else {
       t = 2000;
-      deleteEntryV2(ext, extClock, "1");
+      deleteEntry(ext, extClock, "1");
       t = 3000;
-      upsertEntryV2(phone, phoneClock, "1", entry("Edited"));
+      upsertEntry(phone, phoneClock, "1", entry("Edited"));
     }
     await sync(ext, extClock);
     await sync(phone, phoneClock);
@@ -171,16 +171,16 @@ describe("p2p sync", () => {
 
   it("resends everything, including unsynced edits and tombstones, after the epoch changes", async () => {
     const first = setup();
-    const ext = emptyVaultV2();
+    const ext = emptyVault();
     const clock = new HlcClock("ext", () => 1000);
-    upsertEntryV2(ext, clock, "a", entry("A"));
-    upsertEntryV2(ext, clock, "b", entry("B"));
-    upsertEntryV2(ext, clock, "c", entry("C"));
+    upsertEntry(ext, clock, "a", entry("A"));
+    upsertEntry(ext, clock, "b", entry("B"));
+    upsertEntry(ext, clock, "c", entry("C"));
     await first.sync(ext, clock);
-    deleteEntryV2(ext, clock, "c");
+    deleteEntry(ext, clock, "c");
     await first.sync(ext, clock);
     expect(ext.epoch).toBe(first.epoch);
-    upsertEntryV2(ext, clock, "a", entry("A edited offline"));
+    upsertEntry(ext, clock, "a", entry("A edited offline"));
 
     const second = setup();
     second.vaultKey.set(first.vaultKey);
@@ -190,7 +190,7 @@ describe("p2p sync", () => {
     expect(second.store.listSince(0)).toHaveLength(3);
     expect(second.store.get("c")?.deleted).toBe(true);
     const a = second.store.get("a")!;
-    expect(await decryptPayloadV2(first.vaultKey, "a", a.blob)).toMatchObject({
+    expect(await decryptPayload(first.vaultKey, "a", a.blob)).toMatchObject({
       name: "A edited offline",
     });
     expect([...ext.entries.values()].every((e) => !e.dirty)).toBe(true);
@@ -205,7 +205,7 @@ describe("p2p sync", () => {
     const flipping: P2pTransport = (r) =>
       (n++ % 2 === 0 ? a : b).transport(n % 2 === 1 ? a.epoch : b.epoch)(r);
     const clock = new HlcClock("ext", () => 1);
-    await expect(syncVaultV2(emptyVaultV2(), vaultKey, clock, flipping)).rejects.toThrow(
+    await expect(syncVault(emptyVault(), vaultKey, clock, flipping)).rejects.toThrow(
       "Epoch changed twice during sync",
     );
   });
@@ -220,7 +220,7 @@ describe("p2p sync", () => {
           id: "1",
           baseRevision: 0,
           deleted: false,
-          blob: await encryptPayloadV2(vaultKey, "1", {
+          blob: await encryptPayload(vaultKey, "1", {
             ...login("x"),
             v: 3,
             hlc: { ms: 1, c: 0, d: "d" },
@@ -246,39 +246,39 @@ describe("p2p sync", () => {
   it("payloads are bound to their id and to v2", async () => {
     const key = newVaultKey();
     const data = { ...login("x"), v: 3 as const, hlc: { ms: 1, c: 0, d: "d" } };
-    const blob = await encryptPayloadV2(key, "1", data);
+    const blob = await encryptPayload(key, "1", data);
 
-    expect(await decryptPayloadV2(key, "1", blob)).toEqual(data);
-    await expect(decryptPayloadV2(key, "2", blob)).rejects.toThrow();
+    expect(await decryptPayload(key, "1", blob)).toEqual(data);
+    await expect(decryptPayload(key, "2", blob)).rejects.toThrow();
     // A v1 payload, sealed the way the removed Pi sync did it.
     const v1 = await seal(
       key,
       utf8(JSON.stringify({ name: "x", username: "u", password: "p", modifiedAt: 1 })),
       "passholder/v1/entry/1",
     );
-    await expect(decryptPayloadV2(key, "1", v1)).rejects.toThrow();
+    await expect(decryptPayload(key, "1", v1)).rejects.toThrow();
   });
 });
 
 describe("p2p sync: final review fixes", () => {
   const password = async (s: ReturnType<typeof setup>, id: string) =>
     (
-      (await decryptPayloadV2(s.vaultKey, id, s.store.get(id)!.blob)) as {
+      (await decryptPayload(s.vaultKey, id, s.store.get(id)!.blob)) as {
         fields?: { password?: string };
       }
     ).fields?.password;
 
   it("an edit made while its push is in flight stays dirty and reaches the phone on the next sync", async () => {
     const s = setup();
-    const ext = emptyVaultV2();
+    const ext = emptyVault();
     const clock = new HlcClock("ext", () => 1000);
-    upsertEntryV2(ext, clock, "1", login("Bank", "u", "old"));
+    upsertEntry(ext, clock, "1", login("Bank", "u", "old"));
     let edited = false;
-    await syncVaultV2(ext, s.vaultKey, clock, async (r) => {
+    await syncVault(ext, s.vaultKey, clock, async (r) => {
       const res = await s.send(r);
       if (!edited && r.epoch === s.epoch && r.changes.length > 0) {
         edited = true;
-        upsertEntryV2(ext, clock, "1", login("Bank", "u", "NEW"));
+        upsertEntry(ext, clock, "1", login("Bank", "u", "NEW"));
       }
       return res;
     });
@@ -291,15 +291,15 @@ describe("p2p sync: final review fixes", () => {
 
   it("deleting an entry while its first push is in flight leaves a tombstone on the phone", async () => {
     const s = setup();
-    const ext = emptyVaultV2();
+    const ext = emptyVault();
     const clock = new HlcClock("ext", () => 1000);
-    upsertEntryV2(ext, clock, "1", entry("Bank"));
+    upsertEntry(ext, clock, "1", entry("Bank"));
     let deleted = false;
-    await syncVaultV2(ext, s.vaultKey, clock, async (r) => {
+    await syncVault(ext, s.vaultKey, clock, async (r) => {
       const res = await s.send(r);
       if (!deleted && r.epoch === s.epoch && r.changes.length > 0) {
         deleted = true;
-        deleteEntryV2(ext, clock, "1");
+        deleteEntry(ext, clock, "1");
       }
       return res;
     });
@@ -311,15 +311,15 @@ describe("p2p sync: final review fixes", () => {
 
   it("a restarted clock still orders an edit after the version it overwrites", async () => {
     const first = setup();
-    const phone = emptyVaultV2();
+    const phone = emptyVault();
     const phoneClock = new HlcClock("phone", () => 5_000_000);
-    const a = emptyVaultV2();
-    upsertEntryV2(phone, phoneClock, "x", login("X", "u", "phone-v1"));
+    const a = emptyVault();
+    upsertEntry(phone, phoneClock, "x", login("X", "u", "phone-v1"));
     await first.sync(phone, phoneClock);
     await first.sync(a, new HlcClock("a", () => 1000));
 
     const restarted = new HlcClock("a", () => 2000);
-    upsertEntryV2(a, restarted, "x", login("X", "u", "a-edit"));
+    upsertEntry(a, restarted, "x", login("X", "u", "a-edit"));
     const hlc = a.entries.get("x")!.data.hlc;
     expect(hlc.ms).toBeGreaterThanOrEqual(5_000_000);
 
@@ -331,33 +331,33 @@ describe("p2p sync: final review fixes", () => {
     expect(await password(second, "x")).toBe("a-edit");
   });
 
-  it("deleteEntryV2 also observes the overwritten HLC", () => {
-    const v = emptyVaultV2();
-    upsertEntryV2(v, new HlcClock("phone", () => 5_000_000), "x", entry("X"));
+  it("deleteEntry also observes the overwritten HLC", () => {
+    const v = emptyVault();
+    upsertEntry(v, new HlcClock("phone", () => 5_000_000), "x", entry("X"));
     v.entries.set("x", { ...v.entries.get("x")!, revision: 3, dirty: false });
-    deleteEntryV2(v, new HlcClock("a", () => 2000), "x");
+    deleteEntry(v, new HlcClock("a", () => 2000), "x");
     expect(v.entries.get("x")!.data.hlc.ms).toBe(5_000_000);
   });
 
   it("clockForVault seeds the clock with the largest HLC in the vault", () => {
-    const v = emptyVaultV2();
-    upsertEntryV2(v, new HlcClock("p", () => 7_000), "a", entry("A"));
-    upsertEntryV2(v, new HlcClock("q", () => 9_000), "b", entry("B"));
-    upsertEntryV2(v, new HlcClock("r", () => 8_000), "c", entry("C"));
+    const v = emptyVault();
+    upsertEntry(v, new HlcClock("p", () => 7_000), "a", entry("A"));
+    upsertEntry(v, new HlcClock("q", () => 9_000), "b", entry("B"));
+    upsertEntry(v, new HlcClock("r", () => 8_000), "c", entry("C"));
     const clock = clockForVault(v, "me", () => 10);
     expect(clock.tick()).toEqual({ ms: 9_000, c: 1, d: "me" });
-    expect(clockForVault(emptyVaultV2(), "me", () => 10).tick()).toEqual({ ms: 10, c: 0, d: "me" });
+    expect(clockForVault(emptyVault(), "me", () => 10).tick()).toEqual({ ms: 10, c: 0, d: "me" });
   });
 
   it("applyVaultInfo with a new epoch resets the vault and replaces the addresses", async () => {
     const first = setup();
-    const ext = emptyVaultV2();
+    const ext = emptyVault();
     const clock = new HlcClock("ext", () => 1000);
     applyVaultInfo(ext, { epoch: first.epoch, addresses: ["10.0.0.1:1"] });
     expect(ext.epoch).toBe(first.epoch);
     expect(ext.addresses).toEqual(["10.0.0.1:1"]);
-    upsertEntryV2(ext, clock, "a", entry("A"));
-    upsertEntryV2(ext, clock, "b", entry("B"));
+    upsertEntry(ext, clock, "a", entry("A"));
+    upsertEntry(ext, clock, "b", entry("B"));
     await first.sync(ext, clock);
     expect(ext.addresses).toEqual(["10.0.0.1:1", ADDRESS]);
 
@@ -384,12 +384,12 @@ describe("p2p sync: final review fixes", () => {
 
   it("an epoch change during sync replaces the addresses", async () => {
     const first = setup();
-    const ext = emptyVaultV2();
+    const ext = emptyVault();
     const clock = new HlcClock("ext", () => 1000);
     await first.sync(ext, clock);
     ext.addresses.push("stale:1");
     const second = setup();
-    await syncVaultV2(ext, second.vaultKey, clock, async (r) =>
+    await syncVault(ext, second.vaultKey, clock, async (r) =>
       structuredClone(processP2pSync(second.store, second.epoch, ["new:2"], structuredClone(r))),
     );
     expect(ext.addresses).toEqual(["new:2"]);
@@ -397,15 +397,15 @@ describe("p2p sync: final review fixes", () => {
 
   it("re-uploads everything when the phone's revision went backwards in the same epoch", async () => {
     const s = setup();
-    const ext = emptyVaultV2();
+    const ext = emptyVault();
     const clock = new HlcClock("ext", () => 1000);
-    for (const id of ["a", "b", "c"]) upsertEntryV2(ext, clock, id, entry(id));
+    for (const id of ["a", "b", "c"]) upsertEntry(ext, clock, id, entry(id));
     await s.sync(ext, clock);
     expect(ext.lastSyncRevision).toBe(3);
 
     // Same epoch, but the phone's store was restored from an older (here: empty) state.
     const restored = new MemorySyncStore();
-    await syncVaultV2(ext, s.vaultKey, clock, async (r) =>
+    await syncVault(ext, s.vaultKey, clock, async (r) =>
       structuredClone(processP2pSync(restored, s.epoch, [ADDRESS], structuredClone(r))),
     );
     expect(
@@ -457,16 +457,16 @@ describe("p2p sync: paging", () => {
 
   it("uploads 1300 dirty entries after an epoch reset in requests of at most 500 changes", async () => {
     const first = setup();
-    const ext = emptyVaultV2();
+    const ext = emptyVault();
     const clock = new HlcClock("ext", () => 1000);
-    for (let i = 0; i < 1300; i++) upsertEntryV2(ext, clock, `id${i}`, entry(`n${i}`));
+    for (let i = 0; i < 1300; i++) upsertEntry(ext, clock, `id${i}`, entry(`n${i}`));
     await first.sync(ext, clock);
     expect(first.store.currentRevision()).toBe(1300);
 
     const second = setup();
     second.vaultKey.set(first.vaultKey);
     const sizes: number[] = [];
-    await syncVaultV2(ext, second.vaultKey, clock, async (r) => {
+    await syncVault(ext, second.vaultKey, clock, async (r) => {
       sizes.push(r.changes.length);
       return second.send(r);
     });
@@ -478,7 +478,7 @@ describe("p2p sync: paging", () => {
 
   it("throws after the safety limit of rounds when the host never finishes paging", async () => {
     const s = setup();
-    const ext = emptyVaultV2();
+    const ext = emptyVault();
     const clock = new HlcClock("ext", () => 1000);
     await s.sync(ext, clock);
     let calls = 0;
@@ -494,7 +494,7 @@ describe("p2p sync: paging", () => {
         more: true,
       };
     };
-    await expect(syncVaultV2(ext, s.vaultKey, clock, endless)).rejects.toThrow("Sync exceeded");
+    await expect(syncVault(ext, s.vaultKey, clock, endless)).rejects.toThrow("Sync exceeded");
     expect(calls).toBe(MAX_SYNC_ROUNDS);
   });
 });
@@ -505,11 +505,11 @@ describe("p2p sync: v3 entries and byte budget", () => {
 
   it("pages request by bytes", async () => {
     const s = setup();
-    const ext = emptyVaultV2();
+    const ext = emptyVault();
     const clock = new HlcClock("ext", () => 1000);
-    for (let i = 0; i < 20; i++) upsertEntryV2(ext, clock, `id${i}`, big(`n${i}`));
+    for (let i = 0; i < 20; i++) upsertEntry(ext, clock, `id${i}`, big(`n${i}`));
     const requests: P2pSyncRequest[] = [];
-    await syncVaultV2(ext, s.vaultKey, clock, async (r) => {
+    await syncVault(ext, s.vaultKey, clock, async (r) => {
       requests.push(structuredClone(r));
       return s.send(r);
     });
@@ -522,13 +522,13 @@ describe("p2p sync: v3 entries and byte budget", () => {
 
   it("pages response by bytes", async () => {
     const s = setup();
-    const phone = emptyVaultV2();
+    const phone = emptyVault();
     const pc = new HlcClock("phone", () => 1000);
-    for (let i = 0; i < 20; i++) upsertEntryV2(phone, pc, `id${i}`, big(`n${i}`));
+    for (let i = 0; i < 20; i++) upsertEntry(phone, pc, `id${i}`, big(`n${i}`));
     await s.sync(phone, pc);
-    const ext = emptyVaultV2();
+    const ext = emptyVault();
     const responses: P2pSyncResponse[] = [];
-    await syncVaultV2(ext, s.vaultKey, new HlcClock("ext", () => 1000), async (r) => {
+    await syncVault(ext, s.vaultKey, new HlcClock("ext", () => 1000), async (r) => {
       const res = await s.send(r);
       responses.push(res);
       return res;
@@ -539,24 +539,24 @@ describe("p2p sync: v3 entries and byte budget", () => {
     expect(real.slice(0, -1).every((r) => r.more)).toBe(true);
     expect(real.at(-1)!.more).toBe(false);
     expect(real.length).toBeGreaterThan(1);
-    expect(liveEntriesV2(ext)).toHaveLength(20);
+    expect(liveEntries(ext)).toHaveLength(20);
   });
 
   it("truncated conflicts settle", async () => {
     const s = setup();
-    const phone = emptyVaultV2();
-    const ext = emptyVaultV2();
+    const phone = emptyVault();
+    const ext = emptyVault();
     const pc = new HlcClock("phone", () => 5000);
-    for (let i = 0; i < 20; i++) upsertEntryV2(phone, pc, `id${i}`, login(`n${i}`));
+    for (let i = 0; i < 20; i++) upsertEntry(phone, pc, `id${i}`, login(`n${i}`));
     await s.sync(phone, pc);
     await s.sync(ext, new HlcClock("ext", () => 1000));
     // The phone writes big newer versions; the ext edits every entry on a stale base with a later HLC, so it wins.
-    for (let i = 0; i < 20; i++) upsertEntryV2(phone, pc, `id${i}`, big(`p${i}`));
+    for (let i = 0; i < 20; i++) upsertEntry(phone, pc, `id${i}`, big(`p${i}`));
     await s.sync(phone, pc);
     const extClock = new HlcClock("ext", () => 9_000_000);
-    for (let i = 0; i < 20; i++) upsertEntryV2(ext, extClock, `id${i}`, login(`e${i}`));
+    for (let i = 0; i < 20; i++) upsertEntry(ext, extClock, `id${i}`, login(`e${i}`));
     const responses: P2pSyncResponse[] = [];
-    await syncVaultV2(ext, s.vaultKey, extClock, async (r) => {
+    await syncVault(ext, s.vaultKey, extClock, async (r) => {
       const res = await s.send(r);
       responses.push(res);
       return res;
@@ -566,7 +566,7 @@ describe("p2p sync: v3 entries and byte budget", () => {
     const expected = Array.from({ length: 20 }, (_, i) => `e${i}`).sort();
     expect(names(ext)).toEqual(expected);
     expect([...ext.entries.values()].every((e) => !e.dirty)).toBe(true);
-    const fresh = emptyVaultV2();
+    const fresh = emptyVault();
     await s.sync(fresh, new HlcClock("fresh", () => 1000));
     expect(names(fresh)).toEqual(expected);
   });
@@ -590,14 +590,14 @@ describe("p2p sync: v3 entries and byte budget", () => {
   });
 
   it("upsert rejects too large entry", () => {
-    const v = emptyVaultV2();
+    const v = emptyVault();
     const clock = new HlcClock("a", () => 1000);
-    upsertEntryV2(v, clock, "ok", entry("ok"));
+    upsertEntry(v, clock, "ok", entry("ok"));
     const before = structuredClone([...v.entries]);
     const note = { ...emptyLogin("big"), note: "a".repeat(70_000) };
-    expect(() => upsertEntryV2(v, clock, "big", note)).toThrow("Entry too large");
+    expect(() => upsertEntry(v, clock, "big", note)).toThrow("Entry too large");
     // Overwriting an existing entry must not change it either.
-    expect(() => upsertEntryV2(v, clock, "ok", note)).toThrow("Entry too large");
+    expect(() => upsertEntry(v, clock, "ok", note)).toThrow("Entry too large");
     expect([...v.entries]).toEqual(before);
     expect(entryBlobLength({ ...note, v: 3, hlc: { ms: 1, c: 0, d: "a" } })).toBeGreaterThan(
       MAX_ENTRY_BLOB_LENGTH,
@@ -606,9 +606,9 @@ describe("p2p sync: v3 entries and byte budget", () => {
 
   it("throws a clear error, before sending, for a dirty entry too large to sync", async () => {
     const s = setup();
-    const v = emptyVaultV2();
+    const v = emptyVault();
     const clock = new HlcClock("a", () => 1000);
-    upsertEntryV2(v, clock, "ok", entry("ok"));
+    upsertEntry(v, clock, "ok", entry("ok"));
     // Saved before v3 and near the limit: it no longer fits once serialized as v3.
     const huge = { ...emptyLogin("Huge"), note: "a".repeat(70_000) };
     v.entries.set("huge", {
@@ -620,7 +620,7 @@ describe("p2p sync: v3 entries and byte budget", () => {
     });
     const requests: P2pSyncRequest[] = [];
     await expect(
-      syncVaultV2(v, s.vaultKey, clock, async (r) => {
+      syncVault(v, s.vaultKey, clock, async (r) => {
         requests.push(r);
         return s.send(r);
       }),
@@ -633,7 +633,7 @@ describe("p2p sync: v3 entries and byte budget", () => {
     const legacy = { name: "Old", username: "u", password: "p", hlc: { ms: 1, c: 0, d: "d" } };
     const blob = await seal(s.vaultKey, utf8(JSON.stringify(legacy)), "passholder/v2/entry/1");
     s.store.put({ id: "1", revision: 1, deleted: false, blob });
-    const ext = emptyVaultV2();
+    const ext = emptyVault();
     await s.sync(ext, new HlcClock("ext", () => 1000));
     expect(ext.entries.get("1")).toMatchObject({
       deleted: false,
@@ -656,19 +656,19 @@ describe("p2p sync: attachment merge on conflict", () => {
   });
   const files = (from: number, count: number) =>
     Array.from({ length: count }, (_, i) => file(from + i));
-  const withFiles = (name: string, attachments: Attachment[], note = ""): EntryContentV3 => ({
+  const withFiles = (name: string, attachments: Attachment[], note = ""): EntryContent => ({
     ...login(name),
     note,
     attachments,
   });
-  const fileIds = (v: LocalVaultV2, id = "1") => {
+  const fileIds = (v: LocalVault, id = "1") => {
     const e = v.entries.get(id);
     return e && !e.deleted ? (e.data.attachments ?? []).map((a) => a.id) : undefined;
   };
   const counting = (s: ReturnType<typeof setup>) => {
     const requests: P2pSyncRequest[] = [];
-    const sync = (vault: LocalVaultV2, clock: HlcClock) =>
-      syncVaultV2(vault, s.vaultKey, clock, async (r) => {
+    const sync = (vault: LocalVault, clock: HlcClock) =>
+      syncVault(vault, s.vaultKey, clock, async (r) => {
         requests.push(structuredClone(r));
         return s.send(r);
       });
@@ -678,12 +678,12 @@ describe("p2p sync: attachment merge on conflict", () => {
   /** Both devices hold entry "1" in sync; each clock reads t at the time of the call. */
   async function twoDevices() {
     const s = setup();
-    const a = emptyVaultV2();
-    const b = emptyVaultV2();
+    const a = emptyVault();
+    const b = emptyVault();
     const time = { t: 1000 };
     const aClock = new HlcClock("a", () => time.t);
     const bClock = new HlcClock("b", () => time.t);
-    upsertEntryV2(a, aClock, "1", login("Start"));
+    upsertEntry(a, aClock, "1", login("Start"));
     await s.sync(a, aClock);
     await s.sync(b, bClock);
     return { s, a, b, aClock, bClock, time };
@@ -692,9 +692,9 @@ describe("p2p sync: attachment merge on conflict", () => {
   it("remote wins: the merged list (winner first) is pushed back and reaches both devices", async () => {
     const { s, a, b, aClock, bClock, time } = await twoDevices();
     time.t = 2000;
-    upsertEntryV2(a, aClock, "1", withFiles("Start", [file(1)]));
+    upsertEntry(a, aClock, "1", withFiles("Start", [file(1)]));
     time.t = 3000;
-    upsertEntryV2(b, bClock, "1", withFiles("From B", [file(2)]));
+    upsertEntry(b, bClock, "1", withFiles("From B", [file(2)]));
     await s.sync(b, bClock);
     const winnerHlc = b.entries.get("1")!.data.hlc;
     const counted = counting(s);
@@ -714,10 +714,10 @@ describe("p2p sync: attachment merge on conflict", () => {
   it("local wins: the loser's files are appended and the entry gets a fresh HLC", async () => {
     const { s, a, b, aClock, bClock, time } = await twoDevices();
     time.t = 2000;
-    upsertEntryV2(b, bClock, "1", withFiles("From B", [file(2)]));
+    upsertEntry(b, bClock, "1", withFiles("From B", [file(2)]));
     await s.sync(b, bClock);
     time.t = 3000;
-    upsertEntryV2(a, aClock, "1", withFiles("From A", [file(1)]));
+    upsertEntry(a, aClock, "1", withFiles("From A", [file(1)]));
     const before = a.entries.get("1")!.data.hlc;
     await s.sync(a, aClock);
     await s.sync(b, bClock);
@@ -732,9 +732,9 @@ describe("p2p sync: attachment merge on conflict", () => {
   it("a tombstone with a later HLC deletes the entry with its files", async () => {
     const { s, a, b, aClock, bClock, time } = await twoDevices();
     time.t = 2000;
-    upsertEntryV2(a, aClock, "1", withFiles("Start", [file(1)]));
+    upsertEntry(a, aClock, "1", withFiles("Start", [file(1)]));
     time.t = 3000;
-    deleteEntryV2(b, bClock, "1");
+    deleteEntry(b, bClock, "1");
     await s.sync(b, bClock);
     await s.sync(a, aClock);
     await s.sync(b, bClock);
@@ -747,9 +747,9 @@ describe("p2p sync: attachment merge on conflict", () => {
   it("keeps the winner's list when the merged one would exceed the parser limit", async () => {
     const { s, a, b, aClock, bClock, time } = await twoDevices();
     time.t = 2000;
-    upsertEntryV2(a, aClock, "1", withFiles("Start", files(100, 20)));
+    upsertEntry(a, aClock, "1", withFiles("Start", files(100, 20)));
     time.t = 3000;
-    upsertEntryV2(b, bClock, "1", withFiles("Start", files(200, 21)));
+    upsertEntry(b, bClock, "1", withFiles("Start", files(200, 21)));
     expect(20 + 21).toBeGreaterThan(MAX_ATTACHMENTS_PARSED);
     await s.sync(b, bClock);
     const counted = counting(s);
@@ -763,13 +763,13 @@ describe("p2p sync: attachment merge on conflict", () => {
   it("keeps the winner's list when the merged entry would be too large to sync", async () => {
     const { s, a, b, aClock, bClock, time } = await twoDevices();
     time.t = 2000;
-    upsertEntryV2(a, aClock, "1", withFiles("Start", [file(1)]));
+    upsertEntry(a, aClock, "1", withFiles("Start", [file(1)]));
     time.t = 3000;
     // Fits on its own, but not with one more descriptor.
     const note = "n".repeat(48_560);
-    upsertEntryV2(b, bClock, "1", withFiles("Start", [file(2)], note));
+    upsertEntry(b, bClock, "1", withFiles("Start", [file(2)], note));
     const merged = {
-      ...(b.entries.get("1")!.data as EntryContentV3),
+      ...(b.entries.get("1")!.data as EntryContent),
       attachments: [file(2), file(1)],
     };
     expect(entryBlobLength({ ...merged, v: 3, hlc: { ms: 9999, c: 0, d: "a" } })).toBeGreaterThan(
@@ -785,9 +785,9 @@ describe("p2p sync: attachment merge on conflict", () => {
   it("no extra round when both versions hold the same files", async () => {
     const { s, a, b, aClock, bClock, time } = await twoDevices();
     time.t = 2000;
-    upsertEntryV2(a, aClock, "1", withFiles("From A", [file(1)]));
+    upsertEntry(a, aClock, "1", withFiles("From A", [file(1)]));
     time.t = 3000;
-    upsertEntryV2(b, bClock, "1", withFiles("From B", [file(1)]));
+    upsertEntry(b, bClock, "1", withFiles("From B", [file(1)]));
     await s.sync(b, bClock);
     const counted = counting(s);
     await counted.sync(a, aClock);
@@ -800,12 +800,12 @@ describe("p2p sync: attachment merge on conflict", () => {
   it("a non-dirty local entry simply takes the remote version", async () => {
     const { s, a, b, aClock, bClock, time } = await twoDevices();
     time.t = 2000;
-    upsertEntryV2(a, aClock, "1", withFiles("Start", [file(1)]));
+    upsertEntry(a, aClock, "1", withFiles("Start", [file(1)]));
     await s.sync(a, aClock);
     await s.sync(b, bClock);
     time.t = 3000;
     // B removes the file; A has nothing pending, so the file must not come back.
-    upsertEntryV2(b, bClock, "1", login("Start"));
+    upsertEntry(b, bClock, "1", login("Start"));
     await s.sync(b, bClock);
     await s.sync(a, aClock);
     expect(fileIds(a)).toEqual([]);

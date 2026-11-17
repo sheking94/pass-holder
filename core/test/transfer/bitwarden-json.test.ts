@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { parseEntryContent, type DocumentKind, type EntryContentV3 } from "../../src/p2p/entry.ts";
+import { parseEntryContent, type DocumentKind, type EntryContent } from "../../src/p2p/entry.ts";
 import {
   exportBitwardenJson,
   isBitwardenJson,
@@ -14,7 +14,7 @@ const read = (name: string) =>
 const file = read("bitwarden.json");
 const expected = JSON.parse(read("bitwarden.expected.json")) as ParsedImport;
 
-const doc = (kind: DocumentKind, number: string): EntryContentV3 => ({
+const doc = (kind: DocumentKind, number: string): EntryContent => ({
   type: "document",
   name: `Dokument ${kind}`,
   note: "n",
@@ -29,7 +29,7 @@ const doc = (kind: DocumentKind, number: string): EntryContentV3 => ({
   custom: [{ label: "Własne", value: "x", hidden: true }],
 });
 
-const roundTrip = (entries: EntryContentV3[]) => parseBitwardenJson(exportBitwardenJson(entries));
+const roundTrip = (entries: EntryContent[]) => parseBitwardenJson(exportBitwardenJson(entries));
 
 describe("parseBitwardenJson", () => {
   it("matches the shared sample file", () => {
@@ -66,7 +66,7 @@ describe("exportBitwardenJson", () => {
   });
 
   it("round-trips a card with its PIN (the PIN is not left as a custom field)", () => {
-    const card: EntryContentV3 = {
+    const card: EntryContent = {
       type: "card",
       name: "K",
       note: "",
@@ -77,7 +77,7 @@ describe("exportBitwardenJson", () => {
   });
 
   it("round-trips a note", () => {
-    const note: EntryContentV3 = {
+    const note: EntryContent = {
       type: "note",
       name: "N",
       note: "tekst",
@@ -94,7 +94,7 @@ describe("exportBitwardenJson", () => {
   });
 
   it("round-trips a login with urls, android apps, totp and custom fields", () => {
-    const login: EntryContentV3 = {
+    const login: EntryContent = {
       type: "login",
       name: "L",
       note: "",
@@ -121,7 +121,7 @@ describe("exportBitwardenJson", () => {
   });
 
   it("exports a card expiry as month and year, and the PIN as a hidden field", () => {
-    const card: EntryContentV3 = {
+    const card: EntryContent = {
       type: "card",
       name: "K",
       note: "",
@@ -142,7 +142,7 @@ describe("exportBitwardenJson", () => {
   });
 
   it("exports a contact into identity fields and extra labelled fields", () => {
-    const contact: EntryContentV3 = {
+    const contact: EntryContent = {
       type: "contact",
       name: "C",
       note: "",

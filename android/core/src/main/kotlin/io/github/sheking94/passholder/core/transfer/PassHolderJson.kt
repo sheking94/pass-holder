@@ -2,14 +2,25 @@ package io.github.sheking94.passholder.core.transfer
 
 import io.github.sheking94.passholder.core.files.Attachments
 import io.github.sheking94.passholder.core.files.jsonInt
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
-import io.github.sheking94.passholder.core.p2p.EntryV3
+import io.github.sheking94.passholder.core.p2p.EntryCodec
+import io.github.sheking94.passholder.core.p2p.EntryContent
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+
+/** A file description in an archive index: exactly these keys, in this order. [path] only finds the file in the ZIP. */
+data class ArchivedFile(val name: String, val mime: String, val size: Int, val path: String)
+
+/**
+ * An entry of an archive index: content without attachments, plus the descriptions of its files (may be empty).
+ * [position] is the entry's place in the index's `entries` (from 1), the N of "wpis N".
+ */
+data class ArchiveEntry(val content: EntryContent, val files: List<ArchivedFile>, val position: Int)
+
+data class ParsedArchive(val entries: List<ArchiveEntry>, val skipped: List<ImportSkip>)
 
 /** PassHolder JSON v3 import and export; port of core/src/transfer/passholder-json.ts. */
 object PassHolderJson {
@@ -19,12 +30,12 @@ object PassHolderJson {
     fun isFormat(value: JsonElement): Boolean =
         value is JsonObject && (value["format"] as? JsonPrimitive)?.let { it.isString && it.content == "passholder" } == true
 
-    fun export(entries: List<EntryContentV3>): String {
+    fun export(entries: List<EntryContent>): String {
         val doc = JsonObject(
             linkedMapOf(
                 "format" to JsonPrimitive("passholder"),
                 "version" to JsonPrimitive(3),
-                "entries" to JsonArray(sortForExport(entries).map(EntryV3::contentJson)),
+                "entries" to JsonArray(sortForExport(entries).map(EntryCodec::contentJson)),
             ),
         )
         return JsonText.stringify(doc) + "\n"
@@ -87,7 +98,7 @@ object PassHolderJson {
                     files = parseArchivedFiles(item["attachments"])
                     body = JsonObject(item - "attachments")
                 }
-                val content = EntryV3.parseContent(body)
+                val content = EntryCodec.parseContent(body)
                 val own = files.map { it.path }
                 if (own.toSet().size != own.size || own.any { it in paths }) fail()
                 content to files
@@ -116,14 +127,3 @@ object PassHolderJson {
         return ParsedImport(entries.map { it.content }, skipped, files)
     }
 }
-
-/** A file description in an archive index: exactly these keys, in this order. [path] only finds the file in the ZIP. */
-data class ArchivedFile(val name: String, val mime: String, val size: Int, val path: String)
-
-/**
- * An entry of an archive index: content without attachments, plus the descriptions of its files (may be empty).
- * [position] is the entry's place in the index's `entries` (from 1), the N of "wpis N".
- */
-data class ArchiveEntry(val content: EntryContentV3, val files: List<ArchivedFile>, val position: Int)
-
-data class ParsedArchive(val entries: List<ArchiveEntry>, val skipped: List<ImportSkip>)

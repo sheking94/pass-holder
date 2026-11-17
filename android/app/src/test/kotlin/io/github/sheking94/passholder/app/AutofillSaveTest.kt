@@ -18,7 +18,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.github.sheking94.passholder.app.autofill.AutofillSaveActivity
 import io.github.sheking94.passholder.app.autofill.SaveData
 import io.github.sheking94.passholder.core.autofill.AppRequest
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
+import io.github.sheking94.passholder.core.p2p.EntryContent
 import io.github.sheking94.passholder.core.p2p.LoginFields
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -213,7 +213,7 @@ class AutofillSaveBackTest : AutofillSaveTestBase() {
 class AutofillSaveStaleDeadlineTest : AutofillSaveTestBase() {
     override fun beforeLaunch() {
         app.leaveLock = LeaveLock(app.phoneStore, now = { now() })
-        app.leaveLock.schedule(LeaveLock.DELAY_MS)
+        app.leaveLock.schedule()
         stale = true
     }
     private var stale = false
@@ -291,7 +291,7 @@ class AutofillSaveReviewNoneTest : AutofillSaveTestBase() {
 
     override fun beforeLaunch() = app.phoneStore.upsertContent(
         "1",
-        EntryContentV3("Bank", "", LoginFields("jan", "nowe-haslo", androidApps = listOf("com.example.bank")), emptyList()),
+        EntryContent("Bank", "", LoginFields("jan", "nowe-haslo", androidApps = listOf("com.example.bank")), emptyList()),
     )
 
     @Test
@@ -309,7 +309,7 @@ class AutofillSaveReviewSameLoginTest : AutofillSaveTestBase() {
 
     override fun beforeLaunch() = app.phoneStore.upsertContent(
         "1",
-        EntryContentV3("Bank", "", LoginFields("anna", "nowe-haslo", androidApps = listOf("com.example.bank")), emptyList()),
+        EntryContent("Bank", "", LoginFields("anna", "nowe-haslo", androidApps = listOf("com.example.bank")), emptyList()),
     )
 
     @Test
@@ -348,7 +348,7 @@ class AutofillSaveReviewLeaveLockTest : AutofillSaveTestBase() {
 
     override fun beforeLaunch() {
         app.leaveLock = LeaveLock(app.phoneStore, now = { 0L })
-        app.leaveLock.schedule(LeaveLock.DELAY_MS)
+        app.leaveLock.schedule()
     }
 
     @Test
@@ -396,7 +396,7 @@ class AutofillSaveReviewFreshEntriesTest : AutofillSaveTestBase() {
         waitFor("Nowy login")
         app.phoneStore.upsertContent(
             "1",
-            EntryContentV3("Bank", "", LoginFields("jan", "nowe-haslo", androidApps = listOf("com.example.bank")), emptyList()),
+            EntryContent("Bank", "", LoginFields("jan", "nowe-haslo", androidApps = listOf("com.example.bank")), emptyList()),
         )
         click("Zapisz")
         assertEquals(Activity.RESULT_OK, waitForResult().resultCode)

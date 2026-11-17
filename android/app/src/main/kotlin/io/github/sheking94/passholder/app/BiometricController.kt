@@ -23,9 +23,9 @@ class BiometricController(private val biometric: BiometricUnlock) {
         throw IllegalStateException("Nie udało się przygotować klucza: ${e.message ?: e.javaClass.simpleName}", e)
     }
 
-    /** Step 2: [cipher] came back from the dialog; [unlockKeys] is the 32-byte vault key. Blocking (Keystore): run it as a vault operation. */
-    fun enable(cipher: Cipher, unlockKeys: ByteArray) {
-        biometric.enable(cipher, unlockKeys)
+    /** Step 2: [cipher] came back from the dialog; [vaultKey] is the 32-byte vault key. Blocking (Keystore): run it as a vault operation. */
+    fun enable(cipher: Cipher, vaultKey: ByteArray) {
+        biometric.enable(cipher, vaultKey)
         _enabled.value = true
     }
 
@@ -40,13 +40,13 @@ class BiometricController(private val biometric: BiometricUnlock) {
     }
 
     /**
-     * [cipher] came back from the dialog: decrypts the stored keys, passes them to [unlock] and zeroes them.
-     * Keys of some other vault will never work again, so fingerprint unlock is turned off then.
+     * [cipher] came back from the dialog: decrypts the stored vault key, passes it to [unlock] and zeroes it.
+     * A key of some other vault will never work again, so fingerprint unlock is turned off then.
      */
-    fun unlock(cipher: Cipher, unlock: (keys: ByteArray) -> Unit) {
-        biometric.decrypt(cipher).useAndWipe { keys ->
+    fun unlock(cipher: Cipher, unlock: (vaultKey: ByteArray) -> Unit) {
+        biometric.decrypt(cipher).useAndWipe { vaultKey ->
             try {
-                unlock(keys)
+                unlock(vaultKey)
             } catch (e: IllegalArgumentException) {
                 disable()
                 throw IllegalArgumentException("Zapisane klucze nie pasują do sejfu. Odblokuj hasłem głównym i włącz odcisk ponownie.", e)

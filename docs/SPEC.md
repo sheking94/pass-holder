@@ -83,7 +83,7 @@ AAD z `id` wiąże szyfrogram z wpisem, więc host nie może podmienić treści 
 | `note` | `{}` (treść w `note`) |
 | `document` | `kind` (`id_card`, `passport`, `driving_license`, `student_id`, `other`), `number`, `fullName`, `issueDate`, `expiryDate`, `issuer` |
 
-- **Ścisły odczyt** (`parseEntryData` w `core/src/p2p/entry.ts`, `EntryV3.parse` w `EntryV3.kt`): nieznany
+- **Ścisły odczyt** (`parseEntryData` w `core/src/p2p/entry.ts`, `EntryCodec.parse` w `Entry.kt`): nieznany
   `type`, brak pola, zły typ wartości albo **nieznany klucz na dowolnym poziomie** → błąd
   `Invalid entry payload`. Formatu dat parser nie sprawdza (to zadanie formularzy). `custom`: `label, value,
   hidden`; `hlc`: dokładnie `ms, c, d`.

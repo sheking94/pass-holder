@@ -91,15 +91,15 @@ interface Pending {
  * with flag bit 11. An entry is deflated, or stored when deflate does not make it smaller.
  */
 export class ZipWriter {
-  private readonly time: number;
-  private readonly date: number;
-  private readonly entries: Pending[] = [];
+  readonly #time: number;
+  readonly #date: number;
+  readonly #entries: Pending[] = [];
 
   /** The time is written from the date's UTC fields, so the same date gives the same bytes in every time zone. */
   constructor(date: Date = new Date()) {
-    this.time =
+    this.#time =
       (date.getUTCHours() << 11) | (date.getUTCMinutes() << 5) | (date.getUTCSeconds() >> 1);
-    this.date =
+    this.#date =
       (Math.max(0, date.getUTCFullYear() - 1980) << 9) |
       ((date.getUTCMonth() + 1) << 5) |
       date.getUTCDate();
@@ -117,8 +117,8 @@ export class ZipWriter {
       // A copy, so the caller may zero its plaintext as soon as add resolves.
       data: stored ? bytes.slice() : deflated,
     };
-    if (options.first) this.entries.unshift(entry);
-    else this.entries.push(entry);
+    if (options.first) this.#entries.unshift(entry);
+    else this.#entries.push(entry);
   }
 
   /** The archive as parts for `new Blob(parts)`. */
@@ -129,20 +129,20 @@ export class ZipWriter {
     const tooLarge = (): never => {
       throw new Error("ZIP too large");
     };
-    if (this.entries.length >= 0xffff) tooLarge();
+    if (this.#entries.length >= 0xffff) tooLarge();
     let offset = 0;
-    for (const e of this.entries) {
+    for (const e of this.#entries) {
       if (offset >= 0xffffffff || e.size >= 0xffffffff || e.data.length >= 0xffffffff) tooLarge();
       const local = new Uint8Array(30 + e.name.length);
       const lv = new DataView(local.buffer);
       lv.setUint32(0, LOCAL_SIG, true);
-      this.common(lv, 4, e);
+      this.#common(lv, 4, e);
       local.set(e.name, 30);
       const record = new Uint8Array(46 + e.name.length);
       const cv = new DataView(record.buffer);
       cv.setUint32(0, CENTRAL_SIG, true);
       cv.setUint16(4, VERSION, true);
-      this.common(cv, 6, e);
+      this.#common(cv, 6, e);
       cv.setUint32(42, offset, true);
       record.set(e.name, 46);
       parts.push(local, e.data);
@@ -155,20 +155,20 @@ export class ZipWriter {
     const end = new Uint8Array(22);
     const ev = new DataView(end.buffer);
     ev.setUint32(0, END_SIG, true);
-    ev.setUint16(8, this.entries.length, true);
-    ev.setUint16(10, this.entries.length, true);
+    ev.setUint16(8, this.#entries.length, true);
+    ev.setUint16(10, this.#entries.length, true);
     ev.setUint32(12, centralSize, true);
     ev.setUint32(16, offset, true);
     return [...parts, ...central, end];
   }
 
   /** Fields shared by the local and the central header, from "version needed" to the extra field length. */
-  private common(v: DataView, at: number, e: Pending): void {
+  #common(v: DataView, at: number, e: Pending): void {
     v.setUint16(at, VERSION, true);
     v.setUint16(at + 2, FLAG_UTF8, true);
     v.setUint16(at + 4, e.method, true);
-    v.setUint16(at + 6, this.time, true);
-    v.setUint16(at + 8, this.date, true);
+    v.setUint16(at + 6, this.#time, true);
+    v.setUint16(at + 8, this.#date, true);
     v.setUint32(at + 10, e.crc, true);
     v.setUint32(at + 14, e.data.length, true);
     v.setUint32(at + 18, e.size, true);
@@ -297,8 +297,8 @@ async function inflateRaw(data: Uint8Array, maxSize: number): Promise<Uint8Array
       chunks.push(r.value);
     }
     await writing;
-  } catch (err) {
-    if (err instanceof Error && err.message === ZIP_ENTRY_TOO_LARGE) throw err;
+  } catch (error) {
+    if (error instanceof Error && error.message === ZIP_ENTRY_TOO_LARGE) throw error;
     invalid();
   }
   return concat(chunks);

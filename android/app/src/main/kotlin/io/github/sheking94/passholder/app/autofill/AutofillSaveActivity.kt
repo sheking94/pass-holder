@@ -27,7 +27,7 @@ class AutofillSaveActivity : AutofillAuthActivity() {
 
     // Nothing to save (expired, already taken, process restarted): close without asking for the password.
     // After a rotation or a new unlock the candidate is in the model already.
-    override fun prepare(): Boolean = model.candidate != null || app.pendingSave.peek()
+    override fun prepare(): Boolean = model.candidate != null || app.pendingSave.hasFresh()
 
     override fun afterUnlock(): AfterUnlock {
         if (model.review != null) return AfterUnlock.Stay

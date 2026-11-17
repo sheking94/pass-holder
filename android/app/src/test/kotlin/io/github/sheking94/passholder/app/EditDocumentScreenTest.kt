@@ -7,7 +7,7 @@ import androidx.test.core.app.ApplicationProvider
 import io.github.sheking94.passholder.app.entries.EntryType
 import io.github.sheking94.passholder.core.p2p.DocumentFields
 import io.github.sheking94.passholder.core.p2p.DocumentKind
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
+import io.github.sheking94.passholder.core.p2p.EntryContent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -42,7 +42,7 @@ class EditDocumentScreenTest : ScreenTestBase() {
         click("Zapisz")
         waitFor("Zapisano na telefonie", substring = true)
         assertEquals(
-            EntryContentV3(
+            EntryContent(
                 "Paszport Jana",
                 "",
                 DocumentFields(DocumentKind.PASSPORT, "AB1234567", "Jan Kowalski", "2020-01-15", "2030-01-14", "Wojewoda"),

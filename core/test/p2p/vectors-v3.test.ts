@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import { seal } from "../../src/cipher.ts";
 import { fromHex, utf8 } from "../../src/encoding.ts";
 import {
-  decryptPayloadV2,
-  entryAadV2,
+  decryptPayload,
+  entryAad,
   MAX_BLOB_BYTES_PER_ROUND,
   MAX_CHANGES_PER_REQUEST,
   MAX_CHANGES_PER_RESPONSE,
@@ -85,8 +85,8 @@ describe("test-vectors/v3.json", () => {
         if (e.payload.startsWith('{"v":3')) expect(serializeEntryData(data)).toBe(e.payload);
       }
       // The blob is the seal of the exact payload text.
-      expect(await seal(key, utf8(e.payload), entryAadV2(e.id), fromHex(e.nonce))).toBe(e.blob);
-      const opened = await decryptPayloadV2(key, e.id, e.blob);
+      expect(await seal(key, utf8(e.payload), entryAad(e.id), fromHex(e.nonce))).toBe(e.blob);
+      const opened = await decryptPayload(key, e.id, e.blob);
       expect(e.deleted ? parseTombstoneData(opened) : parseEntryData(opened)).toEqual(data);
     });
   }

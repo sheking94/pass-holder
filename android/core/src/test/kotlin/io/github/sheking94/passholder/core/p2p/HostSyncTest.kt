@@ -312,15 +312,15 @@ class HostSyncTest {
             ChangeRequest.serializer(),
             ChangeRequest("a", 0, false, "x".repeat(n)),
         )
-        assertNull(HostSync.validate(store, epoch, request(0, withBlob(EntryV3.MAX_BLOB_LENGTH))))
-        assertEquals("blob too large", HostSync.validate(store, epoch, request(0, withBlob(EntryV3.MAX_BLOB_LENGTH + 1))))
+        assertNull(HostSync.validate(store, epoch, request(0, withBlob(EntryCodec.MAX_BLOB_LENGTH))))
+        assertEquals("blob too large", HostSync.validate(store, epoch, request(0, withBlob(EntryCodec.MAX_BLOB_LENGTH + 1))))
         // The check comes before the epoch check.
         assertEquals(
             "blob too large",
-            HostSync.validate(store, epoch, request(0, withBlob(EntryV3.MAX_BLOB_LENGTH + 1), epoch = "other")),
+            HostSync.validate(store, epoch, request(0, withBlob(EntryCodec.MAX_BLOB_LENGTH + 1), epoch = "other")),
         )
         val e = assertThrows(IllegalArgumentException::class.java) {
-            HostSync.process(store, epoch, emptyList(), request(0, withBlob(EntryV3.MAX_BLOB_LENGTH + 1)))
+            HostSync.process(store, epoch, emptyList(), request(0, withBlob(EntryCodec.MAX_BLOB_LENGTH + 1)))
         }
         assertEquals("blob too large", e.message)
         assertEquals(0, store.currentRevision())

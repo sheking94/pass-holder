@@ -3,7 +3,6 @@ package io.github.sheking94.passholder.app.autofill
 import android.app.assist.AssistStructure
 import android.content.Intent
 import android.os.Build
-import android.os.Parcelable
 import android.util.Log
 import android.view.autofill.AutofillManager
 import android.view.inputmethod.InlineSuggestionsRequest
@@ -48,11 +47,3 @@ internal fun Intent.assistStructure(): AssistStructure? = parcelable(AutofillMan
 /** The keyboard's request for suggestions in its strip (API 30+), for the response after the unlock. */
 private fun Intent.inlineSuggestionsRequest(): InlineSuggestionsRequest? =
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) parcelable(AutofillManager.EXTRA_INLINE_SUGGESTIONS_REQUEST) else null
-
-private inline fun <reified T : Parcelable> Intent.parcelable(name: String): T? =
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        getParcelableExtra(name, T::class.java)
-    } else {
-        @Suppress("DEPRECATION")
-        (getParcelableExtra(name) as? T)
-    }

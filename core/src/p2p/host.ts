@@ -72,13 +72,13 @@ function decodeBase64(value: unknown): Uint8Array | undefined {
  * Calls to handle() may interleave; each session's ciphers are used by one request only.
  */
 export class P2pHost {
-  readonly #o: P2pHostOptions;
+  readonly #options: P2pHostOptions;
   readonly #sessions = new Map<string, Session>();
   /** Ephemeral keys (first 32 bytes) of accepted handshakes, in insertion order. */
   readonly #seen = new Set<string>();
 
   constructor(o: P2pHostOptions) {
-    this.#o = o;
+    this.#options = o;
   }
 
   async handle(path: string, body: unknown): Promise<Reply> {
@@ -86,11 +86,12 @@ export class P2pHost {
       return fail(413, "body too large");
     this.#prune();
     if (path === P2P_HANDSHAKE_PATH) return this.#handshake(body);
-    if (path === P2P_SYNC_PATH) return this.#session(body, (request) => this.#processSync(request));
-    if (path === P2P_FILE_PATH && this.#o.files) {
-      const files = this.#o.files;
-      return this.#session(body, (request) =>
-        processP2pFile(files, this.#o.epoch, request, this.#now()),
+    if (path === P2P_SYNC_PATH)
+      return this.#runSession(body, (request) => this.#processSync(request));
+    if (path === P2P_FILE_PATH && this.#options.files) {
+      const files = this.#options.files;
+      return this.#runSession(body, (request) =>
+        processP2pFile(files, this.#options.epoch, request, this.#now()),
       );
     }
     // The v1 sync protocol is gone; tell old clients to update instead of pretending the path is unknown.
@@ -100,7 +101,7 @@ export class P2pHost {
   }
 
   #now(): number {
-    return (this.#o.now ?? Date.now)();
+    return (this.#options.now ?? Date.now)();
   }
 
   #prune(): void {
@@ -111,17 +112,17 @@ export class P2pHost {
   async #handshake(body: unknown): Promise<Reply> {
     if (!isRecord(body) || typeof body.deviceId !== "string" || typeof body.message !== "string")
       return fail(400, "malformed request");
-    const device = this.#o.devices().find((d) => d.deviceId === body.deviceId);
+    const device = this.#options.devices().find((d) => d.deviceId === body.deviceId);
     if (!device) return fail(403, "device not paired");
     const message = decodeBase64(body.message);
     if (!message) return fail(400, "malformed request");
     const ephemeral = toBase64(message.subarray(0, 32));
     if (this.#seen.has(ephemeral)) return fail(400, "replayed handshake");
     // handle() already pruned the expired sessions.
-    const full = this.#full(device.deviceId);
-    if (full) return full;
+    const refused = this.#sessionLimitReply(device.deviceId);
+    if (refused) return refused;
     const noise = NoiseKK.responder({
-      s: this.#o.staticKey,
+      s: this.#options.staticKey,
       rs: device.staticPublicKey,
       prologue: P2P_PROLOGUE,
     });
@@ -134,8 +135,8 @@ export class P2pHost {
     }
     // Other calls may have run during the awaits: check again, then record without awaiting in between.
     if (this.#seen.has(ephemeral)) return fail(400, "replayed handshake");
-    const fullNow = this.#full(device.deviceId);
-    if (fullNow) return fullNow;
+    const refusedNow = this.#sessionLimitReply(device.deviceId);
+    if (refusedNow) return refusedNow;
     this.#remember(ephemeral);
     const { send, recv } = noise.split();
     const session = toBase64(randomBytes(16));
@@ -149,8 +150,8 @@ export class P2pHost {
     return { status: 200, body: { session, message: toBase64(reply) } };
   }
 
-  /** 503 when the table, or this device's share of it, is full. */
-  #full(deviceId: string): Reply | undefined {
+  /** A 503 reply when the table, or this device's share of it, is full; undefined when there is room. */
+  #sessionLimitReply(deviceId: string): Reply | undefined {
     if (this.#sessions.size >= MAX_SESSIONS) return fail(503, "too many sessions");
     let own = 0;
     for (const s of this.#sessions.values()) if (s.deviceId === deviceId) own++;
@@ -164,7 +165,7 @@ export class P2pHost {
   }
 
   /** Common part of the one-request-per-session paths; `process` returns a reply whose 200 body gets encrypted. */
-  async #session(body: unknown, process: (request: unknown) => Reply): Promise<Reply> {
+  async #runSession(body: unknown, process: (request: unknown) => Reply): Promise<Reply> {
     if (
       !isRecord(body) ||
       typeof body.session !== "string" ||
@@ -180,7 +181,7 @@ export class P2pHost {
     if (!session || session.expiresAt <= this.#now())
       return fail(401, "unknown or expired session");
     // The device may have been removed (or re-paired with another key) after the handshake.
-    const stillPaired = this.#o
+    const stillPaired = this.#options
       .devices()
       .some(
         (d) =>
@@ -204,11 +205,16 @@ export class P2pHost {
 
   #processSync(request: unknown): Reply {
     const sync = request as P2pSyncRequest;
-    const invalid = validateP2pSyncRequest(this.#o.store, this.#o.epoch, sync);
+    const invalid = validateP2pSyncRequest(this.#options.store, this.#options.epoch, sync);
     if (invalid !== undefined) return fail(400, invalid);
     return {
       status: 200,
-      body: processP2pSync(this.#o.store, this.#o.epoch, this.#o.addresses(), sync),
+      body: processP2pSync(
+        this.#options.store,
+        this.#options.epoch,
+        this.#options.addresses(),
+        sync,
+      ),
     };
   }
 }

@@ -1,4 +1,4 @@
-import type { CustomField, DocumentKind, EntryContentV3 } from "../p2p/entry.ts";
+import type { CustomField, DocumentKind, EntryContent } from "../p2p/entry.ts";
 import { parseCsv, toCsv } from "./csv.ts";
 import {
   addressLine,
@@ -75,7 +75,7 @@ export function parseNordPassCsv(text: string): ParsedImport {
   const index = new Map(header.fields.map((name, i) => [name.trim().toLowerCase(), i]));
   if (!index.has("name") && !index.has("url")) throw new Error(NOT_NORDPASS);
 
-  const entries: EntryContentV3[] = [];
+  const entries: EntryContent[] = [];
   const skipped: ImportSkip[] = [];
   for (const { line, fields } of rows) {
     const get = (column: Column): string => {
@@ -195,7 +195,7 @@ export function parseNordPassCsv(text: string): ParsedImport {
 const line = (label: string, value: string): string[] =>
   value === "" ? [] : [`${label}: ${value}`];
 
-function exportRow(e: EntryContentV3): string[] {
+function exportRow(e: EntryContent): string[] {
   const v: Partial<Record<Column, string>> = { name: e.name };
   let lines: string[] = [];
   switch (e.type) {
@@ -267,6 +267,6 @@ function exportRow(e: EntryContentV3): string[] {
   return NORDPASS_COLUMNS.map((c) => v[c] ?? "");
 }
 
-export function exportNordPassCsv(entries: readonly EntryContentV3[]): string {
+export function exportNordPassCsv(entries: readonly EntryContent[]): string {
   return toCsv([NORDPASS_COLUMNS, ...sortForExport(entries).map(exportRow)]);
 }

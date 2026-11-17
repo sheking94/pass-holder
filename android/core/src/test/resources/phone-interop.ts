@@ -1,5 +1,5 @@
 // Run by PhoneInteropTest: the extension's own TypeScript code pairs with the real Kotlin phone host over HTTP
-// (pairWithPhone) and then syncs with it (syncVaultV2 over noiseTransport).
+// (pairWithPhone) and then syncs with it (syncVault over noiseTransport).
 // Usage: node phone-interop.ts <repo-root> <base-url> <config.json>
 // config.json: { code, password, restore (boolean), count, prefix }
 //   restore = false: unwraps the phone's vault key with the password, adds `count` entries and syncs.
@@ -45,11 +45,11 @@ if (!config.restore) {
   vaultKey = await core.unwrapVaultKey(keys.encKey, paired.vaultInfo.wrappedVaultKey);
 }
 
-const vault = p2p.emptyVaultV2();
+const vault = p2p.emptyVault();
 if (config.restore) p2p.applyVaultInfo(vault, { epoch: (restore as { epoch: string }).epoch, addresses: [] });
 const clock = p2p.clockForVault(vault, deviceId);
 for (let i = 0; i < config.count; i++) {
-  p2p.upsertEntryV2(vault, clock, crypto.randomUUID(), {
+  p2p.upsertEntry(vault, clock, crypto.randomUUID(), {
     ...p2p.emptyLogin(`${config.prefix}-${i}`),
     fields: { ...p2p.emptyLogin().fields, username: "z TS", password: `${config.password}-${i}` },
   });
@@ -64,9 +64,9 @@ const send = p2p.noiseTransport({
   peerPublicKey: core.fromBase64(paired.phone.staticPublicKey),
   post,
 });
-await p2p.syncVaultV2(vault, vaultKey!, clock, send);
+await p2p.syncVault(vault, vaultKey!, clock, send);
 
-const names = p2p.liveEntriesV2(vault).map((e: { data: { name: string } }) => e.data.name).sort();
+const names = p2p.liveEntries(vault).map((e: { data: { name: string } }) => e.data.name).sort();
 console.log(
   JSON.stringify({
     deviceId,

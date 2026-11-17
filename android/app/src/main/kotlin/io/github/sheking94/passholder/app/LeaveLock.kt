@@ -13,8 +13,8 @@ import kotlin.concurrent.thread
  * its ViewModel are gone, but the vault keys are still in memory and the timer must still lock them.
  *
  * Two safety nets, because Android may freeze a background app and delay its timers:
- *  - the timer locks the vault [delayMs] after leaving (if the app is not frozen),
- *  - on return, [cancel] compares the clock with the deadline, so a late timer never leaves the vault open;
+ *  - the timer locks the vault [DELAY_MS] after leaving (if the app is not frozen),
+ *  - on return, the caller asks [expired] before [cancel], so a late timer never leaves the vault open;
  *    the autofill service asks [expired] before it fills from an unlocked vault, for the same reason.
  * SystemClock.elapsedRealtime keeps counting while the phone sleeps and cannot be changed by the user.
  */
@@ -30,19 +30,17 @@ class LeaveLock(
     // An unlock (Argon2id) can hold the vault for seconds (PhoneVaultStore is synchronized): never wait for it on the main thread.
     private val lockTask = Runnable { thread(name = "passholder-leave-lock") { store.lock() } }
 
-    /** The app left the screen: lock in [delayMs] unless it comes back sooner. */
-    fun schedule(delayMs: Long) {
+    /** The app left the screen: lock in [DELAY_MS] unless it comes back sooner. */
+    fun schedule() {
         handler.removeCallbacks(lockTask)
-        deadline = now() + delayMs
-        handler.postDelayed(lockTask, delayMs)
+        deadline = now() + DELAY_MS
+        handler.postDelayed(lockTask, DELAY_MS)
     }
 
-    /** The app is back. Stops the timer; true when the time ran out (the caller must make sure the vault is locked). */
-    fun cancel(): Boolean {
+    /** The app is back: stops the timer and forgets the deadline. Ask [expired] first when the answer matters. */
+    fun cancel() {
         handler.removeCallbacks(lockTask)
-        val expired = deadline?.let { now() >= it } ?: false
         deadline = null
-        return expired
     }
 
     /**

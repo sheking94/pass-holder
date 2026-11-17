@@ -20,7 +20,7 @@ import {
   sha256Hex,
   type Attachment,
 } from "../../src/files/index.ts";
-import { entryAadV2, parseEntryData, serializeEntryData, type Hlc } from "../../src/p2p/index.ts";
+import { entryAad, parseEntryData, serializeEntryData, type Hlc } from "../../src/p2p/index.ts";
 
 interface Expand {
   field: string;
@@ -164,7 +164,7 @@ describe("test-vectors/files/files.json", () => {
       expect(data).toEqual(e.parsed);
       expect(serializeEntryData(data)).toBe(e.canonicalPayload ?? e.payload);
       expect(
-        await seal(fromHex(e.vaultKey), utf8(e.payload), entryAadV2(e.id), fromHex(e.nonce)),
+        await seal(fromHex(e.vaultKey), utf8(e.payload), entryAad(e.id), fromHex(e.nonce)),
       ).toBe(e.blob);
       if (e.merge) {
         const winner = parseEntryData(JSON.parse(e.merge.winner));

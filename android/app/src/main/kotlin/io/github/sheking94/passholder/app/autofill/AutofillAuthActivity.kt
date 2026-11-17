@@ -21,7 +21,6 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.lifecycleScope
 import io.github.sheking94.passholder.app.BiometricController
-import io.github.sheking94.passholder.app.LeaveLock
 import io.github.sheking94.passholder.app.PassHolderApp
 import io.github.sheking94.passholder.app.Status
 import io.github.sheking94.passholder.app.ui.AutofillUnlockScreen
@@ -191,7 +190,7 @@ abstract class AutofillAuthActivity : FragmentActivity() {
     private fun unlockWithFingerprint() {
         if (busy) return
         fingerprintDialog.show("Odblokuj PassHolder", ::cipherToUnlock) { cipher ->
-            runUnlock { biometrics.unlock(cipher, app.phoneStore::unlockWithKeys) }
+            runUnlock { biometrics.unlock(cipher, app.phoneStore::unlockWithVaultKey) }
         }
     }
 
@@ -301,7 +300,7 @@ abstract class AutofillAuthActivity : FragmentActivity() {
 
     /** D1: at once, or in 60 s with the lock delay on. */
     private fun lockAfterUse() {
-        if (app.settings.lockDelay) app.leaveLock.schedule(LeaveLock.DELAY_MS) else app.phoneStore.lock()
+        if (app.settings.lockDelay) app.leaveLock.schedule() else app.phoneStore.lock()
     }
 
     private companion object {

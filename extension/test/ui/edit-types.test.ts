@@ -125,8 +125,8 @@ describe("contact form", () => {
   }, 30_000);
 
   it("a birth date in another notation saves unchanged; a changed impossible date is refused", async () => {
-    const c = emptyContent("contact") as p2p.EntryContentV3 & { type: "contact" };
-    const contact: p2p.EntryContentV3 = {
+    const c = emptyContent("contact") as p2p.EntryContent & { type: "contact" };
+    const contact: p2p.EntryContent = {
       ...c,
       name: "Jan",
       fields: { ...c.fields, birthDate: "01.02.1990" },

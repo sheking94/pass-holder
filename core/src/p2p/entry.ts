@@ -54,7 +54,7 @@ export interface DocumentFields {
   issuer: string;
 }
 
-export type EntryContentV3 = {
+export type EntryContent = {
   name: string;
   note: string;
   custom: CustomField[];
@@ -66,15 +66,15 @@ export type EntryContentV3 = {
   | { type: "note"; fields: NoteFields }
   | { type: "document"; fields: DocumentFields }
 );
-export type EntryDataV3 = EntryContentV3 & { v: 3; hlc: Hlc };
+export type EntryData = EntryContent & { v: 3; hlc: Hlc };
 
-export interface TombstoneDataV2 {
+export interface TombstoneData {
   hlc: Hlc;
 }
 
 export const MAX_ENTRY_BLOB_LENGTH = 65536;
 export const ENTRY_TOO_LARGE = "Entry too large";
-/** Prefix of the error syncVaultV2 throws for a dirty entry whose blob exceeds the host limit; ": <name>" follows. */
+/** Prefix of the error syncVault throws for a dirty entry whose blob exceeds the host limit; ": <name>" follows. */
 export const ENTRY_TOO_LARGE_TO_SYNC = "Entry too large to sync";
 
 const INVALID_ENTRY = "Invalid entry payload";
@@ -87,7 +87,7 @@ const DOCUMENT_KINDS: readonly string[] = [
   "other",
 ];
 
-export function entryAadV2(id: string): string {
+export function entryAad(id: string): string {
   return `passholder/v2/entry/${id}`;
 }
 
@@ -95,7 +95,7 @@ function hlcJson(h: Hlc): Hlc {
   return { ms: h.ms, c: h.c, d: h.d };
 }
 
-function fieldsJson(data: EntryContentV3): unknown {
+function fieldsJson(data: EntryContent): unknown {
   switch (data.type) {
     case "login": {
       const f = data.fields;
@@ -145,7 +145,7 @@ function fieldsJson(data: EntryContentV3): unknown {
 }
 
 /** Compact JSON with the fixed key order shared with the Kotlin core. */
-export function serializeEntryData(data: EntryDataV3 | TombstoneDataV2): string {
+export function serializeEntryData(data: EntryData | TombstoneData): string {
   if (!("v" in data)) return JSON.stringify({ hlc: hlcJson(data.hlc) });
   return JSON.stringify({
     v: 3,
@@ -163,11 +163,11 @@ export function serializeEntryData(data: EntryDataV3 | TombstoneDataV2): string 
 }
 
 /** Length of the Base64 blob, computed without encrypting: 1 + 12 + n + 16 bytes. */
-export function entryBlobLength(data: EntryDataV3 | TombstoneDataV2): number {
+export function entryBlobLength(data: EntryData | TombstoneData): number {
   return 4 * Math.ceil((29 + utf8(serializeEntryData(data)).length) / 3);
 }
 
-export function emptyLogin(name = ""): EntryContentV3 & { type: "login" } {
+export function emptyLogin(name = ""): EntryContent & { type: "login" } {
   return {
     type: "login",
     name,
@@ -177,21 +177,21 @@ export function emptyLogin(name = ""): EntryContentV3 & { type: "login" } {
   };
 }
 
-export function encryptPayloadV2(
+export function encryptPayload(
   vaultKey: Uint8Array,
   id: string,
-  data: EntryDataV3 | TombstoneDataV2,
+  data: EntryData | TombstoneData,
   nonce?: Uint8Array,
 ): Promise<string> {
-  return seal(vaultKey, utf8(serializeEntryData(data)), entryAadV2(id), nonce);
+  return seal(vaultKey, utf8(serializeEntryData(data)), entryAad(id), nonce);
 }
 
-export async function decryptPayloadV2(
+export async function decryptPayload(
   vaultKey: Uint8Array,
   id: string,
   blob: string,
 ): Promise<unknown> {
-  return JSON.parse(fromUtf8(await open(vaultKey, blob, entryAadV2(id))));
+  return JSON.parse(fromUtf8(await open(vaultKey, blob, entryAad(id))));
 }
 
 function fail(): never {
@@ -217,11 +217,6 @@ function strictHlc(value: unknown, error: string): Hlc {
 function str(value: unknown): string {
   if (typeof value !== "string") fail();
   return value;
-}
-
-function strings(value: unknown): string[] {
-  if (!Array.isArray(value)) fail();
-  return value.map(str);
 }
 
 function list<T>(value: unknown, item: (x: unknown) => T): T[] {
@@ -259,8 +254,8 @@ function parseContent(type: string, raw: unknown): { type: EntryType; fields: un
         username: str(o.username),
         password: str(o.password),
         totp: str(o.totp),
-        urls: strings(o.urls),
-        androidApps: strings(o.androidApps),
+        urls: list(o.urls, str),
+        androidApps: list(o.androidApps, str),
       };
       return { type, fields };
     }
@@ -317,7 +312,7 @@ function parseContent(type: string, raw: unknown): { type: EntryType; fields: un
 }
 
 /** Accepts a v3 payload or a legacy v2 login payload (exactly name, username, password, hlc). */
-export function parseEntryData(value: unknown): EntryDataV3 {
+export function parseEntryData(value: unknown): EntryData {
   if (typeof value !== "object" || value === null || Array.isArray(value)) fail();
   const obj = value as Record<string, unknown>;
   if (!("v" in obj)) {
@@ -352,11 +347,11 @@ export function parseEntryData(value: unknown): EntryDataV3 {
   if (o.v !== 3) fail();
   const content = contentOf(o);
   if (withAttachments) content.attachments = parseAttachments(o.attachments);
-  return { v: 3, ...content, hlc: strictHlc(o.hlc, INVALID_ENTRY) } as EntryDataV3;
+  return { v: 3, ...content, hlc: strictHlc(o.hlc, INVALID_ENTRY) } as EntryData;
 }
 
 /** Fields shared by a stored entry and an exported one; the caller has checked the object's own keys. */
-function contentOf(o: Record<string, unknown>): EntryContentV3 {
+function contentOf(o: Record<string, unknown>): EntryContent {
   const content = parseContent(str(o.type), o.fields);
   return {
     type: content.type,
@@ -364,15 +359,15 @@ function contentOf(o: Record<string, unknown>): EntryContentV3 {
     note: str(o.note),
     fields: content.fields,
     custom: list(o.custom, customField),
-  } as EntryContentV3;
+  } as EntryContent;
 }
 
 /** Entry content without the sync metadata: exactly type, name, note, fields and custom, validated as strictly as a stored v3 entry. */
-export function parseEntryContent(value: unknown): EntryContentV3 {
+export function parseEntryContent(value: unknown): EntryContent {
   return contentOf(record(value, ["type", "name", "note", "fields", "custom"]));
 }
 
-export function parseTombstoneData(value: unknown): TombstoneDataV2 {
+export function parseTombstoneData(value: unknown): TombstoneData {
   if (typeof value !== "object" || value === null || Array.isArray(value))
     throw new Error(INVALID_TOMBSTONE);
   const keys = Object.keys(value);

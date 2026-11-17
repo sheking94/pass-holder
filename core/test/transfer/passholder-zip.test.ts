@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { Attachment } from "../../src/files/attachment.ts";
-import type { EntryContentV3 } from "../../src/p2p/entry.ts";
+import type { EntryContent } from "../../src/p2p/entry.ts";
 import {
   ARCHIVE_INDEX,
   NOT_ARCHIVE,
@@ -30,7 +30,7 @@ function attachment(name: string, mime: string, bytes: Uint8Array, n: number): A
 
 const photo = new Uint8Array(4096).map((_, i) => (i * 7) % 256);
 const text = utf8("Zażółć gęślą jaźń\n".repeat(50));
-const login: EntryContentV3 = {
+const login: EntryContent = {
   type: "login",
   name: "Bank",
   note: "",
@@ -47,7 +47,7 @@ const login: EntryContentV3 = {
     attachment("umowa.txt", "text/plain", text, 2),
   ],
 };
-const note: EntryContentV3 = {
+const note: EntryContent = {
   type: "note",
   name: "Adres",
   note: "ul. Polna 1",
@@ -83,7 +83,7 @@ function centralHeaders(zip: Uint8Array): number[] {
 }
 
 const index = (entries: unknown[]) => JSON.stringify({ format: "passholder", version: 3, entries });
-const bare = ({ attachments: _a, ...rest }: EntryContentV3) => rest as EntryContentV3;
+const bare = ({ attachments: _a, ...rest }: EntryContent) => rest as EntryContent;
 
 describe("archivePath", () => {
   it("numbers the file and replaces characters Windows refuses", () => {
@@ -109,7 +109,7 @@ describe("exportPassHolderZip", () => {
     );
     expect(json.format).toBe("passholder");
     expect(json.version).toBe(3);
-    expect(json.entries.map((e: EntryContentV3) => e.name)).toEqual(["Adres", "Bank"]);
+    expect(json.entries.map((e: EntryContent) => e.name)).toEqual(["Adres", "Bank"]);
     expect(json.entries[0].attachments).toBeUndefined();
     expect(json.entries[1].attachments).toEqual([
       { name: "a:b?.jpg", mime: "image/jpeg", size: photo.length, path: "files/1-a_b_.jpg" },

@@ -99,7 +99,7 @@ export function processP2pSync(
 ): P2pSyncResponse {
   const error = validateP2pSyncRequest(store, epoch, request);
   if (error !== undefined) throw new Error(error);
-  // sinceRevision ahead of the store: the phone was restored, so the client resets itself (see syncVaultV2).
+  // sinceRevision ahead of the store: the phone was restored, so the client resets itself (see syncVault).
   if (request.epoch !== epoch || request.sinceRevision > store.currentRevision()) {
     return {
       epoch,

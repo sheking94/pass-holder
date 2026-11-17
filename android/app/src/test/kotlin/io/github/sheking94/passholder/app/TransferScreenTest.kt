@@ -8,7 +8,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ApplicationProvider
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
+import io.github.sheking94.passholder.core.p2p.EntryContent
 import io.github.sheking94.passholder.core.p2p.LoginFields
 import io.github.sheking94.passholder.core.transfer.TransferFormat
 import org.junit.Assert.assertEquals
@@ -30,7 +30,7 @@ class TransferScreenTest : ScreenTestBase() {
     fun `menu opens Import i eksport, export needs the checkbox, import refuses big and non-UTF-8 files`() {
         val app = ApplicationProvider.getApplicationContext<PassHolderApp>()
         createVault()
-        putEntry(EntryContentV3("bank.pl", "", LoginFields("jan.kowalski", "s3cret-haslo"), emptyList()))
+        putEntry(EntryContent("bank.pl", "", LoginFields("jan.kowalski", "s3cret-haslo"), emptyList()))
         waitFor("bank.pl")
         val vm = viewModel()
 

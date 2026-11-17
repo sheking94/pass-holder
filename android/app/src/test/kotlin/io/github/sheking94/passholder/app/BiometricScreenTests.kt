@@ -21,7 +21,7 @@ import javax.crypto.spec.GCMParameterSpec
  * Robolectric has no Android Keystore and no fingerprint reader. These fakes stand in for exactly those two
  * pieces; everything else (BiometricUnlock, the ViewModel, PhoneVaultStore, the screens) is the real code.
  */
-class SoftwareKeyProtector : UnlockKeyProtector {
+class SoftwareKeyProtector : BiometricKeyProtector {
     var key: SecretKey? = null
 
     override fun newEncryptCipher(): Cipher {
@@ -287,7 +287,7 @@ class LockDelayLateTimerTest : BiometricTestBase() {
         // Android froze the app: the timer never ran, but the clock went on past the deadline.
         app.leaveLock.cancel()
         var t = 0L
-        app.leaveLock = LeaveLock(app.phoneStore, now = { t }).also { it.schedule(LeaveLock.DELAY_MS) }
+        app.leaveLock = LeaveLock(app.phoneStore, now = { t }).also { it.schedule() }
         t = 61_000L
         assertTrue(app.phoneStore.isUnlocked)
         finger.cancel = true
@@ -350,7 +350,7 @@ class ChangeMasterPasswordTest : BiometricTestBase() {
     @Test
     fun `changing the master password checks both passwords, turns the fingerprint off and the new one unlocks`() {
         createVaultWithFingerprint()
-        val keyBefore = app.phoneStore.exportUnlockKeys()
+        val keyBefore = app.phoneStore.exportVaultKey()
         menu("Ustawienia")
         click("Zmień hasło główne")
         waitFor("Obecne hasło główne")
@@ -380,7 +380,7 @@ class ChangeMasterPasswordTest : BiometricTestBase() {
         assertFalse(app.biometric.isEnabled)
         assertEquals(null, keys.key)
         assertTrue(app.phoneStore.devices().isEmpty())
-        assertArrayEquals(keyBefore, app.phoneStore.exportUnlockKeys())
+        assertArrayEquals(keyBefore, app.phoneStore.exportVaultKey())
         shot("65-haslo-zmienione")
 
         click("Wróć")

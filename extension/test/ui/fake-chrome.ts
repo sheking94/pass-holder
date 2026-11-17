@@ -61,7 +61,7 @@ export function teardownPopup(): void {
  * and resumes their store, which it returns.
  */
 export async function setupPopup(
-  entries: { id: string; content: p2p.EntryContentV3 }[] = [],
+  entries: { id: string; content: p2p.EntryContent }[] = [],
   options: {
     activeTab?: { id: number; url: string };
     fillResult?: FillResult;

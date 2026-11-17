@@ -15,7 +15,7 @@ import {
 import { STORAGE_KEYS } from "../../src/storage.ts";
 import { pairedBrowser } from "../fake-phone.ts";
 
-function login(name: string, urls: string[]): p2p.EntryContentV3 {
+function login(name: string, urls: string[]): p2p.EntryContent {
   return {
     type: "login",
     name,
@@ -24,7 +24,7 @@ function login(name: string, urls: string[]): p2p.EntryContentV3 {
     fields: { username: "jan", password: "s3cret", totp: "", urls, androidApps: [] },
   };
 }
-const card: p2p.EntryContentV3 = {
+const card: p2p.EntryContent = {
   type: "card",
   name: "Visa",
   note: "",
@@ -37,7 +37,7 @@ const card: p2p.EntryContentV3 = {
     pin: "1234",
   },
 };
-const contact: p2p.EntryContentV3 = {
+const contact: p2p.EntryContent = {
   type: "contact",
   name: "Anna",
   note: "",
@@ -157,7 +157,7 @@ describe("fillTab", () => {
       note: "tekst",
       custom: [],
       fields: {},
-    } as p2p.EntryContentV3);
+    } as p2p.EntryContent);
     const { api, injected } = fakeTabs("https://bank.pl/");
     expect(await fillTab(store, api, 7, "n1")).toEqual({ ok: false, error: CANNOT_FILL_ENTRY });
     expect(injected).toEqual([]);

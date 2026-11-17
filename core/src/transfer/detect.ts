@@ -1,4 +1,4 @@
-import type { EntryContentV3 } from "../p2p/entry.ts";
+import type { EntryContent } from "../p2p/entry.ts";
 import type { ParsedImport } from "./common.ts";
 import { exportBitwardenJson, isBitwardenJson, parseBitwardenJson } from "./bitwarden-json.ts";
 import { exportNordPassCsv, parseNordPassCsv } from "./nordpass-csv.ts";
@@ -32,7 +32,7 @@ function isEncryptedBitwarden(value: unknown): boolean {
   );
 }
 
-export function exportFile(format: TransferFormat, entries: readonly EntryContentV3[]): string {
+export function exportFile(format: TransferFormat, entries: readonly EntryContent[]): string {
   switch (format) {
     case "passholder":
       return exportPassHolderJson(entries);

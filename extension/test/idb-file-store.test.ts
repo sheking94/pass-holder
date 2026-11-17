@@ -168,9 +168,9 @@ describe("IdbFileStore", () => {
     };
 
     const f = await threeChunks();
-    const vault = p2p.emptyVaultV2();
+    const vault = p2p.emptyVault();
     p2p.applyVaultInfo(vault, { epoch, addresses: [] });
-    p2p.upsertEntryV2(vault, new p2p.HlcClock("dev"), "e1", {
+    p2p.upsertEntry(vault, new p2p.HlcClock("dev"), "e1", {
       ...p2p.emptyLogin("e"),
       attachments: [f.attachment],
     });

@@ -11,7 +11,7 @@ import androidx.work.WorkManager
 import io.github.sheking94.passholder.app.entries.EntryType
 import io.github.sheking94.passholder.app.entries.emptyContent
 import io.github.sheking94.passholder.core.p2p.CustomField
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
+import io.github.sheking94.passholder.core.p2p.EntryContent
 import io.github.sheking94.passholder.core.p2p.LoginFields
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -59,7 +59,7 @@ class EditLoginScreenTest : ScreenTestBase() {
         val store = ApplicationProvider.getApplicationContext<PassHolderApp>().phoneStore
         val id = store.entries().single().id
         assertEquals(
-            EntryContentV3(
+            EntryContent(
                 "mBank",
                 "konto osobiste",
                 LoginFields("jan.kowalski", "s3cret-haslo", "JBSWY3DPEHPK3PXP", listOf("https://mbank.pl"), listOf("pl.mbank")),
@@ -76,7 +76,7 @@ class EditLoginKeepsFieldsTest : ScreenTestBase() {
     @Test
     fun `editing a login keeps its other fields and a hidden custom field opens masked`() {
         createVault()
-        val original = EntryContentV3(
+        val original = EntryContent(
             "bank.pl",
             "notatka",
             LoginFields("jan", "stare-haslo", "TOTPSECRET", listOf("https://bank.pl"), listOf("pl.bank")),

@@ -5,7 +5,7 @@ import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
 import io.github.sheking94.passholder.core.Encoding
 import io.github.sheking94.passholder.core.files.Attachment
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
+import io.github.sheking94.passholder.core.p2p.EntryContent
 import io.github.sheking94.passholder.core.p2p.LoginFields
 import io.github.sheking94.passholder.core.transfer.ArchiveReader
 import io.github.sheking94.passholder.core.transfer.ImportSkip
@@ -57,7 +57,7 @@ class TransferZipScreenTest : ScreenTestBase() {
             "0".repeat(64),
             Encoding.toBase64(ByteArray(32)),
         )
-        putEntry(EntryContentV3("bank.pl", "", LoginFields("jan.kowalski", "s3cret-haslo"), emptyList(), listOf(stored, waiting)))
+        putEntry(EntryContent("bank.pl", "", LoginFields("jan.kowalski", "s3cret-haslo"), emptyList(), listOf(stored, waiting)))
         waitFor("bank.pl 📎 2")
         val vm = viewModel()
 

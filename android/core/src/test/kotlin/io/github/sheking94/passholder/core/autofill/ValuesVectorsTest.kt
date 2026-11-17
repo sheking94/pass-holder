@@ -3,7 +3,7 @@ package io.github.sheking94.passholder.core.autofill
 import io.github.sheking94.passholder.core.p2p.ContactFields
 import io.github.sheking94.passholder.core.p2p.DocumentFields
 import io.github.sheking94.passholder.core.p2p.DocumentKind
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
+import io.github.sheking94.passholder.core.p2p.EntryContent
 import io.github.sheking94.passholder.core.p2p.NoteFields
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
@@ -39,12 +39,12 @@ class ValuesVectorsTest {
     }
 
     private fun contact(birth: String = "", phones: List<io.github.sheking94.passholder.core.p2p.LabeledValue> = emptyList()) =
-        EntryContentV3("c", "", ContactFields("A", "B", birth, phones, emptyList(), emptyList()), emptyList())
+        EntryContent("c", "", ContactFields("A", "B", birth, phones, emptyList(), emptyList()), emptyList())
 
     @Test
     fun planForNoteAndDocumentIsNull() {
-        assertNull(planFor(EntryContentV3("n", "", NoteFields, emptyList())))
-        assertNull(planFor(EntryContentV3("d", "", DocumentFields(DocumentKind.entries.first(), "", "", "", "", ""), emptyList())))
+        assertNull(planFor(EntryContent("n", "", NoteFields, emptyList())))
+        assertNull(planFor(EntryContent("d", "", DocumentFields(DocumentKind.entries.first(), "", "", "", "", ""), emptyList())))
     }
 
     @Test

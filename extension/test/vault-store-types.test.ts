@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { p2p } from "@passholder/core";
 import { pairedBrowser } from "./fake-phone.ts";
 
-function card(name: string): p2p.EntryContentV3 {
+function card(name: string): p2p.EntryContent {
   return {
     type: "card",
     name,
@@ -17,7 +17,7 @@ function card(name: string): p2p.EntryContentV3 {
     },
   };
 }
-function contact(name: string): p2p.EntryContentV3 {
+function contact(name: string): p2p.EntryContent {
   return {
     type: "contact",
     name,
@@ -73,7 +73,7 @@ describe("typed entry API", () => {
 
   it("rejects a too large entry and stores nothing", async () => {
     const { store } = await pairedBrowser();
-    const note: p2p.EntryContentV3 = {
+    const note: p2p.EntryContent = {
       type: "note",
       name: "n",
       note: "a".repeat(70_000),

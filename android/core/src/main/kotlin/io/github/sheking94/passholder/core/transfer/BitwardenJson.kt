@@ -5,7 +5,7 @@ import io.github.sheking94.passholder.core.p2p.ContactFields
 import io.github.sheking94.passholder.core.p2p.CustomField
 import io.github.sheking94.passholder.core.p2p.DocumentFields
 import io.github.sheking94.passholder.core.p2p.DocumentKind
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
+import io.github.sheking94.passholder.core.p2p.EntryContent
 import io.github.sheking94.passholder.core.p2p.LabeledValue
 import io.github.sheking94.passholder.core.p2p.LoginFields
 import io.github.sheking94.passholder.core.p2p.NoteFields
@@ -90,7 +90,7 @@ object BitwardenJson {
         )
     }
 
-    private fun importIdentity(name: String, note: String, id: JsonObject, fields: List<CustomField>): EntryContentV3 {
+    private fun importIdentity(name: String, note: String, id: JsonObject, fields: List<CustomField>): EntryContent {
         val kindIdx = fields.indexOfFirst { it.label == L_KIND && it.value in DOCUMENT_KINDS }
         val isDocument = kindIdx >= 0
         val address = PostalAddress(
@@ -145,12 +145,12 @@ object BitwardenJson {
             val issue = take(L_ISSUE)
             val expiry = take(L_EXPIRY)
             val issuer = take(L_ISSUER)
-            return EntryContentV3(name, note, DocumentFields(kind!!, number, fullName, issue, expiry, issuer), all)
+            return EntryContent(name, note, DocumentFields(kind!!, number, fullName, issue, expiry, issuer), all)
         }
 
         val email = s(id["email"])
         val phone = s(id["phone"])
-        return EntryContentV3(
+        return EntryContent(
             name,
             note,
             ContactFields(
@@ -183,7 +183,7 @@ object BitwardenJson {
                     if (uri == "") continue
                     if (uri.startsWith(ANDROID_PREFIX)) androidApps.add(uri.removePrefix(ANDROID_PREFIX)) else urls.add(uri)
                 }
-                EntryContentV3(
+                EntryContent(
                     name,
                     note,
                     LoginFields(s(login["username"]), s(login["password"]), s(login["totp"]), urls, androidApps),
@@ -191,7 +191,7 @@ object BitwardenJson {
                 )
             }
 
-            2.0 -> EntryContentV3(name, note, NoteFields, fields)
+            2.0 -> EntryContent(name, note, NoteFields, fields)
 
             3.0 -> {
                 val card = obj(item["card"]) ?: JsonObject(emptyMap())
@@ -199,7 +199,7 @@ object BitwardenJson {
                 val rest = fields.toMutableList()
                 val pinIdx = rest.indexOfFirst { it.label == L_PIN }
                 val pin = if (pinIdx < 0) "" else rest.removeAt(pinIdx).value
-                EntryContentV3(
+                EntryContent(
                     name,
                     note,
                     importCard(card, pin),
@@ -223,11 +223,11 @@ object BitwardenJson {
             if (enc is JsonPrimitive && !enc.isString && enc.content == "true") throw IllegalArgumentException(ENCRYPTED)
         }
         if (!isFormat(doc)) throw IllegalArgumentException(NOT_BITWARDEN)
-        val entries = mutableListOf<EntryContentV3>()
+        val entries = mutableListOf<EntryContent>()
         val skipped = mutableListOf<ImportSkip>()
         ((doc as JsonObject)["items"] as JsonArray).forEachIndexed { i, item ->
             val r: Any = if (item is JsonObject) importItem(item) else "zły format wpisu"
-            if (r is String) skipped.add(ImportSkip("wpis ${i + 1}", r)) else entries.add(r as EntryContentV3)
+            if (r is String) skipped.add(ImportSkip("wpis ${i + 1}", r)) else entries.add(r as EntryContent)
         }
         return ParsedImport(entries, skipped)
     }
@@ -254,7 +254,7 @@ object BitwardenJson {
 
     private val EXPIRY = Regex("""(0[1-9]|1[0-2])/(\d{2})""")
 
-    private fun exportItem(e: EntryContentV3): JsonObject {
+    private fun exportItem(e: EntryContent): JsonObject {
         val extra = mutableListOf<JsonObject>()
         val type: Int
         val bodyKey: String
@@ -350,7 +350,7 @@ object BitwardenJson {
         )
     }
 
-    fun export(entries: List<EntryContentV3>): String {
+    fun export(entries: List<EntryContent>): String {
         val doc = jo(
             "encrypted" to JsonPrimitive(false),
             "folders" to JsonArray(emptyList()),

@@ -10,16 +10,16 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import javax.crypto.AEADBadTagException
 
-class EntryV3Test {
+class EntryCodecTest {
     private val key = ByteArray(32) { it.toByte() }
     private val hlc = Hlc(5, 1, "dev")
     private val custom = listOf(CustomField("l", "v", true))
 
-    private fun content(fields: EntryFieldsV3, note: String = "x") = EntryContentV3("n", note, fields, custom)
+    private fun content(fields: EntryFields, note: String = "x") = EntryContent("n", note, fields, custom)
 
     private val samples = listOf(
-        EntryDataV3(content(LoginFields("u", "p", "t", listOf("https://a"), listOf("pkg"))), hlc),
-        EntryDataV3(
+        EntryData(content(LoginFields("u", "p", "t", listOf("https://a"), listOf("pkg"))), hlc),
+        EntryData(
             content(
                 ContactFields(
                     "A",
@@ -32,22 +32,22 @@ class EntryV3Test {
             ),
             hlc,
         ),
-        EntryDataV3(content(CardFields("h", "1", "01/30", "123", "0000")), hlc),
-        EntryDataV3(content(NoteFields), hlc),
-        EntryDataV3(content(DocumentFields(DocumentKind.PASSPORT, "n", "f", "a", "b", "i")), hlc),
+        EntryData(content(CardFields("h", "1", "01/30", "123", "0000")), hlc),
+        EntryData(content(NoteFields), hlc),
+        EntryData(content(DocumentFields(DocumentKind.PASSPORT, "n", "f", "a", "b", "i")), hlc),
     )
 
     private fun json(text: String): JsonElement = Json.parseToJsonElement(text)
-    private fun parseOf(data: EntryDataV3) = EntryV3.parse(json(EntryV3.serialize(data)))
+    private fun parseOf(data: EntryData) = EntryCodec.parse(json(EntryCodec.serialize(data)))
 
     private fun assertInvalid(message: String, block: () -> Unit) {
         val e = assertThrows(IllegalArgumentException::class.java) { block() }
         assertEquals(message, e.message)
     }
 
-    private fun assertRejected(text: String) = assertInvalid("Invalid entry payload") { EntryV3.parse(json(text)) }
+    private fun assertRejected(text: String) = assertInvalid("Invalid entry payload") { EntryCodec.parse(json(text)) }
 
-    private val loginJson = EntryV3.serialize(samples[0])
+    private val loginJson = EntryCodec.serialize(samples[0])
 
     @Test
     fun parsesEveryType() {
@@ -56,8 +56,8 @@ class EntryV3Test {
 
     @Test
     fun readsV2PayloadAsLogin() {
-        val p = EntryV3.parse(json("""{"name":"a","username":"u","password":"p","hlc":{"ms":5,"c":1,"d":"dev"}}"""))
-        assertEquals(EntryDataV3(EntryContentV3("a", "", LoginFields("u", "p", "", emptyList(), emptyList()), emptyList()), hlc), p)
+        val p = EntryCodec.parse(json("""{"name":"a","username":"u","password":"p","hlc":{"ms":5,"c":1,"d":"dev"}}"""))
+        assertEquals(EntryData(EntryContent("a", "", LoginFields("u", "p", "", emptyList(), emptyList()), emptyList()), hlc), p)
     }
 
     @Test
@@ -77,9 +77,9 @@ class EntryV3Test {
             loginJson.replace("{\"v\":3,", "{\"v\":3,\"extra\":1,"),
             loginJson.replace("\"totp\":", "\"extra\":1,\"totp\":"),
             loginJson.replace("\"hidden\":true", "\"hidden\":true,\"extra\":1"),
-            EntryV3.serialize(samples[1]).replace("\"country\":\"PL\"", "\"country\":\"PL\",\"extra\":1"),
-            EntryV3.serialize(samples[3]).replace("\"fields\":{}", "\"fields\":{\"x\":\"\"}"),
-            EntryV3.serialize(samples[4]).replace("\"passport\"", "\"visa\""),
+            EntryCodec.serialize(samples[1]).replace("\"country\":\"PL\"", "\"country\":\"PL\",\"extra\":1"),
+            EntryCodec.serialize(samples[3]).replace("\"fields\":{}", "\"fields\":{\"x\":\"\"}"),
+            EntryCodec.serialize(samples[4]).replace("\"passport\"", "\"visa\""),
             """{"name":"a","username":"u","password":"p","hlc":$h,"deleted":true}""",
             loginJson.replace("\"d\":\"dev\"}", "\"d\":\"dev\",\"extra\":1}"),
             loginJson.replace("\"d\":\"dev\"", "\"z\":1"),
@@ -93,20 +93,20 @@ class EntryV3Test {
     @Test
     fun rejectsTextMs() {
         assertInvalid("Invalid HLC") {
-            EntryV3.parse(json("""{"name":"n","username":"u","password":"p","hlc":{"ms":"1","c":0,"d":"x"}}"""))
+            EntryCodec.parse(json("""{"name":"n","username":"u","password":"p","hlc":{"ms":"1","c":0,"d":"x"}}"""))
         }
     }
 
     @Test
     fun doesNotCheckDateFormats() {
-        val c = EntryV3.serialize(samples[1]).replace("1990-01-02", "1.2.1990")
-        assertTrue(EntryV3.parse(json(c)).content.fields is ContactFields)
+        val c = EntryCodec.serialize(samples[1]).replace("1990-01-02", "1.2.1990")
+        assertTrue(EntryCodec.parse(json(c)).content.fields is ContactFields)
     }
 
     @Test
     fun strictTombstone() {
         val h = """{"ms":5,"c":1,"d":"dev"}"""
-        assertEquals(TombstoneData(hlc), EntryV3.parseTombstone(json("""{"hlc":$h}""")))
+        assertEquals(TombstoneData(hlc), EntryCodec.parseTombstone(json("""{"hlc":$h}""")))
         for (c in listOf(
             """{"hlc":$h,"name":"x"}""",
             """{"hlc":$h,"deleted":true}""",
@@ -114,82 +114,82 @@ class EntryV3Test {
             "[]",
             """{"hlc":{"ms":5,"c":1}}""",
         )) {
-            assertInvalid("Invalid tombstone payload") { EntryV3.parseTombstone(json(c)) }
+            assertInvalid("Invalid tombstone payload") { EntryCodec.parseTombstone(json(c)) }
         }
     }
 
     @Test
     fun serializesInFixedKeyOrder() {
-        val d = EntryDataV3(EntryContentV3("nm", "x", LoginFields("n", "p", "t", listOf("u"), listOf("a")), emptyList()), hlc)
+        val d = EntryData(EntryContent("nm", "x", LoginFields("n", "p", "t", listOf("u"), listOf("a")), emptyList()), hlc)
         assertEquals(
             """{"v":3,"type":"login","name":"nm","note":"x","fields":{"username":"n","password":"p","totp":"t","urls":["u"],"androidApps":["a"]},"custom":[],"hlc":{"ms":5,"c":1,"d":"dev"}}""",
-            EntryV3.serialize(d),
+            EntryCodec.serialize(d),
         )
-        assertEquals("""{"hlc":{"ms":5,"c":1,"d":"dev"}}""", EntryV3.serializeTombstone(TombstoneData(hlc)))
+        assertEquals("""{"hlc":{"ms":5,"c":1,"d":"dev"}}""", EntryCodec.serializeTombstone(TombstoneData(hlc)))
     }
 
     @Test
     fun escapesLikeJsStringify() {
         val s = "\"\\\b\u000C\n\r\t\u0001\u001f\u007f  <>&'=🙂\uD800"
-        val d = EntryDataV3(EntryContentV3("", s, NoteFields, emptyList()), hlc)
-        assertTrue(EntryV3.serialize(d).contains("\"note\":\"\\\"\\\\\\b\\f\\n\\r\\t\\u0001\\u001f\u007f  <>&'=🙂\\ud800\""))
+        val d = EntryData(EntryContent("", s, NoteFields, emptyList()), hlc)
+        assertTrue(EntryCodec.serialize(d).contains("\"note\":\"\\\"\\\\\\b\\f\\n\\r\\t\\u0001\\u001f\u007f  <>&'=🙂\\ud800\""))
     }
 
     @Test
     fun roundTrip() {
-        for (x in samples) assertEquals(x, EntryV3.parse(EntryV3.decrypt(key, "id1", EntryV3.encrypt(key, "id1", x))))
+        for (x in samples) assertEquals(x, EntryCodec.parse(EntryCodec.decrypt(key, "id1", EntryCodec.encrypt(key, "id1", x))))
     }
 
     @Test
     fun tombstoneRoundTrip() {
-        val opened = EntryV3.decrypt(key, "id1", EntryV3.encryptTombstone(key, "id1", TombstoneData(hlc)))
-        assertEquals(TombstoneData(hlc), EntryV3.parseTombstone(opened))
+        val opened = EntryCodec.decrypt(key, "id1", EntryCodec.encryptTombstone(key, "id1", TombstoneData(hlc)))
+        assertEquals(TombstoneData(hlc), EntryCodec.parseTombstone(opened))
     }
 
     @Test
     fun blobOfOtherIdDoesNotOpen() {
-        val blob = EntryV3.encrypt(key, "id1", samples[0])
-        assertThrows(AEADBadTagException::class.java) { EntryV3.decrypt(key, "id2", blob) }
+        val blob = EntryCodec.encrypt(key, "id1", samples[0])
+        assertThrows(AEADBadTagException::class.java) { EntryCodec.decrypt(key, "id2", blob) }
     }
 
     @Test
     fun v1BlobDoesNotOpen() {
         val blob = Aead.seal(key, Encoding.utf8("""{"name":"n","username":"u","password":"p"}"""), "passholder/v1/entry/id1")
-        assertThrows(AEADBadTagException::class.java) { EntryV3.decrypt(key, "id1", blob) }
+        assertThrows(AEADBadTagException::class.java) { EntryCodec.decrypt(key, "id1", blob) }
     }
 
     @Test
     fun blobLengthMatchesEncryption() {
-        val d = EntryDataV3(EntryContentV3("n", "ż🙂".repeat(1000), NoteFields, emptyList()), hlc)
-        assertEquals(EntryV3.encrypt(key, "id", d).length, EntryV3.blobLength(EntryV3.serialize(d)))
+        val d = EntryData(EntryContent("n", "ż🙂".repeat(1000), NoteFields, emptyList()), hlc)
+        assertEquals(EntryCodec.encrypt(key, "id", d).length, EntryCodec.blobLength(EntryCodec.serialize(d)))
     }
 
     @Test
     fun boundaryCountsUtf8Bytes() {
-        fun withNote(note: String) = EntryDataV3(EntryContentV3("n", note, NoteFields, emptyList()), hlc)
-        fun bytes(note: String) = Encoding.utf8(EntryV3.serialize(withNote(note))).size
+        fun withNote(note: String) = EntryData(EntryContent("n", note, NoteFields, emptyList()), hlc)
+        fun bytes(note: String) = Encoding.utf8(EntryCodec.serialize(withNote(note))).size
         val zs = "ż".repeat(1000)
         val note = zs + "a".repeat(49123 - bytes(zs))
         assertEquals(49123, bytes(note))
-        assertEquals(EntryV3.MAX_BLOB_LENGTH, EntryV3.blobLength(EntryV3.serialize(withNote(note))))
-        EntryV3.encrypt(key, "id", withNote(note))
-        assertThrows(EntryTooLargeException::class.java) { EntryV3.encrypt(key, "id", withNote(note + "ż")) }
+        assertEquals(EntryCodec.MAX_BLOB_LENGTH, EntryCodec.blobLength(EntryCodec.serialize(withNote(note))))
+        EntryCodec.encrypt(key, "id", withNote(note))
+        assertThrows(EntryTooLargeException::class.java) { EntryCodec.encrypt(key, "id", withNote(note + "ż")) }
         assertEquals("Entry too large", EntryTooLargeException().message)
     }
 
     @Test
     fun contentJsonRoundTripsAndHasFixedKeyOrder() {
         for (d in samples) {
-            val j = EntryV3.contentJson(d.content)
+            val j = EntryCodec.contentJson(d.content)
             assertEquals(listOf("type", "name", "note", "fields", "custom"), j.keys.toList())
-            assertEquals(d.content, EntryV3.parseContent(j))
+            assertEquals(d.content, EntryCodec.parseContent(j))
         }
     }
 
     @Test
     fun parseContentRejectsExtraOrMissingKeys() {
-        val j = EntryV3.contentJson(samples[0].content)
-        assertInvalid("Invalid entry payload") { EntryV3.parseContent(kotlinx.serialization.json.JsonObject(j + ("hlc" to json("{}")))) }
-        assertInvalid("Invalid entry payload") { EntryV3.parseContent(kotlinx.serialization.json.JsonObject(j - "note")) }
+        val j = EntryCodec.contentJson(samples[0].content)
+        assertInvalid("Invalid entry payload") { EntryCodec.parseContent(kotlinx.serialization.json.JsonObject(j + ("hlc" to json("{}")))) }
+        assertInvalid("Invalid entry payload") { EntryCodec.parseContent(kotlinx.serialization.json.JsonObject(j - "note")) }
     }
 }

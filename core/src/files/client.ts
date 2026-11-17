@@ -1,4 +1,4 @@
-import { liveEntriesV2, type LocalVaultV2 } from "../p2p/sync.ts";
+import { liveEntries, type LocalVault } from "../p2p/sync.ts";
 import {
   noiseRequest,
   P2pHostError,
@@ -23,13 +23,13 @@ export function noiseFileTransport(o: NoiseClientOptions): P2pFileTransport {
   return async (request) => {
     try {
       return await noiseRequest(o, P2P_FILE_PATH, request);
-    } catch (e) {
-      if (e instanceof P2pHostError && e.status === 404) {
-        if (request.op === "get" && e.detail === "chunk not found") return null;
+    } catch (error) {
+      if (error instanceof P2pHostError && error.status === 404) {
+        if (request.op === "get" && error.detail === "chunk not found") return null;
         // An older phone app does not know the path and answers 404 "not found".
         throw new Error(PHONE_UPDATE_REQUIRED);
       }
-      throw e;
+      throw error;
     }
   };
 }
@@ -123,9 +123,9 @@ export async function storeEncryptedFile(files: LocalFileStore, f: EncryptedFile
 }
 
 /** Attachments of live entries by id (the first descriptor wins when two entries share an id). */
-export function usedAttachments(vault: LocalVaultV2): Map<string, Attachment> {
+export function usedAttachments(vault: LocalVault): Map<string, Attachment> {
   const used = new Map<string, Attachment>();
-  for (const e of liveEntriesV2(vault)) {
+  for (const e of liveEntries(vault)) {
     for (const a of e.data.attachments ?? []) if (!used.has(a.id)) used.set(a.id, a);
   }
   return used;
@@ -248,8 +248,8 @@ async function download(
   }
   try {
     await decryptFile(a, blobs);
-  } catch (e) {
-    if (!(e instanceof Error) || e.message !== FILE_CORRUPTED) throw e;
+  } catch (error) {
+    if (!(error instanceof Error) || error.message !== FILE_CORRUPTED) throw error;
     return corrupted();
   }
   await files.markComplete(a.id);
@@ -266,7 +266,7 @@ async function download(
  * are not candidates: they are not worked on and do not count as pending.
  */
 export async function syncFiles(
-  vault: LocalVaultV2,
+  vault: LocalVault,
   files: LocalFileStore,
   send: P2pFileTransport,
   onProgress?: (done: number, total: number) => void,
@@ -322,9 +322,10 @@ export async function syncFiles(
     let outcome: "done" | "pending";
     try {
       outcome = await upload(files, send, epoch, a, phoneHas);
-    } catch (e) {
+    } catch (error) {
       // The phone refused this file (chunk differs / chunk count mismatch): leave it for later, go on with the rest.
-      if (!(e instanceof P2pHostError && (e.status === 409 || e.status === 400))) throw e;
+      if (!(error instanceof P2pHostError && (error.status === 409 || error.status === 400)))
+        throw error;
       outcome = "pending";
     }
     if (outcome === "done") result.uploaded++;
@@ -349,7 +350,7 @@ export async function syncFiles(
  * (it keeps files added there and never uploaded, which another page may still save); this one stays for the
  * reference flow and parity with the phone.
  */
-export async function pruneLocalFiles(vault: LocalVaultV2, files: LocalFileStore): Promise<number> {
+export async function pruneLocalFiles(vault: LocalVault, files: LocalFileStore): Promise<number> {
   const used = usedAttachments(vault);
   let removed = 0;
   for (const id of await files.ids()) {

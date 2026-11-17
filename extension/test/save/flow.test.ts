@@ -61,7 +61,7 @@ describe("save prompt, page script with the service worker", () => {
     const id = s.shown();
     expect(id).toBe((await s.stored())["7"]!.id);
     expect(document.querySelector("iframe")).toBeNull();
-    const info = await s.sc.info(
+    const info = await s.sc.onInfo(
       { target: "background", type: "save-info", candidateId: id! },
       extSender,
     );

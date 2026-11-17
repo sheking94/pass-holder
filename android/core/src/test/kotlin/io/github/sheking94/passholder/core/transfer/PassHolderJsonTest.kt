@@ -1,6 +1,6 @@
 package io.github.sheking94.passholder.core.transfer
 
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
+import io.github.sheking94.passholder.core.p2p.EntryContent
 import io.github.sheking94.passholder.core.p2p.NoteFields
 import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -49,7 +49,7 @@ class PassHolderJsonTest {
         val text = """{"format":"passholder","version":3,"entries":[{$e,"name":"  "},{$e,"name":""},{$e,"name":"Ok"}]}"""
         assertEquals(
             ParsedImport(
-                listOf(EntryContentV3("Ok", "", NoteFields, emptyList())),
+                listOf(EntryContent("Ok", "", NoteFields, emptyList())),
                 listOf(ImportSkip("wpis 1", "brak nazwy"), ImportSkip("wpis 2", "brak nazwy")),
             ),
             PassHolderJson.parse(text),
@@ -85,7 +85,7 @@ class PassHolderJsonTest {
                 """{"type":"note","name":"Bez plików","note":"","fields":{},"custom":[]},{$e,"attachments":$files}]}"""
         assertEquals(
             ParsedImport(
-                listOf(EntryContentV3("Bez plików", "", NoteFields, emptyList()), EntryContentV3("Umowa", "", NoteFields, emptyList())),
+                listOf(EntryContent("Bez plików", "", NoteFields, emptyList()), EntryContent("Umowa", "", NoteFields, emptyList())),
                 emptyList(),
                 listOf(
                     ImportSkip("wpis 2, skan.pdf", "importuj całe archiwum ZIP"),

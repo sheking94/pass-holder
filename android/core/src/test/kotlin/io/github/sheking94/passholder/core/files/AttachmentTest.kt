@@ -1,8 +1,8 @@
 package io.github.sheking94.passholder.core.files
 
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
-import io.github.sheking94.passholder.core.p2p.EntryDataV3
-import io.github.sheking94.passholder.core.p2p.EntryV3
+import io.github.sheking94.passholder.core.p2p.EntryCodec
+import io.github.sheking94.passholder.core.p2p.EntryContent
+import io.github.sheking94.passholder.core.p2p.EntryData
 import io.github.sheking94.passholder.core.p2p.Hlc
 import io.github.sheking94.passholder.core.p2p.LoginFields
 import io.github.sheking94.passholder.core.transfer.PassHolderJson
@@ -27,10 +27,10 @@ class AttachmentTest {
         "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=",
     )
 
-    private fun content(vararg a: Attachment) = EntryContentV3("n", "", LoginFields("", ""), emptyList(), a.toList())
+    private fun content(vararg a: Attachment) = EntryContent("n", "", LoginFields("", ""), emptyList(), a.toList())
 
     private fun payload(sizeText: String) =
-        EntryV3.serialize(EntryDataV3(content(att(1)), Hlc(5, 1, "dev"))).replace("\"size\":10", "\"size\":$sizeText")
+        EntryCodec.serialize(EntryData(content(att(1)), Hlc(5, 1, "dev"))).replace("\"size\":10", "\"size\":$sizeText")
 
     @Test
     fun canAddAndChunkCount() {
@@ -42,7 +42,7 @@ class AttachmentTest {
 
     @Test
     fun emptyListSerializesWithoutKey() {
-        val s = EntryV3.serialize(EntryDataV3(content(), Hlc(5, 1, "dev")))
+        val s = EntryCodec.serialize(EntryData(content(), Hlc(5, 1, "dev")))
         assertFalse(s.contains("attachments"))
         assertEquals(
             "{\"v\":3,\"type\":\"login\",\"name\":\"n\",\"note\":\"\",\"fields\":{\"username\":\"\",\"password\":\"\",\"totp\":\"\"," +
@@ -53,19 +53,19 @@ class AttachmentTest {
 
     @Test
     fun serializesAttachmentsBetweenCustomAndHlc() {
-        val s = EntryV3.serialize(EntryDataV3(content(att(1)), Hlc(5, 1, "dev")))
+        val s = EntryCodec.serialize(EntryData(content(att(1)), Hlc(5, 1, "dev")))
         assertTrue(s.contains("\"custom\":[],\"attachments\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"name\":\"a1.txt\""))
         assertTrue(s.contains("\"key\":\"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\"}],\"hlc\""))
     }
 
     @Test
     fun parsesIntegralJsonNumbers() {
-        assertEquals(10L, EntryV3.parse(Json.parseToJsonElement(payload("1.0e1"))).content.attachments[0].size)
-        assertEquals(10L, EntryV3.parse(Json.parseToJsonElement(payload("10.0"))).content.attachments[0].size)
-        assertEquals(1L, EntryV3.parse(Json.parseToJsonElement(payload("1e0"))).content.attachments[0].size)
-        assertThrows(IllegalArgumentException::class.java) { EntryV3.parse(Json.parseToJsonElement(payload("1e400"))) }
-        assertThrows(IllegalArgumentException::class.java) { EntryV3.parse(Json.parseToJsonElement(payload("1.5"))) }
-        assertThrows(IllegalArgumentException::class.java) { EntryV3.parse(Json.parseToJsonElement(payload("\"10\""))) }
+        assertEquals(10L, EntryCodec.parse(Json.parseToJsonElement(payload("1.0e1"))).content.attachments[0].size)
+        assertEquals(10L, EntryCodec.parse(Json.parseToJsonElement(payload("10.0"))).content.attachments[0].size)
+        assertEquals(1L, EntryCodec.parse(Json.parseToJsonElement(payload("1e0"))).content.attachments[0].size)
+        assertThrows(IllegalArgumentException::class.java) { EntryCodec.parse(Json.parseToJsonElement(payload("1e400"))) }
+        assertThrows(IllegalArgumentException::class.java) { EntryCodec.parse(Json.parseToJsonElement(payload("1.5"))) }
+        assertThrows(IllegalArgumentException::class.java) { EntryCodec.parse(Json.parseToJsonElement(payload("\"10\""))) }
     }
 
     @Test

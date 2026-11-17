@@ -3,15 +3,16 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { promptView } from "../../src/save/prompt-view.ts";
 import type { SavePreviewResponse, SavePromptInfo } from "../../src/save/messages.ts";
 
-const info = (over: Partial<SavePromptInfo> = {}): SavePromptInfo => ({
-  id: "c1",
-  host: "sklep.example.com",
-  username: "jan",
-  password: "s3cret",
-  decision: "create",
-  locked: false,
-  ...over,
-});
+const info = (over: Partial<SavePromptInfo> = {}): SavePromptInfo =>
+  ({
+    id: "c1",
+    host: "sklep.example.com",
+    username: "jan",
+    password: "s3cret",
+    decision: "create",
+    locked: false,
+    ...over,
+  }) as SavePromptInfo;
 
 type Preview = (u: string, p: string) => Promise<SavePreviewResponse>;
 function setup(

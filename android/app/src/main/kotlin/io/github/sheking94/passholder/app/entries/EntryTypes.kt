@@ -4,8 +4,8 @@ import io.github.sheking94.passholder.core.p2p.CardFields
 import io.github.sheking94.passholder.core.p2p.ContactFields
 import io.github.sheking94.passholder.core.p2p.DocumentFields
 import io.github.sheking94.passholder.core.p2p.DocumentKind
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
-import io.github.sheking94.passholder.core.p2p.EntryFieldsV3
+import io.github.sheking94.passholder.core.p2p.EntryContent
+import io.github.sheking94.passholder.core.p2p.EntryFields
 import io.github.sheking94.passholder.core.p2p.LoginFields
 import io.github.sheking94.passholder.core.p2p.NoteFields
 import java.time.LocalDate
@@ -23,7 +23,7 @@ enum class EntryType(val icon: String, val tab: String, val newTitle: String, va
     ;
 
     companion object {
-        fun of(fields: EntryFieldsV3): EntryType = when (fields) {
+        fun of(fields: EntryFields): EntryType = when (fields) {
             is LoginFields -> LOGIN
             is ContactFields -> CONTACT
             is CardFields -> CARD
@@ -48,19 +48,19 @@ private val WHITESPACE = Regex("\\s")
 private val LINE_BREAK = Regex("\\r?\\n")
 private val DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd").withResolverStyle(ResolverStyle.STRICT)
 
-fun emptyContent(type: EntryType): EntryContentV3 {
-    val fields: EntryFieldsV3 = when (type) {
+fun emptyContent(type: EntryType): EntryContent {
+    val fields: EntryFields = when (type) {
         EntryType.LOGIN -> LoginFields("", "")
         EntryType.CONTACT -> ContactFields("", "", "", emptyList(), emptyList(), emptyList())
         EntryType.CARD -> CardFields("", "", "", "", "")
         EntryType.NOTE -> NoteFields
         EntryType.DOCUMENT -> DocumentFields(DocumentKind.ID_CARD, "", "", "", "", "")
     }
-    return EntryContentV3("", "", fields, emptyList())
+    return EntryContent("", "", fields, emptyList())
 }
 
 /** Short description shown under the entry name in the list. */
-fun entrySummary(content: EntryContentV3): String = when (val f = content.fields) {
+fun entrySummary(content: EntryContent): String = when (val f = content.fields) {
     is LoginFields -> f.username
 
     is CardFields -> {
@@ -75,11 +75,11 @@ fun entrySummary(content: EntryContentV3): String = when (val f = content.fields
     NoteFields -> content.note.split(LINE_BREAK).firstOrNull { it.isNotBlank() }.orEmpty()
 }
 
-fun matchesQuery(content: EntryContentV3, query: String): Boolean =
+fun matchesQuery(content: EntryContent, query: String): Boolean =
     "${content.name} ${entrySummary(content)}".contains(query.trim(), ignoreCase = true)
 
 /** Trims the name, drops list items whose text fields are all empty and empty custom fields. */
-fun tidyContent(content: EntryContentV3): EntryContentV3 {
+fun tidyContent(content: EntryContent): EntryContent {
     val fields = when (val f = content.fields) {
         is LoginFields -> f.copy(urls = f.urls.filter { it != "" }, androidApps = f.androidApps.filter { it != "" })
 
@@ -113,7 +113,7 @@ private fun isCalendarDate(s: String): Boolean {
 private fun validDate(value: String, original: String?): Boolean = value == "" || value == original || isCalendarDate(value)
 
 /** Returns the first form error, or null. Only values changed against [original] are format-checked. */
-fun validateContent(content: EntryContentV3, original: EntryContentV3?): String? {
+fun validateContent(content: EntryContent, original: EntryContent?): String? {
     if (content.name.trim() == "") return "Podaj nazwę"
     val before = original?.fields?.takeIf { EntryType.of(it) == EntryType.of(content.fields) }
     return when (val f = content.fields) {

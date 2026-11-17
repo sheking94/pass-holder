@@ -10,14 +10,14 @@ afterEach(() => {
   history.replaceState({}, "", "/");
 });
 
-function login(name: string, url: string): p2p.EntryContentV3 {
+function login(name: string, url: string): p2p.EntryContent {
   const l = p2p.emptyLogin(name);
   return { ...l, fields: { ...l.fields, username: "jan", password: "x", urls: [url] } };
 }
-const card = (name: string) => ({ ...emptyContent("card"), name }) as p2p.EntryContentV3;
-const contact = (name: string) => ({ ...emptyContent("contact"), name }) as p2p.EntryContentV3;
-const note = (name: string) => ({ ...emptyContent("note"), name }) as p2p.EntryContentV3;
-const doc = (name: string) => ({ ...emptyContent("document"), name }) as p2p.EntryContentV3;
+const card = (name: string) => ({ ...emptyContent("card"), name }) as p2p.EntryContent;
+const contact = (name: string) => ({ ...emptyContent("contact"), name }) as p2p.EntryContent;
+const note = (name: string) => ({ ...emptyContent("note"), name }) as p2p.EntryContent;
+const doc = (name: string) => ({ ...emptyContent("document"), name }) as p2p.EntryContent;
 
 const ENTRIES = [
   { id: "l1", content: login("Bank", "bank.pl") },

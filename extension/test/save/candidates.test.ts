@@ -143,7 +143,7 @@ describe("SaveCandidates", () => {
     await s.sc.onCandidate(candidate({ username: "anna" }), scriptSender(7));
     await s.sc.onCandidate(candidate(), scriptSender(8));
     const c7 = (await s.stored())["7"]!;
-    const create = await s.sc.info(
+    const create = await s.sc.onInfo(
       { target: "background", type: "save-info", candidateId: c7.id },
       extSender,
     );
@@ -155,7 +155,7 @@ describe("SaveCandidates", () => {
       decision: "create",
       locked: false,
     });
-    const update = await s.sc.info(
+    const update = await s.sc.onInfo(
       { target: "background", type: "save-info", tabId: 8 },
       extSender,
     );
@@ -174,7 +174,7 @@ describe("SaveCandidates", () => {
     await s.sc.onCandidate(candidate(), scriptSender());
     const id = (await s.stored())["7"]!.id;
     const preview = (username: string, password: string) =>
-      s.sc.preview(
+      s.sc.onPreview(
         { target: "background", type: "save-preview", candidateId: id, username, password },
         extSender,
       );
@@ -197,12 +197,12 @@ describe("SaveCandidates", () => {
         username: "jan",
         password: "x",
       }) as const;
-    expect(await s.sc.preview(msg(id), scriptSender())).toBeUndefined();
-    expect(await s.sc.preview(msg("nope"), extSender)).toBeUndefined();
+    expect(await s.sc.onPreview(msg(id), scriptSender())).toBeUndefined();
+    expect(await s.sc.onPreview(msg("nope"), extSender)).toBeUndefined();
     const locked = await setup({ locked: true });
     await locked.sc.onCandidate(candidate(), scriptSender());
     const lid = (await locked.stored())["7"]!.id;
-    expect(await locked.sc.preview(msg(lid), extSender)).toBeUndefined();
+    expect(await locked.sc.onPreview(msg(lid), extSender)).toBeUndefined();
   }, 60_000);
 
   it("info of a locked vault has no decision", async () => {
@@ -210,7 +210,7 @@ describe("SaveCandidates", () => {
     await s.sc.onCandidate(candidate(), scriptSender());
     const id = (await s.stored())["7"]!.id;
     expect(
-      await s.sc.info({ target: "background", type: "save-info", candidateId: id }, extSender),
+      await s.sc.onInfo({ target: "background", type: "save-info", candidateId: id }, extSender),
     ).toEqual({
       id,
       host: "shop.pl",
@@ -228,7 +228,7 @@ describe("SaveCandidates", () => {
     await s.store.putEntry("s1", login("Shop", ["https://shop.pl"], "jan", "new"));
     s.sent.length = 0;
     expect(
-      await s.sc.info({ target: "background", type: "save-info", candidateId: id }, extSender),
+      await s.sc.onInfo({ target: "background", type: "save-info", candidateId: id }, extSender),
     ).toBeUndefined();
     expect(await s.stored()).toEqual({});
     expect(s.sent).toEqual([{ tabId: 7, m: { type: "save-hide" } }]);
@@ -240,17 +240,17 @@ describe("SaveCandidates", () => {
     const id = (await s.stored())["7"]!.id;
     const web: Sender = { id: EXT, url: PAGE, tab: { id: 7, url: PAGE } };
     expect(
-      await s.sc.info({ target: "background", type: "save-info", candidateId: id }, web),
+      await s.sc.onInfo({ target: "background", type: "save-info", candidateId: id }, web),
     ).toBeUndefined();
     expect(
-      await s.sc.info(
+      await s.sc.onInfo(
         { target: "background", type: "save-info", candidateId: id },
         { ...extSender, id: "other" },
       ),
     ).toBeUndefined();
     expect(
       (
-        await s.sc.answer(
+        await s.sc.onAnswer(
           { target: "background", type: "save-answer", candidateId: id, answer: "save" },
           web,
         )
@@ -266,7 +266,7 @@ describe("SaveCandidates", () => {
     const before = (await s.fresh()).pendingCount();
     s.sent.length = 0;
     expect(
-      await s.sc.answer(
+      await s.sc.onAnswer(
         { target: "background", type: "save-answer", candidateId: id, answer: "save" },
         extSender,
       ),
@@ -291,7 +291,7 @@ describe("SaveCandidates", () => {
     await s.sc.onCandidate(candidate(), scriptSender());
     const id = (await s.stored())["7"]!.id;
     expect(
-      await s.sc.answer(
+      await s.sc.onAnswer(
         { target: "background", type: "save-answer", candidateId: id, answer: "save" },
         extSender,
       ),
@@ -314,11 +314,11 @@ describe("SaveCandidates", () => {
     // A new password: a new login for the subdomain, the parent domain keeps its password.
     await s.sc.onCandidate(candidate(), scriptSender(7, sub, sub));
     expect(
-      await s.sc.info({ target: "background", type: "save-info", tabId: 7 }, extSender),
+      await s.sc.onInfo({ target: "background", type: "save-info", tabId: 7 }, extSender),
     ).toMatchObject({ host: "moje.bank.pl", decision: "create" });
     const id = (await s.stored())["7"]!.id;
     expect(
-      await s.sc.answer(
+      await s.sc.onAnswer(
         { target: "background", type: "save-answer", candidateId: id, answer: "save" },
         extSender,
       ),
@@ -336,7 +336,7 @@ describe("SaveCandidates", () => {
     await s.store.putEntry("s1", login("Shop", ["https://shop.pl"], "jan", "new"));
     const before = (await s.fresh()).pendingCount();
     expect(
-      await s.sc.answer(
+      await s.sc.onAnswer(
         { target: "background", type: "save-answer", candidateId: id, answer: "save" },
         extSender,
       ),
@@ -350,7 +350,7 @@ describe("SaveCandidates", () => {
     await s.sc.onCandidate(candidate(), scriptSender());
     const id = (await s.stored())["7"]!.id;
     const save = (name: string) =>
-      s.sc.answer(
+      s.sc.onAnswer(
         {
           target: "background",
           type: "save-answer",
@@ -372,7 +372,7 @@ describe("SaveCandidates", () => {
     const s2 = await setup();
     await s2.sc.onCandidate(candidate(), scriptSender());
     const id2 = (await s2.stored())["7"]!.id;
-    await s2.sc.answer(
+    await s2.sc.onAnswer(
       {
         target: "background",
         type: "save-answer",
@@ -394,7 +394,7 @@ describe("SaveCandidates", () => {
     const id = (await s.stored())["7"]!.id;
     const draft = { name: "Inna nazwa", username: "jan", password: "p2" };
     expect(
-      await s.sc.answer(
+      await s.sc.onAnswer(
         { target: "background", type: "save-answer", candidateId: id, answer: "save", draft },
         extSender,
       ),
@@ -413,7 +413,7 @@ describe("SaveCandidates", () => {
     s.sent.length = 0;
     const draft = { name: "Shop", username: "jan", password: "old" };
     expect(
-      await s.sc.answer(
+      await s.sc.onAnswer(
         { target: "background", type: "save-answer", candidateId: id, answer: "save", draft },
         extSender,
       ),
@@ -428,7 +428,7 @@ describe("SaveCandidates", () => {
     const id = (await s.stored())["7"]!.id;
     const draft = { name: "Shop", username: "jan", password: "" };
     expect(
-      await s.sc.answer(
+      await s.sc.onAnswer(
         { target: "background", type: "save-answer", candidateId: id, answer: "save", draft },
         extSender,
       ),
@@ -440,8 +440,8 @@ describe("SaveCandidates", () => {
     const s = await setup();
     await s.sc.onCandidate(candidate({ username: "anna" }), scriptSender());
     const id = (await s.stored())["7"]!.id;
-    await s.sc.info({ target: "background", type: "save-info", candidateId: id }, extSender);
-    await s.sc.answer(
+    await s.sc.onInfo({ target: "background", type: "save-info", candidateId: id }, extSender);
+    await s.sc.onAnswer(
       { target: "background", type: "save-answer", candidateId: id, answer: "save" },
       extSender,
     );
@@ -456,7 +456,7 @@ describe("SaveCandidates", () => {
     const id = (await s.stored())["7"]!.id;
     s.sent.length = 0;
     expect(
-      await s.sc.answer(
+      await s.sc.onAnswer(
         { target: "background", type: "save-answer", candidateId: id, answer: "later" },
         extSender,
       ),
@@ -472,7 +472,7 @@ describe("SaveCandidates", () => {
     const id = (await s.stored())["7"]!.id;
     s.sent.length = 0;
     expect(
-      await s.sc.answer(
+      await s.sc.onAnswer(
         { target: "background", type: "save-answer", candidateId: id, answer: "never" },
         extSender,
       ),
@@ -489,7 +489,7 @@ describe("SaveCandidates", () => {
     await s.sc.onCandidate(candidate(), scriptSender());
     const id = (await s.stored())["7"]!.id;
     expect(
-      await s.sc.answer(
+      await s.sc.onAnswer(
         { target: "background", type: "save-answer", candidateId: id, answer: "save" },
         extSender,
       ),
@@ -499,7 +499,7 @@ describe("SaveCandidates", () => {
 
   it("answer save for an unknown candidate fails", async () => {
     const s = await setup();
-    const r = await s.sc.answer(
+    const r = await s.sc.onAnswer(
       { target: "background", type: "save-answer", candidateId: "nope", answer: "save" },
       extSender,
     );
@@ -514,13 +514,13 @@ describe("SaveCandidates", () => {
       tab: { id: 70 },
     };
     expect(
-      await s.sc.answer(
+      await s.sc.onAnswer(
         { target: "background", type: "save-answer", candidateId: "gone", answer: "later" },
         extSender,
       ),
     ).toEqual({ ok: true });
     expect(
-      await s.sc.answer(
+      await s.sc.onAnswer(
         { target: "background", type: "save-answer", candidateId: "gone", answer: "never" },
         panel,
       ),
@@ -530,7 +530,7 @@ describe("SaveCandidates", () => {
     const web: Sender = { id: EXT, url: PAGE, tab: { id: 7, url: PAGE } };
     expect(
       (
-        await s.sc.answer(
+        await s.sc.onAnswer(
           { target: "background", type: "save-answer", candidateId: "gone", answer: "later" },
           web,
         )
@@ -543,7 +543,7 @@ describe("SaveCandidates", () => {
     await s.sc.onCandidate(candidate(), scriptSender());
     s.sent.length = 0;
     expect(
-      await s.sc.answer(
+      await s.sc.onAnswer(
         { target: "background", type: "save-answer", candidateId: "old", answer: "later" },
         extSender,
       ),
@@ -581,7 +581,8 @@ describe("SaveCandidates", () => {
     expect(s.sent).toEqual([{ tabId: 7, m: { type: "badge" } }]);
     // The popup still shows the question for the tab.
     expect(
-      (await s.sc.info({ target: "background", type: "save-info", tabId: 7 }, extSender))?.username,
+      (await s.sc.onInfo({ target: "background", type: "save-info", tabId: 7 }, extSender))
+        ?.username,
     ).toBe("jan");
     // A new login in the tab asks again.
     await s.sc.onCandidate(candidate({ password: "newer" }), scriptSender());
@@ -593,9 +594,9 @@ describe("SaveCandidates", () => {
     await s.sc.onCandidate(candidate(), scriptSender());
     const id = (await s.stored())["7"]!.id;
     const m = { target: "background" as const, type: "save-unlock" as const, candidateId: id };
-    expect(await s.sc.unlockTab(m, extSender)).toBe(7);
-    expect(await s.sc.unlockTab(m, scriptSender())).toBeUndefined();
-    expect(await s.sc.unlockTab({ ...m, candidateId: "gone" }, extSender)).toBeUndefined();
+    expect(await s.sc.onUnlockRequest(m, extSender)).toBe(7);
+    expect(await s.sc.onUnlockRequest(m, scriptSender())).toBeUndefined();
+    expect(await s.sc.onUnlockRequest({ ...m, candidateId: "gone" }, extSender)).toBeUndefined();
   }, 30_000);
 
   it("the same login sent again by one submission keeps its id and refreshes the time", async () => {
@@ -641,7 +642,7 @@ describe("SaveCandidates", () => {
     s.sent.length = 0;
     s.advance(SAVE_TTL_MS);
     expect(
-      await s.sc.info({ target: "background", type: "save-info", candidateId: id }, extSender),
+      await s.sc.onInfo({ target: "background", type: "save-info", candidateId: id }, extSender),
     ).toBeUndefined();
     expect(await s.stored()).toEqual({});
     expect(s.sent).toEqual([{ tabId: 7, m: { type: "save-hide" } }]);
@@ -666,7 +667,7 @@ describe("SaveCandidates", () => {
     s.advance(60_000);
     await s.sc.onCandidate(candidate(), scriptSender());
     const id = (await s.stored())["7"]!.id;
-    await s.sc.info({ target: "background", type: "save-info", candidateId: id }, extSender);
+    await s.sc.onInfo({ target: "background", type: "save-info", candidateId: id }, extSender);
     await s.sc.onPending(
       { target: "background", type: "save-pending", emptyLoginForms: [] },
       scriptSender(),
@@ -687,7 +688,10 @@ describe("SaveCandidates", () => {
       candidateId: id,
       answer: "save",
     } as const;
-    const results = await Promise.all([s.sc.answer(msg, extSender), s.sc.answer(msg, extSender)]);
+    const results = await Promise.all([
+      s.sc.onAnswer(msg, extSender),
+      s.sc.onAnswer(msg, extSender),
+    ]);
     expect(results.filter((r) => r.ok)).toHaveLength(1);
     expect((await s.fresh()).listEntries("login")).toHaveLength(before + 1);
   }, 30_000);

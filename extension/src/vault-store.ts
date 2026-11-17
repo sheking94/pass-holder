@@ -191,7 +191,7 @@ export interface ImportResult {
 export interface StoredEntry {
   id: string;
   dirty: boolean;
-  data: p2p.EntryContentV3;
+  data: p2p.EntryContent;
 }
 
 const OTHER_TYPE = "Ten wpis ma inny typ";
@@ -213,10 +213,7 @@ function fileErrorInPolish(error: unknown): string {
  * stale: such a file may belong to an entry another page has saved but not synced yet.
  * Best effort: a failure is ignored (the next prune tries again).
  */
-async function pruneUnusedFiles(
-  vault: p2p.LocalVaultV2,
-  store: files.LocalFileStore,
-): Promise<void> {
+async function pruneUnusedFiles(vault: p2p.LocalVault, store: files.LocalFileStore): Promise<void> {
   try {
     const used = files.usedAttachments(vault);
     for (const id of await store.ids()) {
@@ -230,10 +227,10 @@ async function pruneUnusedFiles(
   }
 }
 
-function storedView(e: p2p.LocalEntryV2): StoredEntry | undefined {
+function storedView(e: p2p.LocalEntry): StoredEntry | undefined {
   if (e.deleted) return undefined;
   const { v, hlc, ...data } = e.data;
-  return { id: e.id, dirty: e.dirty, data: data as p2p.EntryContentV3 };
+  return { id: e.id, dirty: e.dirty, data: data as p2p.EntryContent };
 }
 
 function tooLargeInPolish(error: unknown): unknown {
@@ -267,7 +264,7 @@ function withLearned(urls: readonly string[], learned: readonly string[]): strin
   return [...urls, ...learnedPhoneUrls(learned).filter((u) => !urls.includes(u))];
 }
 
-function serializeVault(vault: p2p.LocalVaultV2): string {
+function serializeVault(vault: p2p.LocalVault): string {
   return JSON.stringify({
     epoch: vault.epoch,
     lastSyncRevision: vault.lastSyncRevision,
@@ -276,7 +273,7 @@ function serializeVault(vault: p2p.LocalVaultV2): string {
   });
 }
 
-function deserializeVault(json: string): p2p.LocalVaultV2 {
+function deserializeVault(json: string): p2p.LocalVault {
   const parsed = JSON.parse(json) as {
     epoch: string | null;
     lastSyncRevision: number;
@@ -284,7 +281,7 @@ function deserializeVault(json: string): p2p.LocalVaultV2 {
     entries: { id: string; revision: number; dirty: boolean; deleted: boolean; data: unknown }[];
   };
   // A vault saved by an older version holds v2 data (name, username, password, hlc): parseEntryData makes it a v3 login.
-  const entries = parsed.entries.map((e): p2p.LocalEntryV2 =>
+  const entries = parsed.entries.map((e): p2p.LocalEntry =>
     e.deleted
       ? {
           id: e.id,
@@ -334,7 +331,7 @@ async function unwrapWithPassword(
  * Every change (upsert, delete, sync) is saved to disk before the method returns.
  */
 export class VaultStore {
-  private vault: p2p.LocalVaultV2 | undefined;
+  private vault: p2p.LocalVault | undefined;
   private keys: SessionKeys | undefined;
   private clock: p2p.HlcClock | undefined;
   private readonly pin: PinStore;
@@ -395,7 +392,7 @@ export class VaultStore {
    */
   async putEntry(
     id: string,
-    content: p2p.EntryContentV3,
+    content: p2p.EntryContent,
     newFiles: readonly files.EncryptedFile[] = [],
   ): Promise<void> {
     const vault = this.requireVault();
@@ -408,7 +405,7 @@ export class VaultStore {
       // Storing the files takes a while: the vault may have locked meanwhile, then the entry is not saved.
       this.requireKeys();
       try {
-        p2p.upsertEntryV2(vault, clock, id, content);
+        p2p.upsertEntry(vault, clock, id, content);
       } catch (error) {
         throw tooLargeInPolish(error);
       }
@@ -471,13 +468,13 @@ export class VaultStore {
    * is skipped as a duplicate; one over the size limit is counted in tooLarge. Saves once at the end.
    */
   async importContents(
-    entries: readonly p2p.EntryContentV3[],
+    entries: readonly p2p.EntryContent[],
     newId: () => string = () => crypto.randomUUID(),
   ): Promise<ImportResult> {
     const vault = this.requireVault();
     const clock = this.requireClock();
     const known = new Set(this.allContents().map(transfer.contentKey));
-    // upsertEntryV2 replaces map entries (never edits them in place), so a copy of the map is a full snapshot.
+    // upsertEntry replaces map entries (never edits them in place), so a copy of the map is a full snapshot.
     // The clock only moves forward, which is harmless to keep.
     const snapshot = new Map(vault.entries);
     let added = 0;
@@ -487,7 +484,7 @@ export class VaultStore {
         const key = transfer.contentKey(entry);
         if (known.has(key)) continue;
         try {
-          p2p.upsertEntryV2(vault, clock, newId(), entry);
+          p2p.upsertEntry(vault, clock, newId(), entry);
         } catch (error) {
           if (error instanceof Error && error.message === p2p.ENTRY_TOO_LARGE) {
             tooLarge++;
@@ -509,7 +506,7 @@ export class VaultStore {
   }
 
   /** Content of all live entries of every type (no `v` or `hlc`), for export. */
-  allContents(): p2p.EntryContentV3[] {
+  allContents(): p2p.EntryContent[] {
     return [...this.requireVault().entries.values()].flatMap((e) => storedView(e)?.data ?? []);
   }
 
@@ -565,7 +562,7 @@ export class VaultStore {
       // Only against the vault: importContents drops repeats within the archive, and it may refuse the first copy
       // as too large, so a later copy must still bring its files (unused ones are removed below).
       const known = new Set(this.allContents().map(transfer.contentKey));
-      const contents: p2p.EntryContentV3[] = [];
+      const contents: p2p.EntryContent[] = [];
       for (const e of parsed.entries) {
         if (known.has(transfer.contentKey(e.content))) {
           contents.push(e.content);
@@ -622,7 +619,7 @@ export class VaultStore {
 
   async delete(id: string): Promise<void> {
     const vault = this.requireVault();
-    p2p.deleteEntryV2(vault, this.requireClock(), id);
+    p2p.deleteEntry(vault, this.requireClock(), id);
     await this.save();
     await pruneUnusedFiles(vault, this.fileStore);
   }
@@ -743,7 +740,7 @@ export class VaultStore {
       sealedStaticKey: await seal(vaultKey, fromBase64(pending.staticPrivateKey), STATIC_KEY_AAD),
       staticPublicKey: pending.staticPublicKey,
     };
-    const vault = p2p.emptyVaultV2();
+    const vault = p2p.emptyVault();
     p2p.applyVaultInfo(vault, pending.vaultInfo);
     await this.disablePin();
     await this.saveAccount(account);
@@ -1024,7 +1021,7 @@ export class VaultStore {
       peerPublicKey: fromBase64(account.phone.staticPublicKey),
       post: client.post,
     };
-    await talkToPhone(() => p2p.syncVaultV2(vault, vaultKey, clock, p2p.noiseTransport(noise)));
+    await talkToPhone(() => p2p.syncVault(vault, vaultKey, clock, p2p.noiseTransport(noise)));
     await this.save();
     const filesOutcome = await this.syncFilePhase(
       vault,
@@ -1054,7 +1051,7 @@ export class VaultStore {
    * request is sent: the phase ends with LOCKED and nothing is pruned.
    */
   private async syncFilePhase(
-    vault: p2p.LocalVaultV2,
+    vault: p2p.LocalVault,
     send: files.P2pFileTransport,
     onProgress?: (done: number, total: number) => void,
   ): Promise<FilesOutcome> {
@@ -1108,7 +1105,7 @@ export class VaultStore {
     return this.keys !== undefined && this.keys.unlockedUntil <= this.now();
   }
 
-  private requireVault(): p2p.LocalVaultV2 {
+  private requireVault(): p2p.LocalVault {
     if (!this.vault || this.expired()) throw new Error(LOCKED);
     return this.vault;
   }
@@ -1135,7 +1132,7 @@ export class VaultStore {
 
   private async startSession(
     vaultKey: Uint8Array,
-    vault: p2p.LocalVaultV2,
+    vault: p2p.LocalVault,
     account: Account,
   ): Promise<void> {
     this.vault = vault;
@@ -1150,9 +1147,9 @@ export class VaultStore {
     await this.session.set(STORAGE_KEYS.sessionKeys, this.keys);
   }
 
-  private async loadVault(vaultKey: Uint8Array): Promise<p2p.LocalVaultV2> {
+  private async loadVault(vaultKey: Uint8Array): Promise<p2p.LocalVault> {
     const blob = await this.local.get<string>(STORAGE_KEYS.vault);
-    if (!blob) return p2p.emptyVaultV2();
+    if (!blob) return p2p.emptyVault();
     return deserializeVault(fromUtf8(await open(vaultKey, blob, LOCAL_VAULT_AAD)));
   }
 }

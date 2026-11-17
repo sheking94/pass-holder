@@ -18,7 +18,7 @@ const bytesOf = (seed: number) => new Uint8Array(SIZE).map((_, i) => (i * 31 + s
 const encrypt = (seed = 1, name = "skan.pdf") =>
   files.encryptFile(bytesOf(seed), { name, mime: "application/pdf" });
 
-function loginWith(name: string, attachments: files.Attachment[] = []): p2p.EntryContentV3 {
+function loginWith(name: string, attachments: files.Attachment[] = []): p2p.EntryContent {
   const login = p2p.emptyLogin(name);
   return {
     ...login,
@@ -263,7 +263,7 @@ describe("attachments in the vault store", () => {
           custom: [],
           fields: {},
           attachments: [ef.attachment],
-        } as unknown as p2p.EntryContentV3,
+        } as unknown as p2p.EntryContent,
         [ef],
       ),
     ).rejects.toThrow();

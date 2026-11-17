@@ -2,14 +2,14 @@ import { describe, expect, it } from "vitest";
 import { newVaultKey } from "../../src/vault.ts";
 import {
   emptyLogin,
-  encryptPayloadV2,
+  encryptPayload,
   entryBlobLength,
   MAX_ENTRY_BLOB_LENGTH,
   parseEntryContent,
   parseEntryData,
   parseTombstoneData,
   serializeEntryData,
-  type EntryDataV3,
+  type EntryData,
 } from "../../src/p2p/index.ts";
 
 const hlc = { ms: 5, c: 1, d: "dev" };
@@ -21,7 +21,7 @@ const base = {
   hlc,
 };
 
-const samples: EntryDataV3[] = [
+const samples: EntryData[] = [
   {
     ...base,
     type: "login",
@@ -220,7 +220,7 @@ describe("entry v3", () => {
       name: "nm",
       type: "login",
       v: 3,
-    } as unknown as EntryDataV3;
+    } as unknown as EntryData;
     expect(serializeEntryData(reversed)).toBe(
       '{"v":3,"type":"login","name":"nm","note":"x","fields":{"username":"n","password":"p","totp":"t","urls":["u"],"androidApps":["a"]},"custom":[],"hlc":{"ms":5,"c":1,"d":"dev"}}',
     );
@@ -231,12 +231,12 @@ describe("entry v3", () => {
   });
 
   it("blob length matches encryption", async () => {
-    const d: EntryDataV3 = { ...base, type: "note", note: "ż🙂".repeat(1000), fields: {} };
-    expect(entryBlobLength(d)).toBe((await encryptPayloadV2(newVaultKey(), "id", d)).length);
+    const d: EntryData = { ...base, type: "note", note: "ż🙂".repeat(1000), fields: {} };
+    expect(entryBlobLength(d)).toBe((await encryptPayload(newVaultKey(), "id", d)).length);
   });
 
   it("65536 boundary counts UTF-8 bytes", () => {
-    const withNote = (note: string): EntryDataV3 => ({
+    const withNote = (note: string): EntryData => ({
       ...base,
       type: "note",
       note,

@@ -1,7 +1,7 @@
 // PassHolder ZIP: passholder.json (a PassHolder JSON v3 index whose entries describe their files) followed by the
 // decrypted files under files/<n>-<name>. Paths from an archive are only used to look entries up in the ZIP.
 import { MAX_FILE_SIZE, type Attachment } from "../files/attachment.ts";
-import type { EntryContentV3 } from "../p2p/entry.ts";
+import type { EntryContent } from "../p2p/entry.ts";
 import { sortForExport } from "./common.ts";
 import { parseArchiveIndex, type ArchivedFile, type ParsedArchive } from "./passholder-json.ts";
 import {
@@ -31,12 +31,12 @@ export function archivePath(n: number, name: string): string {
  * undefined when the file is not available (waiting for sync, damaged): it is then left out and counted in `missing`.
  */
 export async function exportPassHolderZip(
-  entries: readonly EntryContentV3[],
+  entries: readonly EntryContent[],
   readFile: (a: Attachment) => Promise<Uint8Array | undefined>,
   date?: Date,
 ): Promise<{ parts: Uint8Array[]; files: number; missing: number }> {
   const zip = new ZipWriter(date);
-  const index: EntryContentV3[] = [];
+  const index: EntryContent[] = [];
   let files = 0;
   let missing = 0;
   for (const { attachments, ...content } of sortForExport(entries)) {
@@ -52,7 +52,7 @@ export async function exportPassHolderZip(
       described.push({ name: a.name, mime: a.mime, size: bytes.length, path });
     }
     index.push(
-      (described.length > 0 ? { ...content, attachments: described } : content) as EntryContentV3,
+      (described.length > 0 ? { ...content, attachments: described } : content) as EntryContent,
     );
   }
   const json = JSON.stringify({ format: "passholder", version: 3, entries: index }, null, 2) + "\n";
@@ -78,10 +78,10 @@ export async function openPassHolderZip(
       await readZipEntry(bytes, indexEntry, MAX_INDEX_BYTES),
     );
     parsed = parseArchiveIndex(text);
-  } catch (err) {
+  } catch (error) {
     // A damaged index means a damaged archive; anything else (too large, not UTF-8, not PassHolder JSON) is not ours.
     throw new Error(
-      err instanceof Error && err.message === ZIP_INVALID ? ZIP_INVALID : NOT_ARCHIVE,
+      error instanceof Error && error.message === ZIP_INVALID ? ZIP_INVALID : NOT_ARCHIVE,
     );
   }
   return {
@@ -92,9 +92,11 @@ export async function openPassHolderZip(
       if (e.size !== f.size) throw new Error("inny rozmiar niż w opisie");
       try {
         return await readZipEntry(bytes, e, MAX_FILE_SIZE);
-      } catch (err) {
+      } catch (error) {
         throw new Error(
-          err instanceof Error && err.message === ZIP_ENTRY_TOO_LARGE ? "za duży" : "uszkodzony",
+          error instanceof Error && error.message === ZIP_ENTRY_TOO_LARGE
+            ? "za duży"
+            : "uszkodzony",
         );
       }
     },

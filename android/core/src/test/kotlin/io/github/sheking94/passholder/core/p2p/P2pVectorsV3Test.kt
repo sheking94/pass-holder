@@ -56,7 +56,7 @@ class P2pVectorsV3Test {
         assertEquals("passholder-test-vectors", vectors.format)
         assertEquals(3, vectors.version)
         val l = vectors.limits
-        assertEquals(l.MAX_ENTRY_BLOB_LENGTH, EntryV3.MAX_BLOB_LENGTH)
+        assertEquals(l.MAX_ENTRY_BLOB_LENGTH, EntryCodec.MAX_BLOB_LENGTH)
         assertEquals(l.MAX_BLOB_BYTES_PER_ROUND, HostSync.MAX_BLOB_BYTES_PER_ROUND)
         assertEquals(l.MAX_CHANGES_PER_REQUEST, HostSync.MAX_CHANGES_PER_REQUEST)
         assertEquals(l.MAX_CHANGES_PER_RESPONSE, HostSync.MAX_CHANGES_PER_RESPONSE)
@@ -69,20 +69,20 @@ class P2pVectorsV3Test {
             val nonce = Encoding.fromHex(e.nonce)
             val value = Json.parseToJsonElement(e.payload)
             // The blob is the seal of the exact payload text.
-            assertEquals(e.blob, EntryV3.encryptJson(key, e.id, e.payload, nonce))
-            val opened = EntryV3.decrypt(key, e.id, e.blob)
+            assertEquals(e.blob, EntryCodec.encryptJson(key, e.id, e.payload, nonce))
+            val opened = EntryCodec.decrypt(key, e.id, e.blob)
             assertEquals(value, opened)
             if (e.deleted) {
                 assertEquals(JsonNull, e.parsed)
-                val data = EntryV3.parseTombstone(value)
-                assertEquals(e.payload, EntryV3.serializeTombstone(data))
-                assertEquals(data, EntryV3.parseTombstone(opened))
+                val data = EntryCodec.parseTombstone(value)
+                assertEquals(e.payload, EntryCodec.serializeTombstone(data))
+                assertEquals(data, EntryCodec.parseTombstone(opened))
             } else {
-                val data = EntryV3.parse(value)
-                assertEquals(EntryV3.parse(e.parsed), data)
-                assertEquals(e.parsed, Json.parseToJsonElement(EntryV3.serialize(data)))
-                if (e.payload.startsWith("{\"v\":3")) assertEquals(e.payload, EntryV3.serialize(data))
-                assertEquals(data, EntryV3.parse(opened))
+                val data = EntryCodec.parse(value)
+                assertEquals(EntryCodec.parse(e.parsed), data)
+                assertEquals(e.parsed, Json.parseToJsonElement(EntryCodec.serialize(data)))
+                if (e.payload.startsWith("{\"v\":3")) assertEquals(e.payload, EntryCodec.serialize(data))
+                assertEquals(data, EntryCodec.parse(opened))
             }
         }
     }
@@ -92,7 +92,7 @@ class P2pVectorsV3Test {
         DynamicTest.dynamicTest("rejected: ${r.description}") {
             val value = Json.parseToJsonElement(r.payload)
             val e = assertThrows(IllegalArgumentException::class.java) {
-                if (r.deleted) EntryV3.parseTombstone(value) else EntryV3.parse(value)
+                if (r.deleted) EntryCodec.parseTombstone(value) else EntryCodec.parse(value)
             }
             assertNotNull(e.message)
             assertEquals(r.error, e.message)

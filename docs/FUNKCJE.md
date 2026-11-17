@@ -338,7 +338,7 @@ Android Keystore:
 Włączanie: Keystore: AES-256-GCM "passholder-biometric-unlock"
            (silna biometria przy każdym użyciu, unieważniany po dodaniu odcisku)
            okno odcisku → AES-GCM(klucz sejfu) → SharedPreferences "biometric": iv + data
-Odblokowanie: okno odcisku → odszyfruj data → PhoneVaultStore.unlockWithKeys
+Odblokowanie: okno odcisku → odszyfruj data → PhoneVaultStore.unlockWithVaultKey
               (porównanie z keyCheck w stałym czasie; zły klucz = odmowa)
 ```
 
@@ -356,7 +356,7 @@ Odblokowanie: okno odcisku → odszyfruj data → PhoneVaultStore.unlockWithKeys
 
 Kod (`android/app/.../app/`): `BiometricUnlock.kt` (Keystore, zapis, okno systemowe), `BiometricController.kt`,
 `LockController.kt`, `LeaveLock.kt`, `ui/FingerprintDialog.kt`, `ui/LockedScreen.kt`, `ui/ListScreen.kt`;
-`PhoneVaultStore.exportUnlockKeys()` / `unlockWithKeys()`.
+`PhoneVaultStore.exportVaultKey()` / `unlockWithVaultKey()`.
 
 **Nie sprawdzono na prawdziwym telefonie** w testach automatycznych (Robolectric nie ma Keystore ani
 czytnika). Do ręcznego sprawdzenia: włączenie, odblokowanie, Home i powrót przed i po 60 s, wyłączenie

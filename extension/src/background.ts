@@ -35,28 +35,33 @@ function fromExtensionPage(sender: chrome.runtime.MessageSender): boolean {
 // The popup closes as soon as it loses focus, so the one-minute timer lives here, in an alarm that
 // survives the service worker being stopped.
 
-chrome.runtime.onMessage.addListener((message: ClipboardMessage, sender) => {
-  if (message.target !== "background" || message.type !== "password-copied") return;
+function onPasswordCopied(
+  message: ClipboardMessage & { type: "password-copied" },
+  sender: chrome.runtime.MessageSender,
+): void {
   if (!fromExtensionPage(sender)) return;
   void (async () => {
     await chrome.storage.session.set({ copiedPasswordHash: message.hash });
     await chrome.alarms.create(CLEAR_CLIPBOARD_ALARM, { delayInMinutes: CLEAR_AFTER_MINUTES });
   })();
-});
+}
 
 // Autofill: a fresh store per event, because the service worker may have been stopped in between.
 const newStore = () =>
   new VaultStore(chromeStore(chrome.storage.local), chromeStore(chrome.storage.session));
 
-chrome.runtime.onMessage.addListener((message: FillMessage, sender, sendResponse) => {
-  if (message.target !== "background" || message.type !== "fill") return;
+function onFill(
+  message: FillMessage,
+  sender: chrome.runtime.MessageSender,
+  sendResponse: (response: unknown) => void,
+): true | undefined {
   // Other extensions arrive at onMessageExternal; the sender URL also keeps out this extension's own content scripts.
-  if (!fromExtensionPage(sender)) return;
+  if (!fromExtensionPage(sender)) return undefined;
   void fillTab(newStore(), chromeTabApi(), message.tabId, message.entryId)
     .catch(() => ({ ok: false, error: UNSUPPORTED_PAGE }))
     .then(sendResponse);
   return true;
-});
+}
 
 // Save prompt: candidates live in session storage, so a stopped service worker loses nothing.
 const promptWindows = new PromptWindows(
@@ -83,35 +88,58 @@ type SaveMessage =
   | SaveAnswerMessage
   | SavePreviewMessage
   | SaveUnlockMessage;
+function onSaveMessage(
+  m: SaveMessage,
+  sender: chrome.runtime.MessageSender,
+  sendResponse: (response: unknown) => void,
+): true | undefined {
+  const run = <T>(work: Promise<T>, onError: T) => {
+    work
+      .catch((error: unknown) => {
+        console.warn("PassHolder: save message failed", error);
+        return onError;
+      })
+      .then(sendResponse);
+    return true as const;
+  };
+  switch (m.type) {
+    case "save-candidate":
+      return run(
+        saveCandidates.onCandidate(m, sender).then(() => ({})),
+        {},
+      );
+    case "save-pending":
+      return run(saveCandidates.onPending(m, sender), {});
+    case "save-info":
+      return run(saveCandidates.onInfo(m, sender), undefined);
+    case "save-preview":
+      return run(saveCandidates.onPreview(m, sender), undefined);
+    case "save-answer":
+      return run(saveCandidates.onAnswer(m, sender), { ok: false, error: UNSUPPORTED_PAGE });
+    case "save-unlock":
+      return run(unlockForSave(m, sender), undefined);
+    default:
+      return undefined;
+  }
+}
+
+type BackgroundMessage = ClipboardMessage | FillMessage | SaveMessage;
+
+/** The one listener for messages to the service worker; true keeps the channel open for an async answer. */
 chrome.runtime.onMessage.addListener(
-  (message: { target?: string } & Partial<SaveMessage>, sender, sendResponse) => {
+  (message: { target?: string } & Partial<BackgroundMessage>, sender, sendResponse) => {
     if (message.target !== "background") return;
-    const run = <T>(work: Promise<T>, onError: T) => {
-      work
-        .catch((error: unknown) => {
-          console.warn("PassHolder: save message failed", error);
-          return onError;
-        })
-        .then(sendResponse);
-      return true;
-    };
-    const m = message as SaveMessage;
+    const m = message as BackgroundMessage;
     switch (m.type) {
-      case "save-candidate":
-        return run(
-          saveCandidates.onCandidate(m, sender).then(() => ({})),
-          {},
-        );
-      case "save-pending":
-        return run(saveCandidates.onPending(m, sender), {});
-      case "save-info":
-        return run(saveCandidates.info(m, sender), undefined);
-      case "save-preview":
-        return run(saveCandidates.preview(m, sender), undefined);
-      case "save-answer":
-        return run(saveCandidates.answer(m, sender), { ok: false, error: UNSUPPORTED_PAGE });
-      case "save-unlock":
-        return run(unlockForSave(m, sender), undefined);
+      case "password-copied":
+        onPasswordCopied(m, sender);
+        return;
+      case "clear-if-unchanged":
+        return; // for the offscreen document
+      case "fill":
+        return onFill(m, sender, sendResponse);
+      default:
+        return onSaveMessage(m, sender, sendResponse);
     }
   },
 );
@@ -121,7 +149,7 @@ async function unlockForSave(
   m: SaveUnlockMessage,
   sender: chrome.runtime.MessageSender,
 ): Promise<undefined> {
-  const tabId = await saveCandidates.unlockTab(m, sender);
+  const tabId = await saveCandidates.onUnlockRequest(m, sender);
   if (tabId === undefined) return undefined;
   const tab = await chrome.tabs.update(tabId, { active: true });
   if (tab?.windowId === undefined) return undefined;

@@ -1,6 +1,6 @@
 package io.github.sheking94.passholder.core.transfer
 
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
+import io.github.sheking94.passholder.core.p2p.EntryContent
 import io.github.sheking94.passholder.core.p2p.NoteFields
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -16,7 +16,7 @@ class SortVectorTest {
         val file = File(System.getProperty("passholder.repoRoot"), "core/test-vectors/transfer/sort.json")
         val o = Json.parseToJsonElement(file.readText()) as JsonObject
         fun list(k: String) = (o[k] as JsonArray).map { it.jsonPrimitive.content }
-        val entries = list("names").map { EntryContentV3(it, "", NoteFields, emptyList()) }
+        val entries = list("names").map { EntryContent(it, "", NoteFields, emptyList()) }
         assertEquals(list("sorted"), sortForExport(entries).map { it.name })
     }
 }

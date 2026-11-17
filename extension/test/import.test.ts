@@ -35,11 +35,11 @@ describe("VaultStore.importContents", () => {
   it("skips duplicates within the file and in the vault (login), keeps one that differs", async () => {
     const { store, phone } = await pairedBrowser();
     await store.putEntry("1", newLogin({ name: "Bank", username: "jan", password: "x" }));
-    const login = (password: string): p2p.EntryContentV3 =>
+    const login = (password: string): p2p.EntryContent =>
       ({
         ...p2p.emptyLogin("Bank"),
         fields: { ...p2p.emptyLogin("Bank").fields, username: "jan", password },
-      }) as p2p.EntryContentV3;
+      }) as p2p.EntryContent;
     const poczta = { ...login("y"), name: "Poczta" };
     const result = await store.importContents([login("x"), login("nowe"), poczta, poczta], ids());
     expect(result).toEqual({ added: 2, duplicates: 2, tooLarge: 0 });
@@ -85,10 +85,10 @@ describe("VaultStore.importContents", () => {
 
   it("counts an entry over 64 KiB as too large and still imports the rest", async () => {
     const { store } = await pairedBrowser();
-    const big: p2p.EntryContentV3 = {
+    const big: p2p.EntryContent = {
       ...p2p.emptyLogin("big"),
       note: "x".repeat(70_000),
-    } as p2p.EntryContentV3;
+    } as p2p.EntryContent;
     const { parsed } = transfer.parseImportFile(read("passholder.json"));
     const result = await store.importContents([big, parsed.entries[0]!], ids());
     expect(result).toEqual({ added: 1, duplicates: 0, tooLarge: 1 });

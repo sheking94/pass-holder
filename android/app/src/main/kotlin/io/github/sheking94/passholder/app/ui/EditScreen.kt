@@ -28,7 +28,7 @@ import io.github.sheking94.passholder.app.ui.forms.LoginForm
 import io.github.sheking94.passholder.core.p2p.CardFields
 import io.github.sheking94.passholder.core.p2p.ContactFields
 import io.github.sheking94.passholder.core.p2p.DocumentFields
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
+import io.github.sheking94.passholder.core.p2p.EntryContent
 import io.github.sheking94.passholder.core.p2p.LoginFields
 import io.github.sheking94.passholder.core.p2p.NoteFields
 
@@ -44,7 +44,7 @@ fun EditScreen(id: String?, type: EntryType, state: UiState, vm: AppViewModel) {
     var content by remember(id, type) { mutableStateOf(original ?: emptyContent(type)) }
 
     // Any edit drops an error status (e.g. "Ważność: wpisz MM/RR") left by an earlier save attempt.
-    fun edit(updated: EntryContentV3) {
+    fun edit(updated: EntryContent) {
         content = updated
         vm.clearError()
     }

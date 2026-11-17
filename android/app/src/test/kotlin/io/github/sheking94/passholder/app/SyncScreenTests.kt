@@ -13,9 +13,9 @@ import io.github.sheking94.passholder.core.Kdf
 import io.github.sheking94.passholder.core.KdfParams
 import io.github.sheking94.passholder.core.VaultCrypto
 import io.github.sheking94.passholder.core.p2p.DeviceIdentity
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
-import io.github.sheking94.passholder.core.p2p.EntryDataV3
-import io.github.sheking94.passholder.core.p2p.EntryV3
+import io.github.sheking94.passholder.core.p2p.EntryCodec
+import io.github.sheking94.passholder.core.p2p.EntryContent
+import io.github.sheking94.passholder.core.p2p.EntryData
 import io.github.sheking94.passholder.core.p2p.Hlc
 import io.github.sheking94.passholder.core.p2p.HttpTestTransport
 import io.github.sheking94.passholder.core.p2p.LoginFields
@@ -75,7 +75,7 @@ abstract class SyncScreenTestBase : ScreenTestBase() {
     }
 
     protected fun loginData(name: String, username: String, password: String, hlc: Hlc) =
-        EntryDataV3(EntryContentV3(name, "", LoginFields(username, password), emptyList()), hlc)
+        EntryData(EntryContent(name, "", LoginFields(username, password), emptyList()), hlc)
 
     private fun codeNodes(pattern: Regex) = compose.onAllNodes(hasText(" ", substring = true)).fetchSemanticsNodes()
         .flatMap { it.config.getOrNull(SemanticsProperties.Text).orEmpty().map { t -> t.text } }
@@ -226,7 +226,7 @@ class RestoreFlowTest : SyncScreenTestBase() {
                 id,
                 0,
                 false,
-                EntryV3.encrypt(vaultKey, id, loginData(name, "jan", "pw-$id", Hlc(clock, 0, extIdentity.deviceId))),
+                EntryCodec.encrypt(vaultKey, id, loginData(name, "jan", "pw-$id", Hlc(clock, 0, extIdentity.deviceId))),
             )
         }
         val res = client(pair).syncResponse(P2pSyncRequest(pair.phoneVaultInfo!!.epoch, 0, changes))
@@ -348,7 +348,7 @@ class SyncRefreshesEntriesTest : SyncScreenTestBase() {
         click("Zapisz")
         waitFor("Zapisano na telefonie", substring = true)
         val old = app.phoneStore.entries().single()
-        val vaultKey = app.phoneStore.exportUnlockKeys()
+        val vaultKey = app.phoneStore.exportVaultKey()
 
         click("Synchronizacja")
         waitFor("http://127.0.0.1:", substring = true)
@@ -357,7 +357,7 @@ class SyncRefreshesEntriesTest : SyncScreenTestBase() {
         assertEquals(pair.finish?.body, 200, pair.finish?.status)
 
         // The extension edited the same entry later than the phone did.
-        val blob = EntryV3.encrypt(
+        val blob = EntryCodec.encrypt(
             vaultKey,
             old.id,
             loginData("bank.pl", "jan.nowak", "nowe-haslo-456", Hlc(clock + 60_000, 0, extIdentity.deviceId)),

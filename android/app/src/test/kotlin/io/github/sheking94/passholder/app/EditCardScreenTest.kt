@@ -9,7 +9,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ApplicationProvider
 import io.github.sheking94.passholder.app.entries.EntryType
 import io.github.sheking94.passholder.core.p2p.CardFields
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
+import io.github.sheking94.passholder.core.p2p.EntryContent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -56,7 +56,7 @@ class EditCardScreenTest : ScreenTestBase() {
         click("Zapisz")
         waitFor("Zapisano na telefonie", substring = true)
         assertEquals(
-            EntryContentV3("Visa", "", CardFields("JAN KOWALSKI", "4111 1111 1111 1111", "12/27", "123", "4321"), emptyList()),
+            EntryContent("Visa", "", CardFields("JAN KOWALSKI", "4111 1111 1111 1111", "12/27", "123", "4321"), emptyList()),
             app.phoneStore.entries().single().content,
         )
     }

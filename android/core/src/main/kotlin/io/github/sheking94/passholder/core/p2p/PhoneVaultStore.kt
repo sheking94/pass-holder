@@ -210,18 +210,18 @@ class PhoneVaultStore(
     @Synchronized
     fun finishRestore(masterPassword: String) {
         val notSent = "Wtyczka jeszcze nie przesłała sejfu"
-        val s = synchronized(stateLock) { state }
-        check(s != null && s.keyCheck == null) { "Odtwarzanie z wtyczki nie trwa" }
-        val kdf = s.kdf ?: throw IllegalStateException(notSent)
-        val wrapped = s.wrappedVaultKey ?: throw IllegalStateException(notSent)
-        check(s.devices.isNotEmpty()) { notSent }
+        val hostState = synchronized(stateLock) { state }
+        check(hostState != null && hostState.keyCheck == null) { "Odtwarzanie z wtyczki nie trwa" }
+        val kdf = hostState.kdf ?: throw IllegalStateException(notSent)
+        val wrapped = hostState.wrappedVaultKey ?: throw IllegalStateException(notSent)
+        check(hostState.devices.isNotEmpty()) { notSent }
         val store = synchronized(stateLock) { openRecords() }
         check(synchronized(store) { store.currentRevision() > 0 }) { notSent }
         val vaultKey = unwrap(masterPassword, kdf, wrapped)
         try {
             synchronized(stateLock) {
                 val current = state
-                if (current == null || current.epoch != s.epoch || current.wrappedVaultKey != wrapped) {
+                if (current == null || current.epoch != hostState.epoch || current.wrappedVaultKey != wrapped) {
                     throw IllegalStateException("Odtwarzanie zmieniło się w trakcie, spróbuj jeszcze raz")
                 }
                 saveState(current.copy(keyCheck = keyCheck(vaultKey)))
@@ -245,9 +245,9 @@ class PhoneVaultStore(
     @Synchronized
     fun changeMasterPassword(oldPassword: String, newPassword: String) {
         val current = requireSession()
-        val s = requireVault()
+        val hostState = requireVault()
         require(oldPassword != newPassword) { "Nowe hasło musi być inne niż obecne" }
-        val checked = unwrap(oldPassword, s.kdf!!, s.wrappedVaultKey!!)
+        val checked = unwrap(oldPassword, hostState.kdf!!, hostState.wrappedVaultKey!!)
         try {
             if (!MessageDigest.isEqual(checked, current.vaultKey)) throw IllegalArgumentException("Złe hasło główne")
         } finally {
@@ -263,7 +263,7 @@ class PhoneVaultStore(
         pairing.cancel()
         synchronized(stateLock) {
             val latest = state
-            check(latest != null && latest.epoch == s.epoch && latest.keyCheck == s.keyCheck) {
+            check(latest != null && latest.epoch == hostState.epoch && latest.keyCheck == hostState.keyCheck) {
                 "Sejf zmienił się w trakcie, spróbuj jeszcze raz"
             }
             saveState(latest.copy(kdf = kdf, wrappedVaultKey = wrapped, devices = emptyList()))
@@ -279,8 +279,8 @@ class PhoneVaultStore(
     @Synchronized
     fun confirmMasterPassword(masterPassword: String) {
         val current = requireSession()
-        val s = requireVault()
-        val checked = unwrap(masterPassword, s.kdf!!, s.wrappedVaultKey!!)
+        val hostState = requireVault()
+        val checked = unwrap(masterPassword, hostState.kdf!!, hostState.wrappedVaultKey!!)
         try {
             if (!MessageDigest.isEqual(checked, current.vaultKey)) throw IllegalArgumentException("Złe hasło główne")
         } finally {
@@ -293,10 +293,10 @@ class PhoneVaultStore(
     /** Works offline: everything is on disk. */
     @Synchronized
     fun unlock(masterPassword: String) {
-        val s = requireVault()
-        val vaultKey = unwrap(masterPassword, s.kdf!!, s.wrappedVaultKey!!)
+        val hostState = requireVault()
+        val vaultKey = unwrap(masterPassword, hostState.kdf!!, hostState.wrappedVaultKey!!)
         try {
-            if (!MessageDigest.isEqual(Encoding.utf8(keyCheck(vaultKey)), Encoding.utf8(s.keyCheck!!))) {
+            if (!MessageDigest.isEqual(Encoding.utf8(keyCheck(vaultKey)), Encoding.utf8(hostState.keyCheck!!))) {
                 throw IllegalArgumentException("Złe hasło główne")
             }
             start(vaultKey)
@@ -308,17 +308,17 @@ class PhoneVaultStore(
 
     /** The vault key (32 bytes) for the fingerprint unlock. Returns a copy; the caller should zero it once encrypted. */
     @Synchronized
-    fun exportUnlockKeys(): ByteArray = requireSession().vaultKey.copyOf()
+    fun exportVaultKey(): ByteArray = requireSession().vaultKey.copyOf()
 
-    /** Unlocks with keys from [exportUnlockKeys], checked against the stored key check in constant time. */
+    /** Unlocks with the key from [exportVaultKey], checked against the stored key check in constant time. */
     @Synchronized
-    fun unlockWithKeys(keys: ByteArray) {
-        require(keys.size == KEY_LENGTH) { "Złe klucze odblokowania" }
-        val s = requireVault()
-        if (!MessageDigest.isEqual(Encoding.utf8(keyCheck(keys)), Encoding.utf8(s.keyCheck!!))) {
+    fun unlockWithVaultKey(key: ByteArray) {
+        require(key.size == KEY_LENGTH) { "Złe klucze odblokowania" }
+        val hostState = requireVault()
+        if (!MessageDigest.isEqual(Encoding.utf8(keyCheck(key)), Encoding.utf8(hostState.keyCheck!!))) {
             throw IllegalArgumentException("Złe klucze odblokowania")
         }
-        val vaultKey = keys.copyOf()
+        val vaultKey = key.copyOf()
         try {
             start(vaultKey)
         } catch (e: Throwable) {
@@ -372,7 +372,7 @@ class PhoneVaultStore(
 
     /** Writes any entry content; [EntryTypeMismatchException] for another live type, [EntryTooLargeException] leaves the store as it was. */
     @Synchronized
-    fun upsertContent(id: String, content: EntryContentV3) {
+    fun upsertContent(id: String, content: EntryContent) {
         requireSession().vault.upsertContent(id, content)
         touch()
         pruneQuietly()
@@ -380,7 +380,7 @@ class PhoneVaultStore(
 
     /** Imports [entries] all or nothing; see [PhoneVault.importContents]. */
     @Synchronized
-    fun importContents(entries: List<EntryContentV3>): ImportResult {
+    fun importContents(entries: List<EntryContent>): ImportResult {
         val result = requireSession().vault.importContents(entries)
         touch()
         return result
@@ -388,7 +388,7 @@ class PhoneVaultStore(
 
     /** Content of every live readable entry (for export). */
     @Synchronized
-    fun allContents(): List<EntryContentV3> {
+    fun allContents(): List<EntryContent> {
         val result = requireSession().vault.entries().map { it.content }
         touch()
         return result
@@ -414,16 +414,16 @@ class PhoneVaultStore(
     @Synchronized
     fun addFile(bytes: ByteArray, name: String, mime: String): Attachment {
         requireSession()
-        val enc = FileChunks.encrypt(bytes, name, mime)
-        val a = enc.attachment
+        val encrypted = FileChunks.encrypt(bytes, name, mime)
+        val attachment = encrypted.attachment
         val store = openFiles()
         synchronized(store) {
-            check(store.canStore(enc.blobs.sumOf { it.length.toLong() })) { "Za mało miejsca na telefonie" }
-            val t = now()
-            enc.blobs.forEachIndexed { i, blob -> store.put(a.id, i, a.chunks, blob, t) }
+            check(store.canStore(encrypted.blobs.sumOf { it.length.toLong() })) { "Za mało miejsca na telefonie" }
+            val at = now()
+            encrypted.blobs.forEachIndexed { i, blob -> store.put(attachment.id, i, attachment.chunks, blob, at) }
         }
         touch()
-        return a
+        return attachment
     }
 
     /** Every chunk of the file is on the phone (sent by the extension or added here). */
@@ -454,8 +454,8 @@ class PhoneVaultStore(
     fun pruneFiles(): Int {
         val (used, store) = synchronized(this) {
             val vault = requireSession().vault
-            val fs = openFiles()
-            if (synchronized(fs) { fs.ids().isEmpty() }) return 0
+            val fileStore = openFiles()
+            if (synchronized(fileStore) { fileStore.ids().isEmpty() }) return 0
             if (vault.unreadableIds().isNotEmpty()) return 0
             vault.entries().flatMap { e -> e.content.attachments.map { it.id } }.toSet() to openFiles()
         }
@@ -477,9 +477,9 @@ class PhoneVaultStore(
     fun discardFiles(ids: Collection<String>): Int {
         val (used, store) = synchronized(this) {
             val vault = requireSession().vault
-            val fs = openFiles()
+            val fileStore = openFiles()
             if (vault.unreadableIds().isNotEmpty()) return 0
-            vault.entries().flatMap { e -> e.content.attachments.map { it.id } }.toSet() to fs
+            vault.entries().flatMap { e -> e.content.attachments.map { it.id } }.toSet() to fileStore
         }
         return synchronized(store) {
             // A reset since the entries were listed: the old files are gone already.
@@ -516,9 +516,9 @@ class PhoneVaultStore(
                     if (bytes.size != f.size) {
                         reasons[path] = "inny rozmiar niż w opisie"
                     } else {
-                        val a = addFile(bytes, f.name, f.mime)
-                        added.add(a.id)
-                        stored[path] = a
+                        val attachment = addFile(bytes, f.name, f.mime)
+                        added.add(attachment.id)
+                        stored[path] = attachment
                     }
                 }
                 val skips = ArrayList<ImportSkip>()
@@ -526,9 +526,9 @@ class PhoneVaultStore(
                 val contents = parsed.entries.map { e ->
                     if (e.position !in freshPositions) return@map e.content
                     val files = e.files.mapNotNull { f ->
-                        val a = stored[f.path]
-                        if (a == null) skips.add(ImportSkip("wpis ${e.position}, ${f.name}", reasons[f.path] ?: "brak w archiwum"))
-                        a
+                        val attachment = stored[f.path]
+                        if (attachment == null) skips.add(ImportSkip("wpis ${e.position}, ${f.name}", reasons[f.path] ?: "brak w archiwum"))
+                        attachment
                     }
                     e.content.copy(attachments = files)
                 }
@@ -587,9 +587,9 @@ class PhoneVaultStore(
 
     /** The device can no longer handshake (its next request gets 403). */
     fun removeDevice(deviceId: String) = synchronized(stateLock) {
-        val s = state ?: return@synchronized
-        if (s.devices.none { it.deviceId == deviceId }) return@synchronized
-        saveState(s.copy(devices = s.devices.filter { it.deviceId != deviceId }))
+        val hostState = state ?: return@synchronized
+        if (hostState.devices.none { it.deviceId == deviceId }) return@synchronized
+        saveState(hostState.copy(devices = hostState.devices.filter { it.deviceId != deviceId }))
     }
 
     // ---- Sync mode ----
@@ -613,8 +613,8 @@ class PhoneVaultStore(
     /** A new pairing code; in restore mode while a restore is in progress. */
     fun offerPairing(): PairingOffer {
         val mode = synchronized(stateLock) {
-            val s = state ?: throw IllegalStateException("Brak sejfu na telefonie")
-            if (s.keyCheck == null) PairingMode.RESTORE else PairingMode.PAIR
+            val hostState = state ?: throw IllegalStateException("Brak sejfu na telefonie")
+            if (hostState.keyCheck == null) PairingMode.RESTORE else PairingMode.PAIR
         }
         return pairing.offer(mode)
     }
@@ -628,12 +628,12 @@ class PhoneVaultStore(
 
     /** Null before the first createVault/startRestore. Works while locked: the host only moves opaque blobs. */
     private fun currentHost(): P2pHost? = synchronized(stateLock) {
-        val s = state ?: return@synchronized null
+        val hostState = state ?: return@synchronized null
         host ?: P2pHost(
-            staticKey = stateStore.staticKey(s),
+            staticKey = stateStore.staticKey(hostState),
             devices = ::pairedDevices,
             store = openRecords(),
-            epoch = s.epoch,
+            epoch = hostState.epoch,
             addresses = { currentAddresses() },
             now = now,
             onSynced = ::onSynced,
@@ -647,31 +647,31 @@ class PhoneVaultStore(
     private fun pairedDevices(): List<PairedDevice> = devices().map { it.toPairedDevice() }
 
     private fun onSynced(deviceId: String) = synchronized(stateLock) {
-        val s = state ?: return@synchronized
-        if (s.devices.none { it.deviceId == deviceId }) return@synchronized
-        val t = now()
-        saveState(s.copy(devices = s.devices.map { if (it.deviceId == deviceId) it.copy(lastSyncAt = t) else it }))
+        val hostState = state ?: return@synchronized
+        if (hostState.devices.none { it.deviceId == deviceId }) return@synchronized
+        val at = now()
+        saveState(hostState.copy(devices = hostState.devices.map { if (it.deviceId == deviceId) it.copy(lastSyncAt = at) else it }))
     }
 
     private fun identity(): DeviceIdentity = synchronized(stateLock) {
-        val s = state ?: throw IllegalStateException("No host state")
-        val cached = publicKeyCache?.takeIf { it.first == s.deviceId }?.second
+        val hostState = state ?: throw IllegalStateException("No host state")
+        val cached = publicKeyCache?.takeIf { it.first == hostState.deviceId }?.second
         val publicKey = cached ?: run {
-            val pair = stateStore.staticKey(s)
+            val pair = stateStore.staticKey(hostState)
             pair.privateKey.fill(0)
-            Encoding.toBase64(pair.publicKey).also { publicKeyCache = s.deviceId to it }
+            Encoding.toBase64(pair.publicKey).also { publicKeyCache = hostState.deviceId to it }
         }
-        DeviceIdentity(s.deviceId, deviceName, publicKey)
+        DeviceIdentity(hostState.deviceId, deviceName, publicKey)
     }
 
     private fun vaultInfo(@Suppress("UNUSED_PARAMETER") restored: VaultInfo?): VaultInfo {
         val list = currentAddresses().take(Pairing.MAX_ADDRESSES)
         return synchronized(stateLock) {
-            val s = state ?: throw IllegalStateException("No host state")
+            val hostState = state ?: throw IllegalStateException("No host state")
             VaultInfo(
-                s.epoch,
-                s.kdf ?: throw IllegalStateException("No vault"),
-                s.wrappedVaultKey ?: throw IllegalStateException("No vault"),
+                hostState.epoch,
+                hostState.kdf ?: throw IllegalStateException("No vault"),
+                hostState.wrappedVaultKey ?: throw IllegalStateException("No vault"),
                 list,
             )
         }
@@ -679,20 +679,20 @@ class PhoneVaultStore(
 
     /** The same deviceId replaces the earlier entry; in restore mode also keeps the extension's KDF and wrapped key. */
     private fun onPaired(device: StoredDevice, restored: VaultInfo?) = synchronized(stateLock) {
-        val s = state ?: throw IllegalStateException("No host state")
-        val restoring = s.keyCheck == null
+        val hostState = state ?: throw IllegalStateException("No host state")
+        val restoring = hostState.keyCheck == null
         // The offer's mode was fixed when it was made; refuse if the phone's state changed since.
         check(restoring == (restored != null)) { "Pairing mode no longer matches the vault" }
         // Once an extension sent its vault for the restore, only that extension may pair again (and resend it).
-        if (restored != null && s.kdf != null) {
-            check(s.devices.any { it.deviceId == device.deviceId }) { "Restore already started by another device" }
+        if (restored != null && hostState.kdf != null) {
+            check(hostState.devices.any { it.deviceId == device.deviceId }) { "Restore already started by another device" }
         }
-        val devices = s.devices.filter { it.deviceId != device.deviceId } + device
+        val devices = hostState.devices.filter { it.deviceId != device.deviceId } + device
         saveState(
             if (restored == null) {
-                s.copy(devices = devices)
+                hostState.copy(devices = devices)
             } else {
-                s.copy(devices = devices, kdf = restored.kdf, wrappedVaultKey = restored.wrappedVaultKey)
+                hostState.copy(devices = devices, kdf = restored.kdf, wrappedVaultKey = restored.wrappedVaultKey)
             },
         )
     }
@@ -796,9 +796,11 @@ class PhoneVaultStore(
     }
 
     private fun requireVault(): HostState {
-        val s = synchronized(stateLock) { state }
-        check(s != null && s.kdf != null && s.wrappedVaultKey != null && s.keyCheck != null) { "Brak sejfu na telefonie" }
-        return s
+        val hostState = synchronized(stateLock) { state }
+        check(hostState != null && hostState.kdf != null && hostState.wrappedVaultKey != null && hostState.keyCheck != null) {
+            "Brak sejfu na telefonie"
+        }
+        return hostState
     }
 
     private fun requireSession(): Session = session ?: throw IllegalStateException("Sejf jest zablokowany")

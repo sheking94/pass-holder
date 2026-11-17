@@ -22,7 +22,7 @@ import androidx.work.testing.WorkManagerTestInitHelper
 import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.sheking94.passholder.core.RemoteRecord
 import io.github.sheking94.passholder.core.login
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
+import io.github.sheking94.passholder.core.p2p.EntryContent
 import io.github.sheking94.passholder.core.p2p.FileSyncStore
 import io.github.sheking94.passholder.core.p2p.PhoneVaultStore
 import io.github.sheking94.passholder.core.p2p.SecretWrapper
@@ -163,7 +163,7 @@ abstract class ScreenTestBase {
     }
 
     /** Writes an entry of any type straight into the store and refreshes the list. */
-    protected fun putEntry(content: EntryContentV3): String {
+    protected fun putEntry(content: EntryContent): String {
         val id = java.util.UUID.randomUUID().toString()
         ApplicationProvider.getApplicationContext<PassHolderApp>().phoneStore.upsertContent(id, content)
         viewModel().reloadEntries()
@@ -319,7 +319,7 @@ class RemoveVaultKeystoreFailureTest : ScreenTestBase() {
     override fun beforeLaunch(app: PassHolderApp) {
         app.biometric = BiometricUnlock(
             app,
-            object : UnlockKeyProtector by SoftwareKeyProtector() {
+            object : BiometricKeyProtector by SoftwareKeyProtector() {
                 override fun deleteKey() = throw IllegalStateException("Keystore niedostępny")
             },
         )
@@ -375,7 +375,7 @@ class BackgroundSaveRefreshTest : ScreenTestBase() {
         // As the autofill service does: straight into the store, without the view model.
         store.upsertContent(
             "bg",
-            EntryContentV3(
+            EntryContent(
                 "tlo.example",
                 "",
                 io.github.sheking94.passholder.core.p2p.LoginFields("jan", "nowe", urls = listOf("tlo.example")),

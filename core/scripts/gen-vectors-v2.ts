@@ -7,8 +7,8 @@ import { fromBase64, fromHex, toHex, utf8 } from "../src/encoding.ts";
 import {
   CipherState,
   compareHlc,
-  encryptPayloadV2,
-  entryAadV2,
+  encryptPayload,
+  entryAad,
   MAX_CHANGES_PER_REQUEST,
   MAX_CHANGES_PER_RESPONSE,
   MAX_FRAMES,
@@ -19,7 +19,7 @@ import {
   type Hlc,
   type PairingKind,
   type PairingRole,
-  type TombstoneDataV2,
+  type TombstoneData,
 } from "../src/p2p/index.ts";
 import { encryptFrames } from "../src/p2p/frames.ts";
 
@@ -63,14 +63,14 @@ interface LegacyEntryData {
 
 async function entryVector(
   description: string,
-  data: LegacyEntryData | TombstoneDataV2,
+  data: LegacyEntryData | TombstoneData,
   nonceHex: string,
 ) {
   return {
     description,
     vaultKey,
     id: entryId,
-    aad: entryAadV2(entryId),
+    aad: entryAad(entryId),
     data,
     nonce: nonceHex,
     blob:
@@ -78,10 +78,10 @@ async function entryVector(
         ? await seal(
             fromHex(vaultKey),
             utf8(JSON.stringify(data)),
-            entryAadV2(entryId),
+            entryAad(entryId),
             fromHex(nonceHex),
           )
-        : await encryptPayloadV2(fromHex(vaultKey), entryId, data, fromHex(nonceHex)),
+        : await encryptPayload(fromHex(vaultKey), entryId, data, fromHex(nonceHex)),
   };
 }
 

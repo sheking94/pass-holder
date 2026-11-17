@@ -57,13 +57,14 @@ class PhoneVaultStoreTest {
     private fun clientFor(transport: TestTransport, pair: PairResult) =
         TestP2pClient(extIdentity.deviceId, extKey, Encoding.fromBase64(pair.phoneIdentity!!.staticPublicKey), transport)
 
-    private fun blob(vaultKey: ByteArray, id: String, name: String) = EntryV3.encrypt(
+    private fun blob(vaultKey: ByteArray, id: String, name: String) = EntryCodec.encrypt(
         vaultKey,
         id,
-        EntryDataV3(EntryContentV3(name, "", LoginFields("user-$id", "pass-$id"), emptyList()), Hlc(time, 0, extIdentity.deviceId)),
+        EntryData(EntryContent(name, "", LoginFields("user-$id", "pass-$id"), emptyList()), Hlc(time, 0, extIdentity.deviceId)),
     )
 
-    private fun nameOf(vaultKey: ByteArray, id: String, blob: String) = EntryV3.parse(EntryV3.decrypt(vaultKey, id, blob)).content.name
+    private fun nameOf(vaultKey: ByteArray, id: String, blob: String) =
+        EntryCodec.parse(EntryCodec.decrypt(vaultKey, id, blob)).content.name
 
     @Test
     fun createVaultPairSyncAndReopen() {
@@ -91,7 +92,7 @@ class PhoneVaultStoreTest {
         assertEquals("Telefon", pair.phoneIdentity!!.name)
         // The extension unwraps the vault key with the master password.
         val vaultKey = Kdf.deriveKeys("hasło główne", info.kdf).let { VaultCrypto.unwrapVaultKey(it.encKey, info.wrappedVaultKey) }
-        assertArrayEquals(store.exportUnlockKeys(), vaultKey)
+        assertArrayEquals(store.exportVaultKey(), vaultKey)
         assertEquals(listOf("ext-1"), store.devices().map { it.deviceId })
         assertEquals("Chrome", store.devices()[0].name)
         assertEquals(time, store.devices()[0].pairedAt)
@@ -156,7 +157,7 @@ class PhoneVaultStoreTest {
         val store = newStore()
         store.createVault("stare hasło")
         store.upsertContent("e1", login("Bank", "jan", "tajne"))
-        val keyBefore = store.exportUnlockKeys()
+        val keyBefore = store.exportVaultKey()
         val http = serve(store)
         val pair = TestP2pClient.pair(http, store.offerPairing().code, extIdentity)
         val oldInfo = pair.phoneVaultInfo!!
@@ -176,7 +177,7 @@ class PhoneVaultStoreTest {
         val reopened = newStore()
         assertEquals("Złe hasło główne", assertThrows<IllegalArgumentException> { reopened.unlock("stare hasło") }.message)
         reopened.unlock("nowe hasło")
-        assertArrayEquals(keyBefore, reopened.exportUnlockKeys())
+        assertArrayEquals(keyBefore, reopened.exportVaultKey())
         assertEquals(listOf("Bank"), reopened.entries().map { it.credentials.name })
 
         // Pairing again hands out the new wrapping (new salt) under the same epoch.
@@ -293,10 +294,10 @@ class PhoneVaultStoreTest {
         assertEquals(PairingMode.PAIR, store.offerPairing().mode)
 
         // After a restart the restored vault opens with the extension's password and with the exported keys.
-        val keys = store.exportUnlockKeys()
+        val keys = store.exportVaultKey()
         val reopened = newStore()
         assertTrue(reopened.hasVault)
-        reopened.unlockWithKeys(keys)
+        reopened.unlockWithVaultKey(keys)
         assertEquals(3, reopened.entries().size)
         reopened.lock()
         reopened.unlock("hasło wtyczki")
@@ -405,28 +406,28 @@ class PhoneVaultStoreTest {
     fun unlockWithExportedKeysOnly() {
         val store = newStore()
         store.createVault("pw")
-        val keys = store.exportUnlockKeys()
+        val keys = store.exportVaultKey()
         assertEquals(32, keys.size)
         store.lock()
         assertFalse(store.isUnlocked)
-        assertThrows<IllegalStateException> { store.exportUnlockKeys() }
+        assertThrows<IllegalStateException> { store.exportVaultKey() }
 
         // Empty store: the key check still tells a wrong key apart.
         assertEquals(
             "Złe klucze odblokowania",
-            assertThrows<IllegalArgumentException> { store.unlockWithKeys(Encoding.randomBytes(32)) }.message,
+            assertThrows<IllegalArgumentException> { store.unlockWithVaultKey(Encoding.randomBytes(32)) }.message,
         )
-        assertThrows<IllegalArgumentException> { store.unlockWithKeys(Encoding.randomBytes(64)) }
+        assertThrows<IllegalArgumentException> { store.unlockWithVaultKey(Encoding.randomBytes(64)) }
         assertFalse(store.isUnlocked)
-        store.unlockWithKeys(keys)
+        store.unlockWithVaultKey(keys)
         assertTrue(store.isUnlocked)
 
         store.upsertContent("e1", login("Bank", "jan", "x"))
         store.lock()
-        assertThrows<IllegalArgumentException> { store.unlockWithKeys(Encoding.randomBytes(32)) }
+        assertThrows<IllegalArgumentException> { store.unlockWithVaultKey(Encoding.randomBytes(32)) }
         assertFalse(store.isUnlocked)
         newStore().apply {
-            unlockWithKeys(keys)
+            unlockWithVaultKey(keys)
             assertEquals(listOf("e1"), entries().map { it.id })
         }
     }
@@ -562,8 +563,8 @@ class PhoneVaultStoreTest {
         val store = newStore()
         store.createVault("pw")
         val list = listOf(
-            EntryContentV3("A", "", LoginFields("u", "p"), emptyList()),
-            EntryContentV3("B", "", LoginFields("u", "p"), emptyList()),
+            EntryContent("A", "", LoginFields("u", "p"), emptyList()),
+            EntryContent("B", "", LoginFields("u", "p"), emptyList()),
         )
         assertEquals(ImportResult(2, 0, 0), store.importContents(list))
         assertEquals(ImportResult(0, 2, 0), store.importContents(list))
@@ -595,7 +596,7 @@ class PhoneVaultStoreTest {
 
     private fun storedIds() = filesDir().listFiles().orEmpty().map { it.name }.toSet()
 
-    private fun withFile(name: String, a: Attachment) = EntryContentV3(name, "", LoginFields("u", "p"), emptyList(), listOf(a))
+    private fun withFile(name: String, a: Attachment) = EntryContent(name, "", LoginFields("u", "p"), emptyList(), listOf(a))
 
     private fun putBody(epoch: String, id: String, index: Int, chunks: Int, blob: String) =
         """{"op":"put","epoch":"$epoch","id":"$id","index":$index,"chunks":$chunks,"blob":"$blob"}"""
@@ -727,7 +728,7 @@ class PhoneVaultStoreTest {
         // Editing the login keeps the attachments, so nothing goes.
         store.upsertContent("e1", store.entry("e1")!!.content.copy(name = "A2"))
         assertEquals(setOf(a.id, b.id), storedIds())
-        store.upsertContent("e1", EntryContentV3("A3", "", LoginFields("u", "p"), emptyList()))
+        store.upsertContent("e1", EntryContent("A3", "", LoginFields("u", "p"), emptyList()))
         assertEquals(setOf(b.id), storedIds())
         store.delete("e2")
         assertEquals(emptySet<String>(), storedIds())
@@ -750,7 +751,7 @@ class PhoneVaultStoreTest {
         assertEquals(listOf("x"), store.unreadableIds())
         time += day + 1
         assertEquals(0, store.pruneFiles())
-        store.upsertContent("e1", EntryContentV3("A", "", LoginFields("u", "p"), emptyList()))
+        store.upsertContent("e1", EntryContent("A", "", LoginFields("u", "p"), emptyList()))
         store.lock()
         store.unlock("pw")
         assertEquals(setOf(orphan.id), storedIds())

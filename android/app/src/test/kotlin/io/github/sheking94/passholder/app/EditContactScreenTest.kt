@@ -5,7 +5,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ApplicationProvider
 import io.github.sheking94.passholder.app.entries.EntryType
 import io.github.sheking94.passholder.core.p2p.ContactFields
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
+import io.github.sheking94.passholder.core.p2p.EntryContent
 import io.github.sheking94.passholder.core.p2p.LabeledValue
 import io.github.sheking94.passholder.core.p2p.PostalAddress
 import org.junit.Assert.assertEquals
@@ -49,7 +49,7 @@ class EditContactScreenTest : ScreenTestBase() {
         waitFor("Zapisano na telefonie", substring = true)
         val store = phoneStore()
         assertEquals(
-            EntryContentV3(
+            EntryContent(
                 "Jan Kowalski",
                 "",
                 ContactFields(
@@ -68,7 +68,7 @@ class EditContactScreenTest : ScreenTestBase() {
     }
 }
 
-private val foreignDateContact = EntryContentV3(
+private val foreignDateContact = EntryContent(
     "Ola",
     "",
     ContactFields("Ola", "", "01.02.1990", listOf(LabeledValue("", "123")), emptyList(), emptyList()),

@@ -2,8 +2,8 @@ package io.github.sheking94.passholder.core.transfer
 
 import io.github.sheking94.passholder.core.files.Attachment
 import io.github.sheking94.passholder.core.files.FileChunks
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
-import io.github.sheking94.passholder.core.p2p.EntryV3
+import io.github.sheking94.passholder.core.p2p.EntryCodec
+import io.github.sheking94.passholder.core.p2p.EntryContent
 import io.github.sheking94.passholder.core.p2p.LoginFields
 import io.github.sheking94.passholder.core.p2p.NoteFields
 import kotlinx.serialization.json.Json
@@ -50,18 +50,18 @@ class PassHolderZipTest {
         "A".repeat(43) + "=",
     )
 
-    private val login = EntryContentV3(
+    private val login = EntryContent(
         "Bank",
         "Pliki w archiwum",
         LoginFields("jan", "tajne hasło", "", listOf("https://bank.example")),
         emptyList(),
         listOf(descriptor("Zażółć ?.txt", "text/plain", 1), descriptor("a:b?.jpg", "image/jpeg", 2)),
     )
-    private val note = EntryContentV3("Adres", "ul. Polna 1", NoteFields, emptyList())
+    private val note = EntryContent("Adres", "ul. Polna 1", NoteFields, emptyList())
     private val readAll: (Attachment) -> ByteArray? = { a -> bodies[a.name]?.copyOf() }
 
     private fun exportBytes(
-        entries: List<EntryContentV3>,
+        entries: List<EntryContent>,
         readFile: (Attachment) -> ByteArray? = readAll,
     ): Pair<ExportedArchive, ByteArray> {
         val out = ByteArrayOutputStream()
@@ -115,7 +115,7 @@ class PassHolderZipTest {
     private fun sha(b: ByteArray) = FileChunks.sha256Hex(b)
 
     /** archive.expected.json as (content, files with sha256, position). */
-    private fun expectedArchive(): List<Triple<EntryContentV3, List<Pair<ArchivedFile, String>>, Int>> {
+    private fun expectedArchive(): List<Triple<EntryContent, List<Pair<ArchivedFile, String>>, Int>> {
         val o = Json.parseToJsonElement(readVector("archive.expected.json")) as JsonObject
         assertEquals(JsonArray(emptyList()), o["skipped"])
         return (o["entries"] as JsonArray).map { item ->
@@ -129,7 +129,7 @@ class PassHolderZipTest {
                     f["path"]!!.jsonPrimitive.content,
                 ) to f["sha256"]!!.jsonPrimitive.content
             }
-            Triple(EntryV3.parseContent(e["content"]!!), files, e["position"]!!.jsonPrimitive.content.toInt())
+            Triple(EntryCodec.parseContent(e["content"]!!), files, e["position"]!!.jsonPrimitive.content.toInt())
         }
     }
 
@@ -454,8 +454,8 @@ class PassHolderZipTest {
     // ---- parseIndex: the same cases as parseArchiveIndex in core/test/transfer/passholder-zip.test.ts ----
 
     private fun parse(vararg entries: String) = PassHolderZip.parseIndex(index(*entries).toString(Charsets.UTF_8))
-    private val noteContent = EntryContentV3("Adres", "", NoteFields, emptyList())
-    private val loginContent = EntryContentV3("Bank", "", LoginFields("jan", "tajne"), emptyList())
+    private val noteContent = EntryContent("Adres", "", NoteFields, emptyList())
+    private val loginContent = EntryContent("Bank", "", LoginFields("jan", "tajne"), emptyList())
     private val a = ArchivedFile("a.txt", "text/plain", 3, "files/1-a.txt")
 
     @Test

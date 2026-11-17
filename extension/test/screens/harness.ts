@@ -8,6 +8,7 @@ import * as files from "@passholder/core/files";
 import { PhoneClient } from "../../src/phone-client.ts";
 import { chromeStore, VaultStore } from "../../src/vault-store.ts";
 import { CODE, FakePhone, networkFetch, PASSWORD, PHONE_URL, type Network } from "../fake-phone.ts";
+import type { SavePromptInfo } from "../../src/save/messages.ts";
 
 function fakeArea(): chrome.storage.StorageArea {
   const data = new Map<string, unknown>();
@@ -27,7 +28,7 @@ function fakeArea(): chrome.storage.StorageArea {
 const base = { note: "", custom: [] as p2p.CustomField[] };
 
 /** Obviously fake sample data, two or three entries per type. */
-const SAMPLES: { id: string; content: p2p.EntryContentV3 }[] = [
+const SAMPLES: { id: string; content: p2p.EntryContent }[] = [
   {
     id: "l1",
     content: {
@@ -354,7 +355,7 @@ async function setup() {
         decision,
         entryName: decision === "update" ? "Sklep" : undefined,
         locked,
-      };
+      } as SavePromptInfo;
       document.getElementById("app")!.replaceChildren(
         promptView(info, {
           answer: async () => ({ ok: true }),
