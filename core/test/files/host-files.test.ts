@@ -165,8 +165,8 @@ describe("processP2pFile", () => {
 describe("MemoryFileStore", () => {
   it("deletes and clears", () => {
     const store = new MemoryFileStore();
-    store.put(ID, 0, 1, "A", 1);
-    store.put(ID2, 0, 1, "A", 1);
+    store.put({ id: ID, index: 0, chunks: 1, blob: "A" }, 1);
+    store.put({ id: ID2, index: 0, chunks: 1, blob: "A" }, 1);
     store.delete(ID);
     expect(store.ids()).toEqual([ID2]);
     expect(store.chunks(ID)).toBeUndefined();
@@ -178,7 +178,7 @@ describe("MemoryFileStore", () => {
 describe("orphanFileIds", () => {
   it("lists unused files older than 24 h", () => {
     const store = new MemoryFileStore();
-    store.put(ID, 0, 1, "A", 1000);
+    store.put({ id: ID, index: 0, chunks: 1, blob: "A" }, 1000);
     const used = new Set<string>();
     expect(orphanFileIds(store, used, 1000 + ORPHAN_FILE_AGE_MS - 1)).toEqual([]);
     expect(orphanFileIds(store, used, 1000 + ORPHAN_FILE_AGE_MS + 1)).toEqual([ID]);

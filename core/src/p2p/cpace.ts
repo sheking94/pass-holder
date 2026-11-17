@@ -116,25 +116,23 @@ function scalarMultVfy(y: bigint, Yp: Uint8Array): Uint8Array {
   return Kp.toBytes();
 }
 
-/**
- * Starts a CPace run. `message` is lv_cat(Y, ad) and is sent to the peer.
- * `ya` (32 bytes, little-endian) is only for reproducing test vectors.
- */
+/** Starts a CPace run with a random scalar. `message` is lv_cat(Y, ad) and is sent to the peer. */
 export function cpaceStart(
   prs: Uint8Array,
   ci: Uint8Array,
   sid: Uint8Array,
   ad: Uint8Array,
-  ya?: Uint8Array,
 ): { state: CpaceState; message: Uint8Array } {
-  let y: bigint;
-  if (ya === undefined) {
-    y = sampleScalar();
-  } else {
-    if (ya.length !== 32) throw new Error("CPace: scalar must be 32 bytes");
-    y = bytesToScalarLE(ya);
-    if (y === 0n) throw new Error("CPace: zero scalar");
-  }
+  return startWithScalar(prs, ci, sid, ad, sampleScalar());
+}
+
+function startWithScalar(
+  prs: Uint8Array,
+  ci: Uint8Array,
+  sid: Uint8Array,
+  ad: Uint8Array,
+  y: bigint,
+): { state: CpaceState; message: Uint8Array } {
   const Y = calculateGenerator(prs, ci, sid).multiply(y).toBytes();
   return {
     state: { ya: y, Ya: Y, ad: ad.slice(), sid: sid.slice() },
@@ -164,6 +162,19 @@ export function cpaceFinish(
 
 /** Test-only access to intermediate values of the draft vector. Not part of the protocol API. */
 export const _cpaceInternals = {
+  /** cpaceStart with a fixed scalar `ya` (32 bytes, little-endian), to reproduce the draft vector. */
+  startWithScalar: (
+    prs: Uint8Array,
+    ci: Uint8Array,
+    sid: Uint8Array,
+    ad: Uint8Array,
+    ya: Uint8Array,
+  ): { state: CpaceState; message: Uint8Array } => {
+    if (ya.length !== 32) throw new Error("CPace: scalar must be 32 bytes");
+    const y = bytesToScalarLE(ya);
+    if (y === 0n) throw new Error("CPace: zero scalar");
+    return startWithScalar(prs, ci, sid, ad, y);
+  },
   generatorString,
   generatorHash,
   calculateGenerator: (prs: Uint8Array, ci: Uint8Array, sid: Uint8Array): Uint8Array =>

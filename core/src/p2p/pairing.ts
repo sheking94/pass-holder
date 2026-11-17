@@ -55,20 +55,38 @@ export function pairingAad(kind: PairingKind, from: PairingRole): string {
   return `passholder/v2/pair/${kind}/${from}`;
 }
 
-export async function sealPairingMessage(
+/** Seals this device's identity; `from` is the role of the caller (the sealer). */
+export function sealIdentity(
   key: Uint8Array,
-  kind: PairingKind,
-  /** Role of the side calling this (the sealer). */
   from: PairingRole,
-  value: DeviceIdentity | VaultInfo,
-  /** Only for test vectors; normal callers leave it out and get a random nonce. */
-  nonce?: Uint8Array,
+  identity: DeviceIdentity,
 ): Promise<string> {
-  return seal(key, utf8(JSON.stringify(value)), pairingAad(kind, from), nonce);
+  return sealPairingJson(key, "identity", from, identity);
 }
 
-/** Strict Base64: must decode and re-encode to the same text, with an exact decoded length when given. */
-function checkBase64(value: unknown, field: string, length?: number): Uint8Array {
+/** Seals the vault info; `from` is the role of the caller (the sealer). */
+export function sealVaultInfo(
+  key: Uint8Array,
+  from: PairingRole,
+  info: VaultInfo,
+): Promise<string> {
+  return sealPairingJson(key, "vault-info", from, info);
+}
+
+function sealPairingJson(
+  key: Uint8Array,
+  kind: PairingKind,
+  from: PairingRole,
+  value: DeviceIdentity | VaultInfo,
+): Promise<string> {
+  return seal(key, utf8(JSON.stringify(value)), pairingAad(kind, from));
+}
+
+/**
+ * Strict Base64: must decode and re-encode to the same text, with an exact decoded length when given.
+ * Returns the checked text.
+ */
+function checkBase64(value: unknown, field: string, length?: number): string {
   if (typeof value !== "string") throw new Error(`${field} must be a string`);
   let bytes: Uint8Array;
   try {
@@ -80,7 +98,7 @@ function checkBase64(value: unknown, field: string, length?: number): Uint8Array
   if (length !== undefined && bytes.length !== length)
     throw new Error(`${field} must be ${length} bytes`);
   if (bytes.length === 0) throw new Error(`${field} must not be empty`);
-  return bytes;
+  return value;
 }
 
 function parseIdentity(v: unknown): DeviceIdentity {
@@ -90,18 +108,21 @@ function parseIdentity(v: unknown): DeviceIdentity {
     throw new Error("Invalid deviceId");
   if (typeof name !== "string" || name.length < 1 || name.length > MAX_DEVICE_NAME_LENGTH)
     throw new Error("Invalid name");
-  checkBase64(staticPublicKey, "staticPublicKey", KEY_BYTES);
-  return { deviceId, name, staticPublicKey: staticPublicKey as string };
+  return {
+    deviceId,
+    name,
+    staticPublicKey: checkBase64(staticPublicKey, "staticPublicKey", KEY_BYTES),
+  };
 }
 
 function parseVaultInfo(v: unknown): VaultInfo {
   if (!isRecord(v)) throw new Error("Vault info must be an object");
-  const { epoch, kdf, wrappedVaultKey, addresses } = v;
-  checkBase64(epoch, "epoch", RANDOM_ID_BYTES);
+  const { kdf, addresses } = v;
+  const epoch = checkBase64(v.epoch, "epoch", RANDOM_ID_BYTES);
   if (!isRecord(kdf)) throw new Error("Invalid kdf");
   checkBase64(kdf.salt, "kdf.salt", SALT_BYTES);
   assertKdfParamsAcceptable(kdf as unknown as KdfParams);
-  checkBase64(wrappedVaultKey, "wrappedVaultKey");
+  const wrappedVaultKey = checkBase64(v.wrappedVaultKey, "wrappedVaultKey");
   if (
     !Array.isArray(addresses) ||
     addresses.length > MAX_ADDRESSES ||
@@ -113,21 +134,32 @@ function parseVaultInfo(v: unknown): VaultInfo {
       `addresses must be at most ${MAX_ADDRESSES} strings of 1..${MAX_ADDRESS_LENGTH} chars`,
     );
   }
-  return {
-    epoch: epoch as string,
-    kdf: kdf as unknown as KdfParams,
-    wrappedVaultKey: wrappedVaultKey as string,
-    addresses: addresses as string[],
-  };
+  return { epoch, kdf: kdf as unknown as KdfParams, wrappedVaultKey, addresses };
 }
 
-export async function openPairingMessage(
+/** Opens and checks a peer's identity; `from` is the role of the side that sealed it (the caller's peer). */
+export async function openIdentity(
   key: Uint8Array,
-  kind: PairingKind,
-  /** Role of the side that sealed the message (the peer of the caller). */
   from: PairingRole,
   blob: string,
-): Promise<DeviceIdentity | VaultInfo> {
-  const parsed: unknown = JSON.parse(fromUtf8(await open(key, blob, pairingAad(kind, from))));
-  return kind === "identity" ? parseIdentity(parsed) : parseVaultInfo(parsed);
+): Promise<DeviceIdentity> {
+  return parseIdentity(await openPairingJson(key, "identity", from, blob));
+}
+
+/** Opens and checks vault info; `from` is the role of the side that sealed it (the caller's peer). */
+export async function openVaultInfo(
+  key: Uint8Array,
+  from: PairingRole,
+  blob: string,
+): Promise<VaultInfo> {
+  return parseVaultInfo(await openPairingJson(key, "vault-info", from, blob));
+}
+
+async function openPairingJson(
+  key: Uint8Array,
+  kind: PairingKind,
+  from: PairingRole,
+  blob: string,
+): Promise<unknown> {
+  return JSON.parse(fromUtf8(await open(key, blob, pairingAad(kind, from))));
 }

@@ -1,10 +1,10 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { seal } from "../../src/cipher.ts";
+import { sealWithNonce } from "../../src/cipher.ts";
 import { fromHex, utf8 } from "../../src/encoding.ts";
 import {
   decryptFile,
-  encryptFile,
+  encryptFileFixed,
   fileChunkAad,
   FILE_CHUNK_SIZE,
   MAX_ATTACHMENTS_PARSED,
@@ -140,7 +140,7 @@ describe("test-vectors/files/files.json", () => {
       const bytes = f.content !== undefined ? fromHex(f.content) : patternBytes(f.size);
       if (f.content === undefined) expect(f.contentRule).toBe("byte[i] = (i * 31 + 7) & 0xff");
       expect(bytes.length).toBe(f.size);
-      const enc = await encryptFile(
+      const enc = await encryptFileFixed(
         bytes,
         { name: f.name, mime: f.mime },
         {
@@ -164,7 +164,7 @@ describe("test-vectors/files/files.json", () => {
       expect(data).toEqual(e.parsed);
       expect(serializeEntryData(data)).toBe(e.canonicalPayload ?? e.payload);
       expect(
-        await seal(fromHex(e.vaultKey), utf8(e.payload), entryAad(e.id), fromHex(e.nonce)),
+        await sealWithNonce(fromHex(e.vaultKey), utf8(e.payload), entryAad(e.id), fromHex(e.nonce)),
       ).toBe(e.blob);
       if (e.merge) {
         const winner = parseEntryData(JSON.parse(e.merge.winner));
@@ -202,7 +202,8 @@ describe("test-vectors/files/files.json", () => {
 
   it("host: orphan files", () => {
     const store = new MemoryFileStore();
-    for (const f of v.host.orphan.files) store.put(f.id, 0, 1, "AAAA", f.createdAt);
+    for (const f of v.host.orphan.files)
+      store.put({ id: f.id, index: 0, chunks: 1, blob: "AAAA" }, f.createdAt);
     const used = new Set(v.host.orphan.files.filter((f) => f.used).map((f) => f.id));
     for (const c of v.host.orphan.cases)
       expect(orphanFileIds(store, used, c.now).sort(), String(c.now)).toEqual(c.expected);

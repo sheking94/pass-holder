@@ -218,7 +218,9 @@ describe("syncFiles", () => {
     const progress: [number, number][] = [];
     const b = p.plugin("b");
     expect(
-      await syncFiles(vault, files, b.send, (done, total) => progress.push([done, total])),
+      await syncFiles(vault, files, b.send, {
+        onProgress: (done, total) => progress.push([done, total]),
+      }),
     ).toEqual({
       uploaded: 0,
       downloaded: 1,
@@ -294,12 +296,14 @@ describe("syncFiles", () => {
   it("leaves a file the phone does not have complete for later", async () => {
     const p = phone();
     const f = await encryptFile(sample(FILE_CHUNK_SIZE + 1), { name: "half.bin", mime: "" });
-    p.files!.put(f.attachment.id, 0, 2, f.blobs[0]!, 0);
+    p.files!.put({ id: f.attachment.id, index: 0, chunks: 2, blob: f.blobs[0]! }, 0);
     const files = new MemoryLocalFileStore();
     const b = p.plugin("b");
     const progress: number[] = [];
     expect(
-      await syncFiles(vaultWith(p.epoch, [f.attachment]), files, b.send, (d) => progress.push(d)),
+      await syncFiles(vaultWith(p.epoch, [f.attachment]), files, b.send, {
+        onProgress: (d) => progress.push(d),
+      }),
     ).toEqual({
       uploaded: 0,
       downloaded: 0,
@@ -315,7 +319,9 @@ describe("syncFiles", () => {
   it("reports and drops a file whose content does not match its descriptor", async () => {
     const p = phone();
     const f = await threeChunks();
-    f.blobs.forEach((blob, i) => p.files!.put(f.attachment.id, i, 3, blob, 0));
+    f.blobs.forEach((blob, i) =>
+      p.files!.put({ id: f.attachment.id, index: i, chunks: 3, blob }, 0),
+    );
     const bad = { ...f.attachment, sha256: "0".repeat(64) };
     const files = new MemoryLocalFileStore();
     expect(await syncFiles(vaultWith(p.epoch, [bad]), files, p.plugin("b").send)).toEqual({
@@ -340,13 +346,9 @@ describe("syncFiles", () => {
     const b = p.plugin("b");
     const vault = vaultWith(p.epoch, [f.attachment]);
     expect(
-      await syncFiles(
-        vault,
-        new MemoryLocalFileStore(),
-        b.send,
-        undefined,
-        new Set([f.attachment.id]),
-      ),
+      await syncFiles(vault, new MemoryLocalFileStore(), b.send, {
+        skip: new Set([f.attachment.id]),
+      }),
     ).toEqual({
       uploaded: 0,
       downloaded: 0,
@@ -473,7 +475,7 @@ describe("syncFiles: files the phone refuses", () => {
     const files = new MemoryLocalFileStore();
     for (const f of [mismatch, differs, good]) await storeEncryptedFile(files, f);
     // The phone holds only chunk 1 of a 2-chunk file under this id: our 1-chunk put gets 400 "chunk count mismatch".
-    p.files!.put(mismatch.attachment.id, 1, 2, "AAAA", 0);
+    p.files!.put({ id: mismatch.attachment.id, index: 1, chunks: 2, blob: "AAAA" }, 0);
     const vault = vaultWith(p.epoch, [mismatch.attachment, differs.attachment, good.attachment]);
     const a = p.plugin("a");
     // A stale status can lead to 409 "chunk differs"; simulate it for the second file.
@@ -526,7 +528,9 @@ describe("syncFiles: damaged files", () => {
     const vault = vaultWith(p.epoch, [broken.attachment, good.attachment]);
     const progress: [number, number][] = [];
     expect(
-      await syncFiles(vault, files, p.plugin("a").send, (d, t) => progress.push([d, t])),
+      await syncFiles(vault, files, p.plugin("a").send, {
+        onProgress: (d, t) => progress.push([d, t]),
+      }),
     ).toEqual({
       uploaded: 1,
       downloaded: 0,
@@ -551,7 +555,7 @@ describe("syncFiles: damaged files", () => {
     const p = phone();
     const f = await encryptFile(sample(FILE_CHUNK_SIZE + 1), { name: "odd.bin", mime: "" });
     // The phone holds a complete one-chunk file under the id of a two-chunk descriptor.
-    p.files!.put(f.attachment.id, 0, 1, f.blobs[0]!, 0);
+    p.files!.put({ id: f.attachment.id, index: 0, chunks: 1, blob: f.blobs[0]! }, 0);
     const files = new MemoryLocalFileStore();
     const b = p.plugin("b");
     expect(await syncFiles(vaultWith(p.epoch, [f.attachment]), files, b.send)).toEqual({

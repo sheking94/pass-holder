@@ -200,8 +200,6 @@ export interface NoiseKKOptions {
   /** Remote party's static public key, known in advance (KK pre-message). */
   rs: Uint8Array;
   prologue: Uint8Array;
-  /** Fixed ephemeral key pair; only for test vectors. */
-  e?: KeyPair;
 }
 
 type Step = "write1" | "read1" | "write2" | "read2" | "done" | "split" | "failed";
@@ -221,14 +219,15 @@ export class NoiseKK {
   #step: Step;
   #busy = false;
 
-  private constructor(initiator: boolean, o: NoiseKKOptions) {
+  /** `e` is a fixed ephemeral key pair (test vectors only); without it writeMessage generates one. */
+  private constructor(initiator: boolean, o: NoiseKKOptions, e?: KeyPair) {
     if (o.s.privateKey.length !== DHLEN || o.s.publicKey.length !== DHLEN)
       throw noiseError("static key pair must be 32-byte X25519 keys");
     if (o.rs.length !== DHLEN) throw noiseError("remote static key must be 32 bytes");
     this.#initiator = initiator;
     this.#s = o.s;
     this.#rs = o.rs.slice();
-    this.#e = o.e;
+    this.#e = e;
     this.#ss = new SymmetricState(PROTOCOL_NAME);
     this.#ss.mixHash(o.prologue);
     // Pre-messages: "-> s" then "<- s", hashed in pattern order on both sides.
@@ -245,6 +244,16 @@ export class NoiseKK {
 
   static responder(o: NoiseKKOptions): NoiseKK {
     return new NoiseKK(false, o);
+  }
+
+  /** `initiator` with a fixed ephemeral key pair, ONLY for test vectors. */
+  static initiatorWithEphemeral(o: NoiseKKOptions, e: KeyPair): NoiseKK {
+    return new NoiseKK(true, o, e);
+  }
+
+  /** `responder` with a fixed ephemeral key pair, ONLY for test vectors. */
+  static responderWithEphemeral(o: NoiseKKOptions, e: KeyPair): NoiseKK {
+    return new NoiseKK(false, o, e);
   }
 
   async writeMessage(payload: Uint8Array): Promise<Uint8Array> {

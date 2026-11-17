@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { open, seal } from "../src/cipher.ts";
+import { open, seal, sealWithNonce } from "../src/cipher.ts";
 import {
   concat,
   fromBase64,
@@ -60,7 +60,7 @@ describe("cipher edge cases", () => {
 
   it("rejects keys and nonces of the wrong size", async () => {
     await expect(seal(randomBytes(16), utf8("x"), "aad")).rejects.toThrow("32 bytes");
-    await expect(seal(key, utf8("x"), "aad", randomBytes(8))).rejects.toThrow("12 bytes");
+    await expect(sealWithNonce(key, utf8("x"), "aad", randomBytes(8))).rejects.toThrow("12 bytes");
   });
 
   it("rejects a truncated blob and an unknown format version", async () => {

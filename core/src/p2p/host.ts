@@ -8,7 +8,7 @@ import { isRecord } from "../strict-json.ts";
 import { errorReply, type HostReply } from "./host-reply.ts";
 import { decryptFrames, encryptFrames, MAX_FRAMES } from "./frames.ts";
 import type { SyncStore } from "../protocol.ts";
-import { processP2pSync, validateP2pSyncRequest, type P2pSyncRequest } from "./host-sync.ts";
+import { InvalidSyncRequestError, processP2pSync } from "./host-sync.ts";
 import { processP2pFile, type FileStore } from "../files/host-files.ts";
 import { P2P_FILE_PATH, P2P_HANDSHAKE_PATH, P2P_SYNC_PATH } from "./transport.ts";
 import { CipherState, NoiseKK, P2P_PROLOGUE, type KeyPair } from "./noise.ts";
@@ -200,17 +200,15 @@ export class P2pHost {
   }
 
   #processSync(request: unknown): HostReply {
-    const sync = request as P2pSyncRequest;
-    const invalid = validateP2pSyncRequest(this.#options.store, this.#options.epoch, sync);
-    if (invalid !== undefined) return errorReply(400, invalid);
-    return {
-      status: 200,
-      body: processP2pSync(
-        this.#options.store,
-        this.#options.epoch,
-        this.#options.addresses(),
-        sync,
-      ),
-    };
+    const { store, epoch } = this.#options;
+    try {
+      return {
+        status: 200,
+        body: processP2pSync(store, epoch, this.#options.addresses(), request),
+      };
+    } catch (error) {
+      if (error instanceof InvalidSyncRequestError) return errorReply(400, error.message);
+      throw error;
+    }
   }
 }

@@ -4,10 +4,12 @@ import { cpaceFinish, cpaceStart, PAIRING_CI } from "../../src/p2p/cpace.ts";
 import { generateKeyPair } from "../../src/p2p/noise.ts";
 import {
   generatePairingCode,
-  openPairingMessage,
+  openIdentity,
+  openVaultInfo,
   pairingAad,
   pairingKey,
-  sealPairingMessage,
+  sealIdentity,
+  sealVaultInfo,
   type DeviceIdentity,
   type VaultInfo,
 } from "../../src/p2p/pairing.ts";
@@ -59,50 +61,35 @@ describe("pairing", () => {
     const extId = { ...identity(), deviceId: "ext-1", name: "Chrome" };
     const info = vaultInfo();
     expect(
-      await openPairingMessage(
-        ext,
-        "identity",
-        "responder",
-        await sealPairingMessage(phone, "identity", "responder", phoneId),
-      ),
+      await openIdentity(ext, "responder", await sealIdentity(phone, "responder", phoneId)),
     ).toEqual(phoneId);
     expect(
-      await openPairingMessage(
-        ext,
-        "vault-info",
-        "responder",
-        await sealPairingMessage(phone, "vault-info", "responder", info),
-      ),
+      await openVaultInfo(ext, "responder", await sealVaultInfo(phone, "responder", info)),
     ).toEqual(info);
     expect(
-      await openPairingMessage(
-        phone,
-        "identity",
-        "initiator",
-        await sealPairingMessage(ext, "identity", "initiator", extId),
-      ),
+      await openIdentity(phone, "initiator", await sealIdentity(ext, "initiator", extId)),
     ).toEqual(extId);
   });
 
   it("the wrong code makes the first message fail to open", async () => {
     const { ext, phone } = keys("12345678", "12345679");
-    const blob = await sealPairingMessage(phone, "identity", "responder", identity());
-    await expect(openPairingMessage(ext, "identity", "responder", blob)).rejects.toThrow();
+    const blob = await sealIdentity(phone, "responder", identity());
+    await expect(openIdentity(ext, "responder", blob)).rejects.toThrow();
   });
 
   it("a message sealed as identity does not open as vault-info", async () => {
     const { ext, phone } = keys("12345678", "12345678");
-    const blob = await sealPairingMessage(phone, "identity", "responder", identity());
-    await expect(openPairingMessage(ext, "vault-info", "responder", blob)).rejects.toThrow();
+    const blob = await sealIdentity(phone, "responder", identity());
+    await expect(openVaultInfo(ext, "responder", blob)).rejects.toThrow();
   });
 
   it("a message sealed by the initiator does not open as sent by the responder", async () => {
     const { ext, phone } = keys("12345678", "12345678");
-    const blob = await sealPairingMessage(ext, "identity", "initiator", identity());
-    await expect(openPairingMessage(phone, "identity", "responder", blob)).rejects.toThrow();
+    const blob = await sealIdentity(ext, "initiator", identity());
+    await expect(openIdentity(phone, "responder", blob)).rejects.toThrow();
     // A reflected message: the initiator gets back its own message.
-    await expect(openPairingMessage(ext, "identity", "responder", blob)).rejects.toThrow();
-    expect(await openPairingMessage(phone, "identity", "initiator", blob)).toMatchObject({
+    await expect(openIdentity(ext, "responder", blob)).rejects.toThrow();
+    expect(await openIdentity(phone, "initiator", blob)).toMatchObject({
       name: "Pixel",
     });
     expect(pairingAad("vault-info", "responder")).toBe("passholder/v2/pair/vault-info/responder");
@@ -111,8 +98,8 @@ describe("pairing", () => {
   it("rejects a static key that is not 32 bytes", async () => {
     const { ext, phone } = keys("12345678", "12345678");
     const bad = { ...identity(), staticPublicKey: toBase64(randomBytes(31)) };
-    const blob = await sealPairingMessage(phone, "identity", "responder", bad);
-    await expect(openPairingMessage(ext, "identity", "responder", blob)).rejects.toThrow();
+    const blob = await sealIdentity(phone, "responder", bad);
+    await expect(openIdentity(ext, "responder", blob)).rejects.toThrow();
   });
 
   it("rejects invalid vault info fields", async () => {
@@ -129,27 +116,17 @@ describe("pairing", () => {
       { ...vaultInfo(), addresses: ["a".repeat(257)] },
     ];
     for (const c of cases) {
-      const blob = await sealPairingMessage(phone, "vault-info", "responder", c);
-      await expect(openPairingMessage(ext, "vault-info", "responder", blob)).rejects.toThrow();
+      const blob = await sealVaultInfo(phone, "responder", c);
+      await expect(openVaultInfo(ext, "responder", blob)).rejects.toThrow();
     }
     const ok = { ...vaultInfo(), addresses: Array.from({ length: 16 }, () => "a".repeat(256)) };
     expect(
-      await openPairingMessage(
-        ext,
-        "vault-info",
-        "responder",
-        await sealPairingMessage(phone, "vault-info", "responder", ok),
-      ),
+      await openVaultInfo(ext, "responder", await sealVaultInfo(phone, "responder", ok)),
     ).toEqual(ok);
     for (const bad of [{ deviceId: "x".repeat(65) }, { name: "" }, { name: "n".repeat(65) }]) {
       const id = { ...identity(), ...bad };
       await expect(
-        openPairingMessage(
-          ext,
-          "identity",
-          "responder",
-          await sealPairingMessage(phone, "identity", "responder", id),
-        ),
+        openIdentity(ext, "responder", await sealIdentity(phone, "responder", id)),
       ).rejects.toThrow();
     }
   });

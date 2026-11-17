@@ -204,9 +204,8 @@ export function encryptPayload(
   vaultKey: Uint8Array,
   id: string,
   data: EntryData | TombstoneData,
-  nonce?: Uint8Array,
 ): Promise<string> {
-  return seal(vaultKey, utf8(serializeEntryData(data)), entryAad(id), nonce);
+  return seal(vaultKey, utf8(serializeEntryData(data)), entryAad(id));
 }
 
 export async function decryptPayload(

@@ -58,18 +58,14 @@ describe("Noise_KK_25519_AESGCM_SHA256", () => {
     expect(toHex(respS.publicKey)).toBe(raw.init_remote_static);
     expect(toHex(initS.publicKey)).toBe(raw.resp_remote_static);
 
-    const init = NoiseKK.initiator({
-      s: initS,
-      rs: fromHex(raw.init_remote_static),
-      prologue: fromHex(raw.init_prologue),
-      e: keyPairFromPrivateKey(fromHex(raw.init_ephemeral)),
-    });
-    const resp = NoiseKK.responder({
-      s: respS,
-      rs: fromHex(raw.resp_remote_static),
-      prologue: fromHex(raw.resp_prologue),
-      e: keyPairFromPrivateKey(fromHex(raw.resp_ephemeral)),
-    });
+    const init = NoiseKK.initiatorWithEphemeral(
+      { s: initS, rs: fromHex(raw.init_remote_static), prologue: fromHex(raw.init_prologue) },
+      keyPairFromPrivateKey(fromHex(raw.init_ephemeral)),
+    );
+    const resp = NoiseKK.responderWithEphemeral(
+      { s: respS, rs: fromHex(raw.resp_remote_static), prologue: fromHex(raw.resp_prologue) },
+      keyPairFromPrivateKey(fromHex(raw.resp_ephemeral)),
+    );
 
     const [h1, h2, ...transport] = raw.messages as [
       VectorMessage,

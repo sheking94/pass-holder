@@ -7,6 +7,7 @@ import {
   decryptChunk,
   decryptFile,
   encryptFile,
+  encryptFileFixed,
   fileChunkAad,
   sha256Hex,
 } from "../../src/files/index.ts";
@@ -58,8 +59,8 @@ describe("encryptFile / decryptFile", () => {
       key: new Uint8Array(32).fill(9),
       nonces: [new Uint8Array(12).fill(1), new Uint8Array(12).fill(2)],
     };
-    const a = await encryptFile(bytes, meta, fixed);
-    const b = await encryptFile(bytes, meta, fixed);
+    const a = await encryptFileFixed(bytes, meta, fixed);
+    const b = await encryptFileFixed(bytes, meta, fixed);
     expect(a).toEqual(b);
     expect(a.attachment.id).toBe(fixed.id);
     expect(a.attachment.key).toBe(toBase64(fixed.key));
@@ -83,7 +84,7 @@ describe("encryptFile / decryptFile", () => {
       key: new Uint8Array(32),
       nonces: [new Uint8Array(12)],
     };
-    await expect(encryptFile(sample(FILE_CHUNK_SIZE + 1), meta, fixed)).rejects.toThrow(
+    await expect(encryptFileFixed(sample(FILE_CHUNK_SIZE + 1), meta, fixed)).rejects.toThrow(
       "Nonce count",
     );
   });
@@ -91,7 +92,7 @@ describe("encryptFile / decryptFile", () => {
   it("detects tampering", async () => {
     const { attachment, blobs } = await encryptFile(sample(FILE_CHUNK_SIZE * 2 + 5), meta);
     // Same key, different id: only the AAD differs.
-    const other = await encryptFile(sample(FILE_CHUNK_SIZE * 2 + 5), meta, {
+    const other = await encryptFileFixed(sample(FILE_CHUNK_SIZE * 2 + 5), meta, {
       id: "123e4567-e89b-42d3-a456-426614174000",
       key: fromBase64(attachment.key),
       nonces: [1, 2, 3].map((n) => new Uint8Array(12).fill(n)),

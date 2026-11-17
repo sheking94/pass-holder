@@ -199,7 +199,10 @@ describe("attachments in the vault store", () => {
     const other = await encrypt(2);
     // The phone holds chunks of another file under this id.
     other.blobs.forEach((blob, i) =>
-      a.phone.files.put(ef.attachment.id, i, ef.attachment.chunks, blob, Date.now()),
+      a.phone.files.put(
+        { id: ef.attachment.id, index: i, chunks: ef.attachment.chunks, blob },
+        Date.now(),
+      ),
     );
     await a.phone.addContent("e1", loginWith("bank.pl", [ef.attachment]));
 

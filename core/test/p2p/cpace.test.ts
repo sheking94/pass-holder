@@ -70,8 +70,8 @@ describe("cpace", () => {
   });
 
   it("reproduces the draft test vector", () => {
-    const a = cpaceStart(v.PRS, v.CI, v.sid, v.ADa, v.ya);
-    const b = cpaceStart(v.PRS, v.CI, v.sid, v.ADb, v.yb);
+    const a = _cpaceInternals.startWithScalar(v.PRS, v.CI, v.sid, v.ADa, v.ya);
+    const b = _cpaceInternals.startWithScalar(v.PRS, v.CI, v.sid, v.ADb, v.yb);
     expect(toHex(a.message)).toBe(toHex(lvCat(v.Ya, v.ADa)));
     expect(toHex(b.message)).toBe(toHex(lvCat(v.Yb, v.ADb)));
     expect(toHex(cpaceFinish(a.state, b.message, "initiator"))).toBe(v.ISK_IR);
@@ -127,8 +127,8 @@ describe("cpace", () => {
   });
 
   it("rejects malformed message framing", () => {
-    const b = cpaceStart(v.PRS, v.CI, v.sid, v.ADb, v.yb);
-    const a = cpaceStart(v.PRS, v.CI, v.sid, v.ADa, v.ya);
+    const b = _cpaceInternals.startWithScalar(v.PRS, v.CI, v.sid, v.ADb, v.yb);
+    const a = _cpaceInternals.startWithScalar(v.PRS, v.CI, v.sid, v.ADa, v.ya);
     const bad = [
       new Uint8Array(),
       v.Yb, // raw element without lv_cat framing
@@ -144,7 +144,11 @@ describe("cpace", () => {
   });
 
   it("rejects an invalid supplied scalar", () => {
-    expect(() => cpaceStart(v.PRS, v.CI, v.sid, v.ADa, new Uint8Array(31))).toThrow();
-    expect(() => cpaceStart(v.PRS, v.CI, v.sid, v.ADa, new Uint8Array(32))).toThrow();
+    expect(() =>
+      _cpaceInternals.startWithScalar(v.PRS, v.CI, v.sid, v.ADa, new Uint8Array(31)),
+    ).toThrow();
+    expect(() =>
+      _cpaceInternals.startWithScalar(v.PRS, v.CI, v.sid, v.ADa, new Uint8Array(32)),
+    ).toThrow();
   });
 });

@@ -211,19 +211,9 @@ export class FakePhone {
       return fail(400, "malformed request");
     let identity: p2p.DeviceIdentity;
     try {
-      identity = (await p2p.openPairingMessage(
-        key,
-        "identity",
-        "initiator",
-        body.identity,
-      )) as p2p.DeviceIdentity;
+      identity = await p2p.openIdentity(key, "initiator", body.identity);
       if (typeof body.vaultInfo === "string") {
-        this.receivedVaultInfo = (await p2p.openPairingMessage(
-          key,
-          "vault-info",
-          "initiator",
-          body.vaultInfo,
-        )) as p2p.VaultInfo;
+        this.receivedVaultInfo = await p2p.openVaultInfo(key, "initiator", body.vaultInfo);
       }
     } catch {
       return fail(403, "pairing failed");
@@ -247,8 +237,8 @@ export class FakePhone {
     return {
       status: 200,
       body: {
-        identity: await p2p.sealPairingMessage(key, "identity", "responder", this.identity),
-        vaultInfo: await p2p.sealPairingMessage(key, "vault-info", "responder", info),
+        identity: await p2p.sealIdentity(key, "responder", this.identity),
+        vaultInfo: await p2p.sealVaultInfo(key, "responder", info),
       },
     };
   }

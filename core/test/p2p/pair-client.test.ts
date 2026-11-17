@@ -6,13 +6,15 @@ import {
   cpaceStart,
   generateKeyPair,
   lvCat,
-  openPairingMessage,
+  openIdentity,
+  openVaultInfo,
   pairingKey,
   PAIRING_CI,
   pairWithPhone,
   phoneHello,
   pingPhone,
-  sealPairingMessage,
+  sealIdentity,
+  sealVaultInfo,
   type DeviceIdentity,
   type FetchJson,
   type PhoneMode,
@@ -89,27 +91,17 @@ function fakePhone(mode: PhoneMode | null, code = "12345678") {
         if ((mode === "restore") !== (body.vaultInfo !== undefined))
           return fail(400, "malformed request");
         try {
-          got.identity = (await openPairingMessage(
-            k,
-            "identity",
-            "initiator",
-            body.identity,
-          )) as DeviceIdentity;
+          got.identity = await openIdentity(k, "initiator", body.identity);
           if (typeof body.vaultInfo === "string")
-            got.vaultInfo = (await openPairingMessage(
-              k,
-              "vault-info",
-              "initiator",
-              body.vaultInfo,
-            )) as VaultInfo;
+            got.vaultInfo = await openVaultInfo(k, "initiator", body.vaultInfo);
         } catch {
           return fail(403, "pairing failed");
         }
         return {
           status: 200,
           body: {
-            identity: await sealPairingMessage(k, "identity", "responder", identity),
-            vaultInfo: await sealPairingMessage(k, "vault-info", "responder", info),
+            identity: await sealIdentity(k, "responder", identity),
+            vaultInfo: await sealVaultInfo(k, "responder", info),
           },
         };
       }
