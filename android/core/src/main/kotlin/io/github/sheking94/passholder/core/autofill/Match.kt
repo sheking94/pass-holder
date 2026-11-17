@@ -1,7 +1,8 @@
 package io.github.sheking94.passholder.core.autofill
 
+import io.github.sheking94.passholder.core.WebAddress
+import io.github.sheking94.passholder.core.parseWebAddress
 import io.github.sheking94.passholder.core.transfer.POLISH_COLLATOR
-import java.net.IDN
 
 enum class MatchKind { EXACT, SUBDOMAIN }
 
@@ -65,57 +66,9 @@ fun verifyApp(request: AppRequest, certs: Set<String>?, pinned: Set<String>?): A
     return request.copy(browserVerified = browser, appVerified = app)
 }
 
-internal class ParsedUrl(val https: Boolean, val host: String, val port: String)
-
 private val IPV4 = Regex("^\\d{1,3}(\\.\\d{1,3}){3}$")
-private const val FORBIDDEN_HOST_CHARS = "#%/:<>?@[\\]^|"
 
-/** Hand-written stand-in for the WHATWG URL parser, enough for http(s) hosts (java.net.URI rejects e.g. `_`). */
-internal fun parse(raw: String, wwwBeforeDot: Boolean = false): ParsedUrl? {
-    val text = raw.trim()
-    val schemeEnd = text.indexOf("://")
-    val scheme = if (schemeEnd >= 0) text.substring(0, schemeEnd).lowercase() else "https"
-    if (scheme != "http" && scheme != "https") return null
-    val rest = if (schemeEnd >= 0) text.substring(schemeEnd + 3) else text
-    var authority = rest.substring(0, rest.indexOfAny(charArrayOf('/', '?', '#', '\\')).let { if (it < 0) rest.length else it })
-    authority = authority.substring(authority.lastIndexOf('@') + 1)
-
-    val rawHost: String
-    var rawPort = ""
-    if (authority.startsWith("[")) {
-        val close = authority.indexOf(']')
-        if (close < 0) return null
-        rawHost = authority.substring(0, close + 1).lowercase()
-        val after = authority.substring(close + 1)
-        if (after.isNotEmpty()) {
-            if (!after.startsWith(":")) return null
-            rawPort = after.substring(1)
-        }
-    } else {
-        val colon = authority.indexOf(':')
-        val hostPart = if (colon < 0) authority else authority.substring(0, colon)
-        if (colon >= 0) rawPort = authority.substring(colon + 1)
-        if (hostPart.any { it.isWhitespace() || it.isISOControl() || it in FORBIDDEN_HOST_CHARS }) return null
-        // Java's IDNA2003 maps these differently from WHATWG (UTS46); fail closed. Checked after lowercasing:
-        // U+1E9E lowercases to ß and a word-final capital sigma to ς.
-        val lowerHost = hostPart.lowercase()
-        if (lowerHost.any { it == 'ß' || it == 'ς' || it == '\u200C' || it == '\u200D' }) return null
-        val ascii = try {
-            IDN.toASCII(lowerHost).lowercase()
-        } catch (_: IllegalArgumentException) {
-            return null
-        }
-        // NFKC mapping can yield forbidden characters (e.g. fullwidth slash); punycode output is plain ASCII.
-        if (!ascii.all { it in 'a'..'z' || it in '0'..'9' || it == '.' || it == '_' || it == '-' }) return null
-        rawHost = if (wwwBeforeDot) ascii.removePrefix("www.").removeSuffix(".") else ascii.removeSuffix(".").removePrefix("www.")
-    }
-    if (rawHost.isEmpty()) return null
-    if (rawPort.any { it !in '0'..'9' }) return null
-    val https = scheme == "https"
-    val port = if (rawPort.isEmpty()) "" else rawPort.toIntOrNull()?.takeIf { it <= 65535 }?.toString() ?: return null
-    // WHATWG URL drops the scheme's default port.
-    return ParsedUrl(https, rawHost, if (port == (if (https) "443" else "80")) "" else port)
-}
+private fun parse(raw: String): WebAddress? = parseWebAddress(raw, assumeHttps = true)
 
 private fun isExactOnlyHost(host: String): Boolean = host == "localhost" || host.startsWith("[") || IPV4.matches(host)
 

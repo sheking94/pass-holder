@@ -2,6 +2,7 @@ package io.github.sheking94.passholder.core.transfer
 
 import io.github.sheking94.passholder.core.ErrorCode
 import io.github.sheking94.passholder.core.PassHolderException
+import io.github.sheking94.passholder.core.hostOf
 import io.github.sheking94.passholder.core.p2p.CardFields
 import io.github.sheking94.passholder.core.p2p.ContactFields
 import io.github.sheking94.passholder.core.p2p.CustomField
@@ -21,121 +22,123 @@ object NordPassCsv {
         "shared_folder",
     )
 
-    private val TYPES = mapOf("password" to "login", "note" to "note", "credit_card" to "card", "identity" to "contact")
+    private enum class Kind { LOGIN, NOTE, CARD, CONTACT }
+
+    private val TYPES = mapOf("password" to Kind.LOGIN, "note" to Kind.NOTE, "credit_card" to Kind.CARD, "identity" to Kind.CONTACT)
 
     /** Columns that do not make a row more than a note when guessing the type. */
     private val NOTE_COLUMNS = setOf("name", "note", "folder", "shared_folder", "type")
+    private val CONTACT_COLUMNS = listOf("full_name", "phone_number", "email", "address1")
+    private val ADDRESS_COLUMNS = listOf("address1", "address2", "zipcode", "city", "country")
 
-    /** Host of a URL without "www.", or the text itself if it is not a URL. Used when a row has no name. */
-    // Simplified host extraction: an IDN host stays Unicode (TS gives punycode) and invalid hosts are handled leniently.
-    private fun nameFromUrl(url: String): String {
-        val full = if (url.contains("://")) url else "https://$url"
-        val rest = full.substringAfter("://")
-        val authority = rest.takeWhile { it != '/' && it != '?' && it != '#' && it != '\\' }
-        val hostPort = authority.substringAfterLast('@')
-        val host = (if (hostPort.startsWith("[")) hostPort.substringBefore(']') + "]" else hostPort.substringBefore(':'))
-        if (host.isEmpty() || host.any { it.isWhitespace() }) return url
-        return host.lowercase().removePrefix("www.")
+    /** One CSV row: the text of a column, "" when the file has no such column. */
+    private class Row(private val index: Map<String, Int>, private val fields: List<String>) {
+        operator fun get(column: String): String = index[column]?.let { fields.getOrNull(it) } ?: ""
     }
+
+    /** The entry type of a row, or the Polish reason it is skipped. */
+    private sealed interface Guess {
+        data class Known(val kind: Kind) : Guess
+        data class Skip(val reason: String) : Guess
+    }
+
+    /** Host of a URL (see [hostOf]), or the text itself if it has none. Used when a row has no name. */
+    private fun nameFromUrl(url: String): String = hostOf(url) ?: url
 
     private fun extra(label: String, value: String) = CustomField(label, value, false)
     private fun filled(v: String) = v.jsTrim() != ""
+
+    /** The declared "type" column, else a guess from the filled columns ([columns]: all columns of the file). */
+    private fun guessKind(row: Row, columns: Collection<String>): Guess {
+        val declared = row["type"].jsTrim()
+        if (declared != "") {
+            val kind = TYPES[declared.lowercase()] ?: return Guess.Skip("typ „$declared” nie jest obsługiwany")
+            return Guess.Known(kind)
+        }
+        return Guess.Known(
+            when {
+                filled(row["cardnumber"]) -> Kind.CARD
+                CONTACT_COLUMNS.any { filled(row[it]) } -> Kind.CONTACT
+                columns.all { it in NOTE_COLUMNS || !filled(row[it]) } -> Kind.NOTE
+                else -> Kind.LOGIN
+            },
+        )
+    }
+
+    private fun contactFields(row: Row): ContactFields {
+        val fullName = row["full_name"].jsTrim()
+        val space = fullName.indexOf(' ')
+        val street = listOf(row["address1"], row["address2"]).filter(::filled).joinToString(", ")
+        val address = PostalAddress("", street, row["zipcode"], row["city"], row["country"])
+        val hasAddress = ADDRESS_COLUMNS.any { filled(row[it]) }
+        return ContactFields(
+            firstName = if (space < 0) fullName else fullName.substring(0, space),
+            lastName = if (space < 0) "" else fullName.substring(space + 1).jsTrim(),
+            birthDate = "",
+            phones = if (filled(row["phone_number"])) listOf(LabeledValue("", row["phone_number"])) else emptyList(),
+            emails = if (filled(row["email"])) listOf(LabeledValue("", row["email"])) else emptyList(),
+            addresses = if (hasAddress) listOf(address) else emptyList(),
+        )
+    }
+
+    /** The entry of a row of the given [kind], named [name]. */
+    private fun rowToEntry(row: Row, kind: Kind, name: String): EntryContent {
+        val note = row["note"]
+        return when (kind) {
+            Kind.LOGIN -> {
+                val url = row["url"].jsTrim()
+                val urls = if (url != "") listOf(url) else emptyList()
+                EntryContent(name, note, LoginFields(row["username"], row["password"], row["totp"], urls, emptyList()), emptyList())
+            }
+
+            Kind.NOTE -> EntryContent(name, note, NoteFields, emptyList())
+
+            Kind.CARD -> EntryContent(
+                name,
+                note,
+                CardFields(row["cardholdername"], row["cardnumber"], row["expirydate"], row["cvc"], ""),
+                if (filled(row["zipcode"])) listOf(extra("Kod pocztowy", row["zipcode"])) else emptyList(),
+            )
+
+            Kind.CONTACT -> EntryContent(
+                name,
+                note,
+                contactFields(row),
+                if (filled(row["state"])) listOf(extra("Województwo/stan", row["state"])) else emptyList(),
+            )
+        }
+    }
 
     /** Throws [ErrorCode.IMPORT_EMPTY_FILE] or [ErrorCode.IMPORT_NOT_NORDPASS] (also the errors of [Csv.parse]); a row that cannot be taken is skipped as "wiersz N" (header is 1). */
     fun parse(text: String): ParsedImport {
         val all = Csv.parse(text)
         val header = all.firstOrNull() ?: throw PassHolderException(ErrorCode.IMPORT_EMPTY_FILE)
-        val rows = all.drop(1)
         val index = LinkedHashMap<String, Int>()
         header.fields.forEachIndexed { i, name -> index[name.jsTrim().lowercase()] = i }
-        if ("name" !in index &&
-            "url" !in index
-        ) {
+        if ("name" !in index && "url" !in index) {
             throw PassHolderException(ErrorCode.IMPORT_NOT_NORDPASS, "No name/url column in the first row")
         }
 
         val entries = mutableListOf<EntryContent>()
         val skipped = mutableListOf<ImportSkip>()
-        for ((line, fields) in rows) {
-            fun get(column: String): String = index[column]?.let { fields.getOrNull(it) } ?: ""
+        for ((line, fields) in all.drop(1)) {
+            val row = Row(index, fields)
             val at = "wiersz $line"
+            val kind = when (val guess = guessKind(row, index.keys)) {
+                is Guess.Skip -> {
+                    skipped.add(ImportSkip(at, guess.reason))
+                    continue
+                }
 
-            val declared = get("type").jsTrim()
-            val kind: String = when {
-                declared != "" -> TYPES[declared.lowercase()] ?: run {
-                    skipped.add(ImportSkip(at, "typ „$declared” nie jest obsługiwany"))
-                    null
-                } ?: continue
-
-                filled(get("cardnumber")) -> "card"
-
-                listOf("full_name", "phone_number", "email", "address1").any { filled(get(it)) } -> "contact"
-
-                index.keys.all { it in NOTE_COLUMNS || !filled(get(it)) } -> "note"
-
-                else -> "login"
+                is Guess.Known -> guess.kind
             }
-
-            val url = get("url").jsTrim()
-            val name = get("name").jsTrim().ifEmpty { if (url != "") nameFromUrl(url) else "" }
+            val url = row["url"].jsTrim()
+            val name = row["name"].jsTrim().ifEmpty { if (url != "") nameFromUrl(url) else "" }
             if (name == "") {
                 skipped.add(ImportSkip(at, "brak nazwy i adresu"))
                 continue
             }
-            val note = get("note")
-
-            entries.add(
-                when (kind) {
-                    "login" -> EntryContent(
-                        name,
-                        note,
-                        LoginFields(
-                            get("username"),
-                            get("password"),
-                            get("totp"),
-                            if (url !=
-                                ""
-                            ) {
-                                listOf(url)
-                            } else {
-                                emptyList()
-                            },
-                            emptyList(),
-                        ),
-                        emptyList(),
-                    )
-
-                    "note" -> EntryContent(name, note, NoteFields, emptyList())
-
-                    "card" -> EntryContent(
-                        name,
-                        note,
-                        CardFields(get("cardholdername"), get("cardnumber"), get("expirydate"), get("cvc"), ""),
-                        if (filled(get("zipcode"))) listOf(extra("Kod pocztowy", get("zipcode"))) else emptyList(),
-                    )
-
-                    else -> {
-                        val fullName = get("full_name").jsTrim()
-                        val space = fullName.indexOf(' ')
-                        val street = listOf(get("address1"), get("address2")).filter(::filled).joinToString(", ")
-                        val address = PostalAddress("", street, get("zipcode"), get("city"), get("country"))
-                        val hasAddress = listOf("address1", "address2", "zipcode", "city", "country").any { filled(get(it)) }
-                        EntryContent(
-                            name,
-                            note,
-                            ContactFields(
-                                firstName = if (space < 0) fullName else fullName.substring(0, space),
-                                lastName = if (space < 0) "" else fullName.substring(space + 1).jsTrim(),
-                                birthDate = "",
-                                phones = if (filled(get("phone_number"))) listOf(LabeledValue("", get("phone_number"))) else emptyList(),
-                                emails = if (filled(get("email"))) listOf(LabeledValue("", get("email"))) else emptyList(),
-                                addresses = if (hasAddress) listOf(address) else emptyList(),
-                            ),
-                            if (filled(get("state"))) listOf(extra("Województwo/stan", get("state"))) else emptyList(),
-                        )
-                    }
-                },
-            )
+            entries.add(rowToEntry(row, kind, name))
         }
         return ParsedImport(entries, skipped)
     }

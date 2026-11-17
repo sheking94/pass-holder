@@ -20,6 +20,9 @@ data class ExportedArchive(val files: Int, val missing: Int)
 /** What an archive import did: the entries as [ImportResult], the files stored with them and the files left out. */
 data class ArchiveImportResult(val entries: ImportResult, val filesAdded: Int, val fileSkips: List<ImportSkip>)
 
+/** An imported archive: its [parsed] index (for the entries it skipped) and what the import did. */
+data class ImportedArchive(val parsed: ParsedArchive, val result: ArchiveImportResult)
+
 /**
  * PassHolder ZIP: passholder.json (a PassHolder JSON v3 index whose entries describe their files) followed by the
  * decrypted files under files/<n>-<name>; port of core/src/transfer/passholder-zip.ts. Paths from an archive are only
@@ -52,7 +55,14 @@ object PassHolderZip {
     fun export(entries: List<EntryContent>, out: OutputStream, readFile: (Attachment) -> ByteArray?): ExportedArchive =
         export(entries, out, readFile, System.currentTimeMillis())
 
+    /** A file the export will write: [size] read in the first pass, [path] its place in the archive. */
     private class Planned(val attachment: Attachment, val path: String, val size: Int)
+
+    /** An entry with the files of it that could be read in the first pass. */
+    private class PlannedEntry(val content: EntryContent, val files: List<Planned>)
+
+    /** The export plan and how many files could not be read for it. */
+    private class Plan(val entries: List<PlannedEntry>, val missing: Int)
 
     internal fun export(
         entries: List<EntryContent>,
@@ -60,10 +70,17 @@ object PassHolderZip {
         readFile: (Attachment) -> ByteArray?,
         time: Long,
     ): ExportedArchive {
+        val plan = plan(entries, readFile)
+        val written = writeZip(out, plan, readFile, time)
+        return ExportedArchive(written.files, plan.missing + written.missing)
+    }
+
+    /** First pass: which files can be read (each array zeroed at once) and their numbered archive paths. */
+    private fun plan(entries: List<EntryContent>, readFile: (Attachment) -> ByteArray?): Plan {
         var numbered = 0
         var missing = 0
-        val plan = sortForExport(entries).map { e ->
-            e to e.attachments.mapNotNull { a ->
+        val planned = sortForExport(entries).map { e ->
+            val files = e.attachments.mapNotNull { a ->
                 val bytes = readFile(a)
                 if (bytes == null) {
                     missing++
@@ -74,29 +91,40 @@ object PassHolderZip {
                     Planned(a, archivePath(++numbered, a.name), size)
                 }
             }
+            PlannedEntry(e, files)
         }
-        val index = JsonArray(
-            plan.map { (e, files) ->
-                val content = EntryCodec.contentJson(e)
-                if (files.isEmpty()) {
-                    content
-                } else {
-                    val described = files.map {
-                        JsonObject(
-                            linkedMapOf(
-                                "name" to JsonPrimitive(it.attachment.name),
-                                "mime" to JsonPrimitive(it.attachment.mime),
-                                "size" to JsonPrimitive(it.size),
-                                "path" to JsonPrimitive(it.path),
-                            ),
-                        )
-                    }
-                    JsonObject(content + ("attachments" to JsonArray(described)))
-                }
-            },
-        )
-        val json = PassHolderJson.text(index).toByteArray(Charsets.UTF_8)
-        var files = 0
+        return Plan(planned, missing)
+    }
+
+    /** passholder.json: each entry's content, with its planned files described under `attachments`. */
+    private fun indexJson(plan: Plan): JsonArray = JsonArray(
+        plan.entries.map { entry ->
+            val content = EntryCodec.contentJson(entry.content)
+            if (entry.files.isEmpty()) {
+                content
+            } else {
+                JsonObject(content + ("attachments" to JsonArray(entry.files.map(::describe))))
+            }
+        },
+    )
+
+    private fun describe(file: Planned) = JsonObject(
+        linkedMapOf(
+            "name" to JsonPrimitive(file.attachment.name),
+            "mime" to JsonPrimitive(file.attachment.mime),
+            "size" to JsonPrimitive(file.size),
+            "path" to JsonPrimitive(file.path),
+        ),
+    )
+
+    /**
+     * Second pass: the index (zeroed afterwards) and then the planned files into a ZIP on [out], which stays open.
+     * `missing` counts the files that could no longer be read.
+     */
+    private fun writeZip(out: OutputStream, plan: Plan, readFile: (Attachment) -> ByteArray?, time: Long): ExportedArchive {
+        val index = PassHolderJson.text(indexJson(plan)).toByteArray(Charsets.UTF_8)
+        var written = 0
+        var missing = 0
         // Closing the ZIP stream frees its deflater; the caller's stream stays open.
         val keepOpen = object : FilterOutputStream(out) {
             override fun write(b: ByteArray, off: Int, len: Int) = out.write(b, off, len)
@@ -106,17 +134,18 @@ object PassHolderZip {
             // The index is written first, so a reader that streams the archive (the phone) meets it before the files.
             zip.putNextEntry(ZipEntry(ARCHIVE_INDEX).also { it.time = time })
             try {
-                zip.write(json)
+                zip.write(index)
             } finally {
-                json.fill(0)
+                index.fill(0)
             }
             zip.closeEntry()
-            for (f in plan.flatMap { it.second }) {
+            for (f in plan.entries.flatMap { it.files }) {
                 // Unavailable since the first pass: the index already describes it, the import reports it missing.
-                val bytes = readFile(f.attachment) ?: run {
+                val bytes = readFile(f.attachment)
+                if (bytes == null) {
                     missing++
-                    null
-                } ?: continue
+                    continue
+                }
                 try {
                     zip.putNextEntry(ZipEntry(f.path).also { it.time = time })
                     zip.write(bytes)
@@ -124,9 +153,9 @@ object PassHolderZip {
                 } finally {
                     bytes.fill(0)
                 }
-                files++
+                written++
             }
         }
-        return ExportedArchive(files, missing)
+        return ExportedArchive(written, missing)
     }
 }

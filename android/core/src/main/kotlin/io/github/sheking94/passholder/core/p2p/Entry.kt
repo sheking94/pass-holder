@@ -93,152 +93,64 @@ object EntryCodec {
     // ---- serialization (compact JSON, fixed key order, escapes as JS JSON.stringify) ----
 
     fun serialize(data: EntryData): String {
-        val c = data.content
-        val sb = StringBuilder()
-        sb.append("{\"v\":3,\"type\":")
-        appendQuoted(sb, c.fields.type)
-        sb.append(",\"name\":")
-        appendQuoted(sb, c.name)
-        sb.append(",\"note\":")
-        appendQuoted(sb, c.note)
-        sb.append(",\"fields\":")
-        fields(sb, c.fields)
-        sb.append(",\"custom\":")
-        array(sb, c.custom) { s, f ->
-            s.append("{\"label\":")
-            appendQuoted(s, f.label)
-            s.append(",\"value\":")
-            appendQuoted(s, f.value)
-            s.append(",\"hidden\":").append(f.hidden).append('}')
+        val content = data.content
+        val out = StringBuilder()
+        out.append("{\"v\":3,\"type\":")
+        appendQuoted(out, content.fields.type)
+        out.append(",\"name\":")
+        appendQuoted(out, content.name)
+        out.append(",\"note\":")
+        appendQuoted(out, content.note)
+        out.append(",\"fields\":")
+        appendJson(out, fieldsJson(content.fields))
+        out.append(",\"custom\":")
+        appendJson(out, customJson(content.custom))
+        if (content.attachments.isNotEmpty()) {
+            out.append(",\"attachments\":")
+            appendJson(out, JsonArray(content.attachments.map(::attachmentJson)))
         }
-        if (c.attachments.isNotEmpty()) {
-            sb.append(",\"attachments\":")
-            array(sb, c.attachments) { s, a ->
-                s.append("{\"id\":")
-                appendQuoted(s, a.id)
-                s.append(",\"name\":")
-                appendQuoted(s, a.name)
-                s.append(",\"mime\":")
-                appendQuoted(s, a.mime)
-                s.append(",\"size\":").append(a.size)
-                s.append(",\"chunks\":").append(a.chunks)
-                s.append(",\"sha256\":")
-                appendQuoted(s, a.sha256)
-                s.append(",\"key\":")
-                appendQuoted(s, a.key)
-                s.append('}')
-            }
-        }
-        sb.append(",\"hlc\":")
-        hlc(sb, data.hlc)
-        return sb.append('}').toString()
+        out.append(",\"hlc\":")
+        appendHlc(out, data.hlc)
+        return out.append('}').toString()
     }
 
     fun serializeTombstone(data: TombstoneData): String {
-        val sb = StringBuilder("{\"hlc\":")
-        hlc(sb, data.hlc)
-        return sb.append('}').toString()
+        val out = StringBuilder("{\"hlc\":")
+        appendHlc(out, data.hlc)
+        return out.append('}').toString()
     }
 
-    private fun hlc(sb: StringBuilder, h: Hlc) {
-        sb.append("{\"ms\":").append(h.ms).append(",\"c\":").append(h.c).append(",\"d\":")
-        appendQuoted(sb, h.d)
-        sb.append('}')
+    private fun appendHlc(out: StringBuilder, hlc: Hlc) {
+        out.append("{\"ms\":").append(hlc.ms).append(",\"c\":").append(hlc.c).append(",\"d\":")
+        appendQuoted(out, hlc.d)
+        out.append('}')
     }
 
-    private fun fields(sb: StringBuilder, f: EntryFields) {
-        when (f) {
-            is LoginFields -> {
-                sb.append("{\"username\":")
-                appendQuoted(sb, f.username)
-                sb.append(",\"password\":")
-                appendQuoted(sb, f.password)
-                sb.append(",\"totp\":")
-                appendQuoted(sb, f.totp)
-                sb.append(",\"urls\":")
-                array(sb, f.urls, ::appendQuoted)
-                sb.append(",\"androidApps\":")
-                array(sb, f.androidApps, ::appendQuoted)
-                sb.append('}')
-            }
-
-            is ContactFields -> {
-                sb.append("{\"firstName\":")
-                appendQuoted(sb, f.firstName)
-                sb.append(",\"lastName\":")
-                appendQuoted(sb, f.lastName)
-                sb.append(",\"birthDate\":")
-                appendQuoted(sb, f.birthDate)
-                sb.append(",\"phones\":")
-                array(sb, f.phones, ::labeled)
-                sb.append(",\"emails\":")
-                array(sb, f.emails, ::labeled)
-                sb.append(",\"addresses\":")
-                array(sb, f.addresses) { s, a ->
-                    s.append("{\"label\":")
-                    appendQuoted(s, a.label)
-                    s.append(",\"street\":")
-                    appendQuoted(s, a.street)
-                    s.append(",\"postalCode\":")
-                    appendQuoted(s, a.postalCode)
-                    s.append(",\"city\":")
-                    appendQuoted(s, a.city)
-                    s.append(",\"country\":")
-                    appendQuoted(s, a.country)
-                    s.append('}')
+    /** Compact JSON as JS JSON.stringify writes it: keys in the tree's order, strings escaped by [appendQuoted]. */
+    private fun appendJson(out: StringBuilder, value: JsonElement) {
+        when (value) {
+            is JsonObject -> {
+                out.append('{')
+                value.entries.forEachIndexed { i, (key, item) ->
+                    if (i > 0) out.append(',')
+                    appendQuoted(out, key)
+                    out.append(':')
+                    appendJson(out, item)
                 }
-                sb.append('}')
+                out.append('}')
             }
 
-            is CardFields -> {
-                sb.append("{\"holder\":")
-                appendQuoted(sb, f.holder)
-                sb.append(",\"number\":")
-                appendQuoted(sb, f.number)
-                sb.append(",\"expiry\":")
-                appendQuoted(sb, f.expiry)
-                sb.append(",\"cvc\":")
-                appendQuoted(sb, f.cvc)
-                sb.append(",\"pin\":")
-                appendQuoted(sb, f.pin)
-                sb.append('}')
+            is JsonArray -> {
+                out.append('[')
+                value.forEachIndexed { i, item ->
+                    if (i > 0) out.append(',')
+                    appendJson(out, item)
+                }
+                out.append(']')
             }
 
-            NoteFields -> sb.append("{}")
-
-            is DocumentFields -> {
-                sb.append("{\"kind\":")
-                appendQuoted(sb, f.kind.json)
-                sb.append(",\"number\":")
-                appendQuoted(sb, f.number)
-                sb.append(",\"fullName\":")
-                appendQuoted(sb, f.fullName)
-                sb.append(",\"issueDate\":")
-                appendQuoted(sb, f.issueDate)
-                sb.append(",\"expiryDate\":")
-                appendQuoted(sb, f.expiryDate)
-                sb.append(",\"issuer\":")
-                appendQuoted(sb, f.issuer)
-                sb.append('}')
-            }
+            is JsonPrimitive -> if (value.isString) appendQuoted(out, value.content) else out.append(value.content)
         }
-    }
-
-    private fun labeled(sb: StringBuilder, l: LabeledValue) {
-        sb.append("{\"label\":")
-        appendQuoted(sb, l.label)
-        sb.append(",\"value\":")
-        appendQuoted(sb, l.value)
-        sb.append('}')
-    }
-
-    private fun <T> array(sb: StringBuilder, items: List<T>, item: (StringBuilder, T) -> Unit) {
-        sb.append('[')
-        items.forEachIndexed { i, x ->
-            if (i > 0) sb.append(',')
-            item(sb, x)
-        }
-        sb.append(']')
     }
 
     /** Length of the Base64 blob, computed without encrypting: 1 + 12 + n + 16 bytes. */
@@ -308,41 +220,134 @@ object EntryCodec {
         return parseHlc(value)
     }
 
-    private fun parseFields(type: String, raw: JsonElement?): EntryFields = when (type) {
-        "login" -> {
-            val o = record(raw, "username", "password", "totp", "urls", "androidApps")
-            LoginFields(str(o["username"]), str(o["password"]), str(o["totp"]), strings(o["urls"]), strings(o["androidApps"]))
+    /** Reads one fields object; every key read is noted, so [requireAllRead] can refuse keys no field has. */
+    private class FieldReader(private val obj: JsonObject) {
+        private val read = HashSet<String>()
+
+        private fun value(key: String): JsonElement? {
+            read.add(key)
+            return obj[key]
         }
 
-        "contact" -> {
-            val o = record(raw, "firstName", "lastName", "birthDate", "phones", "emails", "addresses")
-            ContactFields(
-                str(o["firstName"]),
-                str(o["lastName"]),
-                str(o["birthDate"]),
-                list(o["phones"], ::labeled),
-                list(o["emails"], ::labeled),
-                list(o["addresses"], ::address),
+        fun text(key: String): String = str(value(key))
+        fun texts(key: String): List<String> = strings(value(key))
+        fun labeledValues(key: String): List<LabeledValue> = list(value(key), ::labeled)
+        fun addresses(key: String): List<PostalAddress> = list(value(key), ::address)
+        fun documentKind(key: String): DocumentKind =
+            text(key).let { json -> DocumentKind.entries.firstOrNull { it.json == json } } ?: fail()
+
+        fun requireAllRead() {
+            if (obj.keys != read) fail()
+        }
+    }
+
+    /**
+     * The fields of one entry type, described once (review V3 CW6): [write] gives the JSON object in serialization
+     * order, [read] builds the fields from a [FieldReader] (a missing, extra or wrongly typed key fails).
+     */
+    private class FieldsSpec<F : EntryFields>(val write: (F) -> JsonObject, val read: (FieldReader) -> F)
+
+    private fun textJson(value: String) = JsonPrimitive(value)
+    private fun textsJson(values: List<String>) = JsonArray(values.map(::JsonPrimitive))
+    private fun labeledJson(value: LabeledValue) = jsonObject("label" to textJson(value.label), "value" to textJson(value.value))
+    private fun addressJson(value: PostalAddress) = jsonObject(
+        "label" to textJson(value.label),
+        "street" to textJson(value.street),
+        "postalCode" to textJson(value.postalCode),
+        "city" to textJson(value.city),
+        "country" to textJson(value.country),
+    )
+
+    private val LOGIN = FieldsSpec<LoginFields>(
+        write = {
+            jsonObject(
+                "username" to textJson(it.username),
+                "password" to textJson(it.password),
+                "totp" to textJson(it.totp),
+                "urls" to textsJson(it.urls),
+                "androidApps" to textsJson(it.androidApps),
             )
-        }
+        },
+        read = { LoginFields(it.text("username"), it.text("password"), it.text("totp"), it.texts("urls"), it.texts("androidApps")) },
+    )
 
-        "card" -> {
-            val o = record(raw, "holder", "number", "expiry", "cvc", "pin")
-            CardFields(str(o["holder"]), str(o["number"]), str(o["expiry"]), str(o["cvc"]), str(o["pin"]))
-        }
+    private val CONTACT = FieldsSpec<ContactFields>(
+        write = {
+            jsonObject(
+                "firstName" to textJson(it.firstName),
+                "lastName" to textJson(it.lastName),
+                "birthDate" to textJson(it.birthDate),
+                "phones" to JsonArray(it.phones.map(::labeledJson)),
+                "emails" to JsonArray(it.emails.map(::labeledJson)),
+                "addresses" to JsonArray(it.addresses.map(::addressJson)),
+            )
+        },
+        read = {
+            ContactFields(
+                it.text("firstName"),
+                it.text("lastName"),
+                it.text("birthDate"),
+                it.labeledValues("phones"),
+                it.labeledValues("emails"),
+                it.addresses("addresses"),
+            )
+        },
+    )
 
-        "note" -> {
-            record(raw)
-            NoteFields
-        }
+    private val CARD = FieldsSpec<CardFields>(
+        write = {
+            jsonObject(
+                "holder" to textJson(it.holder),
+                "number" to textJson(it.number),
+                "expiry" to textJson(it.expiry),
+                "cvc" to textJson(it.cvc),
+                "pin" to textJson(it.pin),
+            )
+        },
+        read = { CardFields(it.text("holder"), it.text("number"), it.text("expiry"), it.text("cvc"), it.text("pin")) },
+    )
 
-        "document" -> {
-            val o = record(raw, "kind", "number", "fullName", "issueDate", "expiryDate", "issuer")
-            val kind = DocumentKind.entries.firstOrNull { it.json == str(o["kind"]) } ?: fail()
-            DocumentFields(kind, str(o["number"]), str(o["fullName"]), str(o["issueDate"]), str(o["expiryDate"]), str(o["issuer"]))
-        }
+    private val NOTE = FieldsSpec<NoteFields>(write = { jsonObject() }, read = { NoteFields })
 
-        else -> fail()
+    private val DOCUMENT = FieldsSpec<DocumentFields>(
+        write = {
+            jsonObject(
+                "kind" to textJson(it.kind.json),
+                "number" to textJson(it.number),
+                "fullName" to textJson(it.fullName),
+                "issueDate" to textJson(it.issueDate),
+                "expiryDate" to textJson(it.expiryDate),
+                "issuer" to textJson(it.issuer),
+            )
+        },
+        read = {
+            DocumentFields(
+                it.documentKind("kind"),
+                it.text("number"),
+                it.text("fullName"),
+                it.text("issueDate"),
+                it.text("expiryDate"),
+                it.text("issuer"),
+            )
+        },
+    )
+
+    private val SPECS: Map<String, FieldsSpec<*>> =
+        mapOf("login" to LOGIN, "contact" to CONTACT, "card" to CARD, "note" to NOTE, "document" to DOCUMENT)
+
+    private fun parseFields(type: String, raw: JsonElement?): EntryFields {
+        val spec = SPECS[type] ?: fail()
+        if (raw !is JsonObject) fail()
+        val reader = FieldReader(raw)
+        return spec.read(reader).also { reader.requireAllRead() }
+    }
+
+    private fun fieldsJson(fields: EntryFields): JsonObject = when (fields) {
+        is LoginFields -> LOGIN.write(fields)
+        is ContactFields -> CONTACT.write(fields)
+        is CardFields -> CARD.write(fields)
+        NoteFields -> NOTE.write(NoteFields)
+        is DocumentFields -> DOCUMENT.write(fields)
     }
 
     /** Accepts a v3 payload or a legacy v2 login payload (exactly name, username, password, hlc). */
@@ -379,71 +384,29 @@ object EntryCodec {
     fun parseContent(value: JsonElement): EntryContent = contentOf(record(value, "type", "name", "note", "fields", "custom"))
 
     /** The content as a JSON tree: keys in the order type, name, note, fields, custom; fields in the order of [serialize]. */
-    fun contentJson(c: EntryContent): JsonObject = JsonObject(
-        linkedMapOf(
-            "type" to JsonPrimitive(c.fields.type),
-            "name" to JsonPrimitive(c.name),
-            "note" to JsonPrimitive(c.note),
-            "fields" to fieldsJson(c.fields),
-            "custom" to JsonArray(
-                c.custom.map {
-                    obj("label" to JsonPrimitive(it.label), "value" to JsonPrimitive(it.value), "hidden" to JsonPrimitive(it.hidden))
-                },
-            ),
-        ),
+    fun contentJson(content: EntryContent): JsonObject = jsonObject(
+        "type" to textJson(content.fields.type),
+        "name" to textJson(content.name),
+        "note" to textJson(content.note),
+        "fields" to fieldsJson(content.fields),
+        "custom" to customJson(content.custom),
     )
 
-    private fun obj(vararg pairs: Pair<String, JsonElement>) = JsonObject(linkedMapOf(*pairs))
-    private fun strs(l: List<String>) = JsonArray(l.map(::JsonPrimitive))
-    private fun labeledJson(l: LabeledValue) = obj("label" to JsonPrimitive(l.label), "value" to JsonPrimitive(l.value))
+    private fun customJson(custom: List<CustomField>) = JsonArray(
+        custom.map { jsonObject("label" to textJson(it.label), "value" to textJson(it.value), "hidden" to JsonPrimitive(it.hidden)) },
+    )
 
-    private fun fieldsJson(f: EntryFields): JsonObject = when (f) {
-        is LoginFields -> obj(
-            "username" to JsonPrimitive(f.username),
-            "password" to JsonPrimitive(f.password),
-            "totp" to JsonPrimitive(f.totp),
-            "urls" to strs(f.urls),
-            "androidApps" to strs(f.androidApps),
-        )
+    private fun attachmentJson(a: Attachment) = jsonObject(
+        "id" to textJson(a.id),
+        "name" to textJson(a.name),
+        "mime" to textJson(a.mime),
+        "size" to JsonPrimitive(a.size),
+        "chunks" to JsonPrimitive(a.chunks),
+        "sha256" to textJson(a.sha256),
+        "key" to textJson(a.key),
+    )
 
-        is ContactFields -> obj(
-            "firstName" to JsonPrimitive(f.firstName),
-            "lastName" to JsonPrimitive(f.lastName),
-            "birthDate" to JsonPrimitive(f.birthDate),
-            "phones" to JsonArray(f.phones.map(::labeledJson)),
-            "emails" to JsonArray(f.emails.map(::labeledJson)),
-            "addresses" to JsonArray(
-                f.addresses.map {
-                    obj(
-                        "label" to JsonPrimitive(it.label),
-                        "street" to JsonPrimitive(it.street),
-                        "postalCode" to JsonPrimitive(it.postalCode),
-                        "city" to JsonPrimitive(it.city),
-                        "country" to JsonPrimitive(it.country),
-                    )
-                },
-            ),
-        )
-
-        is CardFields -> obj(
-            "holder" to JsonPrimitive(f.holder),
-            "number" to JsonPrimitive(f.number),
-            "expiry" to JsonPrimitive(f.expiry),
-            "cvc" to JsonPrimitive(f.cvc),
-            "pin" to JsonPrimitive(f.pin),
-        )
-
-        NoteFields -> obj()
-
-        is DocumentFields -> obj(
-            "kind" to JsonPrimitive(f.kind.json),
-            "number" to JsonPrimitive(f.number),
-            "fullName" to JsonPrimitive(f.fullName),
-            "issueDate" to JsonPrimitive(f.issueDate),
-            "expiryDate" to JsonPrimitive(f.expiryDate),
-            "issuer" to JsonPrimitive(f.issuer),
-        )
-    }
+    private fun jsonObject(vararg pairs: Pair<String, JsonElement>) = JsonObject(linkedMapOf(*pairs))
 
     /** Exactly `{hlc}`. */
     fun parseTombstone(value: JsonElement): TombstoneData {

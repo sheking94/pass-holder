@@ -69,6 +69,7 @@ katalogu pakietu.
 | `edge-cases.test.ts` | NFC, Base64/hex, AES-GCM (zły klucz i nonce, ucięty blob), złe hasło, granice KDF, generator |
 | `cipher.test.ts`, `generator.test.ts`, `vectors.test.ts` | szyfrowanie, generator, wektory `v1.json` |
 | `sync-edge.test.ts` | `processSync`: duplikaty, nieznana rewizja, rosnące rewizje |
+| `web-address.test.ts` | normalizacja adresu (G9, CS5): `normalizeHost` (kolejność: `www.` przed kropką, więc `www.` nie ma hosta, też w `matchUrl`), `parseWebAddress` z `assumeHttps` i bez, porty, inne schematy, `hostOf` |
 | `strict-json.test.ts` | wspólne pomocniki (G6): `isRecord`, `hasExactKeys` (klucze odziedziczone i tablice odrzucane), `requireString`, `concat` / `concatAll`, `sameBytes` |
 | `p2p/*.test.ts` | HLC, ristretto255 (RFC 9496), CPace (draft, dodatek B.3), Noise KK (Cacophony), parowanie, klient parowania, host, transport (ścieżki v2, 410/404), synchronizacja (stronicowanie po bajtach, rundy `more`, łączenie załączników przy konflikcie), wpis v3 (`entry.test.ts`), wektory `v2.json` i `v3.json`; stara wersja wpisu od hosta pod nową rewizją pomijana (V3-I2) |
 
@@ -165,6 +166,7 @@ Playwright z Chromium nie jest zależnością repozytorium: w kontenerze w chmur
 | Plik | Co sprawdza |
 |---|---|
 | `CryptoTest`, `GeneratorTest`, `VectorsTest`, `KdfBoundsTest` | szyfrowanie, generator, `v1.json`, granice KDF i NFC |
+| `WebAddressTest` | to samo co `web-address.test.ts` (G9, CS5); `hostOf` z hostem IDN daje punycode jak wtyczka |
 | `StrictJsonTest` | wspólne pomocniki (G6): `StrictJson.string` / `boolean` (inny typ JSON → null), `appendQuoted` jak `JSON.stringify`, `Encoding.fromUtf8OrNull`, `AtomicFiles.write` (nadpisuje, bez pliku `.tmp`) |
 | `p2p/P2pVectorsTest`, `P2pVectorsV3Test`, `Ristretto255Test`, `CpaceTest`, `NoiseTest`, `PairingTest`, `HlcTest`, `P2pJsonTest`, `EntryCodecTest`, `FramesTest` | te same wektory bit w bit, `safeLong`, ramki |
 | `HostSyncTest`, `P2pHostTest`, `PhoneVaultTest` | rewizje, stronicowanie (500 zmian i 512 KiB), cięcie konfliktów, 410 dla starych ścieżek, odmowa nadpisania wpisu innego typu, cofnięty telefon, kody HTTP, sesje (60 s, 32, ≤ 4 na urządzenie), kopia pierwszej wiadomości → 400 (też po 60 s i równolegle), nieudane uzgadnianie nie jest zapamiętywane, wiele wątków |

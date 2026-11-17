@@ -1,12 +1,12 @@
 package io.github.sheking94.passholder.core.save
 
-import io.github.sheking94.passholder.core.autofill.parse
+import io.github.sheking94.passholder.core.parseWebAddress
 
 // Port of core/src/save/url.ts.
 
 /** Address to save a login under for a page (spec 3.1), or null when the page cannot be saved. */
 fun saveUrl(pageUrl: String): String? {
-    val parsed = parse(pageUrl, wwwBeforeDot = true) ?: return null
+    val parsed = parseWebAddress(pageUrl, assumeHttps = false) ?: return null
     val hostPort = if (parsed.port.isEmpty()) parsed.host else "${parsed.host}:${parsed.port}"
     return if (parsed.https) hostPort else "http://$hostPort"
 }
