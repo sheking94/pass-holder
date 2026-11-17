@@ -1,5 +1,7 @@
 package io.github.sheking94.passholder.core.transfer
 
+import io.github.sheking94.passholder.core.ErrorCode
+import io.github.sheking94.passholder.core.PassHolderException
 import io.github.sheking94.passholder.core.p2p.CardFields
 import io.github.sheking94.passholder.core.p2p.ContactFields
 import io.github.sheking94.passholder.core.p2p.CustomField
@@ -47,7 +49,7 @@ class NordPassCsvTest {
         return NordPassCsv.COLUMNS.mapIndexed { i, c -> c to rows[1].fields[i] }.toMap()
     }
 
-    private fun fail(text: String) = assertThrows<IllegalArgumentException> { NordPassCsv.parse(text) }.message
+    private fun fail(text: String) = assertThrows<PassHolderException> { NordPassCsv.parse(text) }.code
 
     @Test
     fun sampleFilesMatchExpected() {
@@ -68,8 +70,8 @@ class NordPassCsvTest {
 
     @Test
     fun rejectsEmptyAndForeignFile() {
-        assertEquals("Plik jest pusty", fail(""))
-        assertEquals("To nie wygląda na eksport z NordPass: brak kolumn name/url w pierwszym wierszu", fail("foo,bar\n1,2"))
+        assertEquals(ErrorCode.IMPORT_EMPTY_FILE, fail(""))
+        assertEquals(ErrorCode.IMPORT_NOT_NORDPASS, fail("foo,bar\n1,2"))
     }
 
     @Test

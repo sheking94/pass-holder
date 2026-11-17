@@ -1,6 +1,8 @@
 package io.github.sheking94.passholder.core.p2p
 
 import io.github.sheking94.passholder.core.Encoding
+import io.github.sheking94.passholder.core.ErrorCode
+import io.github.sheking94.passholder.core.PassHolderException
 import kotlinx.serialization.json.JsonElement
 import java.io.ByteArrayOutputStream
 
@@ -27,11 +29,16 @@ object Frames {
         return frames
     }
 
-    /** Decrypts frames in order, concatenates, decodes strictly and parses; every failure is an IllegalArgumentException. */
+    /**
+     * Decrypts frames in order, concatenates, decodes strictly and parses. A frame that does not decrypt is
+     * [ErrorCode.NOISE_FAILED]; every other failure is an IllegalArgumentException.
+     */
     fun decrypt(cipher: CipherState, frames: List<String>): JsonElement = try {
         val all = ByteArrayOutputStream()
         for (frame in frames) all.write(cipher.decrypt(NO_AD, Encoding.fromBase64(frame)))
         P2pJson.json.parseToJsonElement(Encoding.fromUtf8(all.toByteArray()))
+    } catch (e: PassHolderException) {
+        throw e
     } catch (e: IllegalArgumentException) {
         throw e
     } catch (e: Exception) {

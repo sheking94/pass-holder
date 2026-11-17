@@ -1,5 +1,7 @@
 package io.github.sheking94.passholder.core.p2p
 
+import io.github.sheking94.passholder.core.ErrorCode
+import io.github.sheking94.passholder.core.assertCode
 import io.github.sheking94.passholder.core.files.Attachment
 import io.github.sheking94.passholder.core.files.FileChunks
 import io.github.sheking94.passholder.core.transfer.ArchiveImportResult
@@ -10,7 +12,6 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.io.TempDir
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -150,8 +151,7 @@ class PhoneVaultStoreArchiveTest {
         store.upsertContent("e1", plain.copy(name = "Było"))
         val before = store.allContents()
         val zip = archive()
-        val e = assertThrows<IllegalArgumentException> { store.importArchive(ByteArrayInputStream(zip.copyOf(zip.size - 5))) }
-        assertEquals(PassHolderZip.ZIP_INVALID, e.message)
+        assertCode(ErrorCode.ZIP_INVALID) { store.importArchive(ByteArrayInputStream(zip.copyOf(zip.size - 5))) }
         assertEquals(before, store.allContents())
         assertEquals(emptySet<String>(), storedIds())
     }
@@ -193,7 +193,7 @@ class PhoneVaultStoreArchiveTest {
         val zip = archive()
         // The archive ends with the photo (random, so stored about as large): lock while it is being read.
         var filesAtLock = emptySet<String>()
-        val e = assertThrows<IllegalStateException> {
+        assertCode(ErrorCode.VAULT_LOCKED) {
             store.importArchive(
                 Tripwire(ByteArrayInputStream(zip), zip.size - 20_000) {
                     filesAtLock = storedIds()
@@ -201,7 +201,6 @@ class PhoneVaultStoreArchiveTest {
                 },
             )
         }
-        assertEquals("Sejf jest zablokowany", e.message)
         store.unlock("pw")
         assertEquals(before, store.allContents())
         assertEquals(1, filesAtLock.size)

@@ -1,5 +1,7 @@
 package io.github.sheking94.passholder.app
 
+import io.github.sheking94.passholder.core.ErrorCode
+import io.github.sheking94.passholder.core.PassHolderException
 import io.github.sheking94.passholder.core.transfer.TransferFormat
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -117,13 +119,17 @@ class TransferFilesTest {
         }
         // The vault locked half way: part of the archive may be on disk, so the message says to delete it.
         val e = assertThrows(java.io.IOException::class.java) {
-            TransferFiles.writeArchive({ java.io.ByteArrayOutputStream() }) { throw IllegalStateException("Sejf jest zablokowany") }
+            TransferFiles.writeArchive({ java.io.ByteArrayOutputStream() }) { throw PassHolderException(ErrorCode.VAULT_LOCKED) }
         }
         assertEquals(expected, e.message)
         // Cancellation and programming errors are not disguised as a write failure.
         assertThrows(kotlinx.coroutines.CancellationException::class.java) {
             TransferFiles.writeArchive({ java.io.ByteArrayOutputStream() }) { throw kotlinx.coroutines.CancellationException("stop") }
         }
+        val corrupted = assertThrows(PassHolderException::class.java) {
+            TransferFiles.writeArchive({ java.io.ByteArrayOutputStream() }) { throw PassHolderException(ErrorCode.FILE_CORRUPTED) }
+        }
+        assertEquals(ErrorCode.FILE_CORRUPTED, corrupted.code)
         val bug = assertThrows(IllegalArgumentException::class.java) {
             TransferFiles.writeArchive({ java.io.ByteArrayOutputStream() }) { throw IllegalArgumentException("bug") }
         }

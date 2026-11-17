@@ -1,12 +1,13 @@
 package io.github.sheking94.passholder.core.p2p
 
 import io.github.sheking94.passholder.core.Encoding
+import io.github.sheking94.passholder.core.ErrorCode
+import io.github.sheking94.passholder.core.assertCode
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.io.File
@@ -123,7 +124,7 @@ class NoiseTest {
             assertArrayEquals(utf8("pong $n"), i.recv.decrypt(ad, pong))
         }
         val own = i.send.encrypt(ad, utf8("x"))
-        assertThrows(IllegalArgumentException::class.java) { i.recv.decrypt(ad, own) }
+        assertCode(ErrorCode.NOISE_FAILED) { i.recv.decrypt(ad, own) }
     }
 
     @Test
@@ -132,10 +133,10 @@ class NoiseTest {
             val (init, resp) = mk()
             val m1 = init.writeMessage(utf8("hello"))
             m1[index] = (m1[index].toInt() xor 1).toByte()
-            assertThrows(IllegalArgumentException::class.java) { resp.readMessage(m1) }
-            assertThrows(IllegalStateException::class.java) { resp.writeMessage(utf8("x")) }
-            assertThrows(IllegalStateException::class.java) { resp.split() }
-            assertThrows(IllegalStateException::class.java) { resp.handshakeHash }
+            assertCode(ErrorCode.NOISE_FAILED) { resp.readMessage(m1) }
+            assertCode(ErrorCode.NOISE_FAILED) { resp.writeMessage(utf8("x")) }
+            assertCode(ErrorCode.NOISE_FAILED) { resp.split() }
+            assertCode(ErrorCode.NOISE_FAILED) { resp.handshakeHash }
         }
     }
 
@@ -143,10 +144,10 @@ class NoiseTest {
     fun rejectsTruncatedMessage1() {
         val (init, resp) = mk()
         val m1 = init.writeMessage(utf8("hello"))
-        assertThrows(IllegalArgumentException::class.java) { resp.readMessage(m1.copyOf(20)) }
+        assertCode(ErrorCode.NOISE_FAILED) { resp.readMessage(m1.copyOf(20)) }
         val (init2, resp2) = mk()
         val n1 = init2.writeMessage(utf8("hello"))
-        assertThrows(IllegalArgumentException::class.java) { resp2.readMessage(n1.copyOf(n1.size - 1)) }
+        assertCode(ErrorCode.NOISE_FAILED) { resp2.readMessage(n1.copyOf(n1.size - 1)) }
     }
 
     @Test
@@ -156,18 +157,18 @@ class NoiseTest {
             resp.readMessage(init.writeMessage(utf8("hello")))
             val m2 = resp.writeMessage(utf8("world"))
             m2[index] = (m2[index].toInt() xor 1).toByte()
-            assertThrows(IllegalArgumentException::class.java) { init.readMessage(m2) }
-            assertThrows(IllegalStateException::class.java) { init.split() }
-            assertThrows(IllegalStateException::class.java) { init.readMessage(m2) }
+            assertCode(ErrorCode.NOISE_FAILED) { init.readMessage(m2) }
+            assertCode(ErrorCode.NOISE_FAILED) { init.split() }
+            assertCode(ErrorCode.NOISE_FAILED) { init.readMessage(m2) }
         }
         val (init, resp) = mk()
         resp.readMessage(init.writeMessage(utf8("hello")))
         val m2 = resp.writeMessage(utf8("world"))
-        assertThrows(IllegalArgumentException::class.java) { init.readMessage(m2.copyOf(m2.size - 1)) }
+        assertCode(ErrorCode.NOISE_FAILED) { init.readMessage(m2.copyOf(m2.size - 1)) }
         val (init2, resp2) = mk()
         resp2.readMessage(init2.writeMessage(utf8("hello")))
         val n2 = resp2.writeMessage(utf8("world"))
-        assertThrows(IllegalArgumentException::class.java) { init2.readMessage(n2.copyOf(20)) }
+        assertCode(ErrorCode.NOISE_FAILED) { init2.readMessage(n2.copyOf(20)) }
     }
 
     @Test
@@ -177,7 +178,7 @@ class NoiseTest {
         val r = resp.split()
         val frame = i.send.encrypt(empty, utf8("sync"))
         assertArrayEquals(utf8("sync"), r.recv.decrypt(empty, frame))
-        assertThrows(IllegalArgumentException::class.java) { r.recv.decrypt(empty, frame) }
+        assertCode(ErrorCode.NOISE_FAILED) { r.recv.decrypt(empty, frame) }
     }
 
     @Test
@@ -186,7 +187,7 @@ class NoiseTest {
         val stranger = NoiseKeys.generate()
         val init = NoiseKK.initiator(a, b.publicKey, P2P_PROLOGUE)
         val resp = NoiseKK.responder(b, stranger.publicKey, P2P_PROLOGUE)
-        assertThrows(IllegalArgumentException::class.java) { resp.readMessage(init.writeMessage(utf8("hi"))) }
+        assertCode(ErrorCode.NOISE_FAILED) { resp.readMessage(init.writeMessage(utf8("hi"))) }
     }
 
     @Test
@@ -194,7 +195,7 @@ class NoiseTest {
         val (a, b) = pair()
         val init = NoiseKK.initiator(a, b.publicKey, P2P_PROLOGUE)
         val resp = NoiseKK.responder(b, a.publicKey, utf8("other"))
-        assertThrows(IllegalArgumentException::class.java) { resp.readMessage(init.writeMessage(utf8("hi"))) }
+        assertCode(ErrorCode.NOISE_FAILED) { resp.readMessage(init.writeMessage(utf8("hi"))) }
     }
 
     @Test
@@ -202,40 +203,40 @@ class NoiseTest {
         val (a, b) = pair()
         val init = NoiseKK.initiator(a, b.publicKey, P2P_PROLOGUE)
         val resp = NoiseKK.responder(b, a.publicKey, P2P_PROLOGUE)
-        assertThrows(IllegalStateException::class.java) { init.split() }
-        assertThrows(IllegalStateException::class.java) { resp.writeMessage(utf8("x")) }
-        assertThrows(IllegalStateException::class.java) { init.readMessage(ByteArray(48)) }
-        val tooBig = assertThrows(IllegalArgumentException::class.java) { init.writeMessage(ByteArray(65535 - 48 + 1)) }
+        assertCode(ErrorCode.NOISE_FAILED) { init.split() }
+        assertCode(ErrorCode.NOISE_FAILED) { resp.writeMessage(utf8("x")) }
+        assertCode(ErrorCode.NOISE_FAILED) { init.readMessage(ByteArray(48)) }
+        val tooBig = assertCode(ErrorCode.NOISE_FAILED) { init.writeMessage(ByteArray(65535 - 48 + 1)) }
         assertTrue(tooBig.message!!.contains("65535"))
-        val tooBigRead = assertThrows(IllegalArgumentException::class.java) { resp.readMessage(ByteArray(65536)) }
+        val tooBigRead = assertCode(ErrorCode.NOISE_FAILED) { resp.readMessage(ByteArray(65536)) }
         assertTrue(tooBigRead.message!!.contains("65535"))
         // Size errors leave the state intact.
         val m1 = init.writeMessage(ByteArray(65535 - 48))
         assertEquals(65535, m1.size)
         resp.readMessage(m1)
-        assertThrows(IllegalStateException::class.java) { resp.split() }
+        assertCode(ErrorCode.NOISE_FAILED) { resp.split() }
         init.readMessage(resp.writeMessage(empty))
-        assertThrows(IllegalStateException::class.java) { init.writeMessage(utf8("x")) }
+        assertCode(ErrorCode.NOISE_FAILED) { init.writeMessage(utf8("x")) }
         val send = init.split().send
-        val big = assertThrows(IllegalArgumentException::class.java) { send.encrypt(empty, ByteArray(65535 - 16 + 1)) }
+        val big = assertCode(ErrorCode.NOISE_FAILED) { send.encrypt(empty, ByteArray(65535 - 16 + 1)) }
         assertTrue(big.message!!.contains("65535"))
-        assertThrows(IllegalStateException::class.java) { init.split() }
+        assertCode(ErrorCode.NOISE_FAILED) { init.split() }
     }
 
     @Test
     fun rejectsAllZeroPublicKey() {
         val (a, b) = pair()
         val init = NoiseKK.initiator(a, ByteArray(32), P2P_PROLOGUE)
-        val e = assertThrows(IllegalArgumentException::class.java) { init.writeMessage(empty) }
+        val e = assertCode(ErrorCode.NOISE_FAILED) { init.writeMessage(empty) }
         assertEquals("Noise: invalid public key", e.message)
         val resp = NoiseKK.responder(b, a.publicKey, P2P_PROLOGUE)
-        val e2 = assertThrows(IllegalArgumentException::class.java) { resp.readMessage(ByteArray(48)) }
+        val e2 = assertCode(ErrorCode.NOISE_FAILED) { resp.readMessage(ByteArray(48)) }
         assertEquals("Noise: invalid public key", e2.message)
     }
 
     @Test
     fun keyPairFromPrivateKeyChecksLength() {
-        assertThrows(IllegalArgumentException::class.java) { NoiseKeys.fromPrivateKey(ByteArray(31)) }
+        assertCode(ErrorCode.NOISE_FAILED) { NoiseKeys.fromPrivateKey(ByteArray(31)) }
     }
 }
 
@@ -272,11 +273,11 @@ class CipherStateTest {
         val key = ByteArray(32) { 1 }
         val last = CipherState(key, ULong.MAX_VALUE - 1u)
         val ct = last.encrypt(empty, utf8("a"))
-        val e = assertThrows(IllegalStateException::class.java) { last.encrypt(empty, utf8("b")) }
+        val e = assertCode(ErrorCode.NOISE_FAILED) { last.encrypt(empty, utf8("b")) }
         assertTrue(e.message!!.contains("nonce exhausted"))
         val reader = CipherState(key, ULong.MAX_VALUE - 1u)
         assertArrayEquals(utf8("a"), reader.decrypt(empty, ct))
-        assertThrows(IllegalStateException::class.java) { reader.decrypt(empty, ct) }
+        assertCode(ErrorCode.NOISE_FAILED) { reader.decrypt(empty, ct) }
     }
 
     @Test
@@ -287,7 +288,7 @@ class CipherStateTest {
         val ct = w.encrypt(empty, utf8("ok"))
         val bad = ct.copyOf()
         bad[0] = (bad[0].toInt() xor 1).toByte()
-        val e = assertThrows(IllegalArgumentException::class.java) { r.decrypt(empty, bad) }
+        val e = assertCode(ErrorCode.NOISE_FAILED) { r.decrypt(empty, bad) }
         assertEquals("Noise: decryption failed", e.message)
         assertArrayEquals(utf8("ok"), r.decrypt(empty, ct))
     }
@@ -295,7 +296,7 @@ class CipherStateTest {
     @Test
     fun rejectsShortCiphertextAndBadKeyLength() {
         val cs = CipherState(ByteArray(32))
-        assertThrows(IllegalArgumentException::class.java) { cs.decrypt(empty, ByteArray(15)) }
-        assertThrows(IllegalArgumentException::class.java) { CipherState(ByteArray(16)) }
+        assertCode(ErrorCode.NOISE_FAILED) { cs.decrypt(empty, ByteArray(15)) }
+        assertCode(ErrorCode.NOISE_FAILED) { CipherState(ByteArray(16)) }
     }
 }

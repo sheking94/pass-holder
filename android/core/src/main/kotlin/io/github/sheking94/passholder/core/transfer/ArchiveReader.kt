@@ -1,5 +1,7 @@
 package io.github.sheking94.passholder.core.transfer
 
+import io.github.sheking94.passholder.core.ErrorCode
+import io.github.sheking94.passholder.core.PassHolderException
 import io.github.sheking94.passholder.core.files.Attachments
 import java.io.Closeable
 import java.io.InputStream
@@ -12,9 +14,9 @@ import java.util.zip.Inflater
 
 /**
  * Reads a PassHolder ZIP as a stream, one entry at a time, without a copy on disk: [readIndex] first (the archive's
- * first entry must be passholder.json, else [PassHolderZip.NOT_ARCHIVE]), then [forEachFile]. Errors are
- * IllegalArgumentExceptions with the Polish message: [PassHolderZip.ZIP_TOO_LARGE] once more than the limit was read,
- * [PassHolderZip.ZIP_INVALID] for ZIP64, encryption, a method other than stored/deflate, a repeated name, a name over
+ * first entry must be passholder.json, else [ErrorCode.ZIP_NOT_PASSHOLDER]), then [forEachFile]. Errors are
+ * [PassHolderException]s: [ErrorCode.ZIP_TOO_LARGE] once more than the limit was read,
+ * [ErrorCode.ZIP_INVALID] for ZIP64, encryption, a method other than stored/deflate, a repeated name, a name over
  * 1024 bytes, more than 5000 entries, broken structure (a central directory or end record included: cut short,
  * inconsistent with the entries, for several disks or followed by more bytes), or inflated output more than
  * [MAX_EXCESS] beyond what the index describes (the declared size of each described file; nothing for an entry it
@@ -72,22 +74,23 @@ class ArchiveReader internal constructor(private val input: InputStream, private
     private var ending = 0L
     private var endingAt = 0L
 
-    /** The index (first entry). Throws [PassHolderZip.NOT_ARCHIVE] when it is missing, too large or not PassHolder JSON v3. */
+    /** The index (first entry). Throws [ErrorCode.ZIP_NOT_PASSHOLDER] when it is missing, too large or not PassHolder JSON v3. */
     fun readIndex(): ParsedArchive {
         check(state == State.NEW) { "Index already read" }
         state = State.INDEX
-        val e = nextEntry() ?: throw IllegalArgumentException(PassHolderZip.NOT_ARCHIVE)
-        if (e.name != PassHolderZip.ARCHIVE_INDEX) throw IllegalArgumentException(PassHolderZip.NOT_ARCHIVE)
+        val e = nextEntry() ?: throw notArchive()
+        if (e.name != PassHolderZip.ARCHIVE_INDEX) throw notArchive()
         allowance = PassHolderZip.MAX_INDEX_BYTES.toLong()
         val bytes = when (val d = readData(e, PassHolderZip.MAX_INDEX_BYTES)) {
             is Data.Bytes -> d.bytes
             Data.Corrupt -> invalid()
-            else -> throw IllegalArgumentException(PassHolderZip.NOT_ARCHIVE)
+            else -> throw notArchive()
         }
         val parsed = try {
-            PassHolderZip.parseIndex(strictUtf8(bytes) ?: throw IllegalArgumentException(PassHolderZip.NOT_ARCHIVE))
-        } catch (_: IllegalArgumentException) {
-            throw IllegalArgumentException(PassHolderZip.NOT_ARCHIVE)
+            PassHolderZip.parseIndex(strictUtf8(bytes) ?: throw notArchive())
+        } catch (e: PassHolderException) {
+            if (e.code != ErrorCode.IMPORT_NOT_PASSHOLDER) throw e
+            throw notArchive(e)
         } finally {
             bytes.fill(0)
         }
@@ -182,7 +185,7 @@ class ArchiveReader internal constructor(private val input: InputStream, private
      * The central directory and the end record, after the last entry: one central record for each entry met, with
      * the same names, then an end record for a single disk that counts them, gives the directory's offset and size,
      * and whose comment ends the input exactly. Anything else (cut short, trailing bytes, ZIP64, several disks) is
-     * [PassHolderZip.ZIP_INVALID], as the extension refuses it.
+     * [ErrorCode.ZIP_INVALID], as the extension refuses it.
      */
     private fun readDirectory() {
         val start = endingAt
@@ -374,7 +377,7 @@ class ArchiveReader internal constructor(private val input: InputStream, private
         val n = input.read(buf, 0, buf.size)
         if (n <= 0) return false
         total += n
-        if (total > maxZipBytes) throw IllegalArgumentException(PassHolderZip.ZIP_TOO_LARGE)
+        if (total > maxZipBytes) throw PassHolderException(ErrorCode.ZIP_TOO_LARGE)
         pos = 0
         lim = n
         return true
@@ -425,5 +428,8 @@ class ArchiveReader internal constructor(private val input: InputStream, private
         null
     }
 
-    private fun invalid(): Nothing = throw IllegalArgumentException(PassHolderZip.ZIP_INVALID)
+    private fun invalid(): Nothing = throw PassHolderException(ErrorCode.ZIP_INVALID)
+
+    private fun notArchive(cause: Throwable? = null) =
+        PassHolderException(ErrorCode.ZIP_NOT_PASSHOLDER, "Not a PassHolder archive", cause = cause)
 }

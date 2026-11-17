@@ -1,6 +1,8 @@
 package io.github.sheking94.passholder.core.files
 
 import io.github.sheking94.passholder.core.Encoding
+import io.github.sheking94.passholder.core.ErrorCode
+import io.github.sheking94.passholder.core.assertCode
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
@@ -9,8 +11,7 @@ import org.junit.jupiter.api.Test
 class FileChunksTest {
     private val chunk = Attachments.FILE_CHUNK_SIZE
     private fun sample(n: Int) = ByteArray(n) { i -> ((i * 31 + 7) and 0xff).toByte() }
-    private fun fails(message: String, block: () -> Unit) =
-        assertEquals(message, assertThrows(IllegalArgumentException::class.java, block).message)
+    private fun fails(code: ErrorCode, block: () -> Unit) = assertCode(code, block)
 
     @Test
     fun buildsAad() = assertEquals("passholder/v3/file/x/1/3", FileChunks.aad("x", 1, 3))
@@ -37,9 +38,9 @@ class FileChunksTest {
 
     @Test
     fun rejectsEmptyTooLargeAndBadName() {
-        fails("Empty file") { FileChunks.encrypt(ByteArray(0), "a", "") }
-        fails("File too large") { FileChunks.encrypt(ByteArray(Attachments.MAX_FILE_SIZE + 1), "a", "") }
-        fails("Invalid file name") { FileChunks.encrypt(sample(3), "a/b", "") }
+        fails(ErrorCode.FILE_EMPTY) { FileChunks.encrypt(ByteArray(0), "a", "") }
+        fails(ErrorCode.FILE_TOO_LARGE) { FileChunks.encrypt(ByteArray(Attachments.MAX_FILE_SIZE + 1), "a", "") }
+        fails(ErrorCode.FILE_INVALID_NAME) { FileChunks.encrypt(sample(3), "a/b", "") }
     }
 
     @Test
@@ -61,7 +62,7 @@ class FileChunksTest {
             Encoding.fromBase64(a.key),
             (1..3).map { ByteArray(12) { _ -> it.toByte() } },
         )
-        val bad = "File is corrupted"
+        val bad = ErrorCode.FILE_CORRUPTED
         fails(bad) { FileChunks.decrypt(a, listOf(blobs[1], blobs[0], blobs[2])) }
         fails(bad) { FileChunks.decrypt(a, blobs.take(2)) }
         fails(bad) { FileChunks.decrypt(a, listOf(blobs[0], blobs[1], other.blobs[2])) }

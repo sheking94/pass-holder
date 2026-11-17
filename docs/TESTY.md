@@ -191,8 +191,10 @@ Playwright z Chromium nie jest zależnością repozytorium: w kontenerze w chmur
 
 Pomocniki testów Kotlina są w `android/core/src/testFixtures/` (widzą je testy `core` i `app`): `MemorySyncStore`,
 `MemoryFileStore` (magazyny w pamięci), `Credentials` i `login(nazwa, login, hasło)` (nowy login dla
-`upsertContent`), `PhoneEntry.credentials` (nazwa, login i hasło wpisu), `TestP2pClient`. Od G2 nie ma ich w kodzie
-produkcyjnym.
+`upsertContent`), `PhoneEntry.credentials` (nazwa, login i hasło wpisu), `TestP2pClient`, `assertCode(kod) { … }`
+(sprawdza `PassHolderException` z tym kodem i go zwraca, od G5). Od G2 nie ma ich w kodzie produkcyjnym.
+Testy błędów rdzenia sprawdzają kod (`assertCode`), nie polski tekst; `ErrorMessagesTest` (app) sprawdza, że każdy
+kod ma tekst, i kilka tekstów, które użytkownik widział przed G5.
 
 Zrzuty ekranów telefonu (`android/app/screenshots/`, przepisywane przy każdym przebiegu testów): 30 Ustawienia,
 31-35 zakładki (Loginy, Karty, Kontakty, Notatki, Dokumenty), 36 formularz loginu, 37 pole ukryte pokazane,
@@ -469,8 +471,8 @@ CI (`.github/workflows/ci.yml`) odrzuca zmianę, gdy któreś z tych sprawdzeń 
 
 - Prettier pomija wektory testowe, wygenerowany `psl-rules.ts`, `docs/` i pliki `.md`: formatowanie
   zmieniłoby dane albo wynik generatora.
-- ESLint: tylko zalecane reguły. `_nazwa` oznacza wartość pominiętą celowo. `preserve-caught-error` wyłączone
-  do grup G4/G5 (dodanie `cause` zmieniłoby błędy). W testach i skryptach wolno `any`.
+- ESLint: tylko zalecane reguły. `_nazwa` oznacza wartość pominiętą celowo. `preserve-caught-error` włączone
+  od G4. W testach i skryptach wolno `any`.
 - typescript-eslint nie działa z TypeScript 7 (brak API JS), więc `overrides` w `package.json` daje mu
   TypeScript 6.0. `tsc` w `core/` i `extension/` to nadal TypeScript 7.
 - ktlint: reguła nazw plików wyłączona do grupy G3 (nazwy).

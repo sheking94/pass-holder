@@ -1,6 +1,8 @@
 package io.github.sheking94.passholder.core.p2p
 
 import io.github.sheking94.passholder.core.Encoding
+import io.github.sheking94.passholder.core.ErrorCode
+import io.github.sheking94.passholder.core.PassHolderException
 import io.github.sheking94.passholder.core.files.FileHost
 import io.github.sheking94.passholder.core.files.FileStore
 import kotlinx.serialization.json.JsonArray
@@ -129,9 +131,8 @@ class P2pHost(
             noise.readMessage(message)
             reply = noise.writeMessage(ByteArray(0))
             ciphers = noise.split()
-        } catch (_: IllegalArgumentException) {
-            return fail(400, "handshake failed")
-        } catch (_: IllegalStateException) {
+        } catch (e: PassHolderException) {
+            if (e.code != ErrorCode.NOISE_FAILED) throw e
             return fail(400, "handshake failed")
         }
         val id = Encoding.toBase64(Encoding.randomBytes(16))
@@ -182,6 +183,9 @@ class P2pHost(
         if (!stillPaired) return fail(403, "device not paired")
         val request = try {
             Frames.decrypt(session.recv, frames)
+        } catch (e: PassHolderException) {
+            if (e.code != ErrorCode.NOISE_FAILED) throw e
+            return fail(400, "cannot decrypt request")
         } catch (_: IllegalArgumentException) {
             return fail(400, "cannot decrypt request")
         }

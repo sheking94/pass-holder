@@ -27,9 +27,6 @@ data class ArchiveImportResult(val entries: ImportResult, val filesAdded: Int, v
 object PassHolderZip {
     const val MAX_ZIP_BYTES = 268435456L
     const val ARCHIVE_INDEX = "passholder.json"
-    const val NOT_ARCHIVE = "Archiwum nie jest eksportem PassHolder"
-    const val ZIP_INVALID = "Archiwum ZIP jest uszkodzone albo nieobsługiwane"
-    const val ZIP_TOO_LARGE = "Plik jest za duży (limit 256 MiB)"
 
     /** Largest passholder.json accepted, after inflating. */
     internal const val MAX_INDEX_BYTES = 10485760

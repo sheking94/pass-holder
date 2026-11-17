@@ -95,7 +95,7 @@ class SyncController(
             } catch (e: BindException) {
                 throw IllegalStateException("Nie mogę uruchomić synchronizacji: port $port jest zajęty.", e)
             } catch (e: IOException) {
-                throw IllegalStateException("Nie mogę uruchomić synchronizacji: ${e.message ?: e.javaClass.simpleName}", e)
+                throw IllegalStateException("Nie mogę uruchomić synchronizacji: ${errorMessage(e)}", e)
             }
             server = http
             currentAddresses = addresses(bound)

@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.github.sheking94.passholder.app.AppViewModel
+import io.github.sheking94.passholder.app.errorMessage
 import io.github.sheking94.passholder.core.CharacterGroup
 import io.github.sheking94.passholder.core.GeneratorOptions
 import io.github.sheking94.passholder.core.PasswordGenerator
@@ -70,7 +71,7 @@ fun GeneratorCard(vm: AppViewModel, onGenerated: (String) -> Unit) {
                         onGenerated(it)
                         vm.generatorOptions = options
                     }
-                    .onFailure { vm.fail(it.message ?: "Błąd generatora") }
+                    .onFailure { vm.fail(errorMessage(it)) }
             }) { Text("Generuj") }
         }
     }

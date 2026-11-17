@@ -2,6 +2,8 @@ package io.github.sheking94.passholder.core.p2p
 
 import io.github.sheking94.passholder.core.Aead
 import io.github.sheking94.passholder.core.Encoding
+import io.github.sheking94.passholder.core.ErrorCode
+import io.github.sheking94.passholder.core.assertCode
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -173,8 +175,8 @@ class EntryCodecTest {
         assertEquals(49123, bytes(note))
         assertEquals(EntryCodec.MAX_BLOB_LENGTH, EntryCodec.blobLength(EntryCodec.serialize(withNote(note))))
         EntryCodec.encrypt(key, "id", withNote(note))
-        assertThrows(EntryTooLargeException::class.java) { EntryCodec.encrypt(key, "id", withNote(note + "ż")) }
-        assertEquals("Entry too large", EntryTooLargeException().message)
+        val e = assertCode(ErrorCode.ENTRY_TOO_LARGE) { EntryCodec.encrypt(key, "id", withNote(note + "ż")) }
+        assertEquals("Entry too large", e.message)
     }
 
     @Test

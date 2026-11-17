@@ -18,10 +18,10 @@ object PasswordGenerator {
     const val MIN_LENGTH = 4
     const val MAX_LENGTH = 128
 
-    /** Password with at least one character from every chosen group. */
+    /** Password with at least one character from every chosen group; [ErrorCode.GENERATOR_NO_GROUPS], [ErrorCode.GENERATOR_BAD_LENGTH]. */
     fun generate(options: GeneratorOptions = GeneratorOptions()): String {
-        require(options.groups.isNotEmpty()) { "Wybierz co najmniej jedną grupę znaków" }
-        require(options.length in MIN_LENGTH..MAX_LENGTH) { "Długość musi być od $MIN_LENGTH do $MAX_LENGTH" }
+        requireCode(options.groups.isNotEmpty(), ErrorCode.GENERATOR_NO_GROUPS)
+        requireCode(options.length in MIN_LENGTH..MAX_LENGTH, ErrorCode.GENERATOR_BAD_LENGTH)
         val groups = CharacterGroup.entries.filter { it in options.groups }
         fun pick(chars: String) = chars[Encoding.randomIndex(chars.length)]
         val all = groups.joinToString("") { it.chars }

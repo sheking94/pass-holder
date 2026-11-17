@@ -1,5 +1,7 @@
 package io.github.sheking94.passholder.core.transfer
 
+import io.github.sheking94.passholder.core.ErrorCode
+import io.github.sheking94.passholder.core.assertCode
 import io.github.sheking94.passholder.core.p2p.CardFields
 import io.github.sheking94.passholder.core.p2p.ContactFields
 import io.github.sheking94.passholder.core.p2p.CustomField
@@ -48,14 +50,13 @@ class BitwardenJsonTest {
 
     @Test
     fun rejectsEncryptedExport() {
-        val msg = "Zaszyfrowany eksport Bitwarden nie jest obsługiwany. Wyeksportuj z Bitwardena plik JSON bez szyfrowania."
-        assertEquals(msg, assertThrows<IllegalArgumentException> { BitwardenJson.parse("""{"encrypted":true,"data":"x"}""") }.message)
+        assertCode(ErrorCode.IMPORT_BITWARDEN_ENCRYPTED) { BitwardenJson.parse("""{"encrypted":true,"data":"x"}""") }
     }
 
     @Test
     fun rejectsOtherFiles() {
         for (t in listOf("nie json", "[]", """{"items":{}}""")) {
-            assertEquals("To nie jest plik Bitwarden JSON", assertThrows<IllegalArgumentException> { BitwardenJson.parse(t) }.message, t)
+            assertCode(ErrorCode.IMPORT_NOT_BITWARDEN) { BitwardenJson.parse(t) }
         }
     }
 

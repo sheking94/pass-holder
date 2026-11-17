@@ -1,5 +1,7 @@
 package io.github.sheking94.passholder.core.transfer
 
+import io.github.sheking94.passholder.core.ErrorCode
+import io.github.sheking94.passholder.core.assertCode
 import io.github.sheking94.passholder.core.p2p.EntryContent
 import io.github.sheking94.passholder.core.p2p.NoteFields
 import kotlinx.serialization.json.Json
@@ -12,7 +14,6 @@ import org.junit.jupiter.api.assertThrows
 class PassHolderJsonTest {
     private val file = readVector("passholder.json")
     private val expected = readExpected("passholder.expected.json")
-    private val msg = "To nie jest plik PassHolder w wersji 3"
 
     @Test
     fun matchesSharedSampleFile() = assertEquals(expected, PassHolderJson.parse(file))
@@ -32,7 +33,7 @@ class PassHolderJsonTest {
             "null",
             "nie json",
         )) {
-            assertEquals(msg, assertThrows<IllegalArgumentException> { PassHolderJson.parse(t) }.message, t)
+            assertCode(ErrorCode.IMPORT_NOT_PASSHOLDER) { PassHolderJson.parse(t) }
         }
     }
 

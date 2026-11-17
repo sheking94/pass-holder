@@ -1,5 +1,7 @@
 package io.github.sheking94.passholder.core.transfer
 
+import io.github.sheking94.passholder.core.ErrorCode
+import io.github.sheking94.passholder.core.PassHolderException
 import io.github.sheking94.passholder.core.files.Attachment
 import io.github.sheking94.passholder.core.files.FileChunks
 import io.github.sheking94.passholder.core.p2p.EntryCodec
@@ -25,8 +27,8 @@ import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
 class PassHolderZipTest {
-    private val notArchive = "Archiwum nie jest eksportem PassHolder"
-    private val zipInvalid = "Archiwum ZIP jest uszkodzone albo nieobsługiwane"
+    private val notArchive = ErrorCode.ZIP_NOT_PASSHOLDER
+    private val zipInvalid = ErrorCode.ZIP_INVALID
 
     /** Same bodies as core/scripts/transfer-vectors.ts, so a Kotlin export of them matches archive.expected.json. */
     private val text = "Zażółć gęślą jaźń\n".repeat(200).toByteArray(Charsets.UTF_8)
@@ -233,8 +235,8 @@ class PassHolderZipTest {
     @Test
     fun refusesAnArchiveWhoseFirstEntryIsNotTheIndex() {
         val zip = zipOf("files/1-a.txt" to "abc".toByteArray(), "passholder.json" to index("{$bareNote}"))
-        val e = assertThrows<IllegalArgumentException> { ArchiveReader(ByteArrayInputStream(zip)).use { it.readIndex() } }
-        assertEquals(notArchive, e.message)
+        val e = assertThrows<PassHolderException> { ArchiveReader(ByteArrayInputStream(zip)).use { it.readIndex() } }
+        assertEquals(notArchive, e.code)
     }
 
     @Test
@@ -242,23 +244,23 @@ class PassHolderZipTest {
         val zip = zipOf("passholder.json" to """{"format":"other"}""".toByteArray())
         assertEquals(
             notArchive,
-            assertThrows<IllegalArgumentException> {
+            assertThrows<PassHolderException> {
                 ArchiveReader(ByteArrayInputStream(zip)).use { it.readIndex() }
-            }.message,
+            }.code,
         )
         val empty = zipOf()
         assertEquals(
             notArchive,
-            assertThrows<IllegalArgumentException> {
+            assertThrows<PassHolderException> {
                 ArchiveReader(ByteArrayInputStream(empty)).use { it.readIndex() }
-            }.message,
+            }.code,
         )
     }
 
     @Test
     fun refusesBytesThatAreNotAZip() {
-        val e = assertThrows<IllegalArgumentException> { ArchiveReader(ByteArrayInputStream("{}".toByteArray())).use { it.readIndex() } }
-        assertEquals(zipInvalid, e.message)
+        val e = assertThrows<PassHolderException> { ArchiveReader(ByteArrayInputStream("{}".toByteArray())).use { it.readIndex() } }
+        assertEquals(zipInvalid, e.code)
     }
 
     @Test
@@ -279,13 +281,13 @@ class PassHolderZipTest {
     fun refusesAnArchiveThatWouldInflateFarPastTheFileLimitToFindAnEntryEnd() {
         // 80 MiB of zeros with a data descriptor: its end is only found by inflating, which stops 64 MiB past 10 MiB.
         val zip = zipOf("passholder.json" to index("{$bareNote}"), "files/1-bomb.bin" to ByteArray(80 * 1024 * 1024))
-        val e = assertThrows<IllegalArgumentException> {
+        val e = assertThrows<PassHolderException> {
             ArchiveReader(ByteArrayInputStream(zip)).use { r ->
                 r.readIndex()
                 r.forEachFile(emptySet()) { _, _ -> }
             }
         }
-        assertEquals(zipInvalid, e.message)
+        assertEquals(zipInvalid, e.code)
     }
 
     private fun readThrough(zip: ByteArray) = ArchiveReader(ByteArrayInputStream(zip)).use { r ->
@@ -299,7 +301,7 @@ class PassHolderZipTest {
         val zeros = ByteArray(9 * 1024 * 1024)
         val paths = (1..8).map { "files/$it-z.bin" }
         val undescribed = zipOf("passholder.json" to index("{$bareNote}"), *paths.map { it to zeros }.toTypedArray())
-        assertEquals(zipInvalid, assertThrows<IllegalArgumentException> { readThrough(undescribed) }.message)
+        assertEquals(zipInvalid, assertThrows<PassHolderException> { readThrough(undescribed) }.code)
         // Described with their sizes, the same entries are an ordinary archive (even when no file is wanted).
         val described = index("{$bareNote,\"attachments\":[${paths.joinToString(",") { file(it, zeros.size, "z.bin") }}]}")
         readThrough(zipOf("passholder.json" to described, *paths.map { it to zeros }.toTypedArray()))
@@ -309,7 +311,7 @@ class PassHolderZipTest {
     fun refusesAnEntryNameOverTheLengthLimit() {
         readThrough(zipOf("passholder.json" to index("{$bareNote}"), "x".repeat(1024) to "a".toByteArray()))
         val zip = zipOf("passholder.json" to index("{$bareNote}"), "x".repeat(1025) to "a".toByteArray())
-        assertEquals(zipInvalid, assertThrows<IllegalArgumentException> { readThrough(zip) }.message)
+        assertEquals(zipInvalid, assertThrows<PassHolderException> { readThrough(zip) }.code)
     }
 
     @Test
@@ -373,26 +375,26 @@ class PassHolderZipTest {
         val third = indexOf(repeated, "files/2-a.txt".toByteArray())
         repeated[third + 6] = '1'.code.toByte()
         for (zip in listOf(encrypted, repeated)) {
-            val e = assertThrows<IllegalArgumentException> {
+            val e = assertThrows<PassHolderException> {
                 ArchiveReader(ByteArrayInputStream(zip)).use { r ->
                     r.readIndex()
                     r.forEachFile(wanted) { _, _ -> }
                 }
             }
-            assertEquals(zipInvalid, e.message)
+            assertEquals(zipInvalid, e.code)
         }
     }
 
     @Test
     fun refusesAnArchiveOverTheSizeLimit() {
         val (_, zip) = exportBytes(listOf(login, note))
-        val e = assertThrows<IllegalArgumentException> {
+        val e = assertThrows<PassHolderException> {
             ArchiveReader(ByteArrayInputStream(zip), zip.size - 1L).use { r ->
                 val parsed = r.readIndex()
                 r.forEachFile(parsed.entries.flatMap { x -> x.files.map { it.path } }.toSet()) { _, _ -> }
             }
         }
-        assertEquals("Plik jest za duży (limit 256 MiB)", e.message)
+        assertEquals(ErrorCode.ZIP_TOO_LARGE, e.code)
         ArchiveReader(ByteArrayInputStream(zip), zip.size.toLong()).use { r ->
             r.readIndex()
             r.forEachFile(emptySet()) { _, _ -> }
@@ -404,9 +406,9 @@ class PassHolderZipTest {
 
     private fun assertInvalid(zip: ByteArray) = assertEquals(
         zipInvalid,
-        assertThrows<IllegalArgumentException> {
+        assertThrows<PassHolderException> {
             readThrough(zip)
-        }.message,
+        }.code,
     )
 
     @Test
@@ -527,8 +529,8 @@ class PassHolderZipTest {
             parse("""{$bareNote,"extra":1}""").skipped,
         )
         assertEquals(
-            "To nie jest plik PassHolder w wersji 3",
-            assertThrows<IllegalArgumentException> { PassHolderZip.parseIndex("{") }.message,
+            ErrorCode.IMPORT_NOT_PASSHOLDER,
+            assertThrows<PassHolderException> { PassHolderZip.parseIndex("{") }.code,
         )
     }
 }

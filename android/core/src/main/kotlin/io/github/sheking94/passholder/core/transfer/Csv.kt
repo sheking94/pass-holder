@@ -1,5 +1,8 @@
 package io.github.sheking94.passholder.core.transfer
 
+import io.github.sheking94.passholder.core.ErrorCode
+import io.github.sheking94.passholder.core.PassHolderException
+
 /** CSV (RFC 4180) reading and writing shared by the importers and exporters. Port of core/src/transfer/csv.ts. */
 object Csv {
     data class Row(val line: Int, val fields: List<String>)
@@ -7,6 +10,7 @@ object Csv {
     /**
      * Splits CSV text into rows of fields. Handles quoted fields with commas, doubled quotes and
      * line breaks inside, CRLF or LF line ends and a UTF-8 BOM. Blank lines are dropped.
+     * [ErrorCode.IMPORT_CSV_UNCLOSED_QUOTE] (row's first line in `detail`) for a quote never closed.
      */
     fun parse(text: String): List<Row> {
         val rows = mutableListOf<Row>()
@@ -52,7 +56,7 @@ object Csv {
             }
             i++
         }
-        if (quoted) throw IllegalArgumentException("Plik CSV jest uszkodzony: niezamknięty cudzysłów (wiersz $rowStartLine)")
+        if (quoted) throw PassHolderException(ErrorCode.IMPORT_CSV_UNCLOSED_QUOTE, "Unclosed quote", detail = "$rowStartLine")
         if (field.isNotEmpty() || fields.isNotEmpty()) endRow()
         return rows
     }

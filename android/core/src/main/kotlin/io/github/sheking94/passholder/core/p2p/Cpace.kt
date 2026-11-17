@@ -115,7 +115,7 @@ object Cpace {
         val peer = try {
             RistrettoPoint.decode(peerBytes)
         } catch (e: IllegalArgumentException) {
-            throw IllegalArgumentException(INVALID)
+            throw IllegalArgumentException(INVALID, e)
         }
         require(!peer.isIdentity()) { INVALID }
         val k = peer.multiply(y)

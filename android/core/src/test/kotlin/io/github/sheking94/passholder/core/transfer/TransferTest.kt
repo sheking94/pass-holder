@@ -1,12 +1,14 @@
 package io.github.sheking94.passholder.core.transfer
 
+import io.github.sheking94.passholder.core.ErrorCode
+import io.github.sheking94.passholder.core.PassHolderException
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 
 class TransferTest {
-    private fun fail(text: String) = assertThrows<IllegalArgumentException> { Transfer.parseImportFile(text) }.message
+    private fun fail(text: String) = assertThrows<PassHolderException> { Transfer.parseImportFile(text) }.code
 
     @Test
     fun recognisesSampleFiles() {
@@ -28,19 +30,19 @@ class TransferTest {
 
     @Test
     fun reportsEmptyBrokenOrUnknownFile() {
-        assertEquals("Plik jest pusty", fail(""))
-        assertEquals("Plik jest pusty", fail(" \n "))
-        assertEquals("Plik JSON jest uszkodzony", fail("{zły"))
-        assertEquals("Nie rozpoznano pliku: to nie jest eksport PassHolder, Bitwarden ani NordPass", fail("""{"x":1}"""))
+        assertEquals(ErrorCode.IMPORT_EMPTY_FILE, fail(""))
+        assertEquals(ErrorCode.IMPORT_EMPTY_FILE, fail(" \n "))
+        assertEquals(ErrorCode.IMPORT_BAD_JSON, fail("{zły"))
+        assertEquals(ErrorCode.IMPORT_UNKNOWN_FORMAT, fail("""{"x":1}"""))
     }
 
     @Test
     fun encryptedBitwardenShowsItsOwnMessage() {
-        assertTrue(fail("""{"encrypted":true,"items":[]}""")!!.contains("Zaszyfrowany eksport Bitwarden"))
+        assertEquals(ErrorCode.IMPORT_BITWARDEN_ENCRYPTED, fail("""{"encrypted":true,"items":[]}"""))
         val protectedFile =
             """{"encrypted":true,"passwordProtected":true,"salt":"c2FsdA==","kdfType":0,"kdfIterations":600000,""" +
                 """"encKeyValidation_DO_NOT_EDIT":"2.x","data":"2.y"}"""
-        assertTrue(fail(protectedFile)!!.contains("Zaszyfrowany eksport Bitwarden"))
+        assertEquals(ErrorCode.IMPORT_BITWARDEN_ENCRYPTED, fail(protectedFile))
     }
 
     @Test

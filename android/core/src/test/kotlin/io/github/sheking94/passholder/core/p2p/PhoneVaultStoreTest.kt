@@ -2,9 +2,11 @@ package io.github.sheking94.passholder.core.p2p
 
 import io.github.sheking94.passholder.core.ChangeRequest
 import io.github.sheking94.passholder.core.Encoding
+import io.github.sheking94.passholder.core.ErrorCode
 import io.github.sheking94.passholder.core.Kdf
 import io.github.sheking94.passholder.core.KdfParams
 import io.github.sheking94.passholder.core.VaultCrypto
+import io.github.sheking94.passholder.core.assertCode
 import io.github.sheking94.passholder.core.files.Attachment
 import io.github.sheking94.passholder.core.files.Attachments
 import io.github.sheking94.passholder.core.files.FileChunks
@@ -121,8 +123,8 @@ class PhoneVaultStoreTest {
         val reopened = newStore()
         assertTrue(reopened.hasVault)
         assertFalse(reopened.isUnlocked)
-        assertThrows<IllegalStateException> { reopened.entries() }
-        assertEquals("Złe hasło główne", assertThrows<IllegalArgumentException> { reopened.unlock("złe") }.message)
+        assertCode(ErrorCode.VAULT_LOCKED) { reopened.entries() }
+        assertCode(ErrorCode.WRONG_MASTER_PASSWORD) { reopened.unlock("złe") }
         reopened.unlock("hasło główne")
         assertEquals(listOf("Bank", "Poczta"), reopened.entries().map { it.credentials.name })
         assertEquals(time, reopened.devices().single().lastSyncAt)
@@ -163,8 +165,8 @@ class PhoneVaultStoreTest {
         val oldInfo = pair.phoneVaultInfo!!
         store.offerPairing()
 
-        assertEquals("Złe hasło główne", assertThrows<IllegalArgumentException> { store.changeMasterPassword("złe", "nowe hasło") }.message)
-        assertThrows<IllegalArgumentException> { store.changeMasterPassword("stare hasło", "stare hasło") }
+        assertCode(ErrorCode.WRONG_MASTER_PASSWORD) { store.changeMasterPassword("złe", "nowe hasło") }
+        assertCode(ErrorCode.PASSWORD_UNCHANGED) { store.changeMasterPassword("stare hasło", "stare hasło") }
         assertEquals(1, store.devices().size)
 
         store.changeMasterPassword("stare hasło", "nowe hasło")
@@ -175,7 +177,7 @@ class PhoneVaultStoreTest {
 
         // Same vault key and entries; only the new password opens it, and it survives a restart.
         val reopened = newStore()
-        assertEquals("Złe hasło główne", assertThrows<IllegalArgumentException> { reopened.unlock("stare hasło") }.message)
+        assertCode(ErrorCode.WRONG_MASTER_PASSWORD) { reopened.unlock("stare hasło") }
         reopened.unlock("nowe hasło")
         assertArrayEquals(keyBefore, reopened.exportVaultKey())
         assertEquals(listOf("Bank"), reopened.entries().map { it.credentials.name })
@@ -191,22 +193,22 @@ class PhoneVaultStoreTest {
     @Test
     fun changeMasterPasswordNeedsAnUnlockedVault() {
         val store = newStore()
-        assertThrows<IllegalStateException> { store.changeMasterPassword("a", "b") }
+        assertCode(ErrorCode.VAULT_LOCKED) { store.changeMasterPassword("a", "b") }
         store.createVault("pw")
         store.lock()
-        assertThrows<IllegalStateException> { store.changeMasterPassword("pw", "nowe") }
+        assertCode(ErrorCode.VAULT_LOCKED) { store.changeMasterPassword("pw", "nowe") }
     }
 
     @Test
     fun confirmMasterPasswordChecksThePasswordOfTheOpenVault() {
         val store = newStore()
-        assertThrows<IllegalStateException> { store.confirmMasterPassword("pw") }
+        assertCode(ErrorCode.VAULT_LOCKED) { store.confirmMasterPassword("pw") }
         store.createVault("pw")
         store.confirmMasterPassword("pw")
-        assertEquals("Złe hasło główne", assertThrows<IllegalArgumentException> { store.confirmMasterPassword("inne") }.message)
+        assertCode(ErrorCode.WRONG_MASTER_PASSWORD) { store.confirmMasterPassword("inne") }
         assertTrue(store.isUnlocked)
         store.lock()
-        assertThrows<IllegalStateException> { store.confirmMasterPassword("pw") }
+        assertCode(ErrorCode.VAULT_LOCKED) { store.confirmMasterPassword("pw") }
     }
 
     @Test
@@ -250,10 +252,7 @@ class PhoneVaultStoreTest {
         assertTrue(store.restoreInProgress)
         assertFalse(store.hasVault)
         assertFalse(store.isUnlocked)
-        assertEquals(
-            "Wtyczka jeszcze nie przesłała sejfu",
-            assertThrows<IllegalStateException> { store.finishRestore("hasło wtyczki") }.message,
-        )
+        assertCode(ErrorCode.RESTORE_NOT_SENT) { store.finishRestore("hasło wtyczki") }
 
         val http = serve(store)
         val offer = store.offerPairing()
@@ -268,10 +267,7 @@ class PhoneVaultStoreTest {
         // Paired, but nothing sent yet.
         assertTrue(store.restoreInProgress)
         assertFalse(store.hasVault)
-        assertEquals(
-            "Wtyczka jeszcze nie przesłała sejfu",
-            assertThrows<IllegalStateException> { store.finishRestore("hasło wtyczki") }.message,
-        )
+        assertCode(ErrorCode.RESTORE_NOT_SENT) { store.finishRestore("hasło wtyczki") }
 
         // The phone is locked (no vault key yet), but its host already takes the opaque blobs.
         val changes = listOf("a" to "Allegro", "b" to "Bank", "c" to "Ciocia").map { (id, name) ->
@@ -281,7 +277,7 @@ class PhoneVaultStoreTest {
         assertEquals(3, res.accepted.size)
         assertEquals(3, res.currentRevision)
 
-        assertEquals("Złe hasło główne", assertThrows<IllegalArgumentException> { store.finishRestore("złe") }.message)
+        assertCode(ErrorCode.WRONG_MASTER_PASSWORD) { store.finishRestore("złe") }
         assertTrue(store.restoreInProgress)
         assertFalse(store.hasVault)
         assertFalse(store.isUnlocked)
@@ -329,10 +325,7 @@ class PhoneVaultStoreTest {
         assertEquals(1, res.accepted.size)
         // kdf, wrapped key and records are there, but the device that sent them is gone.
         store.removeDevice(extIdentity.deviceId)
-        assertEquals(
-            "Wtyczka jeszcze nie przesłała sejfu",
-            assertThrows<IllegalStateException> { store.finishRestore("hasło wtyczki") }.message,
-        )
+        assertCode(ErrorCode.RESTORE_NOT_SENT) { store.finishRestore("hasło wtyczki") }
         assertTrue(store.restoreInProgress)
         assertFalse(store.isUnlocked)
     }
@@ -359,7 +352,7 @@ class PhoneVaultStoreTest {
         clientFor(http, again).syncResponse(
             P2pSyncRequest(again.phoneVaultInfo!!.epoch, 0, listOf(ChangeRequest("a", 0, false, blob(ext.vaultKey, "a", "A")))),
         )
-        assertThrows<IllegalArgumentException> { store.finishRestore("inne hasło") }
+        assertCode(ErrorCode.WRONG_MASTER_PASSWORD) { store.finishRestore("inne hasło") }
         store.finishRestore("hasło wtyczki")
         assertEquals(listOf("A"), store.entries().map { it.credentials.name })
     }
@@ -410,21 +403,18 @@ class PhoneVaultStoreTest {
         assertEquals(32, keys.size)
         store.lock()
         assertFalse(store.isUnlocked)
-        assertThrows<IllegalStateException> { store.exportVaultKey() }
+        assertCode(ErrorCode.VAULT_LOCKED) { store.exportVaultKey() }
 
         // Empty store: the key check still tells a wrong key apart.
-        assertEquals(
-            "Złe klucze odblokowania",
-            assertThrows<IllegalArgumentException> { store.unlockWithVaultKey(Encoding.randomBytes(32)) }.message,
-        )
-        assertThrows<IllegalArgumentException> { store.unlockWithVaultKey(Encoding.randomBytes(64)) }
+        assertCode(ErrorCode.WRONG_UNLOCK_KEYS) { store.unlockWithVaultKey(Encoding.randomBytes(32)) }
+        assertCode(ErrorCode.WRONG_UNLOCK_KEYS) { store.unlockWithVaultKey(Encoding.randomBytes(64)) }
         assertFalse(store.isUnlocked)
         store.unlockWithVaultKey(keys)
         assertTrue(store.isUnlocked)
 
         store.upsertContent("e1", login("Bank", "jan", "x"))
         store.lock()
-        assertThrows<IllegalArgumentException> { store.unlockWithVaultKey(Encoding.randomBytes(32)) }
+        assertCode(ErrorCode.WRONG_UNLOCK_KEYS) { store.unlockWithVaultKey(Encoding.randomBytes(32)) }
         assertFalse(store.isUnlocked)
         newStore().apply {
             unlockWithVaultKey(keys)
@@ -453,7 +443,7 @@ class PhoneVaultStoreTest {
         val http = serve(store)
         assertEquals(HostReply(200, """{"ok":true}"""), http("/p2p/v1/ping", "{}".toByteArray()))
         assertEquals(503, http("/p2p/v2/handshake", "{}".toByteArray()).status)
-        assertThrows<IllegalStateException> { store.offerPairing() }
+        assertCode(ErrorCode.NO_VAULT) { store.offerPairing() }
         // The same router sees the vault created after it was built.
         store.createVault("pw")
         val pair = TestP2pClient.pair(http, store.offerPairing().code, extIdentity)
@@ -475,8 +465,8 @@ class PhoneVaultStoreTest {
     fun refusesToOverwriteAVault() {
         val store = newStore()
         store.createVault("pw")
-        assertThrows<IllegalStateException> { store.createVault("pw2") }
-        assertThrows<IllegalStateException> { store.startRestore() }
+        assertCode(ErrorCode.VAULT_EXISTS) { store.createVault("pw2") }
+        assertCode(ErrorCode.VAULT_EXISTS) { store.startRestore() }
         store.unlock("pw")
     }
 
@@ -507,9 +497,9 @@ class PhoneVaultStoreTest {
         assertFalse(store.isUnlocked)
         assertEquals(emptyList<StoredDevice>(), store.devices())
         // Nothing may silently overwrite what could still be recovered by hand: delete first.
-        assertThrows<IllegalStateException> { store.createVault("pw") }
-        assertThrows<IllegalStateException> { store.startRestore() }
-        assertThrows<IllegalStateException> { store.offerPairing() }
+        assertCode(ErrorCode.VAULT_UNREADABLE) { store.createVault("pw") }
+        assertCode(ErrorCode.VAULT_UNREADABLE) { store.startRestore() }
+        assertCode(ErrorCode.NO_VAULT) { store.offerPairing() }
         // Sync mode in this state: the router answers, the vault paths are not ready.
         val http = serve(store)
         assertEquals(200, http("/p2p/v1/ping", "{}".toByteArray()).status)
@@ -570,8 +560,8 @@ class PhoneVaultStoreTest {
         assertEquals(ImportResult(0, 2, 0), store.importContents(list))
         assertEquals(listOf("A", "B"), store.allContents().map { it.name }.sorted())
         store.lock()
-        assertThrows<IllegalStateException> { store.importContents(list) }
-        assertThrows<IllegalStateException> { store.allContents() }
+        assertCode(ErrorCode.VAULT_LOCKED) { store.importContents(list) }
+        assertCode(ErrorCode.VAULT_LOCKED) { store.allContents() }
     }
 
     @Test
@@ -650,7 +640,7 @@ class PhoneVaultStoreTest {
         val a = enc.attachment
         assertEquals(200, client.file(putBody(pair.phoneVaultInfo!!.epoch, a.id, 0, 2, enc.blobs[0])).status)
         assertFalse(store.isFileComplete(a))
-        assertEquals("File is corrupted", assertThrows<IllegalArgumentException> { store.readFile(a) }.message)
+        assertCode(ErrorCode.FILE_CORRUPTED) { store.readFile(a) }
     }
 
     @Test
@@ -811,11 +801,11 @@ class PhoneVaultStoreTest {
         store.createVault("pw")
         val a = store.addFile("x".toByteArray(), "x.txt", "")
         store.lock()
-        val locked = "Sejf jest zablokowany"
-        assertEquals(locked, assertThrows<IllegalStateException> { store.addFile("y".toByteArray(), "y.txt", "") }.message)
-        assertEquals(locked, assertThrows<IllegalStateException> { store.readFile(a) }.message)
-        assertEquals(locked, assertThrows<IllegalStateException> { store.isFileComplete(a) }.message)
-        assertEquals(locked, assertThrows<IllegalStateException> { store.pruneFiles() }.message)
-        assertEquals(locked, assertThrows<IllegalStateException> { store.discardFiles(listOf(a.id)) }.message)
+        val locked = ErrorCode.VAULT_LOCKED
+        assertCode(locked) { store.addFile("y".toByteArray(), "y.txt", "") }
+        assertCode(locked) { store.readFile(a) }
+        assertCode(locked) { store.isFileComplete(a) }
+        assertCode(locked) { store.pruneFiles() }
+        assertCode(locked) { store.discardFiles(listOf(a.id)) }
     }
 }
