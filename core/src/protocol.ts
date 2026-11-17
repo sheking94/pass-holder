@@ -50,9 +50,10 @@ export function processSync(store: SyncStore, request: SyncRequest): SyncRespons
     if (handled.has(change.id)) throw new Error(`Duplicate change for ${change.id}`);
     handled.add(change.id);
     const existing = store.get(change.id);
-    if ((existing?.revision ?? 0) !== change.baseRevision) {
-      if (existing) conflicts.push(existing);
-      else throw new Error(`Unknown base revision for ${change.id}`);
+    if (!existing && change.baseRevision !== 0)
+      throw new Error(`Unknown base revision for ${change.id}`);
+    if (existing && existing.revision !== change.baseRevision) {
+      conflicts.push(existing);
       continue;
     }
     const revision = store.currentRevision() + 1;
@@ -64,25 +65,25 @@ export function processSync(store: SyncStore, request: SyncRequest): SyncRespons
 }
 
 export class MemorySyncStore implements SyncStore {
-  private records = new Map<string, RemoteRecord>();
-  private revision = 0;
+  readonly #records = new Map<string, RemoteRecord>();
+  #revision = 0;
 
   get(id: string) {
-    return this.records.get(id);
+    return this.#records.get(id);
   }
 
   put(record: RemoteRecord) {
-    this.records.set(record.id, { ...record });
-    this.revision = Math.max(this.revision, record.revision);
+    this.#records.set(record.id, { ...record });
+    this.#revision = Math.max(this.#revision, record.revision);
   }
 
   listSince(revision: number) {
-    return [...this.records.values()]
+    return [...this.#records.values()]
       .filter((r) => r.revision > revision)
       .sort((a, b) => a.revision - b.revision);
   }
 
   currentRevision() {
-    return this.revision;
+    return this.#revision;
   }
 }

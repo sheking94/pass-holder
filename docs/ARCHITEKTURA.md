@@ -40,7 +40,7 @@ Formatowanie i lint dla całego repo: `.editorconfig`, `.prettierrc.json`, `.pre
 | `src/generator.ts` | generator haseł (CSPRNG z odrzucaniem, Fisher-Yates) |
 | `src/p2p/hlc.ts` | hybrydowy zegar logiczny (HLC) do rozstrzygania konfliktów |
 | `src/p2p/entry.ts` | wpis v3 i nagrobek: typy, ścisły parser (`parseEntryData`, `parseTombstoneData`, `parseEntryContent` dla wpisu bez `v` i `hlc`), zwarta serializacja w stałej kolejności kluczy, limit `MAX_ENTRY_BLOB_LENGTH`, odczyt v2 jako login; AAD `passholder/v2/entry/<id>` |
-| `src/p2p/sync.ts` | sejf wtyczki (`LocalVaultV2`) i `syncVaultV2`; budżet bajtów żądania, rundy ucięte (`more`) poza limitem rund konfliktów |
+| `src/p2p/sync.ts` | sejf wtyczki (`LocalVault`) i `syncVault`; budżet bajtów żądania, rundy ucięte (`more`) poza limitem ponowień po konflikcie (`MAX_CONFLICT_RESYNCS` = 3; wszystkie rundy razem: `MAX_SYNC_ROUNDS`) |
 | `src/p2p/host-sync.ts` | strona hosta: `validateP2pSyncRequest` (też blob ≤ 64 KiB), `processP2pSync` (na `processSync`), epoka, stronicowanie po 500 zmianach i `MAX_BLOB_BYTES_PER_ROUND` (tnie też `conflicts`) |
 | `src/p2p/cpace.ts`, `pairing.ts`, `pair-client.ts` | parowanie: CPace, kod 8 cyfr, zapieczętowane tożsamości, klient HTTP parowania wtyczki |
 | `src/p2p/noise.ts`, `frames.ts`, `transport.ts` | Noise KK, ramki, `noiseTransport` i `callP2pHost`; ścieżki `/p2p/v2/*`, 404 → „Phone app needs an update” |
@@ -82,12 +82,12 @@ osobno przez `fake-indexeddb`). Treść jawna nigdy nie jest zapisywana: odszyfr
 | `src/auto-lock.ts` | blokada po 15 minutach: `watchIdle` na stronie i alarm w service workerze |
 | `src/pin-lock.ts`, `src/pin-store.ts` | PIN: kryptografia (`createPinLock`, `openPinLock`) i przechowywanie z licznikiem prób |
 | `src/import-summary.ts`, `src/plural.ts` | polskie podsumowanie importu (dodano, duplikaty, pominięte) i odmiana „wpis/wpisy/wpisów” oraz zdanie o pominiętych plikach (`skippedFilesPhrase`) |
-| `src/clipboard.ts`, `src/background.ts`, `src/offscreen.ts` | czyszczenie schowka po minucie (alarm + dokument offscreen); `background.ts` obsługuje też autouzupełnianie (komunikat `fill`, polecenie `fill-login`) |
+| `src/clipboard.ts`, `src/background.ts`, `src/offscreen.ts` | czyszczenie schowka po minucie (alarm + dokument offscreen); `background.ts` ma jeden nasłuch `onMessage`, który rozdziela komunikaty po `type` (`password-copied`, `fill`, `save-*`), i obsługuje polecenie `fill-login` |
 | `src/autofill/fill-tab.ts` | `fillTab` (sprawdza sejf, wpis, adres karty, https, `matchLogins`; wstrzykuje skrypt), `onFillCommand` (skrót: tylko login dokładnego hosta), `chromeTabApi` (`tabs.get`, `scripting.executeScript`, przypięty origin) |
 | `src/autofill/fill-page.ts`, `src/autofill-content.ts` | `fillPage` w stronie: pola, widoczność (`isVisible`, dla kontaktu i karty `strict`: `clip-path`/`clip`, min. 10 px, `overflow` rodzica, `elementFromPoint`), kontakt i karta tylko w formularzu pola z kursorem, ramki tego samego origin, wpisanie wartości; `autofill-content.ts` wystawia `globalThis.passholderFill` |
 | `src/ui/active-tab.ts` | `activeTab` (karta pod okienkiem) i `requestFill` (komunikat `fill` do service workera) |
 | `src/save/read-form.ts`, `watch.ts`, `src/save-watch.ts` | skrypt w stronie: `readLogin` (hasło i login, `formSignature`), `loginScope`, `emptyLoginForms`; `startSaveWatch` (submit, Enter, klik tylko od użytkownika: `isTrusted`, przy submit też `navigator.userActivation`; ramka główna i ramki tego samego origin; nic nie dodaje do strony) |
-| `src/save/candidates.ts` | `SaveCandidates` w service workerze: kandydat w `chrome.storage.session` (`saveCandidates`), lista „Nigdy” w `chrome.storage.local`; `onCandidate` (ten sam login z tej samej karty zachowuje id), `onPending`, `info`, `preview`, `answer`, alarm 2 min (`save-expire:<karta>`), `onTabRemoved`, `onWindowClosed` (okno zamknięte przez użytkownika: tylko odznaka), `unlockTab`; operacje po kolei (`serial`); okno i odznakę obsługuje przez `SavePrompt` (`PromptWindows`); każde usunięcie poza zapisem i zamknięciem karty zamyka okno i zdejmuje odznakę |
+| `src/save/candidates.ts` | `SaveCandidates` w service workerze: kandydat w `chrome.storage.session` (`saveCandidates`), lista „Nigdy” w `chrome.storage.local`; `onCandidate` (ten sam login z tej samej karty zachowuje id), `onPending`, `onInfo`, `onPreview`, `onAnswer`, `onAlarm` (alarm 2 min `save-expire:<karta>`), `onTabRemoved`, `onWindowClosed` (okno zamknięte przez użytkownika: tylko odznaka), `onUnlockRequest`; publiczne `onX` kolejkują pracę (`serial`), prywatne `handleX` ją wykonują; okno i odznakę obsługuje przez `SavePrompt` (`PromptWindows`); każde usunięcie poza zapisem i zamknięciem karty zamyka okno i zdejmuje odznakę |
 | `src/save/registration.ts` | `syncSaveWatch`: rejestracja skryptu `save-watch` zgodna z uprawnieniem `https://*/*` (wywołania po kolei); `disableSavePrompt` |
 | `src/save/messages.ts`, `prompt-view.ts`, `prompt-page.ts`, `src/save-prompt.ts` | typy wiadomości (`save-candidate`, `save-pending`, `save-info`, `save-preview` (decyzja dla wpisanego loginu i hasła), `save-answer` (z `draft {name, username, password}`), `save-unlock`); `promptView`: podgląd z edycją (Nazwa, Login, Hasło; przy zmianie hasła uwaga o „Poprzednie hasło”), wspólny dla okna (`save-prompt.html`) i okienka; `startPromptPage`: strona okna (brak kandydata → zamyka okno, sejf zablokowany po załadowaniu → „Odblokuj i zapisz”) |
 | `src/save/prompt-window.ts` | `PromptWindows`: okno pytania (`chrome.windows.create`, `type: "popup"`, 380 × 420 przy prawym górnym rogu okna karty), odznaka „?” (`chrome.action.setBadgeText` dla karty), mapa karta → okno w `storage.session`, `show`/`hide`/`closeWindow`/`badge`/`closedByUser` |
@@ -111,10 +111,10 @@ Dwa moduły Gradle: `core` (czysta JVM, testy bez emulatora) i `app` (Jetpack Co
 
 | Plik (`android/core/.../core/`) | Co robi |
 |---|---|
-| `Encoding.kt`, `Kdf.kt`, `Cipher.kt`, `Vault.kt`, `Generator.kt` | odpowiedniki plików z `core/src/` (`Vault.kt`: `VaultCrypto` do klucza sejfu) |
+| `Encoding.kt`, `Kdf.kt`, `Aead.kt`, `VaultCrypto.kt`, `Generator.kt` | odpowiedniki plików z `core/src/` (`VaultCrypto`: klucz sejfu) |
 | `Protocol.kt` | `RemoteRecord`, `ChangeRequest`, `Accepted`, `SyncResponse` |
-| `p2p/Hlc.kt`, `EntryV3.kt`, `P2pJson.kt` | HLC, wpis v3 (`EntryV3`: modele, ścisły parser, serializacja w kolejności z TypeScriptu, limit, odczyt v2 jako login), wspólny `Json` |
-| `p2p/Ristretto255.kt`, `Cpace.kt`, `Pairing.kt`, `PairingHost.kt` | parowanie: grupa, CPace, kod i zapieczętowane wiadomości, strona telefonu po HTTP |
+| `p2p/Hlc.kt`, `Entry.kt`, `P2pJson.kt` | HLC, wpis v3 (`EntryCodec`: modele, ścisły parser, serializacja w kolejności z TypeScriptu, limit, odczyt v2 jako login), wspólny `Json` |
+| `p2p/RistrettoPoint.kt`, `Cpace.kt`, `Pairing.kt`, `PairingHost.kt`, `ReportError.kt` | parowanie: grupa, CPace, kod i zapieczętowane wiadomości, strona telefonu po HTTP; `reportError` (wspólny dla hostów: błąd zgłaszany bez wpływu na odpowiedź) |
 | `p2p/Noise.kt`, `Frames.kt`, `P2pHost.kt`, `HostSync.kt` | Noise KK, ramki, host synchronizacji (`/p2p/v2/*`, stare ścieżki → 410), `processSync` i budżet bajtów rundy |
 | `p2p/SyncHttpServer.kt`, `PhoneRouter.kt`, `LocalAddresses.kt` | serwer HTTP na porcie 8787 z limitami, trasy `/p2p/v1/pair/*`, `/p2p/v1/ping` i `/p2p/v2/*` (stare `/p2p/v1/handshake` i `/sync` przekazane do hosta, który odpowiada 410), adresy telefonu |
 | `transfer/Common.kt`, `Csv.kt`, `JsonText.kt`, `PassHolderJson.kt`, `BitwardenJson.kt`, `NordPassCsv.kt`, `Transfer.kt`, `PassHolderZip.kt`, `ArchiveReader.kt` | pakiet `core.transfer`: ZIP bez `ZipInputStream` (własny strumieniowy parser: CRC i pomijanie pliku bez rozpakowania, budżet rozpakowywania; zapis `java.util.zip`); port `core/src/transfer/` (`contentKey`, `sortForExport` na `RuleBasedCollator` zgodnym z wektorem `sort.json`, CSV RFC 4180, serializacja JSON jak `JSON.stringify`, `Transfer.parseImportFile` i `exportFile`); te same pliki przykładowe z `core/test-vectors/transfer/` |
@@ -134,11 +134,11 @@ Dwa moduły Gradle: `core` (czysta JVM, testy bez emulatora) i `app` (Jetpack Co
 | `SyncNetworks.kt` | adresy, na których odpowiada tryb Synchronizacja: Wi-Fi, Ethernet i Tailscale, bez sieci komórkowej (`ConnectivityManager`) |
 | `KeystoreSecretWrapper.kt` | zawija klucz tożsamości telefonu kluczem z Android Keystore |
 | `LockController.kt` | kiedy sejf się blokuje (wyjście z aplikacji, 15 minut, „Zablokuj”) i kiedy samo otwiera się okno odcisku |
-| `LeaveLock.kt` | minutnik blokady 60 s po wyjściu z aplikacji; `lockNow()` przy wyłączeniu ekranu (odbiornik `ACTION_SCREEN_OFF` w `PassHolderApp`) |
+| `LeaveLock.kt` | minutnik blokady 60 s po wyjściu z aplikacji (`schedule()`, `expired()`, `cancel()`; pytanie o upływ czasu jest osobno od zatrzymania); `lockNow()` przy wyłączeniu ekranu (odbiornik `ACTION_SCREEN_OFF` w `PassHolderApp`) |
 | `MasterPasswordRules.kt` | reguły nowego hasła głównego: 12 znaków i bez oczywistych wzorców |
 | `ImportSummary.kt`, `TransferFiles.kt` | podsumowanie importu (port `import-summary.ts`, także pliki ZIP); czytanie pliku (limit 10 MiB, ścisły UTF-8), rozpoznanie ZIP, strumień archiwum (limit 256 MiB, `PhoneVaultStore.importArchive`) i zapis, nazwa pliku |
 | `AttachmentFiles.kt`, `FileSize.kt` | wybrany plik (nazwa i rozmiar z `OpenableColumns`, najwyżej 10 MiB + 1 bajt, kolejność sprawdzeń jak we wtyczce), zapis przez `CreateDocumentOf` (własny kontrakt: nazwa i typ, tryb `"wt"`); `formatSize` („N KB”, „4,6 MB”) |
-| `BiometricController.kt`, `BiometricUnlock.kt` | odcisk palca: klucz w Android Keystore (StrongBox, gdy jest; tylko przy odblokowanym telefonie), zapisany klucz sejfu |
+| `BiometricController.kt`, `BiometricUnlock.kt`, `BiometricKeyProtector.kt`, `FingerprintPrompt.kt` | odcisk palca: zaszyfrowany klucz sejfu (`BiometricUnlock`, `exportVaultKey`/`unlockWithVaultKey`), klucz w Android Keystore (`BiometricKeyProtector`/`KeystoreKeyProtector`; StrongBox, gdy jest; tylko przy odblokowanym telefonie), systemowe okno odcisku (`FingerprintPrompt`) |
 | `InstalledApps.kt` | aplikacje z ikoną w launcherze (`PackageManager`; w manifeście `<queries>` MAIN + LAUNCHER, bez `QUERY_ALL_PACKAGES`) |
 | `AppTrust.kt` | V3-S3: `SystemAppSigners` czyta SHA-256 certyfikatów pakietu (Android 9+: historia podpisu albo wszyscy sygnatariusze, niżej `signatures`; niewidoczny pakiet → `null`); `AppTrust.verify` ustawia flagi `AppRequest` (`verifyApp` z rdzenia), `remember`/`rememberIfNew` zapamiętują certyfikat pakietu w `SharedPreferences` `app_certs`. Wołane w `buildFillResponse` (i tam zaufanie przy pierwszym użyciu dla pakietu z `androidApps`), `readSaveData`, `saveReviewed` (nowy login aplikacji) i przy wyborze aplikacji w formularzu loginu; w manifeście `<queries>` także 13 pakietów przeglądarek |
 | `entries/EntryTypes.kt` | `EntryType`, opis wiersza, wyszukiwanie, `tidy`, walidacja (port `extension/src/entry-types.ts`) |
@@ -147,14 +147,39 @@ Dwa moduły Gradle: `core` (czysta JVM, testy bez emulatora) i `app` (Jetpack Co
 | `autofill/PassHolderAutofillService.kt` | usługa (`BIND_AUTOFILL_SERVICE`): `respond` (własny pakiet, brak sejfu → `null`; ekran bez pól do wypełnienia: odpowiedź tylko z `SaveInfo`, gdy ma pole hasła, inaczej `null`; zablokowany → „Odblokuj PassHolder”; inaczej `buildFillResponse`), praca w osobnym wątku; `onSaveRequest` czyta `readSaveData`: API ≥ 28 zawsze kandydat do `pendingSave` i `onSuccess(savePendingIntent)` (podgląd w `AutofillSaveActivity`); API < 28 `saveLogin` od razu, zablokowany → `onFailure`. Ekran logowania bez pasujących wpisów też dostaje `SaveInfo` |
 | `autofill/ResponseBuilder.kt` | `FillResponse`: `Dataset` z wierszem `res/layout/autofill_item.xml` i, na API 30+, podpowiedzią w pasku klawiatury (`androidx.autofill` `InlineSuggestionUi`, ≤ `min(10, maxSuggestionCount)`); `SaveInfo` (hasło + login, `FLAG_SAVE_ON_ALL_VIEWS_INVISIBLE`) dla każdego ekranu z polem hasła (także „nowe hasło”, każda grupa) przy włączonym „Pytaj o zapis haseł”, id pól i opis aplikacji w `clientState` |
 | `autofill/AutofillUnlockActivity.kt`, `ui/AutofillUnlockScreen.kt` | ekran odblokowania z podpowiedzi (podklasa `AutofillAuthActivity`): po odblokowaniu buduje odpowiedź i zwraca `EXTRA_AUTHENTICATION_RESULT` |
-| `autofill/SaveState.kt` | `SaveSpec` (pola i aplikacja z chwili wypełniania), `saveSpecFor` (przełącznik, pole hasła; grupa bez znaczenia), `clientState` i jego odczyt (`saveSpecIds`, bez `Bundle.getParcelable(String, Class)` poniżej API 33) |
+| `autofill/SaveState.kt` | `SaveSpec` (pola i aplikacja z chwili wypełniania), `saveSpecFor` (przełącznik, pole hasła; grupa bez znaczenia), `clientState` i jego odczyt (`saveSpecIds`); obejście API 33 dla `Parcelable` w `autofill/Parcelables.kt` (`Intent.parcelable`, `Bundle.parcelable`) |
 | `autofill/SaveLogin.kt` | `saveLogin` (tylko API 26–27: zapis bez podglądu, przez `saveReviewed` z danymi jak wpisane; wynik `SAVED`/`UPDATED`/`NOTHING`/`LOCKED`), `readSaveData` (wartości po id ze wszystkich `fillContexts`, od ostatniego), komunikaty, `appLabelOf` |
-| `autofill/PendingSave.kt` | kandydat każdego zapisu (API ≥ 28) do chwili otwarcia podglądu: tylko pamięć procesu, 2 minuty (`app.clock`), jeden naraz |
+| `autofill/PendingSave.kt` | kandydat każdego zapisu (API ≥ 28) do chwili otwarcia podglądu: tylko pamięć procesu, 2 minuty (`app.clock`), jeden naraz; `take()` zabiera, `hasFresh()` tylko pyta |
 | `autofill/AutofillAuthActivity.kt`, `AutofillSaveActivity.kt` | wspólna baza (odblokowanie tylko gdy sejf zablokowany: hasło / odcisk; haki `afterUnlock`, `UnlockedContent`, `onLockedWhileOpen`, `unlockAgain`; Wstecz i Anuluj = `RESULT_CANCELED`, blokada D1 także po wyjściu w tło, anulowanie starego terminu 60 s) i ekran zapisu: odblokowanie, potem podgląd (`exported="false"`, `FLAG_SECURE`) |
 | `autofill/SaveReview.kt`, `ui/SaveReviewScreen.kt` | `SaveReview` (wpisy sejfu odszyfrowane raz, `decision`/`title`/`initialDraft` z `SaveDraft`), `saveReviewed` (ponowny odczyt sejfu, `decideSave` od nowa, `upsertContent`; wynik `SaveOutcome`), `SaveReviewModel` (ViewModel: kandydat, szkic, blokada w trakcie podglądu; bez stanu instancji) i ekran Compose „Zapisz w PassHolder” (Nazwa, Login, Hasło, adres/aplikacja tylko do odczytu) |
 | `AutofillStatus.kt` | czy PassHolder jest usługą autouzupełniania (`hasEnabledAutofillServices`), wiersz w `SettingsScreen` |
 | `ui/*.kt` | ekrany Compose: `StartScreen`, `LockedScreen`, `ListScreen` (dolny pasek zakładek), `EditScreen` (powłoka formularza), `SettingsScreen`, `TransferScreen` (import i eksport; okno wyboru pliku 60 s w `LockController.expectFilePicker`), `VaultTopBar`, `SyncScreen`, `DevicesScreen`, `RestoreScreen`, `FingerprintDialog`, `Common` (m.in. `SecretField`), `PassHolderUi` (wybór ekranu) |
 | `ui/forms/*.kt` | `LoginForm`, `ContactForm`, `CardForm`, `DocumentForm` (notatka używa samej powłoki), `ListEditor`, `AttachmentsEditor` (sekcja „Załączniki”), `CustomFieldsEditor`, `GeneratorCard`, `AppPickerDialog` |
+
+## Konwencje nazw i kodu
+
+Ustalone w grupie G3 przeglądu czystości kodu V3.
+
+- **Bez numerów wersji w nazwach.** Typy i funkcje nazywają się `LocalVault`, `EntryContent`, `syncVault`,
+  `EntryCodec`. Wersja zostaje tylko w danych: `version: 3` we wpisie, AAD `passholder/v2/…`, klucze
+  `chrome.storage` (`vaultV2`, `accountV2`), nazwy plików wektorów (`v2.json`, `v3.json`) i ich testów.
+- **Pytanie osobno od polecenia.** Funkcja, która coś zmienia, nie zwraca odpowiedzi tak/nie (`LeaveLock.cancel()`
+  nic nie zwraca, pyta się `expired()`; `PendingSave.hasFresh()` tylko pyta, `take()` zabiera).
+- **Nazwa mówi, co zwraca.** `readHlc` zwraca HLC, `#sessionLimitReply` odpowiedź 503 albo `undefined`.
+  Bez nazw jednoliterowych poza krótkimi lambdami i pętlami (`hostState`, `attachment`, `fileStore`).
+- **Prywatne pola w TypeScript:** w `core/` `#pole` (prywatne także w czasie działania), we wtyczce `private`
+  (klasy z parametrami konstruktora `private readonly deps`).
+- **Zmienna błędu:** `catch (error)` w TypeScript, `catch (e: Typ)` w Kotlinie, `catch (_: Typ)`, gdy nieużywana.
+- **Brak wartości w TypeScript:** `undefined` dla pola opcjonalnego i wyniku „nie znaleziono”; `null` tylko tam,
+  gdzie wartość jest częścią formatu JSON albo stanu („brak decyzji”, `decision: null`). Istniejący kod nie był
+  przepisywany masowo.
+- **Stałe w Kotlinie:** stała jednej klasy w jej `companion object`, stała modułu (kilku klas) na poziomie pliku.
+- **Pliki w Kotlinie:** plik z jedną klasą nosi jej nazwę (reguła ktlint `standard:filename`, włączona);
+  typy pomocnicze stoją przed kodem, który ich używa; bez pełnych nazw pakietów w kodzie (zawsze `import`).
+- **Wiadomości we wtyczce:** jeden nasłuch na kontekst, rozdział po `type`; publiczne metody `SaveCandidates`
+  to `onX` (kolejkują w `serial`), prywatne `handleX` (wykonują).
+- **Stan jako unia:** zamiast pary pól, z których jedno ma sens tylko przy drugim, unia z dyskryminatorem
+  (`SavePromptInfo`: `{ locked: true; decision: null }` albo `{ locked: false; decision; entryName? }`).
 
 ## Przepływ autouzupełniania (Chrome)
 
@@ -307,11 +332,11 @@ Wybór pliku → pierwsze 4 bajty PK\x03\x04? (nie → JSON / CSV jak dotąd)
 ## Przepływ v2 → v3 (format wpisu)
 
 ```
-odczyt:  blob → AES-GCM (AAD z id) → JSON → parseEntryData / EntryV3.parse
+odczyt:  blob → AES-GCM (AAD z id) → JSON → parseEntryData / EntryCodec.parse
            {v:3, ...} ścisły typ  → wpis v3 (nieznany klucz = „Invalid entry payload”)
            {name, username, password, hlc} (bez v) → login, reszta pól pusta
            {hlc} + deleted=true → nagrobek (inny klucz = „Invalid tombstone payload”)
-zapis:   zawsze v3: serializeEntryData / EntryV3.serialize (stała kolejność kluczy, zwarty JSON)
+zapis:   zawsze v3: serializeEntryData / EntryCodec.serialize (stała kolejność kluczy, zwarty JSON)
            długość bloba > 65536 → „Entry too large” (aplikacje: „Wpis jest za duży”)
 ```
 

@@ -25,7 +25,7 @@ class PendingSave(private val now: () -> Long) {
 
     /** Whether a fresh candidate is waiting; takes nothing. */
     @Synchronized
-    fun peek(): Boolean = fresh() != null
+    fun hasFresh(): Boolean = fresh() != null
 
     @Synchronized
     fun clear() {

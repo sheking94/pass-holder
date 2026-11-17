@@ -24,18 +24,25 @@ export type SaveInfoMessage = {
   tabId?: number;
 };
 
-export interface SavePromptInfo {
+interface SavePromptCommon {
   id: string;
   host: string;
   username: string;
   /** Empty when locked: the password reaches extension pages only once the vault is open. */
   password: string;
-  /** Name of the entry that would be updated (decision "update"). */
-  entryName?: string;
-  /** null only when locked is true */
-  decision: "create" | "update" | null;
-  locked: boolean;
 }
+
+/** Locked: the decision needs the vault, so there is none yet. */
+export type SavePromptInfo = SavePromptCommon &
+  (
+    | { locked: true; decision: null }
+    | {
+        locked: false;
+        decision: "create" | "update";
+        /** Name of the entry that would be updated (decision "update"). */
+        entryName?: string;
+      }
+  );
 
 /** What the panel sends on "Zapisz": the (possibly edited) data to save. */
 export type SaveDraft = { name: string; username: string; password: string };

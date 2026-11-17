@@ -2,8 +2,8 @@ package io.github.sheking94.passholder.core.transfer
 
 import io.github.sheking94.passholder.core.files.Attachment
 import io.github.sheking94.passholder.core.files.Attachments
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
-import io.github.sheking94.passholder.core.p2p.EntryV3
+import io.github.sheking94.passholder.core.p2p.EntryCodec
+import io.github.sheking94.passholder.core.p2p.EntryContent
 import io.github.sheking94.passholder.core.p2p.ImportResult
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -51,13 +51,13 @@ object PassHolderZip {
      * out and counted in `missing`. The index goes first, so each file is read twice (once to learn whether it can
      * be read, once to write it) and only one file is in memory at a time; every array [readFile] returns is zeroed.
      */
-    fun export(entries: List<EntryContentV3>, out: OutputStream, readFile: (Attachment) -> ByteArray?): ExportedArchive =
+    fun export(entries: List<EntryContent>, out: OutputStream, readFile: (Attachment) -> ByteArray?): ExportedArchive =
         export(entries, out, readFile, System.currentTimeMillis())
 
     private class Planned(val attachment: Attachment, val path: String, val size: Int)
 
     internal fun export(
-        entries: List<EntryContentV3>,
+        entries: List<EntryContent>,
         out: OutputStream,
         readFile: (Attachment) -> ByteArray?,
         time: Long,
@@ -79,7 +79,7 @@ object PassHolderZip {
         }
         val index = JsonArray(
             plan.map { (e, files) ->
-                val content = EntryV3.contentJson(e)
+                val content = EntryCodec.contentJson(e)
                 if (files.isEmpty()) {
                     content
                 } else {

@@ -1,4 +1,4 @@
-import type { EntryContentV3, EntryType, PostalAddress } from "../p2p/entry.ts";
+import type { EntryContent, EntryType, PostalAddress } from "../p2p/entry.ts";
 
 /** Order of entry types in exports when names are equal. */
 export const ENTRY_TYPE_ORDER: readonly EntryType[] = [
@@ -17,7 +17,7 @@ export interface ImportSkip {
 
 /** `files`: file descriptions left out (an archive index imported as plain JSON), shown like skipped files. */
 export interface ParsedImport {
-  entries: EntryContentV3[];
+  entries: EntryContent[];
   skipped: ImportSkip[];
   files?: ImportSkip[];
 }
@@ -39,13 +39,13 @@ function trimmed(value: unknown): unknown {
  * Equal keys mean a duplicate: same content except attachments (an entry differing only in files is a duplicate,
  * as in the Android app), every text trimmed at its edges, object keys in sorted order.
  */
-export function contentKey(c: EntryContentV3): string {
-  const { attachments: _attachments, ...rest } = c as EntryContentV3 & { attachments?: unknown };
+export function contentKey(c: EntryContent): string {
+  const { attachments: _attachments, ...rest } = c as EntryContent & { attachments?: unknown };
   return JSON.stringify(trimmed(rest));
 }
 
 /** A copy sorted by name (Polish collation), then by type in ENTRY_TYPE_ORDER. */
-export function sortForExport(entries: readonly EntryContentV3[]): EntryContentV3[] {
+export function sortForExport(entries: readonly EntryContent[]): EntryContent[] {
   return [...entries].sort(
     (a, b) =>
       a.name.localeCompare(b.name, "pl") ||

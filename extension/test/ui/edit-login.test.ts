@@ -37,7 +37,7 @@ const tabPressed = (app: Element) =>
     (b) => b.getAttribute("aria-pressed") === "true",
   );
 
-function existingLogin(): p2p.EntryContentV3 {
+function existingLogin(): p2p.EntryContent {
   const l = p2p.emptyLogin("Bank");
   return {
     ...l,
@@ -119,7 +119,7 @@ describe("login form", () => {
     const expected = existingLogin();
     expect(store.getEntry("l1")!.data).toEqual({
       ...expected,
-      fields: { ...(expected as p2p.EntryContentV3 & { type: "login" }).fields, password: "nowe" },
+      fields: { ...(expected as p2p.EntryContent & { type: "login" }).fields, password: "nowe" },
     });
   }, 30_000);
 
@@ -232,8 +232,8 @@ describe("entry form shell", () => {
   }, 30_000);
 
   it("renaming a card keeps the fields and custom fields the form does not edit", async () => {
-    const c = emptyContent("card") as p2p.EntryContentV3 & { type: "card" };
-    const card: p2p.EntryContentV3 = {
+    const c = emptyContent("card") as p2p.EntryContent & { type: "card" };
+    const card: p2p.EntryContent = {
       ...c,
       name: "Visa",
       custom: [{ label: "Bank", value: "PKO", hidden: false }],
@@ -258,7 +258,7 @@ describe("entry form shell", () => {
   }, 30_000);
 
   it("„Usuń” twice deletes the entry and returns to its tab", async () => {
-    const note: p2p.EntryContentV3 = { ...emptyContent("note"), name: "Kod", note: "1234" };
+    const note: p2p.EntryContent = { ...emptyContent("note"), name: "Kod", note: "1234" };
     const { app, store } = await setupPopup([{ id: "n1", content: note }]);
     const { editView } = await import("../../src/views/edit.ts");
     await editView("note", "n1");

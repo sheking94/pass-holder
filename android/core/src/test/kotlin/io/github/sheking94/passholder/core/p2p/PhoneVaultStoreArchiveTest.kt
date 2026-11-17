@@ -41,14 +41,14 @@ class PhoneVaultStoreArchiveTest {
         "A".repeat(43) + "=",
     )
 
-    private val withFiles = EntryContentV3(
+    private val withFiles = EntryContent(
         "Umowa",
         "z plikami",
         LoginFields("jan", "tajne"),
         emptyList(),
         listOf(descriptor("skan?.pdf", 1), descriptor("zdjęcie.jpg", 2)),
     )
-    private val plain = EntryContentV3("Adres", "ul. Polna 1", NoteFields, emptyList())
+    private val plain = EntryContent("Adres", "ul. Polna 1", NoteFields, emptyList())
 
     @BeforeEach
     fun createVault() {
@@ -56,7 +56,7 @@ class PhoneVaultStoreArchiveTest {
         store.createVault("pw")
     }
 
-    private fun archive(entries: List<EntryContentV3> = listOf(withFiles, plain)): ByteArray {
+    private fun archive(entries: List<EntryContent> = listOf(withFiles, plain)): ByteArray {
         val out = ByteArrayOutputStream()
         PassHolderZip.export(entries, out) { a -> bodies.getValue(a.name).copyOf() }
         return out.toByteArray()

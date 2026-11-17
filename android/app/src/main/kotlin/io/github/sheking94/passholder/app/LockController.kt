@@ -65,14 +65,15 @@ class LockController(
         val picking = filePicker == FilePicker.EXPECTED
         filePicker = if (picking) FilePicker.OPEN else FilePicker.NONE
         if (!store.isUnlocked) return
-        if (picking || lockDelay()) leaveLock().schedule(LeaveLock.DELAY_MS) else lockNow()
+        if (picking || lockDelay()) leaveLock().schedule() else lockNow()
     }
 
     /** The app is on screen again (MainActivity.onStart). Locks if the 60 s after leaving ran out. */
     fun onReturn() {
         val picking = filePicker == FilePicker.OPEN
         filePicker = FilePicker.NONE
-        val expired = leaveLock().cancel()
+        val expired = leaveLock().expired()
+        leaveLock().cancel()
         when {
             // The timer may have locked already; the locked screen still says why.
             expired && picking -> lockNow(Status(FILE_PICK_TOO_LONG))

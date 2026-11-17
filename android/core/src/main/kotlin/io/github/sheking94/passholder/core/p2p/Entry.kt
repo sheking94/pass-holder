@@ -23,7 +23,7 @@ data class LabeledValue(val label: String, val value: String)
 data class PostalAddress(val label: String, val street: String, val postalCode: String, val city: String, val country: String)
 data class CustomField(val label: String, val value: String, val hidden: Boolean)
 
-sealed interface EntryFieldsV3 {
+sealed interface EntryFields {
     val type: String
 }
 
@@ -33,7 +33,7 @@ data class LoginFields(
     val totp: String = "",
     val urls: List<String> = emptyList(),
     val androidApps: List<String> = emptyList(),
-) : EntryFieldsV3 {
+) : EntryFields {
     override val type get() = "login"
 }
 
@@ -44,15 +44,15 @@ data class ContactFields(
     val phones: List<LabeledValue>,
     val emails: List<LabeledValue>,
     val addresses: List<PostalAddress>,
-) : EntryFieldsV3 {
+) : EntryFields {
     override val type get() = "contact"
 }
 
-data class CardFields(val holder: String, val number: String, val expiry: String, val cvc: String, val pin: String) : EntryFieldsV3 {
+data class CardFields(val holder: String, val number: String, val expiry: String, val cvc: String, val pin: String) : EntryFields {
     override val type get() = "card"
 }
 
-data object NoteFields : EntryFieldsV3 {
+data object NoteFields : EntryFields {
     override val type get() = "note"
 }
 
@@ -63,24 +63,24 @@ data class DocumentFields(
     val issueDate: String,
     val expiryDate: String,
     val issuer: String,
-) : EntryFieldsV3 {
+) : EntryFields {
     override val type get() = "document"
 }
 
-data class EntryContentV3(
+data class EntryContent(
     val name: String,
     val note: String,
-    val fields: EntryFieldsV3,
+    val fields: EntryFields,
     val custom: List<CustomField>,
     val attachments: List<Attachment> = emptyList(),
 )
-data class EntryDataV3(val content: EntryContentV3, val hlc: Hlc)
+data class EntryData(val content: EntryContent, val hlc: Hlc)
 data class TombstoneData(val hlc: Hlc)
 
 class EntryTooLargeException : IllegalArgumentException("Entry too large")
 
 /** v3 entry model: strict parser, JS-compatible serializer and AES-GCM payload encryption bound to the entry id. */
-object EntryV3 {
+object EntryCodec {
     const val MAX_BLOB_LENGTH = 65536
 
     private const val INVALID_ENTRY = "Invalid entry payload"
@@ -90,7 +90,7 @@ object EntryV3 {
 
     // ---- serialization (compact JSON, fixed key order, escapes as JS JSON.stringify) ----
 
-    fun serialize(data: EntryDataV3): String {
+    fun serialize(data: EntryData): String {
         val c = data.content
         val sb = StringBuilder()
         sb.append("{\"v\":3,\"type\":")
@@ -144,7 +144,7 @@ object EntryV3 {
         sb.append('}')
     }
 
-    private fun fields(sb: StringBuilder, f: EntryFieldsV3) {
+    private fun fields(sb: StringBuilder, f: EntryFields) {
         when (f) {
             is LoginFields -> {
                 sb.append("{\"username\":")
@@ -277,7 +277,7 @@ object EntryV3 {
 
     // ---- encryption ----
 
-    fun encrypt(vaultKey: ByteArray, id: String, data: EntryDataV3): String = sealChecked(vaultKey, id, serialize(data))
+    fun encrypt(vaultKey: ByteArray, id: String, data: EntryData): String = sealChecked(vaultKey, id, serialize(data))
 
     fun encryptTombstone(vaultKey: ByteArray, id: String, data: TombstoneData): String = sealChecked(vaultKey, id, serializeTombstone(data))
 
@@ -342,7 +342,7 @@ object EntryV3 {
         return parseHlc(value)
     }
 
-    private fun parseFields(type: String, raw: JsonElement?): EntryFieldsV3 = when (type) {
+    private fun parseFields(type: String, raw: JsonElement?): EntryFields = when (type) {
         "login" -> {
             val o = record(raw, "username", "password", "totp", "urls", "androidApps")
             LoginFields(str(o["username"]), str(o["password"]), str(o["totp"]), strings(o["urls"]), strings(o["androidApps"]))
@@ -380,13 +380,13 @@ object EntryV3 {
     }
 
     /** Accepts a v3 payload or a legacy v2 login payload (exactly name, username, password, hlc). */
-    fun parse(value: JsonElement): EntryDataV3 {
+    fun parse(value: JsonElement): EntryData {
         if (value !is JsonObject) fail()
         if (!value.containsKey("v")) {
             val o = record(value, "name", "username", "password", "hlc")
             val fields = LoginFields(str(o["username"]), str(o["password"]))
-            return EntryDataV3(
-                EntryContentV3(str(o["name"]), "", fields, emptyList()),
+            return EntryData(
+                EntryContent(str(o["name"]), "", fields, emptyList()),
                 strictHlc(o["hlc"], INVALID_ENTRY),
             )
         }
@@ -398,10 +398,10 @@ object EntryV3 {
         }
         val v = o["v"]
         if (v !is JsonPrimitive || v is JsonNull || v.isString || v.content != "3") fail()
-        return EntryDataV3(contentOf(o), strictHlc(o["hlc"], INVALID_ENTRY))
+        return EntryData(contentOf(o), strictHlc(o["hlc"], INVALID_ENTRY))
     }
 
-    private fun contentOf(o: JsonObject): EntryContentV3 = EntryContentV3(
+    private fun contentOf(o: JsonObject): EntryContent = EntryContent(
         str(o["name"]),
         str(o["note"]),
         parseFields(str(o["type"]), o["fields"]),
@@ -410,10 +410,10 @@ object EntryV3 {
     )
 
     /** Entry content without the sync metadata: exactly type, name, note, fields and custom, validated as strictly as [parse]. */
-    fun parseContent(value: JsonElement): EntryContentV3 = contentOf(record(value, "type", "name", "note", "fields", "custom"))
+    fun parseContent(value: JsonElement): EntryContent = contentOf(record(value, "type", "name", "note", "fields", "custom"))
 
     /** The content as a JSON tree: keys in the order type, name, note, fields, custom; fields in the order of [serialize]. */
-    fun contentJson(c: EntryContentV3): JsonObject = JsonObject(
+    fun contentJson(c: EntryContent): JsonObject = JsonObject(
         linkedMapOf(
             "type" to JsonPrimitive(c.fields.type),
             "name" to JsonPrimitive(c.name),
@@ -431,7 +431,7 @@ object EntryV3 {
     private fun strs(l: List<String>) = JsonArray(l.map(::JsonPrimitive))
     private fun labeledJson(l: LabeledValue) = obj("label" to JsonPrimitive(l.label), "value" to JsonPrimitive(l.value))
 
-    private fun fieldsJson(f: EntryFieldsV3): JsonObject = when (f) {
+    private fun fieldsJson(f: EntryFields): JsonObject = when (f) {
         is LoginFields -> obj(
             "username" to JsonPrimitive(f.username),
             "password" to JsonPrimitive(f.password),

@@ -70,7 +70,7 @@ export async function editView(type: p2p.EntryType, id?: string): Promise<void> 
         custom: custom.read(),
         fields: section.read(),
         ...(attachments.length > 0 ? { attachments } : {}),
-      } as p2p.EntryContentV3);
+      } as p2p.EntryContent);
       const error = validateContent(content, original);
       if (error) throw new Error(error);
       // An id of another type is not this entry: the form saves a new one and leaves that one alone.

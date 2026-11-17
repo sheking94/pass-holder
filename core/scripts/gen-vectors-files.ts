@@ -22,10 +22,10 @@ import {
   type Attachment,
 } from "../src/files/index.ts";
 import {
-  entryAadV2,
+  entryAad,
   parseEntryData,
   serializeEntryData,
-  type EntryDataV3,
+  type EntryData,
   type Hlc,
 } from "../src/p2p/index.ts";
 
@@ -105,8 +105,8 @@ const [small, big] = files.map((f) => f.attachment) as [Attachment, Attachment];
 
 // --- entries ---
 
-const canon = (d: EntryDataV3) => JSON.parse(serializeEntryData(d)) as EntryDataV3;
-const docEntry = (name: string, note: string, attachments: Attachment[], h: Hlc): EntryDataV3 =>
+const canon = (d: EntryData) => JSON.parse(serializeEntryData(d)) as EntryData;
+const docEntry = (name: string, note: string, attachments: Attachment[], h: Hlc): EntryData =>
   canon({
     v: 3,
     type: "document",
@@ -123,7 +123,7 @@ const docEntry = (name: string, note: string, attachments: Attachment[], h: Hlc)
     custom: [],
     attachments,
     hlc: h,
-  } as EntryDataV3);
+  } as EntryData);
 
 // Entries 1-2 use nonceOf(n); the accepted-descriptor entries use nonces with a 0xee prefix, so no nonce repeats.
 const extraNonce = (n: number) => `ee${n.toString(16).padStart(2, "0")}${"00".repeat(10)}`;
@@ -132,7 +132,7 @@ const extraNonce = (n: number) => `ee${n.toString(16).padStart(2, "0")}${"00".re
 async function entry(
   n: number,
   description: string,
-  data: EntryDataV3,
+  data: EntryData,
   merge?: { winner: string; loser: string; hlc: Hlc },
   opts: { nonce?: string; rawPayload?: string } = {},
 ) {
@@ -152,7 +152,7 @@ async function entry(
     payload,
     ...(opts.rawPayload !== undefined ? { canonicalPayload: canonical } : {}),
     parsed: data,
-    blob: await seal(fromHex(vaultKey), utf8(payload), entryAadV2(id), fromHex(nonce)),
+    blob: await seal(fromHex(vaultKey), utf8(payload), entryAad(id), fromHex(nonce)),
     ...(merge ? { merge } : {}),
   };
 }
@@ -190,13 +190,13 @@ const base = canon({
   fields: { username: "", password: "", totp: "", urls: [], androidApps: [] },
   custom: [],
   hlc: hlc(5, 1, "dev"),
-} as EntryDataV3);
+} as EntryData);
 // attachments sits between custom and hlc, as in a real payload.
 const withAtt = (attachments: unknown) => {
   const { hlc: h, ...rest } = base;
   return JSON.stringify({ ...rest, attachments, hlc: h });
 };
-const withAttData = (attachments: Attachment[]) => canon({ ...base, attachments } as EntryDataV3);
+const withAttData = (attachments: Attachment[]) => canon({ ...base, attachments } as EntryData);
 const entries = [
   await entry(
     1,

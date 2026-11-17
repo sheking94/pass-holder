@@ -20,8 +20,8 @@ const status = (app: Element) => app.querySelector(".status")?.textContent;
 const rows = (app: Element) => [...app.querySelectorAll<HTMLElement>("li.attachment")];
 const rowText = (row: HTMLElement) => row.textContent;
 
-function doc(name = "Dowód"): p2p.EntryContentV3 {
-  return { ...emptyContent("document"), name } as p2p.EntryContentV3;
+function doc(name = "Dowód"): p2p.EntryContent {
+  return { ...emptyContent("document"), name } as p2p.EntryContent;
 }
 
 /** A valid descriptor of a file this browser does not have (as if added on the phone). */
@@ -58,7 +58,7 @@ const photo = () =>
   new File([new Uint8Array([1, 2, 3, 4, 5])], "dowod.jpg", { type: "image/jpeg" });
 
 /** The page as a tab (the file chooser works there). */
-async function inTab(entries: { id: string; content: p2p.EntryContentV3 }[] = []) {
+async function inTab(entries: { id: string; content: p2p.EntryContent }[] = []) {
   history.replaceState({}, "", "/?tab");
   const ctx = await setupPopup(entries);
   const { editView } = await import("../../src/views/edit.ts");

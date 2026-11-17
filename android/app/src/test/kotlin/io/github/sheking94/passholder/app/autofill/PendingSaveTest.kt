@@ -15,10 +15,10 @@ class PendingSaveTest {
     @Test
     fun `take returns the candidate once and clears it`() {
         pending.put(data("a"))
-        assertTrue(pending.peek())
+        assertTrue(pending.hasFresh())
         assertEquals(data("a"), pending.take())
         assertNull(pending.take())
-        assertFalse(pending.peek())
+        assertFalse(pending.hasFresh())
     }
 
     @Test
@@ -28,7 +28,7 @@ class PendingSaveTest {
         assertEquals(data("a"), pending.take())
         pending.put(data("b"))
         now += 120_001
-        assertFalse(pending.peek())
+        assertFalse(pending.hasFresh())
         assertNull(pending.take())
     }
 

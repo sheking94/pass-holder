@@ -1,4 +1,4 @@
-import { emptyLogin, type EntryContentV3 } from "../p2p/entry.ts";
+import { emptyLogin, type EntryContent } from "../p2p/entry.ts";
 import { saveName } from "./url.ts";
 
 export interface SavedLogin {
@@ -9,7 +9,7 @@ export interface SavedLogin {
 
 export type SaveDecision = { kind: "none" } | { kind: "create" } | { kind: "update"; id: string };
 
-type LoginEntry = EntryContentV3 & { type: "login" };
+type LoginEntry = EntryContent & { type: "login" };
 
 const normalize = (username: string) => username.trim().toLowerCase();
 

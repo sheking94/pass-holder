@@ -5,7 +5,7 @@ import io.github.sheking94.passholder.core.p2p.ContactFields
 import io.github.sheking94.passholder.core.p2p.CustomField
 import io.github.sheking94.passholder.core.p2p.DocumentFields
 import io.github.sheking94.passholder.core.p2p.DocumentKind
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
+import io.github.sheking94.passholder.core.p2p.EntryContent
 import io.github.sheking94.passholder.core.p2p.LabeledValue
 import io.github.sheking94.passholder.core.p2p.LoginFields
 import io.github.sheking94.passholder.core.p2p.NoteFields
@@ -18,7 +18,7 @@ import org.junit.Test
 
 class EntryTypesTest {
     private fun card(number: String = "", expiry: String = "", name: String = "Visa") =
-        EntryContentV3(name, "", CardFields("", number, expiry, "", ""), emptyList())
+        EntryContent(name, "", CardFields("", number, expiry, "", ""), emptyList())
 
     private fun contact(
         birthDate: String = "",
@@ -26,10 +26,10 @@ class EntryTypesTest {
         emails: List<LabeledValue> = emptyList(),
         addresses: List<PostalAddress> = emptyList(),
         name: String = "Jan",
-    ) = EntryContentV3(name, "", ContactFields("", "", birthDate, phones, emails, addresses), emptyList())
+    ) = EntryContent(name, "", ContactFields("", "", birthDate, phones, emails, addresses), emptyList())
 
     private fun doc(kind: DocumentKind = DocumentKind.ID_CARD, issueDate: String = "", expiryDate: String = "", name: String = "Dowód") =
-        EntryContentV3(name, "", DocumentFields(kind, "", "", issueDate, expiryDate, ""), emptyList())
+        EntryContent(name, "", DocumentFields(kind, "", "", issueDate, expiryDate, ""), emptyList())
 
     private fun login(
         username: String = "",
@@ -38,9 +38,9 @@ class EntryTypesTest {
         apps: List<String> = emptyList(),
         name: String = "A",
         custom: List<CustomField> = emptyList(),
-    ) = EntryContentV3(name, "", LoginFields(username, password, "", urls, apps), custom)
+    ) = EntryContent(name, "", LoginFields(username, password, "", urls, apps), custom)
 
-    private fun note(text: String) = EntryContentV3("N", text, NoteFields, emptyList())
+    private fun note(text: String) = EntryContent("N", text, NoteFields, emptyList())
 
     @Test fun typesInTabOrder() {
         assertEquals(

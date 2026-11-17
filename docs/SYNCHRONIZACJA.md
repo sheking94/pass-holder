@@ -119,7 +119,7 @@ wtyczka robi reset (punkt 4.2). **`vault.epoch` nigdy nie przypisuje się bezpo�
 
 ### 4.2. Runda synchronizacji
 
-1. Wtyczka (`syncVaultV2`) wysyła `{epoch, sinceRevision, changes}`: wpisy `dirty`, najwyżej 500 naraz i
+1. Wtyczka (`syncVault`) wysyła `{epoch, sinceRevision, changes}`: wpisy `dirty`, najwyżej 500 naraz i
    najwyżej `MAX_BLOB_BYTES_PER_ROUND` znaków bloba (pierwszy wpis zawsze wchodzi). Nieznana epoka idzie jako `""`.
 2. Telefon (`processP2pSync` / `HostSync.process`):
    - inna epoka: odpowiada samą epoką i adresami, nic nie zapisuje,
@@ -385,7 +385,7 @@ zwykłe parowanie kończy się błędem bez spalenia kodu.
 | Klucz | Gdzie | Co |
 |---|---|---|
 | `accountV2` | `local` | adresy, `deviceId`, nazwa, tożsamość telefonu, `kdf`, `wrappedVaultKey`, `sealedStaticKey` (AAD `passholder/v2/ext-static-key`) |
-| `vaultV2` | `local` | `LocalVaultV2` (epoka, `lastSyncRevision`, adresy, wpisy), AAD `passholder/v2/local-vault` |
+| `vaultV2` | `local` | `LocalVault` (epoka, `lastSyncRevision`, adresy, wpisy), AAD `passholder/v2/local-vault` |
 | `pendingPairing` | `session` | parowanie czekające na hasło |
 | `keys` | `session` | `{vaultKey, unlockedUntil}` odblokowanej sesji |
 | `corruptFiles` | `local` | `id` plików uszkodzonych po pobraniu (pomijane przy synchronizacji) |

@@ -10,15 +10,16 @@ import type {
   SaveUnlockMessage,
 } from "../../src/save/messages.ts";
 
-const info = (over: Partial<SavePromptInfo> = {}): SavePromptInfo => ({
-  id: "c1",
-  host: "shop.pl",
-  username: "jan",
-  password: "s3cret",
-  decision: "create",
-  locked: false,
-  ...over,
-});
+const info = (over: Partial<SavePromptInfo> = {}): SavePromptInfo =>
+  ({
+    id: "c1",
+    host: "shop.pl",
+    username: "jan",
+    password: "s3cret",
+    decision: "create",
+    locked: false,
+    ...over,
+  }) as SavePromptInfo;
 const flush = () => new Promise((r) => setTimeout(r, 0));
 const button = (el: Element, text: string) =>
   [...el.querySelectorAll("button")].find((b) => b.textContent === text);

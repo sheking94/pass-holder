@@ -11,7 +11,7 @@ export function login(
   urls: string[],
   username = "jan",
   password = "old",
-): p2p.EntryContentV3 {
+): p2p.EntryContent {
   return {
     type: "login",
     name,

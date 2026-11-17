@@ -9,7 +9,7 @@ const SIZE = 600_000;
 const bytesOf = (seed: number, size = SIZE) =>
   new Uint8Array(size).map((_, i) => (i * 31 + seed) % 251);
 
-function loginWith(name: string, attachments: files.Attachment[] = []): p2p.EntryContentV3 {
+function loginWith(name: string, attachments: files.Attachment[] = []): p2p.EntryContent {
   const login = p2p.emptyLogin(name);
   return {
     ...login,
@@ -40,7 +40,7 @@ async function sampleArchive() {
   return { bytes: concat(...parts), bank };
 }
 
-const withoutFiles = (c: p2p.EntryContentV3) => {
+const withoutFiles = (c: p2p.EntryContent) => {
   const { attachments: _a, ...rest } = c;
   return rest;
 };

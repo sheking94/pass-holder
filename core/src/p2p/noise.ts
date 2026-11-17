@@ -314,9 +314,9 @@ export class NoiseKK {
       const out = await op();
       this.#step = advance(expected);
       return out;
-    } catch (err) {
+    } catch (error) {
       this.#step = "failed";
-      throw err;
+      throw error;
     } finally {
       this.#busy = false;
     }

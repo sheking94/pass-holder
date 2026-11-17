@@ -8,14 +8,14 @@ import {
   sortForExport,
   type ParsedImport,
 } from "../../src/transfer/index.ts";
-import type { EntryContentV3 } from "../../src/p2p/entry.ts";
+import type { EntryContent } from "../../src/p2p/entry.ts";
 
 const read = (name: string) =>
   readFileSync(new URL(`../../test-vectors/transfer/${name}`, import.meta.url), "utf8");
 const HEADER =
   "name,url,username,password,note,cardholdername,cardnumber,cvc,expirydate,zipcode,folder,full_name,phone_number,email,address1,address2,city,country,state,totp,shared_folder";
 
-const login: EntryContentV3 = {
+const login: EntryContent = {
   type: "login",
   name: "Poczta",
   note: "notatka",
@@ -28,7 +28,7 @@ const login: EntryContentV3 = {
     androidApps: [],
   },
 };
-const card: EntryContentV3 = {
+const card: EntryContent = {
   type: "card",
   name: "Karta",
   note: "",
@@ -41,7 +41,7 @@ const card: EntryContentV3 = {
     pin: "",
   },
 };
-const contact: EntryContentV3 = {
+const contact: EntryContent = {
   type: "contact",
   name: "Jan",
   note: "",
@@ -63,7 +63,7 @@ const contact: EntryContentV3 = {
     ],
   },
 };
-const note: EntryContentV3 = {
+const note: EntryContent = {
   type: "note",
   name: "Notatka",
   note: "tekst",
@@ -71,7 +71,7 @@ const note: EntryContentV3 = {
   custom: [],
 };
 
-function exportedRow(entry: EntryContentV3): Record<string, string> {
+function exportedRow(entry: EntryContent): Record<string, string> {
   const rows = parseCsv(exportNordPassCsv([entry]));
   return Object.fromEntries(NORDPASS_COLUMNS.map((c, i) => [c, rows[1]!.fields[i]!]));
 }
@@ -204,7 +204,7 @@ describe("exportNordPassCsv", () => {
   });
 
   it("writes a document as a note with lines in a fixed order", () => {
-    const doc: EntryContentV3 = {
+    const doc: EntryContent = {
       type: "document",
       name: "Paszport",
       note: "uwaga",
@@ -221,7 +221,7 @@ describe("exportNordPassCsv", () => {
     expect(exportedRow(doc).note).toBe(
       "uwaga\nRodzaj dokumentu: Paszport\nNumer: AB123\nImię i nazwisko: Jan Testowy\nData wydania: 2020-01-01\nData ważności: 2030-01-01\nWystawca: Wojewoda\nSekret: x",
     );
-    const bare: EntryContentV3 = {
+    const bare: EntryContent = {
       ...doc,
       note: "",
       custom: [],
@@ -248,16 +248,16 @@ describe("exportNordPassCsv", () => {
         urls: ["https://a.example.com", "https://b.example.com"],
         androidApps: ["com.example.app"],
       },
-    } as EntryContentV3;
+    } as EntryContent;
     expect(exportedRow(l).url).toBe("https://a.example.com");
     expect(exportedRow(l).note).toBe(
       "Adres strony: https://b.example.com\nAplikacja Androida: com.example.app\nPytanie: Kolor?",
     );
     expect(
-      exportedRow({ ...card, fields: { ...card.fields, pin: "1234" } } as EntryContentV3).note,
+      exportedRow({ ...card, fields: { ...card.fields, pin: "1234" } } as EntryContent).note,
     ).toBe("PIN: 1234");
     const base = contact.type === "contact" ? contact.fields : undefined!;
-    const c: EntryContentV3 = {
+    const c: EntryContent = {
       ...contact,
       note: "n",
       fields: {

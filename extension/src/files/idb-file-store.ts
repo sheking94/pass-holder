@@ -25,10 +25,10 @@ const chunkRange = (id: string) => IDBKeyRange.bound([id, 0], [id, MAX_CHUNK_IND
 
 /** Encrypted file chunks in IndexedDB; chunks are stored one by one, so an interrupted sync resumes. */
 export class IdbFileStore implements LocalFileStore {
-  readonly #db: Promise<IDBDatabase>;
+  private readonly db: Promise<IDBDatabase>;
 
   constructor(factory: IDBFactory = indexedDB, dbName = "passholder-files") {
-    this.#db = new Promise((resolve, reject) => {
+    this.db = new Promise((resolve, reject) => {
       const open = factory.open(dbName, 1);
       open.onupgradeneeded = () => {
         open.result.createObjectStore("files", { keyPath: "id" });
@@ -37,20 +37,20 @@ export class IdbFileStore implements LocalFileStore {
       open.onsuccess = () => resolve(open.result);
       open.onerror = () => reject(open.error);
     });
-    // Each operation awaits #db and re-raises the failure; this only keeps a store nobody uses from
+    // Each operation awaits db and re-raises the failure; this only keeps a store nobody uses from
     // reporting an unhandled rejection.
-    this.#db.catch(() => undefined);
+    this.db.catch(() => undefined);
   }
 
-  async #tx(
+  private async tx(
     mode: IDBTransactionMode,
   ): Promise<{ tx: IDBTransaction; files: IDBObjectStore; chunks: IDBObjectStore }> {
-    const tx = (await this.#db).transaction(["files", "chunks"], mode);
+    const tx = (await this.db).transaction(["files", "chunks"], mode);
     return { tx, files: tx.objectStore("files"), chunks: tx.objectStore("chunks") };
   }
 
   async state(id: string): Promise<LocalFileState | undefined> {
-    const { files, chunks } = await this.#tx("readonly");
+    const { files, chunks } = await this.tx("readonly");
     const [record, keys] = await Promise.all([
       request<FileRecord | undefined>(files.get(id)),
       request(chunks.getAllKeys(chunkRange(id))),
@@ -60,17 +60,17 @@ export class IdbFileStore implements LocalFileStore {
   }
 
   async ids(): Promise<string[]> {
-    const { files } = await this.#tx("readonly");
+    const { files } = await this.tx("readonly");
     return (await request(files.getAllKeys())) as string[];
   }
 
   async getChunk(id: string, index: number): Promise<string | undefined> {
-    const { chunks } = await this.#tx("readonly");
+    const { chunks } = await this.tx("readonly");
     return request<string | undefined>(chunks.get([id, index]));
   }
 
   async putChunk(id: string, index: number, chunks: number, blob: string): Promise<void> {
-    const t = await this.#tx("readwrite");
+    const t = await this.tx("readwrite");
     const existing = await request<FileRecord | undefined>(t.files.get(id));
     if (!existing || existing.chunks !== chunks) {
       t.chunks.delete(chunkRange(id));
@@ -81,11 +81,11 @@ export class IdbFileStore implements LocalFileStore {
   }
 
   async markComplete(id: string): Promise<void> {
-    await this.#update(id, (f) => ({ ...f, complete: true }));
+    await this.update(id, (f) => ({ ...f, complete: true }));
   }
 
   async markIncomplete(id: string, have: number[]): Promise<void> {
-    const t = await this.#tx("readwrite");
+    const t = await this.tx("readwrite");
     const f = await request<FileRecord | undefined>(t.files.get(id));
     if (f) {
       t.files.put({ ...f, complete: false });
@@ -98,18 +98,18 @@ export class IdbFileStore implements LocalFileStore {
   }
 
   async markUploaded(id: string, epoch: string): Promise<void> {
-    await this.#update(id, (f) => ({ ...f, uploadedEpoch: epoch }));
+    await this.update(id, (f) => ({ ...f, uploadedEpoch: epoch }));
   }
 
   async delete(id: string): Promise<void> {
-    const t = await this.#tx("readwrite");
+    const t = await this.tx("readwrite");
     t.files.delete(id);
     t.chunks.delete(chunkRange(id));
     await done(t.tx);
   }
 
-  async #update(id: string, change: (f: FileRecord) => FileRecord): Promise<void> {
-    const t = await this.#tx("readwrite");
+  private async update(id: string, change: (f: FileRecord) => FileRecord): Promise<void> {
+    const t = await this.tx("readwrite");
     const f = await request<FileRecord | undefined>(t.files.get(id));
     if (f) t.files.put(change(f));
     await done(t.tx);

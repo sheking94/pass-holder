@@ -3,7 +3,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import type { Attachment } from "../src/files/attachment.ts";
-import type { EntryContentV3 } from "../src/p2p/entry.ts";
+import type { EntryContent } from "../src/p2p/entry.ts";
 import { exportFile, exportPassHolderZip, openPassHolderZip } from "../src/transfer/index.ts";
 
 const dir = new URL("../test-vectors/transfer/", import.meta.url);
@@ -76,7 +76,7 @@ const descriptor = (name: string, mime: string, n: number): Attachment => ({
   sha256: createHash("sha256").update(bodies.get(name)!).digest("hex"),
   key: "A".repeat(43) + "=",
 });
-const archived: EntryContentV3[] = [
+const archived: EntryContent[] = [
   {
     type: "login",
     name: "Bank",

@@ -30,11 +30,11 @@ class ScreenOffLockTest {
     }
 
     @After
-    fun stop() = app.leaveLock.cancel().let {}
+    fun stop() = app.leaveLock.cancel()
 
     @Test
     fun `screen off locks an unlocked vault even with the delay on`() {
-        app.leaveLock.schedule(LeaveLock.DELAY_MS)
+        app.leaveLock.schedule()
         assertTrue(app.phoneStore.isUnlocked)
         app.sendBroadcast(Intent(Intent.ACTION_SCREEN_OFF))
         shadowOf(Looper.getMainLooper()).idle()

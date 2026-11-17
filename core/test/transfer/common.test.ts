@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { contentKey, ENTRY_TYPE_ORDER, sortForExport } from "../../src/transfer/index.ts";
-import { emptyLogin, type EntryContentV3 } from "../../src/p2p/index.ts";
+import { emptyLogin, type EntryContent } from "../../src/p2p/index.ts";
 
-const note = (name: string): EntryContentV3 => ({
+const note = (name: string): EntryContent => ({
   type: "note",
   name,
   note: "",
@@ -21,14 +21,14 @@ describe("contentKey", () => {
       key: "k",
       sha256: "h",
     };
-    expect(contentKey({ ...note("A"), attachments: [a] } as EntryContentV3)).toBe(
+    expect(contentKey({ ...note("A"), attachments: [a] } as EntryContent)).toBe(
       contentKey(note("A")),
     );
   });
 
   it("ignores key order and outer spaces, not inner differences", () => {
-    const a: EntryContentV3 = { type: "note", name: " A ", note: "x", fields: {}, custom: [] };
-    const b: EntryContentV3 = { custom: [], fields: {}, note: "x ", name: "A", type: "note" };
+    const a: EntryContent = { type: "note", name: " A ", note: "x", fields: {}, custom: [] };
+    const b: EntryContent = { custom: [], fields: {}, note: "x ", name: "A", type: "note" };
     expect(contentKey(a)).toBe(contentKey(b));
     expect(contentKey(a)).not.toBe(contentKey({ ...a, note: "y" }));
     expect(contentKey(a)).not.toBe(contentKey({ ...a, name: "A  B" }));

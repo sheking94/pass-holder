@@ -4,7 +4,7 @@ import {
   isAttachmentMime,
   isAttachmentName,
 } from "../files/attachment.ts";
-import { parseEntryContent, type EntryContentV3 } from "../p2p/entry.ts";
+import { parseEntryContent, type EntryContent } from "../p2p/entry.ts";
 import { sortForExport, type ImportSkip, type ParsedImport } from "./common.ts";
 
 const NOT_PASSHOLDER = "To nie jest plik PassHolder w wersji 3";
@@ -19,9 +19,9 @@ export function isPassHolderJson(value: unknown): boolean {
   );
 }
 
-export function exportPassHolderJson(entries: readonly EntryContentV3[]): string {
+export function exportPassHolderJson(entries: readonly EntryContent[]): string {
   // Attachment descriptors carry file keys and the files are not exported, so they are left out.
-  const bare = entries.map(({ attachments: _attachments, ...rest }) => rest as EntryContentV3);
+  const bare = entries.map(({ attachments: _attachments, ...rest }) => rest as EntryContent);
   return (
     JSON.stringify({ format: "passholder", version: 3, entries: sortForExport(bare) }, null, 2) +
     "\n"
@@ -29,7 +29,7 @@ export function exportPassHolderJson(entries: readonly EntryContentV3[]): string
 }
 
 /** Number of files that an export of these entries leaves out. */
-export function countAttachments(entries: readonly EntryContentV3[]): number {
+export function countAttachments(entries: readonly EntryContent[]): number {
   return entries.reduce((sum, e) => sum + (e.attachments?.length ?? 0), 0);
 }
 
@@ -46,7 +46,7 @@ export interface ArchivedFile {
  * `position` is the entry's place in the index's `entries` (from 1), the N of "wpis N".
  */
 export interface ArchiveEntry {
-  content: EntryContentV3;
+  content: EntryContent;
   files: ArchivedFile[];
   position: number;
 }

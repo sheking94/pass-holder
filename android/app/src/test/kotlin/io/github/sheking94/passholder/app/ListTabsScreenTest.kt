@@ -5,7 +5,7 @@ import io.github.sheking94.passholder.core.p2p.CardFields
 import io.github.sheking94.passholder.core.p2p.ContactFields
 import io.github.sheking94.passholder.core.p2p.DocumentFields
 import io.github.sheking94.passholder.core.p2p.DocumentKind
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
+import io.github.sheking94.passholder.core.p2p.EntryContent
 import io.github.sheking94.passholder.core.p2p.LabeledValue
 import io.github.sheking94.passholder.core.p2p.LoginFields
 import io.github.sheking94.passholder.core.p2p.NoteFields
@@ -19,18 +19,18 @@ class ListTabsScreenTest : ScreenTestBase() {
     @Test
     fun `tabs show one type each, search is per tab, Dodaj opens a form of the tab's type`() {
         createVault()
-        putEntry(EntryContentV3("bank.pl", "", LoginFields("jan", "pw"), emptyList()))
-        putEntry(EntryContentV3("Visa", "", CardFields("Jan", "4111111111111234", "", "", ""), emptyList()))
+        putEntry(EntryContent("bank.pl", "", LoginFields("jan", "pw"), emptyList()))
+        putEntry(EntryContent("Visa", "", CardFields("Jan", "4111111111111234", "", "", ""), emptyList()))
         putEntry(
-            EntryContentV3(
+            EntryContent(
                 "Ala",
                 "",
                 ContactFields("Ala", "", "", listOf(LabeledValue("dom", "600 100 200")), emptyList(), emptyList()),
                 emptyList(),
             ),
         )
-        putEntry(EntryContentV3("Zakupy", "\nmleko\njajka", NoteFields, emptyList()))
-        putEntry(EntryContentV3("Paszport Jana", "", DocumentFields(DocumentKind.PASSPORT, "", "", "", "", ""), emptyList()))
+        putEntry(EntryContent("Zakupy", "\nmleko\njajka", NoteFields, emptyList()))
+        putEntry(EntryContent("Paszport Jana", "", DocumentFields(DocumentKind.PASSPORT, "", "", "", "", ""), emptyList()))
 
         // Logins first, and only logins.
         waitFor("bank.pl")

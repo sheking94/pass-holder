@@ -158,7 +158,7 @@ class P2pInteropTest {
         enc.blobs.forEachIndexed { i, blob -> files.put(enc.attachment.id, i, enc.blobs.size, blob, 0L) }
         f.vault.upsertContent(
             "phone-1",
-            EntryContentV3("z-telefonu.pl", "", LoginFields("jan", "x"), emptyList(), listOf(enc.attachment)),
+            EntryContent("z-telefonu.pl", "", LoginFields("jan", "x"), emptyList(), listOf(enc.attachment)),
         )
 
         val out = runClient(f, 0, "z-przegladarki", tmp, phoneFileId = enc.attachment.id)

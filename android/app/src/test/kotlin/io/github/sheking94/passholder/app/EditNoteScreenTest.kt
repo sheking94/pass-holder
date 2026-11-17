@@ -4,7 +4,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import io.github.sheking94.passholder.app.entries.EntryType
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
+import io.github.sheking94.passholder.core.p2p.EntryContent
 import io.github.sheking94.passholder.core.p2p.NoteFields
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -28,7 +28,7 @@ class EditNoteScreenTest : ScreenTestBase() {
 
         val store = ApplicationProvider.getApplicationContext<PassHolderApp>().phoneStore
         val id = store.entries().single().id
-        assertEquals(EntryContentV3("Zakupy", "mleko\njajka", NoteFields, emptyList()), store.entry(id)!!.content)
+        assertEquals(EntryContent("Zakupy", "mleko\njajka", NoteFields, emptyList()), store.entry(id)!!.content)
         val vm = viewModel()
         assertEquals(EntryType.NOTE, vm.state.value.tab)
 

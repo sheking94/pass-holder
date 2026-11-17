@@ -2,8 +2,8 @@ package io.github.sheking94.passholder.core.autofill
 
 import io.github.sheking94.passholder.core.p2p.CardFields
 import io.github.sheking94.passholder.core.p2p.ContactFields
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
-import io.github.sheking94.passholder.core.p2p.EntryDataV3
+import io.github.sheking94.passholder.core.p2p.EntryContent
+import io.github.sheking94.passholder.core.p2p.EntryData
 import io.github.sheking94.passholder.core.p2p.Hlc
 import io.github.sheking94.passholder.core.p2p.LabeledValue
 import io.github.sheking94.passholder.core.p2p.LoginFields
@@ -15,8 +15,8 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class PlannerTest {
-    private fun entry(id: String, name: String, fields: io.github.sheking94.passholder.core.p2p.EntryFieldsV3) =
-        PhoneEntry(id, 1, EntryDataV3(EntryContentV3(name, "", fields, emptyList()), Hlc(1, 0, "d")))
+    private fun entry(id: String, name: String, fields: io.github.sheking94.passholder.core.p2p.EntryFields) =
+        PhoneEntry(id, 1, EntryData(EntryContent(name, "", fields, emptyList()), Hlc(1, 0, "d")))
 
     private fun login(
         id: String,

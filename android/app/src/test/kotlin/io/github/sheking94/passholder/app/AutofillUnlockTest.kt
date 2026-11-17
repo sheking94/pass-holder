@@ -23,7 +23,7 @@ import io.github.sheking94.passholder.app.autofill.autofillId
 import io.github.sheking94.passholder.core.autofill.AppRequest
 import io.github.sheking94.passholder.core.autofill.AutofillNode
 import io.github.sheking94.passholder.core.autofill.FieldDescriptor
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
+import io.github.sheking94.passholder.core.p2p.EntryContent
 import io.github.sheking94.passholder.core.p2p.LoginFields
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -73,7 +73,7 @@ abstract class AutofillUnlockTestBase {
         app.phoneStore.createVault(masterPassword)
         app.phoneStore.upsertContent(
             "1",
-            EntryContentV3("Bank", "", LoginFields("jan.kowalski", "s3cret-haslo", androidApps = listOf("com.example.bank")), emptyList()),
+            EntryContent("Bank", "", LoginFields("jan.kowalski", "s3cret-haslo", androidApps = listOf("com.example.bank")), emptyList()),
         )
         beforeLaunch()
         app.phoneStore.lock()
@@ -162,7 +162,7 @@ class AutofillUnlockFingerprintTest : AutofillUnlockTestBase() {
 
     override fun beforeLaunch() {
         val cipher = app.biometric.cipherToEnable()
-        app.biometric.enable(cipher, app.phoneStore.exportUnlockKeys())
+        app.biometric.enable(cipher, app.phoneStore.exportVaultKey())
     }
 
     @Test

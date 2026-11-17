@@ -4,9 +4,9 @@ import { fromBase64, fromHex, toHex, utf8 } from "../../src/encoding.ts";
 import {
   CipherState,
   compareHlc,
-  decryptPayloadV2,
-  encryptPayloadV2,
-  entryAadV2,
+  decryptPayload,
+  encryptPayload,
+  entryAad,
   MAX_CHANGES_PER_REQUEST,
   MAX_CHANGES_PER_RESPONSE,
   MAX_FRAMES,
@@ -19,7 +19,7 @@ import {
   type Hlc,
   type PairingKind,
   type PairingRole,
-  type TombstoneDataV2,
+  type TombstoneData,
 } from "../../src/p2p/index.ts";
 import { encryptFrames } from "../../src/p2p/frames.ts";
 
@@ -38,7 +38,7 @@ interface Vectors {
     vaultKey: string;
     id: string;
     aad: string;
-    data: LegacyEntryData | TombstoneDataV2;
+    data: LegacyEntryData | TombstoneData;
     nonce: string;
     blob: string;
   }[];
@@ -81,11 +81,11 @@ describe("test vectors v2", () => {
   for (const e of v.entryPayload) {
     it(`entryPayload: ${e.description}`, async () => {
       const key = fromHex(e.vaultKey);
-      expect(entryAadV2(e.id)).toBe(e.aad);
-      expect(await decryptPayloadV2(key, e.id, e.blob)).toEqual(e.data);
+      expect(entryAad(e.id)).toBe(e.aad);
+      expect(await decryptPayload(key, e.id, e.blob)).toEqual(e.data);
       if ("name" in e.data) {
         // Old v2 content: not written any more, but read as a login.
-        const parsed = parseEntryData(await decryptPayloadV2(key, e.id, e.blob));
+        const parsed = parseEntryData(await decryptPayload(key, e.id, e.blob));
         expect(parsed).toMatchObject({
           v: 3,
           type: "login",
@@ -102,7 +102,7 @@ describe("test vectors v2", () => {
           hlc: e.data.hlc,
         });
       } else {
-        expect(await encryptPayloadV2(key, e.id, e.data, fromHex(e.nonce))).toBe(e.blob);
+        expect(await encryptPayload(key, e.id, e.data, fromHex(e.nonce))).toBe(e.blob);
       }
     });
   }

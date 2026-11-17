@@ -15,7 +15,7 @@ import io.github.sheking94.passholder.app.TestSecretWrapper
 import io.github.sheking94.passholder.core.autofill.AppRequest
 import io.github.sheking94.passholder.core.autofill.AutofillNode
 import io.github.sheking94.passholder.core.autofill.FieldDescriptor
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
+import io.github.sheking94.passholder.core.p2p.EntryContent
 import io.github.sheking94.passholder.core.p2p.LoginFields
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -62,7 +62,7 @@ class FillLogicTest {
         app.phoneStore.createVault("haslo-glowne-1")
         app.phoneStore.upsertContent(
             "1",
-            EntryContentV3("GitHub", "", LoginFields("jkowalski", "s3cret", urls = listOf("https://github.com")), emptyList()),
+            EntryContent("GitHub", "", LoginFields("jkowalski", "s3cret", urls = listOf("https://github.com")), emptyList()),
         )
     }
 
@@ -246,7 +246,7 @@ class FillLogicTest {
         app.phoneStore.createVault("haslo-glowne-1")
         app.phoneStore.upsertContent(
             "1",
-            EntryContentV3("Bank", "", LoginFields("jan", "s3cret", androidApps = listOf("pl.bank")), emptyList()),
+            EntryContent("Bank", "", LoginFields("jan", "s3cret", androidApps = listOf("pl.bank")), emptyList()),
         )
         val bank = { respond(app, request(pkg = "pl.bank", domain = null), null, auth)!! }
         assertNull(app.appTrust.remembered("pl.bank"))
@@ -278,7 +278,7 @@ class FillLogicTest {
         vaultWithLogin()
         // The timer never ran (deep sleep, frozen app), but the clock went on past the deadline (D1).
         var t = 0L
-        app.leaveLock = LeaveLock(app.phoneStore, now = { t }).also { it.schedule(LeaveLock.DELAY_MS) }
+        app.leaveLock = LeaveLock(app.phoneStore, now = { t }).also { it.schedule() }
         assertNotNull(respond(app, request(), null, auth))
         assertEquals("before the deadline: suggestions", 0, authCalls)
         t = LeaveLock.DELAY_MS

@@ -2,7 +2,7 @@ import { p2p } from "@passholder/core";
 
 type EntryType = p2p.EntryType;
 type DocumentKind = p2p.DocumentKind;
-type Content = p2p.EntryContentV3;
+type Content = p2p.EntryContent;
 
 /** Entry types in tab order (logins first). */
 export const ENTRY_TYPES: readonly EntryType[] = ["login", "contact", "card", "note", "document"];

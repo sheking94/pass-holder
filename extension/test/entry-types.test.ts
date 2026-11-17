@@ -10,7 +10,7 @@ import {
   validateContent,
 } from "../src/entry-types.ts";
 
-type C = p2p.EntryContentV3;
+type C = p2p.EntryContent;
 const base = { note: "", custom: [] as p2p.CustomField[] };
 const card = (over: Partial<p2p.CardFields> = {}, name = "Visa"): C => ({
   ...base,

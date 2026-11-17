@@ -86,16 +86,19 @@ class P2pVectorsTest {
         DynamicTest.dynamicTest("entry payload: ${v.description}") {
             val key = Encoding.fromHex(v.vaultKey)
             val nonce = Encoding.fromHex(v.nonce)
-            assertEquals(v.aad, EntryV3.aad(v.id))
+            assertEquals(v.aad, EntryCodec.aad(v.id))
             val isEntry = (v.data as kotlinx.serialization.json.JsonObject).containsKey("name")
             // v2.json keeps the old v2 content: a v3 reader must still decrypt it and read it as a login.
-            val opened = EntryV3.decrypt(key, v.id, v.blob)
+            val opened = EntryCodec.decrypt(key, v.id, v.blob)
             assertEquals(v.data, opened)
             if (isEntry) {
-                assertEquals(true, EntryV3.parse(opened).content.fields is LoginFields)
+                assertEquals(true, EntryCodec.parse(opened).content.fields is LoginFields)
             } else {
-                EntryV3.parseTombstone(opened)
-                assertEquals(v.blob, EntryV3.encryptJson(key, v.id, EntryV3.serializeTombstone(EntryV3.parseTombstone(v.data)), nonce))
+                EntryCodec.parseTombstone(opened)
+                assertEquals(
+                    v.blob,
+                    EntryCodec.encryptJson(key, v.id, EntryCodec.serializeTombstone(EntryCodec.parseTombstone(v.data)), nonce),
+                )
             }
         }
     }

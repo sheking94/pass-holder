@@ -2,7 +2,7 @@ package io.github.sheking94.passholder.core.save
 
 import io.github.sheking94.passholder.core.autofill.AppRequest
 import io.github.sheking94.passholder.core.p2p.CustomField
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
+import io.github.sheking94.passholder.core.p2p.EntryContent
 import io.github.sheking94.passholder.core.p2p.LoginFields
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
@@ -35,16 +35,16 @@ class SaveTargetTest {
     fun newLoginForWebAndApp() {
         val web = newLogin(SaveTarget.Web("http://a.example:8080"), "Label", "jan", "pw")
         assertEquals(
-            EntryContentV3("a.example", "", LoginFields("jan", "pw", "", listOf("http://a.example:8080"), emptyList()), emptyList()),
+            EntryContent("a.example", "", LoginFields("jan", "pw", "", listOf("http://a.example:8080"), emptyList()), emptyList()),
             web,
         )
         val app = newLogin(SaveTarget.App("com.example.app"), "Example", "jan", "pw")
-        assertEquals(EntryContentV3("Example", "", LoginFields("jan", "pw", "", emptyList(), listOf("com.example.app")), emptyList()), app)
+        assertEquals(EntryContent("Example", "", LoginFields("jan", "pw", "", emptyList(), listOf("com.example.app")), emptyList()), app)
     }
 
     @Test
     fun withPasswordKeepsOtherFields() {
-        val c = EntryContentV3(
+        val c = EntryContent(
             "n",
             "note",
             LoginFields("u", "old", "totp", listOf("x.pl"), listOf("a.b")),
@@ -61,7 +61,7 @@ class SaveTargetTest {
 
     @Test
     fun withPasswordKeepsOnlyTheLatestPrevious() {
-        val c = EntryContentV3("n", "", LoginFields("u", "one", "", emptyList(), emptyList()), emptyList())
+        val c = EntryContent("n", "", LoginFields("u", "one", "", emptyList(), emptyList()), emptyList())
         assertEquals(listOf(CustomField(PREVIOUS_PASSWORD_LABEL, "two", true)), withPassword(withPassword(c, "two"), "three").custom)
         assertEquals(emptyList<CustomField>(), withPassword(c, "one").custom)
     }

@@ -44,7 +44,7 @@ export function promptView(info: SavePromptInfo, actions: PromptActions): HTMLEl
       decision === "none"
         ? "Ten login jest już zapisany"
         : decision === "update"
-          ? `Zmiana hasła: ${entryName ?? info.entryName ?? ""}`
+          ? `Zmiana hasła: ${entryName ?? (info.locked ? undefined : info.entryName) ?? ""}`
           : "Nowy login";
     nameBox.hidden = decision !== "create";
     replaceHint.hidden = decision !== "update";

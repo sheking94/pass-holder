@@ -5,7 +5,7 @@ import io.github.sheking94.passholder.core.p2p.ContactFields
 import io.github.sheking94.passholder.core.p2p.CustomField
 import io.github.sheking94.passholder.core.p2p.DocumentFields
 import io.github.sheking94.passholder.core.p2p.DocumentKind
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
+import io.github.sheking94.passholder.core.p2p.EntryContent
 import io.github.sheking94.passholder.core.p2p.LabeledValue
 import io.github.sheking94.passholder.core.p2p.LoginFields
 import io.github.sheking94.passholder.core.p2p.NoteFields
@@ -25,14 +25,14 @@ class BitwardenJsonTest {
     private val file = readVector("bitwarden.json")
     private val expected = readExpected("bitwarden.expected.json")
 
-    private fun doc(kind: DocumentKind, number: String) = EntryContentV3(
+    private fun doc(kind: DocumentKind, number: String) = EntryContent(
         "Dokument ${kind.json}",
         "n",
         DocumentFields(kind, number, "Jan Testowy", "2020-01-01", "2030-01-01", "Urząd"),
         listOf(CustomField("Własne", "x", true)),
     )
 
-    private fun roundTrip(entries: List<EntryContentV3>) = BitwardenJson.parse(BitwardenJson.export(entries))
+    private fun roundTrip(entries: List<EntryContent>) = BitwardenJson.parse(BitwardenJson.export(entries))
     private fun items(text: String) = ((Json.parseToJsonElement(text) as JsonObject)["items"] as JsonArray).map { it as JsonObject }
     private fun fieldsOf(o: JsonObject) = (o["fields"] as JsonArray).map { it.toString() }
     private fun f(name: String, value: String, type: Int) = """{"name":"$name","value":"$value","type":$type}"""
@@ -74,13 +74,13 @@ class BitwardenJsonTest {
     @Test
     fun roundTripsCardWithPin() {
         val card =
-            EntryContentV3("K", "", CardFields("Jan Testowy", "4111", "03/27", "123", "9876"), listOf(CustomField("Własne", "x", false)))
+            EntryContent("K", "", CardFields("Jan Testowy", "4111", "03/27", "123", "9876"), listOf(CustomField("Własne", "x", false)))
         assertEquals(ParsedImport(listOf(card), emptyList()), roundTrip(listOf(card)))
     }
 
     @Test
     fun roundTripsNote() {
-        val note = EntryContentV3("N", "tekst", NoteFields, listOf(CustomField("a", "b", false)))
+        val note = EntryContent("N", "tekst", NoteFields, listOf(CustomField("a", "b", false)))
         val text = BitwardenJson.export(listOf(note))
         val item = items(text)[0]
         assertEquals(JsonPrimitive(2), item["type"])
@@ -91,7 +91,7 @@ class BitwardenJsonTest {
 
     @Test
     fun roundTripsLogin() {
-        val login = EntryContentV3(
+        val login = EntryContent(
             "L",
             "",
             LoginFields("u", "p", "T", listOf("https://example.com"), listOf("com.example.app")),
@@ -109,7 +109,7 @@ class BitwardenJsonTest {
 
     @Test
     fun exportsCardExpiryAndPin() {
-        val card = EntryContentV3("K", "", CardFields("Jan Testowy", "4111", "03/27", "123", "9876"), emptyList())
+        val card = EntryContent("K", "", CardFields("Jan Testowy", "4111", "03/27", "123", "9876"), emptyList())
         val item = items(BitwardenJson.export(listOf(card)))[0]
         val c = item["card"] as JsonObject
         assertEquals(JsonPrimitive(3), item["type"])
@@ -125,7 +125,7 @@ class BitwardenJsonTest {
 
     @Test
     fun exportsContactIntoIdentityAndExtraFields() {
-        val contact = EntryContentV3(
+        val contact = EntryContent(
             "C",
             "",
             ContactFields(

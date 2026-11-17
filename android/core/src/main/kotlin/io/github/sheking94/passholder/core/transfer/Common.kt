@@ -1,7 +1,7 @@
 package io.github.sheking94.passholder.core.transfer
 
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
-import io.github.sheking94.passholder.core.p2p.EntryV3
+import io.github.sheking94.passholder.core.p2p.EntryCodec
+import io.github.sheking94.passholder.core.p2p.EntryContent
 import io.github.sheking94.passholder.core.p2p.PostalAddress
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -15,7 +15,7 @@ import java.util.Locale
 data class ImportSkip(val at: String, val reason: String)
 
 /** [files]: file descriptions left out (an archive index imported as plain JSON), shown like skipped files. */
-data class ParsedImport(val entries: List<EntryContentV3>, val skipped: List<ImportSkip>, val files: List<ImportSkip> = emptyList())
+data class ParsedImport(val entries: List<EntryContent>, val skipped: List<ImportSkip>, val files: List<ImportSkip> = emptyList())
 
 /** Order of entry types in exports when names are equal. */
 val ENTRY_TYPE_ORDER = listOf("login", "contact", "card", "note", "document")
@@ -27,7 +27,7 @@ private fun trimmed(v: JsonElement): JsonElement = when (v) {
 }
 
 /** Equal keys mean a duplicate: same whole content, every text trimmed at its edges, object keys in sorted order. */
-fun contentKey(c: EntryContentV3): String = JsonText.stringify(trimmed(EntryV3.contentJson(c)))
+fun contentKey(c: EntryContent): String = JsonText.stringify(trimmed(EntryCodec.contentJson(c)))
 
 /**
  * Polish collation matching Node's `localeCompare(..., "pl")` (ICU, punctuation not ignorable). The JDK's `pl` collator
@@ -49,7 +49,7 @@ internal val POLISH_COLLATOR: Collator = run {
  * A copy sorted by name ([POLISH_COLLATOR], default strength), then by type in [ENTRY_TYPE_ORDER].
  * Differs from the plain JDK collator only in not ignoring spaces and punctuation (see [POLISH_COLLATOR]).
  */
-fun sortForExport(entries: List<EntryContentV3>): List<EntryContentV3> = entries.sortedWith { a, b ->
+fun sortForExport(entries: List<EntryContent>): List<EntryContent> = entries.sortedWith { a, b ->
     val byName = POLISH_COLLATOR.compare(a.name, b.name)
     if (byName != 0) byName else ENTRY_TYPE_ORDER.indexOf(a.fields.type) - ENTRY_TYPE_ORDER.indexOf(b.fields.type)
 }
@@ -62,4 +62,4 @@ fun addressLine(a: PostalAddress): String =
     listOf(a.street, listOf(a.postalCode, a.city).filter { it != "" }.joinToString(" "), a.country).filter { it != "" }.joinToString(", ")
 
 /** Total number of file attachments over [entries] (for the export screen: files are not exported). */
-fun countAttachments(entries: List<EntryContentV3>): Int = entries.sumOf { it.attachments.size }
+fun countAttachments(entries: List<EntryContent>): Int = entries.sumOf { it.attachments.size }

@@ -6,7 +6,7 @@ import io.github.sheking94.passholder.app.PassHolderApp
 import io.github.sheking94.passholder.app.TestSecretWrapper
 import io.github.sheking94.passholder.core.autofill.AppRequest
 import io.github.sheking94.passholder.core.p2p.CustomField
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
+import io.github.sheking94.passholder.core.p2p.EntryContent
 import io.github.sheking94.passholder.core.p2p.LoginFields
 import io.github.sheking94.passholder.core.save.PREVIOUS_PASSWORD_LABEL
 import io.github.sheking94.passholder.core.save.SaveDecision
@@ -35,7 +35,7 @@ class SaveReviewTest {
     private fun review(data: SaveData, label: String = "Chrome") = SaveReview(data, app.phoneStore.entries(), label)
     private fun addGithub() = app.phoneStore.upsertContent(
         "1",
-        EntryContentV3("GitHub", "", LoginFields("jkowalski", "s3cret", urls = listOf("https://github.com")), emptyList()),
+        EntryContent("GitHub", "", LoginFields("jkowalski", "s3cret", urls = listOf("https://github.com")), emptyList()),
     )
 
     @Test
@@ -130,7 +130,7 @@ class SaveReviewTest {
         val entry = app.phoneStore.entries().single()
         assertEquals("1", entry.id)
         assertEquals(
-            EntryContentV3(
+            EntryContent(
                 "GitHub",
                 "",
                 LoginFields("jkowalski", "newer", urls = listOf("https://github.com")),

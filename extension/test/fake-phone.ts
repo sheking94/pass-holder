@@ -60,7 +60,7 @@ export class FakePhone {
   private pairKey: Uint8Array | undefined;
   private pendingSid: string | undefined;
   private pendingMode: p2p.PhoneMode | undefined;
-  private readonly writer = p2p.emptyVaultV2();
+  private readonly writer = p2p.emptyVault();
   private readonly writerClock = new p2p.HlcClock("phone-writer");
 
   private constructor(
@@ -108,16 +108,16 @@ export class FakePhone {
   }
 
   /** Adds or changes an entry of any type on the phone. */
-  async addContent(id: string, content: p2p.EntryContentV3): Promise<void> {
+  async addContent(id: string, content: p2p.EntryContent): Promise<void> {
     await this.syncWriter();
-    p2p.upsertEntryV2(this.writer, this.writerClock, id, content);
+    p2p.upsertEntry(this.writer, this.writerClock, id, content);
     await this.syncWriter();
   }
 
   /** The decrypted content of a live entry on the phone. */
-  async entryData(id: string, vaultKey = this.vaultKey!): Promise<p2p.EntryDataV3> {
+  async entryData(id: string, vaultKey = this.vaultKey!): Promise<p2p.EntryData> {
     const record = this.store.listSince(0).find((r) => r.id === id && !r.deleted)!;
-    return p2p.parseEntryData(await p2p.decryptPayloadV2(vaultKey, record.id, record.blob));
+    return p2p.parseEntryData(await p2p.decryptPayload(vaultKey, record.id, record.blob));
   }
 
   /** Passwords of the live entries on the phone by id. */
@@ -125,14 +125,14 @@ export class FakePhone {
     const out: Record<string, string> = {};
     for (const record of this.store.listSince(0)) {
       if (record.deleted) continue;
-      const data = p2p.parseEntryData(await p2p.decryptPayloadV2(vaultKey, record.id, record.blob));
+      const data = p2p.parseEntryData(await p2p.decryptPayload(vaultKey, record.id, record.blob));
       if (data.type === "login") out[record.id] = data.fields.password;
     }
     return out;
   }
 
   private syncWriter(): Promise<void> {
-    return p2p.syncVaultV2(this.writer, this.vaultKey!, this.writerClock, async (request) =>
+    return p2p.syncVault(this.writer, this.vaultKey!, this.writerClock, async (request) =>
       p2p.processP2pSync(this.store, this.epoch, this.addresses, request),
     );
   }
@@ -143,7 +143,7 @@ export class FakePhone {
     for (const record of this.store.listSince(0)) {
       if (record.deleted) continue;
       names.push(
-        p2p.parseEntryData(await p2p.decryptPayloadV2(vaultKey, record.id, record.blob)).name,
+        p2p.parseEntryData(await p2p.decryptPayload(vaultKey, record.id, record.blob)).name,
       );
     }
     return names.sort();
@@ -332,7 +332,7 @@ export function newLogin(f: {
   name: string;
   username: string;
   password: string;
-}): p2p.EntryContentV3 {
+}): p2p.EntryContent {
   const empty = p2p.emptyLogin(f.name);
   return { ...empty, fields: { ...empty.fields, username: f.username, password: f.password } };
 }

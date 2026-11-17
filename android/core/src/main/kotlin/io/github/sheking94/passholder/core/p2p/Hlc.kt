@@ -7,7 +7,13 @@ import kotlinx.serialization.json.JsonPrimitive
 
 private const val MAX_DEVICE_ID_LENGTH = 64
 
-/** Hybrid logical clock timestamp, ordered by (ms, c, d). */
+/**
+ * Hybrid logical clock timestamp, ordered by (ms, c, d). Short field names, because they are stored in every entry.
+ *
+ * @property ms wall clock in milliseconds, never lower than the last timestamp this device saw
+ * @property c counter that orders events within the same ms
+ * @property d device id: breaks the remaining ties, so two devices never produce equal timestamps
+ */
 @Serializable
 data class Hlc(val ms: Long, val c: Long, val d: String) : Comparable<Hlc> {
     // String.compareTo orders by UTF-16 code units, like JS string comparison.

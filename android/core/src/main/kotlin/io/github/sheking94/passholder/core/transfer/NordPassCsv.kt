@@ -5,7 +5,7 @@ import io.github.sheking94.passholder.core.p2p.ContactFields
 import io.github.sheking94.passholder.core.p2p.CustomField
 import io.github.sheking94.passholder.core.p2p.DocumentFields
 import io.github.sheking94.passholder.core.p2p.DocumentKind
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
+import io.github.sheking94.passholder.core.p2p.EntryContent
 import io.github.sheking94.passholder.core.p2p.LabeledValue
 import io.github.sheking94.passholder.core.p2p.LoginFields
 import io.github.sheking94.passholder.core.p2p.NoteFields
@@ -59,7 +59,7 @@ object NordPassCsv {
         header.fields.forEachIndexed { i, name -> index[name.jsTrim().lowercase()] = i }
         if ("name" !in index && "url" !in index) throw IllegalArgumentException(NOT_NORDPASS)
 
-        val entries = mutableListOf<EntryContentV3>()
+        val entries = mutableListOf<EntryContent>()
         val skipped = mutableListOf<ImportSkip>()
         for ((line, fields) in rows) {
             fun get(column: String): String = index[column]?.let { fields.getOrNull(it) } ?: ""
@@ -91,7 +91,7 @@ object NordPassCsv {
 
             entries.add(
                 when (kind) {
-                    "login" -> EntryContentV3(
+                    "login" -> EntryContent(
                         name,
                         note,
                         LoginFields(
@@ -110,9 +110,9 @@ object NordPassCsv {
                         emptyList(),
                     )
 
-                    "note" -> EntryContentV3(name, note, NoteFields, emptyList())
+                    "note" -> EntryContent(name, note, NoteFields, emptyList())
 
-                    "card" -> EntryContentV3(
+                    "card" -> EntryContent(
                         name,
                         note,
                         CardFields(get("cardholdername"), get("cardnumber"), get("expirydate"), get("cvc"), ""),
@@ -125,7 +125,7 @@ object NordPassCsv {
                         val street = listOf(get("address1"), get("address2")).filter(::filled).joinToString(", ")
                         val address = PostalAddress("", street, get("zipcode"), get("city"), get("country"))
                         val hasAddress = listOf("address1", "address2", "zipcode", "city", "country").any { filled(get(it)) }
-                        EntryContentV3(
+                        EntryContent(
                             name,
                             note,
                             ContactFields(
@@ -149,7 +149,7 @@ object NordPassCsv {
 
     private fun line(label: String, value: String): List<String> = if (value == "") emptyList() else listOf("$label: $value")
 
-    private fun exportRow(e: EntryContentV3): List<String> {
+    private fun exportRow(e: EntryContent): List<String> {
         val v = mutableMapOf("name" to e.name)
         val lines = mutableListOf<String>()
         when (val f = e.fields) {
@@ -202,5 +202,5 @@ object NordPassCsv {
         return COLUMNS.map { v[it] ?: "" }
     }
 
-    fun export(entries: List<EntryContentV3>): String = Csv.write(listOf(COLUMNS) + sortForExport(entries).map(::exportRow))
+    fun export(entries: List<EntryContent>): String = Csv.write(listOf(COLUMNS) + sortForExport(entries).map(::exportRow))
 }

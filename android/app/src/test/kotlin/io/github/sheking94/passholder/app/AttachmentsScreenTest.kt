@@ -20,7 +20,7 @@ import io.github.sheking94.passholder.app.autofill.saveReviewed
 import io.github.sheking94.passholder.core.autofill.AppRequest
 import io.github.sheking94.passholder.core.files.Attachment
 import io.github.sheking94.passholder.core.files.FileChunks
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
+import io.github.sheking94.passholder.core.p2p.EntryContent
 import io.github.sheking94.passholder.core.p2p.LoginFields
 import io.github.sheking94.passholder.core.p2p.NoteFields
 import io.github.sheking94.passholder.core.p2p.PhoneVaultStore
@@ -109,7 +109,7 @@ abstract class AttachmentsScreenBase : ScreenTestBase() {
     }
 
     protected fun noteWith(name: String, vararg files: Attachment): String =
-        putEntry(EntryContentV3(name, "", NoteFields, emptyList(), files.toList()))
+        putEntry(EntryContent(name, "", NoteFields, emptyList(), files.toList()))
 
     protected fun attachments() = phoneStore().entries().single().content.attachments
 }
@@ -328,7 +328,7 @@ class AttachmentsKeepScreenTest : AttachmentsScreenBase() {
         // A login with a file, then the autofill save of a new password (RF 3).
         phoneStore().upsertContent(
             "1",
-            EntryContentV3("GitHub", "", LoginFields("jkowalski", "s3cret", urls = listOf("https://github.com")), emptyList(), listOf(a)),
+            EntryContent("GitHub", "", LoginFields("jkowalski", "s3cret", urls = listOf("https://github.com")), emptyList(), listOf(a)),
         )
         val review =
             SaveReview(

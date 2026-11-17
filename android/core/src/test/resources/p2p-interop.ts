@@ -21,11 +21,11 @@ const config = JSON.parse(readFileSync(configPath, "utf8")) as {
 };
 const { p2p } = await import(pathToFileURL(`${root}/core/src/index.ts`).href);
 
-const vault = p2p.emptyVaultV2();
+const vault = p2p.emptyVault();
 p2p.applyVaultInfo(vault, { epoch: config.epoch, addresses: [] });
 const clock = p2p.clockForVault(vault, config.deviceId);
 for (let i = 0; i < config.count; i++) {
-  p2p.upsertEntryV2(vault, clock, crypto.randomUUID(), {
+  p2p.upsertEntry(vault, clock, crypto.randomUUID(), {
     ...p2p.emptyLogin(`${config.startPrefix}-${i}`),
     fields: { ...p2p.emptyLogin().fields, username: "z TS", password: i === 0 ? config.password : "p".repeat(100) },
   });
@@ -39,7 +39,7 @@ if (config.files) {
   const bytes = Uint8Array.from({ length: 600000 }, (_, i) => (i * 7 + 3) & 0xff);
   const enc = await files.encryptFile(bytes, { name: "z-przegladarki.bin", mime: "application/octet-stream" });
   await files.storeEncryptedFile(localFiles, enc);
-  p2p.upsertEntryV2(vault, clock, crypto.randomUUID(), { ...p2p.emptyLogin("z-plikiem"), attachments: [enc.attachment] });
+  p2p.upsertEntry(vault, clock, crypto.randomUUID(), { ...p2p.emptyLogin("z-plikiem"), attachments: [enc.attachment] });
 }
 
 const post = async (url: string, body: unknown): Promise<{ status: number; body: unknown }> => {
@@ -53,7 +53,7 @@ const send = p2p.noiseTransport({
   peerPublicKey: hex(config.phonePublicKey),
   post,
 });
-await p2p.syncVaultV2(vault, vaultKey, clock, send);
+await p2p.syncVault(vault, vaultKey, clock, send);
 
 let fileOut: unknown;
 if (config.files) {
@@ -73,5 +73,5 @@ if (config.files) {
   fileOut = { ...result, downloadedSha256: bytes && (await files.sha256Hex(bytes)) };
 }
 
-const names = p2p.liveEntriesV2(vault).map((e: { data: { name: string } }) => e.data.name).sort();
+const names = p2p.liveEntries(vault).map((e: { data: { name: string } }) => e.data.name).sort();
 console.log(JSON.stringify({ names, epoch: vault.epoch, addresses: vault.addresses, files: fileOut }));

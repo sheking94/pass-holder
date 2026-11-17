@@ -5,7 +5,7 @@ import { writeFileSync } from "node:fs";
 import { seal } from "../src/cipher.ts";
 import { fromHex, utf8 } from "../src/encoding.ts";
 import {
-  entryAadV2,
+  entryAad,
   MAX_BLOB_BYTES_PER_ROUND,
   MAX_CHANGES_PER_REQUEST,
   MAX_CHANGES_PER_RESPONSE,
@@ -13,7 +13,7 @@ import {
   parseEntryData,
   parseTombstoneData,
   serializeEntryData,
-  type EntryDataV3,
+  type EntryData,
   type Hlc,
 } from "../src/p2p/index.ts";
 
@@ -39,7 +39,7 @@ const common = (n: number) => ({
   hlc: hlc(1793404800000 + n, n, `device-${n}`),
 });
 
-const rawLogin: EntryDataV3 = {
+const rawLogin: EntryData = {
   v: 3,
   type: "login",
   name: "Poczta żółć 🙂",
@@ -52,7 +52,7 @@ const rawLogin: EntryDataV3 = {
     androidApps: ["com.example.mail", "pl.example.app"],
   },
 };
-const rawContact: EntryDataV3 = {
+const rawContact: EntryData = {
   v: 3,
   type: "contact",
   name: "Anna Nowak",
@@ -87,7 +87,7 @@ const rawContact: EntryDataV3 = {
     ],
   },
 };
-const rawCard: EntryDataV3 = {
+const rawCard: EntryData = {
   v: 3,
   type: "card",
   name: "Karta główna",
@@ -100,8 +100,8 @@ const rawCard: EntryDataV3 = {
     pin: "4321",
   },
 };
-const rawNote: EntryDataV3 = { v: 3, type: "note", name: "Notatka", ...common(4), fields: {} };
-const rawDocument: EntryDataV3 = {
+const rawNote: EntryData = { v: 3, type: "note", name: "Notatka", ...common(4), fields: {} };
+const rawDocument: EntryData = {
   v: 3,
   type: "document",
   name: "Paszport",
@@ -116,7 +116,7 @@ const rawDocument: EntryDataV3 = {
   },
 };
 // Canonical key order (v, type, name, note, fields, custom, hlc) for everything that ends up in the file.
-const canon = (d: EntryDataV3) => JSON.parse(serializeEntryData(d)) as EntryDataV3;
+const canon = (d: EntryData) => JSON.parse(serializeEntryData(d)) as EntryData;
 const login = canon(rawLogin);
 const contact = canon(rawContact);
 const card = canon(rawCard);
@@ -146,11 +146,11 @@ async function entry(
     deleted,
     payload,
     parsed,
-    blob: await seal(fromHex(vaultKey), utf8(payload), entryAadV2(id), fromHex(nonceOf(n))),
+    blob: await seal(fromHex(vaultKey), utf8(payload), entryAad(id), fromHex(nonceOf(n))),
   };
 }
 
-const v3Entry = (n: number, description: string, data: EntryDataV3) =>
+const v3Entry = (n: number, description: string, data: EntryData) =>
   entry(n, description, false, serializeEntryData(data), data);
 
 const entries = [
@@ -172,9 +172,7 @@ for (const e of entries) {
   // The generator must agree with the parsers before anything is written.
   const value = JSON.parse(e.payload);
   if (e.deleted) parseTombstoneData(value);
-  else if (
-    serializeEntryData(parseEntryData(value)) !== serializeEntryData(e.parsed as EntryDataV3)
-  )
+  else if (serializeEntryData(parseEntryData(value)) !== serializeEntryData(e.parsed as EntryData))
     throw new Error(`parse mismatch: ${e.description}`);
 }
 

@@ -20,17 +20,17 @@ import {
 } from "../../src/files/index.ts";
 import {
   applyVaultInfo,
-  deleteEntryV2,
+  deleteEntry,
   emptyLogin,
-  emptyVaultV2,
+  emptyVault,
   generateKeyPair,
   HlcClock,
   P2pHost,
   P2pHostError,
   PHONE_UPDATE_REQUIRED,
-  upsertEntryV2,
+  upsertEntry,
   type FetchJson,
-  type LocalVaultV2,
+  type LocalVault,
   type PairedDevice,
 } from "../../src/p2p/index.ts";
 import { MemorySyncStore } from "../../src/protocol.ts";
@@ -80,10 +80,10 @@ function phone(o: { epoch?: string; files?: MemoryFileStore | null } = {}) {
   return { epoch, files, host, plugin };
 }
 
-function vaultWith(epoch: string, attachments: Attachment[], name = "entry"): LocalVaultV2 {
-  const vault = emptyVaultV2();
+function vaultWith(epoch: string, attachments: Attachment[], name = "entry"): LocalVault {
+  const vault = emptyVault();
   applyVaultInfo(vault, { epoch, addresses: [] });
-  upsertEntryV2(vault, new HlcClock("dev"), "e1", { ...emptyLogin(name), attachments });
+  upsertEntry(vault, new HlcClock("dev"), "e1", { ...emptyLogin(name), attachments });
   return vault;
 }
 
@@ -171,9 +171,9 @@ describe("usedAttachments", () => {
     const b = (await encryptFile(sample(5), { name: "b", mime: "" })).attachment;
     const vault = vaultWith(newEpoch(), [a]);
     const clock = new HlcClock("dev");
-    upsertEntryV2(vault, clock, "e2", { ...emptyLogin("x"), attachments: [b] });
+    upsertEntry(vault, clock, "e2", { ...emptyLogin("x"), attachments: [b] });
     vault.entries.set("e2", { ...vault.entries.get("e2")!, revision: 1 });
-    deleteEntryV2(vault, clock, "e2");
+    deleteEntry(vault, clock, "e2");
     expect([...usedAttachments(vault).entries()]).toEqual([[a.id, a]]);
   });
 });
@@ -441,7 +441,7 @@ describe("syncFiles: what gets asked", () => {
   it("asks for status in batches of 500 ids", async () => {
     const p = phone();
     const base = (await encryptFile(sample(5), { name: "x", mime: "" })).attachment;
-    const vault = emptyVaultV2();
+    const vault = emptyVault();
     applyVaultInfo(vault, { epoch: p.epoch, addresses: [] });
     const clock = new HlcClock("dev");
     const ids: string[] = [];
@@ -451,7 +451,7 @@ describe("syncFiles: what gets asked", () => {
         ids.push(id);
         return { ...base, id };
       });
-      upsertEntryV2(vault, clock, `e${e}`, { ...emptyLogin(`n${e}`), attachments });
+      upsertEntry(vault, clock, `e${e}`, { ...emptyLogin(`n${e}`), attachments });
     }
     expect(ids).toHaveLength(501);
     const a = p.plugin("a");

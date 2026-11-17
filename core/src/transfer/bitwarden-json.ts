@@ -1,4 +1,4 @@
-import type { CardFields, CustomField, DocumentKind, EntryContentV3 } from "../p2p/entry.ts";
+import type { CardFields, CustomField, DocumentKind, EntryContent } from "../p2p/entry.ts";
 import {
   addressLine,
   labelled,
@@ -83,12 +83,7 @@ function importCard(c: Obj, pin: string): CardFields {
   };
 }
 
-function importIdentity(
-  name: string,
-  note: string,
-  id: Obj,
-  fields: CustomField[],
-): EntryContentV3 {
+function importIdentity(name: string, note: string, id: Obj, fields: CustomField[]): EntryContent {
   const kindIdx = fields.findIndex((f) => f.label === L_KIND && DOCUMENT_KINDS.includes(f.value));
   const isDocument = kindIdx >= 0;
   const address = {
@@ -176,7 +171,7 @@ function importIdentity(
   };
 }
 
-function importItem(item: Obj): EntryContentV3 | string {
+function importItem(item: Obj): EntryContent | string {
   if (![1, 2, 3, 4].includes(item.type as number))
     return `typ ${s(item.type)} nie jest obsługiwany`;
   const name = s(item.name);
@@ -238,7 +233,7 @@ export function parseBitwardenJson(text: string): ParsedImport {
   }
   if (isObj(doc) && doc.encrypted === true) throw new Error(ENCRYPTED);
   if (!isBitwardenJson(doc)) throw new Error(NOT_BITWARDEN);
-  const entries: EntryContentV3[] = [];
+  const entries: EntryContent[] = [];
   const skipped: ImportSkip[] = [];
   (doc as { items: unknown[] }).items.forEach((item, i) => {
     const r = isObj(item) ? importItem(item) : "zły format wpisu";
@@ -284,7 +279,7 @@ const EMPTY_IDENTITY = {
   licenseNumber: null,
 };
 
-function exportItem(e: EntryContentV3): Obj {
+function exportItem(e: EntryContent): Obj {
   const extra: BwField[] = [];
   let body: Obj;
   let type: number;
@@ -383,7 +378,7 @@ function exportItem(e: EntryContentV3): Obj {
   return { type, name: e.name, notes: nn(e.note), favorite: false, fields, ...body };
 }
 
-export function exportBitwardenJson(entries: readonly EntryContentV3[]): string {
+export function exportBitwardenJson(entries: readonly EntryContent[]): string {
   return (
     JSON.stringify(
       { encrypted: false, folders: [], items: sortForExport(entries).map(exportItem) },

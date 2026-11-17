@@ -1,9 +1,13 @@
 // Hybrid logical clock: timestamps ordered by (ms, c, d) that keep growing
 // even when the wall clock goes backwards.
 
+/** Short field names, because they are stored in every entry (the JSON keys are part of the format). */
 export interface Hlc {
+  /** Wall clock in milliseconds, never lower than the last timestamp this device saw. */
   ms: number;
+  /** Counter that orders events within the same ms. */
   c: number;
+  /** Device id: breaks the remaining ties, so two devices never produce equal timestamps. */
   d: string;
 }
 

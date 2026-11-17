@@ -2,7 +2,7 @@ package io.github.sheking94.passholder.core.autofill
 
 import io.github.sheking94.passholder.core.p2p.CardFields
 import io.github.sheking94.passholder.core.p2p.ContactFields
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
+import io.github.sheking94.passholder.core.p2p.EntryContent
 import io.github.sheking94.passholder.core.p2p.LoginFields
 import java.time.DateTimeException
 import java.time.LocalDate
@@ -39,7 +39,7 @@ private fun validBirthDate(s: String): String {
     }
 }
 
-fun planFor(entry: EntryContentV3): FillPlan? = when (val f = entry.fields) {
+fun planFor(entry: EntryContent): FillPlan? = when (val f = entry.fields) {
     is LoginFields -> FillPlan.Login(f.username, f.password)
 
     is CardFields -> FillPlan.Card(f.holder, f.number, f.expiry, f.cvc)

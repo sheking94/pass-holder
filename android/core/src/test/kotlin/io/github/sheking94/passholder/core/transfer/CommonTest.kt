@@ -1,7 +1,7 @@
 package io.github.sheking94.passholder.core.transfer
 
 import io.github.sheking94.passholder.core.p2p.CustomField
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
+import io.github.sheking94.passholder.core.p2p.EntryContent
 import io.github.sheking94.passholder.core.p2p.LoginFields
 import io.github.sheking94.passholder.core.p2p.NoteFields
 import io.github.sheking94.passholder.core.p2p.PostalAddress
@@ -11,9 +11,9 @@ import org.junit.jupiter.api.Test
 
 class CommonTest {
     private fun note(name: String, text: String = "", custom: List<CustomField> = emptyList()) =
-        EntryContentV3(name, text, NoteFields, custom)
+        EntryContent(name, text, NoteFields, custom)
 
-    private fun login(name: String, fields: LoginFields = LoginFields("", "")) = EntryContentV3(name, "", fields, emptyList())
+    private fun login(name: String, fields: LoginFields = LoginFields("", "")) = EntryContent(name, "", fields, emptyList())
 
     @Test
     fun contentKeyIgnoresOuterSpacesNotInnerDifferences() {
@@ -26,8 +26,8 @@ class CommonTest {
 
     @Test
     fun contentKeyTrimsNestedTextsAndDistinguishesTypesAndHidden() {
-        val l1 = EntryContentV3(" n ", "", LoginFields(" u ", "p", "", listOf(" https://a ")), listOf(CustomField(" l ", " v ", false)))
-        val l2 = EntryContentV3("n", "", LoginFields("u", "p", "", listOf("https://a")), listOf(CustomField("l", "v", false)))
+        val l1 = EntryContent(" n ", "", LoginFields(" u ", "p", "", listOf(" https://a ")), listOf(CustomField(" l ", " v ", false)))
+        val l2 = EntryContent("n", "", LoginFields("u", "p", "", listOf("https://a")), listOf(CustomField("l", "v", false)))
         assertEquals(contentKey(l1), contentKey(l2))
         assertNotEquals(contentKey(l2), contentKey(l2.copy(custom = listOf(CustomField("l", "v", true)))))
         assertNotEquals(contentKey(note("n")), contentKey(login("n")))

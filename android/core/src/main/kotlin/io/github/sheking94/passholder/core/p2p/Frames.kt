@@ -2,6 +2,7 @@ package io.github.sheking94.passholder.core.p2p
 
 import io.github.sheking94.passholder.core.Encoding
 import kotlinx.serialization.json.JsonElement
+import java.io.ByteArrayOutputStream
 
 /** Splits a JSON payload into ordered Noise transport frames (Base64) and back. */
 object Frames {
@@ -28,7 +29,7 @@ object Frames {
 
     /** Decrypts frames in order, concatenates, decodes strictly and parses; every failure is an IllegalArgumentException. */
     fun decrypt(cipher: CipherState, frames: List<String>): JsonElement = try {
-        val all = java.io.ByteArrayOutputStream()
+        val all = ByteArrayOutputStream()
         for (frame in frames) all.write(cipher.decrypt(NO_AD, Encoding.fromBase64(frame)))
         P2pJson.json.parseToJsonElement(Encoding.fromUtf8(all.toByteArray()))
     } catch (e: IllegalArgumentException) {

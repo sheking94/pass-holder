@@ -282,9 +282,9 @@ class NoiseKK private constructor(
                 else -> Step.DONE
             }
             return out
-        } catch (t: Throwable) {
+        } catch (e: Throwable) {
             step = Step.FAILED
-            throw t
+            throw e
         }
     }
 }

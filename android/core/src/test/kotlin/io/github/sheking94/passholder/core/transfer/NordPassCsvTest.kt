@@ -5,7 +5,7 @@ import io.github.sheking94.passholder.core.p2p.ContactFields
 import io.github.sheking94.passholder.core.p2p.CustomField
 import io.github.sheking94.passholder.core.p2p.DocumentFields
 import io.github.sheking94.passholder.core.p2p.DocumentKind
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
+import io.github.sheking94.passholder.core.p2p.EntryContent
 import io.github.sheking94.passholder.core.p2p.LabeledValue
 import io.github.sheking94.passholder.core.p2p.LoginFields
 import io.github.sheking94.passholder.core.p2p.NoteFields
@@ -20,14 +20,14 @@ class NordPassCsvTest {
         "name,url,username,password,note,cardholdername,cardnumber,cvc,expirydate,zipcode,folder," +
             "full_name,phone_number,email,address1,address2,city,country,state,totp,shared_folder"
 
-    private val login = EntryContentV3(
+    private val login = EntryContent(
         "Poczta",
         "notatka",
         LoginFields("jan", "p,\"a\"\nss", "JBSWY3DPEHPK3PXP", listOf("https://example.com"), emptyList()),
         emptyList(),
     )
-    private val card = EntryContentV3("Karta", "", CardFields("Jan Testowy", "4111111111111111", "12/30", "123", ""), emptyList())
-    private val contact = EntryContentV3(
+    private val card = EntryContent("Karta", "", CardFields("Jan Testowy", "4111111111111111", "12/30", "123", ""), emptyList())
+    private val contact = EntryContent(
         "Jan",
         "",
         ContactFields(
@@ -40,9 +40,9 @@ class NordPassCsvTest {
         ),
         emptyList(),
     )
-    private val note = EntryContentV3("Notatka", "tekst", NoteFields, emptyList())
+    private val note = EntryContent("Notatka", "tekst", NoteFields, emptyList())
 
-    private fun exportedRow(e: EntryContentV3): Map<String, String> {
+    private fun exportedRow(e: EntryContent): Map<String, String> {
         val rows = Csv.parse(NordPassCsv.export(listOf(e)))
         return NordPassCsv.COLUMNS.mapIndexed { i, c -> c to rows[1].fields[i] }.toMap()
     }
@@ -80,7 +80,7 @@ class NordPassCsvTest {
         val r = NordPassCsv.parse("$header\nKrótki,https://example.com\n")
         assertTrue(r.skipped.isEmpty())
         assertEquals(
-            EntryContentV3("Krótki", "", LoginFields("", "", "", listOf("https://example.com"), emptyList()), emptyList()),
+            EntryContent("Krótki", "", LoginFields("", "", "", listOf("https://example.com"), emptyList()), emptyList()),
             r.entries[0],
         )
     }
@@ -164,7 +164,7 @@ class NordPassCsvTest {
 
     @Test
     fun documentBecomesNoteLines() {
-        val doc = EntryContentV3(
+        val doc = EntryContent(
             "Paszport",
             "uwaga",
             DocumentFields(DocumentKind.PASSPORT, "AB123", "Jan Testowy", "2020-01-01", "2030-01-01", "Wojewoda"),
@@ -174,7 +174,7 @@ class NordPassCsvTest {
             "uwaga\nRodzaj dokumentu: Paszport\nNumer: AB123\nImię i nazwisko: Jan Testowy\nData wydania: 2020-01-01\nData ważności: 2030-01-01\nWystawca: Wojewoda\nSekret: x",
             exportedRow(doc)["note"],
         )
-        val bare = EntryContentV3("Paszport", "", DocumentFields(DocumentKind.ID_CARD, "", "", "", "", ""), emptyList())
+        val bare = EntryContent("Paszport", "", DocumentFields(DocumentKind.ID_CARD, "", "", "", "", ""), emptyList())
         assertEquals("Rodzaj dokumentu: Dowód osobisty", exportedRow(bare)["note"])
     }
 

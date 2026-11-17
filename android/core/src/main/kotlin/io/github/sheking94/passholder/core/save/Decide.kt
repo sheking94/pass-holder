@@ -3,7 +3,7 @@ package io.github.sheking94.passholder.core.save
 import io.github.sheking94.passholder.core.autofill.AppRequest
 import io.github.sheking94.passholder.core.autofill.pageScheme
 import io.github.sheking94.passholder.core.p2p.CustomField
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
+import io.github.sheking94.passholder.core.p2p.EntryContent
 import io.github.sheking94.passholder.core.p2p.LoginFields
 
 /** Port of core/src/save/decide.ts. */
@@ -48,12 +48,12 @@ fun saveTargetFor(request: AppRequest): SaveTarget? {
 }
 
 /** New login for [target] (spec 3.3); [appLabel] names an app login. */
-fun newLogin(target: SaveTarget, appLabel: String, username: String, password: String): EntryContentV3 {
+fun newLogin(target: SaveTarget, appLabel: String, username: String, password: String): EntryContent {
     val (name, urls, apps) = when (target) {
         is SaveTarget.Web -> Triple(saveName(target.url), listOf(target.url), emptyList<String>())
         is SaveTarget.App -> Triple(appLabel, emptyList<String>(), listOf(target.packageName))
     }
-    return EntryContentV3(name, "", LoginFields(username, password, urls = urls, androidApps = apps), emptyList())
+    return EntryContent(name, "", LoginFields(username, password, urls = urls, androidApps = apps), emptyList())
 }
 
 /** Label of the hidden custom field that keeps the password a save prompt replaced (review V3-S1). */
@@ -63,7 +63,7 @@ const val PREVIOUS_PASSWORD_LABEL = "Poprzednie hasło"
  * Copy of the login with the new password; the old one goes to the hidden custom field „Poprzednie hasło”
  * (only the latest: an earlier such field is replaced), so a wrong save loses nothing.
  */
-fun withPassword(content: EntryContentV3, password: String): EntryContentV3 {
+fun withPassword(content: EntryContent, password: String): EntryContent {
     val fields = content.fields as LoginFields
     val old = fields.password
     val custom = if (old.isEmpty() || old == password) {

@@ -2,17 +2,17 @@ import { MAX_ATTACHMENTS_PARSED, parseAttachments } from "../files/attachment.ts
 import { mergeAttachments } from "../files/merge.ts";
 import type { RemoteRecord } from "../protocol.ts";
 import {
-  decryptPayloadV2,
-  encryptPayloadV2,
+  decryptPayload,
+  encryptPayload,
   ENTRY_TOO_LARGE,
   ENTRY_TOO_LARGE_TO_SYNC,
   entryBlobLength,
   MAX_ENTRY_BLOB_LENGTH,
   parseEntryData,
   parseTombstoneData,
-  type EntryContentV3,
-  type EntryDataV3,
-  type TombstoneDataV2,
+  type EntryContent,
+  type EntryData,
+  type TombstoneData,
 } from "./entry.ts";
 import { compareHlc, HlcClock, type Hlc } from "./hlc.ts";
 import {
@@ -22,41 +22,43 @@ import {
   type P2pSyncResponse,
 } from "./host-sync.ts";
 
-/** Safety limit on requests in one syncVaultV2 call, paging included. */
+/** Safety limit on requests in one syncVault call, paging included. */
 export const MAX_SYNC_ROUNDS = 1000;
+/** Resyncs after a conflict (a local change must be pushed again) before syncVault gives up. */
+const MAX_CONFLICT_RESYNCS = 3;
 
-export type LocalEntryV2 =
-  | { id: string; revision: number; dirty: boolean; deleted: false; data: EntryDataV3 }
-  | { id: string; revision: number; dirty: boolean; deleted: true; data: TombstoneDataV2 };
+export type LocalEntry =
+  | { id: string; revision: number; dirty: boolean; deleted: false; data: EntryData }
+  | { id: string; revision: number; dirty: boolean; deleted: true; data: TombstoneData };
 
-export interface LocalVaultV2 {
+export interface LocalVault {
   /**
    * Epoch of the phone this vault is synced with, null until the first sync.
-   * Never assign it directly: use applyVaultInfo (pairing) or let syncVaultV2 change it, so the reset runs.
+   * Never assign it directly: use applyVaultInfo (pairing) or let syncVault change it, so the reset runs.
    */
   epoch: string | null;
   lastSyncRevision: number;
-  entries: Map<string, LocalEntryV2>;
+  entries: Map<string, LocalEntry>;
   /** Host addresses learned from the phone, without duplicates. Replaced whenever the epoch changes. */
   addresses: string[];
 }
 
-export function emptyVaultV2(): LocalVaultV2 {
+export function emptyVault(): LocalVault {
   return { epoch: null, lastSyncRevision: 0, entries: new Map(), addresses: [] };
 }
 
-export function upsertEntryV2(
-  vault: LocalVaultV2,
+export function upsertEntry(
+  vault: LocalVault,
   clock: HlcClock,
   id: string,
-  input: EntryContentV3,
+  input: EntryContent,
 ): void {
   // An empty list is dropped (a plugin may save one); a bad or over-long list throws before anything changes.
   const { attachments, ...rest } = input;
-  const content: EntryContentV3 =
+  const content: EntryContent =
     attachments === undefined || attachments.length === 0
-      ? (rest as EntryContentV3)
-      : ({ ...rest, attachments: parseAttachments(attachments) } as EntryContentV3);
+      ? (rest as EntryContent)
+      : ({ ...rest, attachments: parseAttachments(attachments) } as EntryContent);
   const existing = vault.entries.get(id);
   // Size check on a copy of the clock first: a rejected entry changes neither the vault nor the clock.
   const probe = clock.clone();
@@ -75,7 +77,7 @@ export function upsertEntryV2(
   });
 }
 
-export function deleteEntryV2(vault: LocalVaultV2, clock: HlcClock, id: string): void {
+export function deleteEntry(vault: LocalVault, clock: HlcClock, id: string): void {
   const existing = vault.entries.get(id);
   if (!existing) return;
   clock.observe(existing.data.hlc);
@@ -93,14 +95,14 @@ export function deleteEntryV2(vault: LocalVaultV2, clock: HlcClock, id: string):
   });
 }
 
-export function liveEntriesV2(vault: LocalVaultV2): (LocalEntryV2 & { deleted: false })[] {
+export function liveEntries(vault: LocalVault): (LocalEntry & { deleted: false })[] {
   return [...vault.entries.values()].filter(
-    (e): e is LocalEntryV2 & { deleted: false } => !e.deleted,
+    (e): e is LocalEntry & { deleted: false } => !e.deleted,
   );
 }
 
 /** A clock that continues after every HLC already in the vault (for a device whose clock was not persisted). */
-export function clockForVault(vault: LocalVaultV2, deviceId: string, now?: () => number): HlcClock {
+export function clockForVault(vault: LocalVault, deviceId: string, now?: () => number): HlcClock {
   const clock = new HlcClock(deviceId, now);
   let max: Hlc | undefined;
   for (const e of vault.entries.values())
@@ -117,7 +119,7 @@ interface BuiltRequest {
   capped: boolean;
 }
 
-async function buildRequest(vault: LocalVaultV2, vaultKey: Uint8Array): Promise<BuiltRequest> {
+async function buildRequest(vault: LocalVault, vaultKey: Uint8Array): Promise<BuiltRequest> {
   const allDirty = [...vault.entries.values()].filter((e) => e.dirty);
   // The host rejects a whole request holding an oversized blob, so it would never get through: say which entry it is.
   // (An entry saved before v3 can grow past the limit when it is serialized as v3.)
@@ -127,7 +129,7 @@ async function buildRequest(vault: LocalVaultV2, vaultKey: Uint8Array): Promise<
     }
   }
   // Up to MAX_CHANGES_PER_REQUEST entries and MAX_BLOB_BYTES_PER_ROUND blob characters; the first always goes in.
-  const dirty: LocalEntryV2[] = [];
+  const dirty: LocalEntry[] = [];
   let budget = MAX_BLOB_BYTES_PER_ROUND;
   for (const e of allDirty) {
     if (dirty.length >= MAX_CHANGES_PER_REQUEST) break;
@@ -142,7 +144,7 @@ async function buildRequest(vault: LocalVaultV2, vaultKey: Uint8Array): Promise<
       id: e.id,
       baseRevision: e.revision,
       deleted: e.deleted,
-      blob: await encryptPayloadV2(vaultKey, e.id, e.data),
+      blob: await encryptPayload(vaultKey, e.id, e.data),
     })),
   );
   // An unknown epoch is sent as "" and only serves to learn the phone's epoch.
@@ -153,8 +155,8 @@ async function buildRequest(vault: LocalVaultV2, vaultKey: Uint8Array): Promise<
   };
 }
 
-async function decodeRemote(vaultKey: Uint8Array, record: RemoteRecord): Promise<LocalEntryV2> {
-  const payload = await decryptPayloadV2(vaultKey, record.id, record.blob);
+async function decodeRemote(vaultKey: Uint8Array, record: RemoteRecord): Promise<LocalEntry> {
+  const payload = await decryptPayload(vaultKey, record.id, record.blob);
   return record.deleted
     ? {
         id: record.id,
@@ -173,7 +175,7 @@ async function decodeRemote(vaultKey: Uint8Array, record: RemoteRecord): Promise
 }
 
 /** Starts over with a phone that knows none of our records (new epoch, or the phone's state went backwards). */
-function adoptEpoch(vault: LocalVaultV2, epoch: string): void {
+function adoptEpoch(vault: LocalVault, epoch: string): void {
   vault.epoch = epoch;
   vault.lastSyncRevision = 0;
   // The new phone knows none of our records: send everything, including tombstones.
@@ -186,14 +188,14 @@ function adoptEpoch(vault: LocalVaultV2, epoch: string): void {
  * reset as an epoch change during sync; the addresses are always replaced.
  */
 export function applyVaultInfo(
-  vault: LocalVaultV2,
+  vault: LocalVault,
   info: { epoch: string; addresses: string[] },
 ): void {
   if (vault.epoch !== info.epoch) adoptEpoch(vault, info.epoch);
   vault.addresses = [...new Set(info.addresses)];
 }
 
-function addAddresses(vault: LocalVaultV2, addresses: string[]): void {
+function addAddresses(vault: LocalVault, addresses: string[]): void {
   for (const address of addresses)
     if (!vault.addresses.includes(address)) vault.addresses.push(address);
 }
@@ -204,7 +206,7 @@ function addAddresses(vault: LocalVaultV2, addresses: string[]): void {
  * the attachment lists were merged and the merged entry was saved as a new local change (even if the remote won).
  */
 async function applyResponse(
-  vault: LocalVaultV2,
+  vault: LocalVault,
   clock: HlcClock,
   response: P2pSyncResponse,
   sent: Map<string, Hlc>,
@@ -281,16 +283,16 @@ async function applyResponse(
  * entry too large to sync. The merged list always holds the winner's files, so it is never empty.
  */
 function mergeEntryAttachments(
-  winner: EntryDataV3,
-  loser: EntryDataV3,
+  winner: EntryData,
+  loser: EntryData,
   clock: HlcClock,
-): EntryDataV3 | undefined {
+): EntryData | undefined {
   const merged = mergeAttachments(winner.attachments, loser.attachments);
   // The merge only appends, so an unchanged length means an unchanged id sequence.
   if (merged.length === (winner.attachments?.length ?? 0) || merged.length > MAX_ATTACHMENTS_PARSED)
     return undefined;
   // Measure with a throwaway tick; the real clock moves only when the merge is accepted.
-  const probe: EntryDataV3 = { ...winner, attachments: merged, hlc: clock.clone().tick() };
+  const probe: EntryData = { ...winner, attachments: merged, hlc: clock.clone().tick() };
   if (entryBlobLength(probe) > MAX_ENTRY_BLOB_LENGTH) return undefined;
   return { ...probe, hlc: clock.tick() };
 }
@@ -302,16 +304,15 @@ export type P2pTransport = (request: P2pSyncRequest) => Promise<P2pSyncResponse>
  * again (a local change won a conflict, or merged attachment lists were saved as a new local change).
  * Changes go out at most MAX_CHANGES_PER_REQUEST (and MAX_BLOB_BYTES_PER_ROUND blob characters) per request and
  * come back in pages (`more`); those extra rounds, including rounds that need a resync but the
- * answer was cut, do not use the maxRounds conflict budget, but all rounds together are capped at MAX_SYNC_ROUNDS.
+ * answer was cut, do not use the MAX_CONFLICT_RESYNCS budget, but all rounds together are capped at MAX_SYNC_ROUNDS.
  * An epoch change (including learning the first epoch) restarts the loop with a fresh round budget, once.
  * A phone whose revision went backwards within the same epoch is treated the same way.
  */
-export async function syncVaultV2(
-  vault: LocalVaultV2,
+export async function syncVault(
+  vault: LocalVault,
   vaultKey: Uint8Array,
   clock: HlcClock,
   send: P2pTransport,
-  maxRounds = 3,
 ): Promise<void> {
   let epochChanged = false;
   let resyncs = 0;
@@ -331,7 +332,7 @@ export async function syncVaultV2(
     }
     const needsResync = await applyResponse(vault, clock, response, sent, vaultKey);
     // A round whose answer was cut (more) resolves at least one record, so it is paging, not a conflict ping-pong.
-    if (needsResync && !response.more && ++resyncs >= maxRounds)
+    if (needsResync && !response.more && ++resyncs >= MAX_CONFLICT_RESYNCS)
       throw new Error("Sync did not settle, try again");
     if (!needsResync && !capped && !response.more) return;
   }

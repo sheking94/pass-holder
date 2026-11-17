@@ -11,7 +11,7 @@ import io.github.sheking94.passholder.app.entries.validateContent
 import io.github.sheking94.passholder.core.GeneratorOptions
 import io.github.sheking94.passholder.core.files.Attachment
 import io.github.sheking94.passholder.core.files.Attachments
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
+import io.github.sheking94.passholder.core.p2p.EntryContent
 import io.github.sheking94.passholder.core.p2p.EntryTooLargeException
 import io.github.sheking94.passholder.core.p2p.EntryTypeMismatchException
 import io.github.sheking94.passholder.core.p2p.PairingOffer
@@ -31,6 +31,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.IOException
+import java.util.Collections
 import java.util.UUID
 import javax.crypto.Cipher
 
@@ -349,7 +350,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Step 2: the finger confirmed it is the owner; [cipher] came back from the dialog. */
     fun onBiometricEnableAuthorized(cipher: Cipher) = launchVaultOperation("Włączam odcisk palca…") {
-        store.exportUnlockKeys().useAndWipe { keys -> biometrics.enable(cipher, keys) }
+        store.exportVaultKey().useAndWipe { vaultKey -> biometrics.enable(cipher, vaultKey) }
         showStatus("Włączono odblokowanie odciskiem palca. Hasło główne nadal działa.")
     }
 
@@ -364,7 +365,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Step 2: [cipher] came back from the dialog. */
     fun onBiometricUnlockAuthorized(cipher: Cipher) = launchVaultOperation("Odblokowuję…") {
-        biometrics.unlock(cipher, store::unlockWithKeys)
+        biometrics.unlock(cipher, store::unlockWithVaultKey)
         showList(null)
     }
 
@@ -430,7 +431,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      * "Zapisz" on the form. [original] is the content the form was opened with (null for a new entry): only the
      * values changed against it are format-checked.
      */
-    fun save(id: String?, content: EntryContentV3, original: EntryContentV3?) {
+    fun save(id: String?, content: EntryContent, original: EntryContent?) {
         val tidy = tidyContent(content)
         validateContent(tidy, original)?.let { return fail(it) }
         launchVaultOperation("Zapisuję…") {
@@ -475,7 +476,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // --- Attachments ------------------------------------------------------------------------------
 
     /** Ids of the files added in the form now open: encrypted on disk already, in no saved entry yet. */
-    private val addedFiles = java.util.Collections.synchronizedSet(HashSet<String>())
+    private val addedFiles = Collections.synchronizedSet(HashSet<String>())
 
     /**
      * The file chosen for "+ Dodaj plik", or null when the picker was cancelled. The file is read and encrypted

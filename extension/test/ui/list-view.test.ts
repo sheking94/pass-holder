@@ -6,18 +6,18 @@ import { byText, click, settle, setupPopup, teardownPopup } from "./fake-chrome.
 
 afterEach(teardownPopup);
 
-function login(name: string, username: string, password: string): p2p.EntryContentV3 {
+function login(name: string, username: string, password: string): p2p.EntryContent {
   const l = p2p.emptyLogin(name);
   return { ...l, fields: { ...l.fields, username, password } };
 }
 
-function card(name: string, number: string): p2p.EntryContentV3 {
-  const c = emptyContent("card") as p2p.EntryContentV3 & { type: "card" };
+function card(name: string, number: string): p2p.EntryContent {
+  const c = emptyContent("card") as p2p.EntryContent & { type: "card" };
   return { ...c, name, fields: { ...c.fields, number } };
 }
 
-function contact(name: string, phone: string): p2p.EntryContentV3 {
-  const c = emptyContent("contact") as p2p.EntryContentV3 & { type: "contact" };
+function contact(name: string, phone: string): p2p.EntryContent {
+  const c = emptyContent("contact") as p2p.EntryContent & { type: "contact" };
   return { ...c, name, fields: { ...c.fields, phones: [{ label: "", value: phone }] } };
 }
 

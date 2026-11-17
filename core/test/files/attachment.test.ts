@@ -8,12 +8,12 @@ import {
 } from "../../src/files/index.ts";
 import {
   emptyLogin,
-  emptyVaultV2,
+  emptyVault,
   parseEntryData,
   serializeEntryData,
-  upsertEntryV2,
+  upsertEntry,
   HlcClock,
-  type EntryDataV3,
+  type EntryData,
 } from "../../src/p2p/index.ts";
 import {
   countAttachments,
@@ -35,13 +35,13 @@ const att = (n = 1, over: Partial<Attachment> = {}): Attachment => ({
   key: KEY,
   ...over,
 });
-const entry = (attachments?: unknown): EntryDataV3 =>
+const entry = (attachments?: unknown): EntryData =>
   ({
     ...emptyLogin("n"),
     v: 3,
     hlc,
     ...(attachments === undefined ? {} : { attachments }),
-  }) as EntryDataV3;
+  }) as EntryData;
 // Key order matters: attachments sits between custom and hlc.
 const withAtt = (attachments: unknown) => {
   const { hlc: h, ...rest } = JSON.parse(serializeEntryData(entry()));
@@ -107,11 +107,11 @@ describe("attachment parsing", () => {
   });
 });
 
-describe("upsertEntryV2 attachments", () => {
+describe("upsertEntry attachments", () => {
   const run = (attachments: Attachment[]) => {
-    const vault = emptyVaultV2();
+    const vault = emptyVault();
     const { type, name, note, fields, custom } = emptyLogin("n") as any;
-    upsertEntryV2(vault, new HlcClock("dev"), "id1", {
+    upsertEntry(vault, new HlcClock("dev"), "id1", {
       type,
       name,
       note,

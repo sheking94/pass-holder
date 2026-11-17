@@ -1,7 +1,7 @@
 package io.github.sheking94.passholder.core.files
 
 import io.github.sheking94.passholder.core.Encoding
-import io.github.sheking94.passholder.core.p2p.EntryV3
+import io.github.sheking94.passholder.core.p2p.EntryCodec
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -57,16 +57,16 @@ class FilesVectorsTest {
             val key = Encoding.fromHex(e.str("vaultKey"))
             val id = e.str("id")
             val payload = e.str("payload")
-            val data = EntryV3.parse(Json.parseToJsonElement(payload))
+            val data = EntryCodec.parse(Json.parseToJsonElement(payload))
             val canonical = e.jsonObject["canonicalPayload"]?.jsonPrimitive?.contentOrNull ?: payload
-            assertEquals(canonical, EntryV3.serialize(data))
-            assertEquals(e.str("blob"), EntryV3.encryptJson(key, id, payload, Encoding.fromHex(e.str("nonce"))))
-            val opened = EntryV3.parse(EntryV3.decrypt(key, id, e.str("blob")))
+            assertEquals(canonical, EntryCodec.serialize(data))
+            assertEquals(e.str("blob"), EntryCodec.encryptJson(key, id, payload, Encoding.fromHex(e.str("nonce"))))
+            val opened = EntryCodec.parse(EntryCodec.decrypt(key, id, e.str("blob")))
             assertEquals(data, opened)
-            assertEquals(Json.parseToJsonElement(canonical), Json.parseToJsonElement(EntryV3.serialize(opened)))
+            assertEquals(Json.parseToJsonElement(canonical), Json.parseToJsonElement(EntryCodec.serialize(opened)))
             e.jsonObject["merge"]?.let { m ->
-                val winner = EntryV3.parse(Json.parseToJsonElement(m.str("winner"))).content.attachments
-                val loser = EntryV3.parse(Json.parseToJsonElement(m.str("loser"))).content.attachments
+                val winner = EntryCodec.parse(Json.parseToJsonElement(m.str("winner"))).content.attachments
+                val loser = EntryCodec.parse(Json.parseToJsonElement(m.str("loser"))).content.attachments
                 assertEquals(data.content.attachments, Attachments.merge(winner, loser))
             }
         }
@@ -76,7 +76,7 @@ class FilesVectorsTest {
     fun rejected() = FilesVectors.section("rejected").map { r ->
         DynamicTest.dynamicTest("rejected: ${r.str("description")}") {
             val ex = assertThrows(IllegalArgumentException::class.java) {
-                EntryV3.parse(Json.parseToJsonElement(r.str("payload")))
+                EntryCodec.parse(Json.parseToJsonElement(r.str("payload")))
             }
             assertEquals(r.str("error"), ex.message)
         }

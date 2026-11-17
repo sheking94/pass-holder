@@ -227,10 +227,10 @@ export class SaveCandidates {
   }
 
   onCandidate(m: SaveCandidateMessage, s: Sender): Promise<void> {
-    return this.serial(() => this.doCandidate(m, s));
+    return this.serial(() => this.handleCandidate(m, s));
   }
 
-  private async doCandidate(m: SaveCandidateMessage, s: Sender): Promise<void> {
+  private async handleCandidate(m: SaveCandidateMessage, s: Sender): Promise<void> {
     const from = this.fromScript(s);
     if (!from) return;
     const tab = webUrl(s.tab?.url);
@@ -267,10 +267,10 @@ export class SaveCandidates {
   }
 
   onPending(m: SavePendingMessage, s: Sender): Promise<{ candidateId?: string }> {
-    return this.serial(() => this.doPending(m, s));
+    return this.serial(() => this.handlePending(m, s));
   }
 
-  private async doPending(m: SavePendingMessage, s: Sender): Promise<{ candidateId?: string }> {
+  private async handlePending(m: SavePendingMessage, s: Sender): Promise<{ candidateId?: string }> {
     const from = this.fromScript(s);
     if (!from || webUrl(s.tab?.url)?.origin !== from.frame.origin) return {};
     const c = await this.forTab(from.tabId);
@@ -291,11 +291,11 @@ export class SaveCandidates {
     return { candidateId: c.id };
   }
 
-  info(m: SaveInfoMessage, s: Sender): Promise<SavePromptInfo | undefined> {
-    return this.serial(() => this.doInfo(m, s));
+  onInfo(m: SaveInfoMessage, s: Sender): Promise<SavePromptInfo | undefined> {
+    return this.serial(() => this.handleInfo(m, s));
   }
 
-  private async doInfo(m: SaveInfoMessage, s: Sender): Promise<SavePromptInfo | undefined> {
+  private async handleInfo(m: SaveInfoMessage, s: Sender): Promise<SavePromptInfo | undefined> {
     if (!this.fromExtensionPage(s)) return undefined;
     const c =
       m.candidateId !== undefined
@@ -310,8 +310,8 @@ export class SaveCandidates {
       return undefined;
     }
     const base = { id: c.id, host: save.saveName(c.url), username: c.username };
-    if (decision === null) return { ...base, password: "", decision: null, locked: true };
-    const info = { ...base, password: c.password, decision: decision.kind, locked: false };
+    if (decision === null) return { ...base, password: "", decision: null, locked: true as const };
+    const info = { ...base, password: c.password, decision: decision.kind, locked: false as const };
     if (decision.kind !== "update") return info;
     return {
       ...info,
@@ -321,11 +321,11 @@ export class SaveCandidates {
     };
   }
 
-  preview(m: SavePreviewMessage, s: Sender): Promise<SavePreviewResponse> {
-    return this.serial(() => this.doPreview(m, s));
+  onPreview(m: SavePreviewMessage, s: Sender): Promise<SavePreviewResponse> {
+    return this.serial(() => this.handlePreview(m, s));
   }
 
-  private async doPreview(m: SavePreviewMessage, s: Sender): Promise<SavePreviewResponse> {
+  private async handlePreview(m: SavePreviewMessage, s: Sender): Promise<SavePreviewResponse> {
     if (!this.fromExtensionPage(s)) return undefined;
     const c = await this.byId(m.candidateId);
     if (!c) return undefined;
@@ -347,11 +347,11 @@ export class SaveCandidates {
     };
   }
 
-  answer(m: SaveAnswerMessage, s: Sender): Promise<Answer> {
-    return this.serial(() => this.doAnswer(m, s));
+  onAnswer(m: SaveAnswerMessage, s: Sender): Promise<Answer> {
+    return this.serial(() => this.handleAnswer(m, s));
   }
 
-  private async doAnswer(m: SaveAnswerMessage, s: Sender): Promise<Answer> {
+  private async handleAnswer(m: SaveAnswerMessage, s: Sender): Promise<Answer> {
     if (!this.fromExtensionPage(s)) return { ok: false, error: NOT_ALLOWED };
     const c = await this.byId(m.candidateId);
     // Nothing left to decline (expired or replaced; a newer candidate already has the window): the page closes itself.
@@ -404,10 +404,10 @@ export class SaveCandidates {
   }
 
   onAlarm(name: string): Promise<void> {
-    return this.serial(() => this.doAlarm(name));
+    return this.serial(() => this.handleAlarm(name));
   }
 
-  private async doAlarm(name: string): Promise<void> {
+  private async handleAlarm(name: string): Promise<void> {
     if (!name.startsWith(SAVE_ALARM_PREFIX)) return;
     const tabId = Number(name.slice(SAVE_ALARM_PREFIX.length));
     if (Number.isInteger(tabId)) await this.drop(tabId);
@@ -432,7 +432,7 @@ export class SaveCandidates {
   }
 
   /** The tab of the candidate the question window asks to unlock for; undefined for a foreign sender or none. */
-  unlockTab(m: SaveUnlockMessage, s: Sender): Promise<number | undefined> {
+  onUnlockRequest(m: SaveUnlockMessage, s: Sender): Promise<number | undefined> {
     return this.serial(async () =>
       this.fromExtensionPage(s) ? (await this.byId(m.candidateId))?.tabId : undefined,
     );

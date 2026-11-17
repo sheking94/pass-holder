@@ -6,8 +6,8 @@ import java.util.UUID
 
 private const val MAX_DEVICE_ID_LENGTH = 64
 
-data class PhoneEntry(val id: String, val revision: Long, val data: EntryDataV3) {
-    val content: EntryContentV3 get() = data.content
+data class PhoneEntry(val id: String, val revision: Long, val data: EntryData) {
+    val content: EntryContent get() = data.content
     val hlc: Hlc get() = data.hlc
 }
 
@@ -29,7 +29,7 @@ class PhoneVault(
     init {
         require(deviceId.length in 1..MAX_DEVICE_ID_LENGTH) { "deviceId must be 1..$MAX_DEVICE_ID_LENGTH characters" }
         synchronized(store) {
-            for (r in store.listSince(0)) read(r)?.let(clock::observe)
+            for (r in store.listSince(0)) readHlc(r)?.let(clock::observe)
         }
     }
 
@@ -38,7 +38,7 @@ class PhoneVault(
      * ([EntryTypeMismatchException]); over a tombstone or an unreadable record the type may differ.
      * [EntryTooLargeException] leaves the store as it was.
      */
-    fun upsertContent(id: String, content: EntryContentV3) {
+    fun upsertContent(id: String, content: EntryContent) {
         requireValidId(id)
         synchronized(store) {
             val old = store.get(id)?.takeIf { !it.deleted }?.let(::readData)
@@ -48,10 +48,10 @@ class PhoneVault(
     }
 
     /** Caller holds the store's monitor. */
-    private fun write(id: String, content: EntryContentV3) {
-        store.get(id)?.let { old -> read(old)?.let(clock::observe) }
-        val blob = EntryV3.encrypt(vaultKey, id, EntryDataV3(content, clock.tick()))
-        store.put(RemoteRecord(id, store.currentRevision() + 1, false, blob))
+    private fun write(id: String, content: EntryContent) {
+        store.get(id)?.let { old -> readHlc(old)?.let(clock::observe) }
+        val blob = EntryCodec.encrypt(vaultKey, id, EntryData(content, clock.tick()))
+        store.put(RemoteRecord(id, store.currentRevision() + 1, deleted = false, blob = blob))
     }
 
     /**
@@ -59,10 +59,10 @@ class PhoneVault(
      * earlier one of the list is a duplicate; one over the size limit is counted in tooLarge. All new records
      * go to the store in one [SyncStore.putAll]; if that throws, nothing was stored.
      */
-    fun importContents(entries: List<EntryContentV3>, newId: () -> String = { UUID.randomUUID().toString() }): ImportResult =
+    fun importContents(entries: List<EntryContent>, newId: () -> String = { UUID.randomUUID().toString() }): ImportResult =
         synchronized(store) {
             val records = store.listSince(0)
-            for (r in records) read(r)?.let(clock::observe)
+            for (r in records) readHlc(r)?.let(clock::observe)
             val known = HashSet<String>()
             for (r in records) if (!r.deleted) readData(r)?.let { known.add(contentKey(it.content)) }
             val fresh = ArrayList<RemoteRecord>()
@@ -74,13 +74,13 @@ class PhoneVault(
                 val id = newId()
                 requireValidId(id)
                 val blob = try {
-                    EntryV3.encrypt(vaultKey, id, EntryDataV3(entry, clock.tick()))
+                    EntryCodec.encrypt(vaultKey, id, EntryData(entry, clock.tick()))
                 } catch (e: EntryTooLargeException) {
                     tooLarge++
                     continue
                 }
                 known.add(key)
-                fresh.add(RemoteRecord(id, ++revision, false, blob))
+                fresh.add(RemoteRecord(id, ++revision, deleted = false, blob = blob))
             }
             if (fresh.isNotEmpty()) store.putAll(fresh)
             ImportResult(fresh.size, entries.size - fresh.size - tooLarge, tooLarge)
@@ -91,9 +91,9 @@ class PhoneVault(
         requireValidId(id)
         synchronized(store) {
             val old = store.get(id) ?: return
-            read(old)?.let(clock::observe)
-            val blob = EntryV3.encryptTombstone(vaultKey, id, TombstoneData(clock.tick()))
-            store.put(RemoteRecord(id, store.currentRevision() + 1, true, blob))
+            readHlc(old)?.let(clock::observe)
+            val blob = EntryCodec.encryptTombstone(vaultKey, id, TombstoneData(clock.tick()))
+            store.put(RemoteRecord(id, store.currentRevision() + 1, deleted = true, blob = blob))
         }
     }
 
@@ -106,22 +106,22 @@ class PhoneVault(
 
     /** Records that cannot be decrypted or parsed. */
     fun unreadableIds(): List<String> = synchronized(store) {
-        store.listSince(0).filter { read(it) == null }.map { it.id }
+        store.listSince(0).filter { readHlc(it) == null }.map { it.id }
     }
 
     private fun requireValidId(id: String) =
         require(id.length in 1..HostSync.MAX_ENTRY_ID_LENGTH) { "id must be 1..${HostSync.MAX_ENTRY_ID_LENGTH} characters" }
 
-    private fun readData(r: RemoteRecord): EntryDataV3? = try {
-        EntryV3.parse(EntryV3.decrypt(vaultKey, r.id, r.blob))
+    private fun readData(r: RemoteRecord): EntryData? = try {
+        EntryCodec.parse(EntryCodec.decrypt(vaultKey, r.id, r.blob))
     } catch (e: Exception) {
         null
     }
 
     /** HLC of a readable entry or tombstone, null when the record cannot be decrypted or parsed. */
-    private fun read(r: RemoteRecord): Hlc? = try {
-        val json = EntryV3.decrypt(vaultKey, r.id, r.blob)
-        if (r.deleted) EntryV3.parseTombstone(json).hlc else EntryV3.parse(json).hlc
+    private fun readHlc(r: RemoteRecord): Hlc? = try {
+        val json = EntryCodec.decrypt(vaultKey, r.id, r.blob)
+        if (r.deleted) EntryCodec.parseTombstone(json).hlc else EntryCodec.parse(json).hlc
     } catch (e: Exception) {
         null
     }

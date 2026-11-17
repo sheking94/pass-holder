@@ -4,11 +4,11 @@ import { newVaultKey } from "../../src/vault.ts";
 import {
   CipherState,
   emptyLogin,
-  emptyVaultV2,
-  type EntryContentV3,
+  emptyVault,
+  type EntryContent,
   generateKeyPair,
   HlcClock,
-  liveEntriesV2,
+  liveEntries,
   NoiseKK,
   noiseTransport,
   P2P_HANDSHAKE_PATH,
@@ -17,15 +17,15 @@ import {
   P2P_PROLOGUE,
   P2pHost,
   processP2pSync,
-  syncVaultV2,
-  upsertEntryV2,
+  syncVault,
+  upsertEntry,
   type FetchJson,
   type PairedDevice,
 } from "../../src/p2p/index.ts";
 import { encryptFrames } from "../../src/p2p/frames.ts";
 import { MemorySyncStore } from "../../src/protocol.ts";
 
-const login = (name: string, password = "p"): EntryContentV3 => ({
+const login = (name: string, password = "p"): EntryContent => ({
   ...emptyLogin(name),
   fields: { username: "u", password, totp: "", urls: [], androidApps: [] },
 });
@@ -98,18 +98,18 @@ describe("p2p noise transport", () => {
   it("syncs two vaults through the host", async () => {
     const s = setup();
     const vaultKey = newVaultKey();
-    const a = emptyVaultV2();
-    const b = emptyVaultV2();
+    const a = emptyVault();
+    const b = emptyVault();
     const clockA = new HlcClock("a", () => 1000);
     const clockB = new HlcClock("b", () => 1000);
     const sendA = s.transportFor("a");
     const sendB = s.transportFor("b");
 
-    upsertEntryV2(a, clockA, "1", entry("Bank"));
-    await syncVaultV2(a, vaultKey, clockA, sendA);
-    await syncVaultV2(b, vaultKey, clockB, sendB);
+    upsertEntry(a, clockA, "1", entry("Bank"));
+    await syncVault(a, vaultKey, clockA, sendA);
+    await syncVault(b, vaultKey, clockB, sendB);
 
-    expect(liveEntriesV2(b).map((e) => e.data.name)).toEqual(["Bank"]);
+    expect(liveEntries(b).map((e) => e.data.name)).toEqual(["Bank"]);
     expect(b.epoch).toBe(s.epoch);
     expect(b.addresses).toEqual(["192.168.1.5:8787"]);
   });
@@ -217,32 +217,31 @@ describe("p2p noise transport", () => {
   it("syncs a vault whose request exceeds 200 KiB across many frames", async () => {
     const s = setup();
     const vaultKey = newVaultKey();
-    const a = emptyVaultV2();
-    const b = emptyVaultV2();
+    const a = emptyVault();
+    const b = emptyVault();
     const clockA = new HlcClock("a", () => 1000);
     const clockB = new HlcClock("b", () => 1000);
-    for (let i = 0; i < 600; i++)
-      upsertEntryV2(a, clockA, `id${i}`, login(`n${i}`, "p".repeat(300)));
-    await syncVaultV2(a, vaultKey, clockA, s.transportFor("a"));
+    for (let i = 0; i < 600; i++) upsertEntry(a, clockA, `id${i}`, login(`n${i}`, "p".repeat(300)));
+    await syncVault(a, vaultKey, clockA, s.transportFor("a"));
     expect(s.store.currentRevision()).toBe(600);
-    await syncVaultV2(b, vaultKey, clockB, s.transportFor("b"));
-    expect(liveEntriesV2(b)).toHaveLength(600);
+    await syncVault(b, vaultKey, clockB, s.transportFor("b"));
+    expect(liveEntries(b)).toHaveLength(600);
   });
 
   it("syncs 1300 entries to a fresh device through the host in pages", async () => {
     const s = setup();
     const vaultKey = newVaultKey();
-    const a = emptyVaultV2();
-    const b = emptyVaultV2();
+    const a = emptyVault();
+    const b = emptyVault();
     const clockA = new HlcClock("a", () => 1000);
     const clockB = new HlcClock("b", () => 1000);
     // Too large for one 1 MiB request: only works with paging.
     for (let i = 0; i < 1300; i++)
-      upsertEntryV2(a, clockA, `id${i}`, login(`n${i}`, "p".repeat(800)));
-    await syncVaultV2(a, vaultKey, clockA, s.transportFor("a"));
+      upsertEntry(a, clockA, `id${i}`, login(`n${i}`, "p".repeat(800)));
+    await syncVault(a, vaultKey, clockA, s.transportFor("a"));
     expect(s.store.currentRevision()).toBe(1300);
-    await syncVaultV2(b, vaultKey, clockB, s.transportFor("b"));
-    expect(liveEntriesV2(b)).toHaveLength(1300);
+    await syncVault(b, vaultKey, clockB, s.transportFor("b"));
+    expect(liveEntries(b)).toHaveLength(1300);
     expect(b.lastSyncRevision).toBe(1300);
   });
 
@@ -427,26 +426,26 @@ describe("p2p host: final review fixes", () => {
   it("a restored phone with an unknown id edited by the client does not leave the client stuck", async () => {
     const s = setup();
     const vaultKey = newVaultKey();
-    const ext = emptyVaultV2();
+    const ext = emptyVault();
     const clock = new HlcClock("ext", () => 1000);
     const send = s.transportFor("ext");
-    upsertEntryV2(ext, clock, "early", entry("E"));
-    await syncVaultV2(ext, vaultKey, clock, send);
+    upsertEntry(ext, clock, "early", entry("E"));
+    await syncVault(ext, vaultKey, clock, send);
     const backup = new MemorySyncStore();
     for (const r of s.store.listSince(0)) backup.put(r);
-    upsertEntryV2(ext, clock, "late", entry("L"));
-    await syncVaultV2(ext, vaultKey, clock, send);
+    upsertEntry(ext, clock, "late", entry("L"));
+    await syncVault(ext, vaultKey, clock, send);
     // The phone is restored from the older backup, which does not know "late".
     Object.assign(s.store, {
       records: new Map((backup as any).records),
       revision: backup.currentRevision(),
     });
-    upsertEntryV2(ext, clock, "late", login("L", "p2"));
-    await syncVaultV2(ext, vaultKey, clock, send);
-    const phone = emptyVaultV2();
-    await syncVaultV2(phone, vaultKey, new HlcClock("p", () => 1000), s.transportFor("phone"));
+    upsertEntry(ext, clock, "late", login("L", "p2"));
+    await syncVault(ext, vaultKey, clock, send);
+    const phone = emptyVault();
+    await syncVault(phone, vaultKey, new HlcClock("p", () => 1000), s.transportFor("phone"));
     expect(
-      liveEntriesV2(phone)
+      liveEntries(phone)
         .map((e) => [e.id, (e.data.fields as { password: string }).password])
         .sort(),
     ).toEqual([

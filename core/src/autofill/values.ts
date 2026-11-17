@@ -1,4 +1,4 @@
-import type { EntryContentV3 } from "../p2p/entry.ts";
+import type { EntryContent } from "../p2p/entry.ts";
 import type { FieldDescriptor } from "./fields.ts";
 import type { FieldKind } from "./keywords.ts";
 
@@ -26,7 +26,7 @@ function validBirthDate(s: string): string {
   return d.toISOString().slice(0, 10) === s ? s : "";
 }
 
-export function planFor(entry: EntryContentV3): FillPlan | undefined {
+export function planFor(entry: EntryContent): FillPlan | undefined {
   switch (entry.type) {
     case "login":
       return { kind: "login", username: entry.fields.username, password: entry.fields.password };

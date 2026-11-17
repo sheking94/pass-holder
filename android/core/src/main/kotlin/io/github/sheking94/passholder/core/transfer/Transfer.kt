@@ -1,6 +1,6 @@
 package io.github.sheking94.passholder.core.transfer
 
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
+import io.github.sheking94.passholder.core.p2p.EntryContent
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -34,7 +34,7 @@ object Transfer {
         return enc is JsonPrimitive && !enc.isString && enc.content == "true"
     }
 
-    fun exportFile(format: TransferFormat, entries: List<EntryContentV3>): String = when (format) {
+    fun exportFile(format: TransferFormat, entries: List<EntryContent>): String = when (format) {
         TransferFormat.PASSHOLDER -> PassHolderJson.export(entries)
         TransferFormat.BITWARDEN -> BitwardenJson.export(entries)
         TransferFormat.NORDPASS -> NordPassCsv.export(entries)

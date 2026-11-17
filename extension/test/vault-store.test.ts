@@ -576,7 +576,7 @@ describe("v3 entries", () => {
     expect(store.pendingCount()).toBe(1);
     expect(store.getEntry("1")).toMatchObject({ dirty: true });
     expect(store.getEntry("2")).toBeUndefined();
-    const tombstone = (store as unknown as { vault: p2p.LocalVaultV2 }).vault.entries.get("2");
+    const tombstone = (store as unknown as { vault: p2p.LocalVault }).vault.entries.get("2");
     expect(tombstone).toMatchObject({ revision: 3, deleted: true, dirty: false });
     expect(store.listEntries("login").map(loginFields)).toEqual([
       { name: "stary.pl", username: "jan", password: "tajne" },
@@ -667,7 +667,7 @@ describe("v3 entries", () => {
     expect(store.listEntries("login")).toEqual([]);
     expect(
       await store.importContents(
-        [{ ...p2p.emptyLogin("big"), note: "x".repeat(70_000) } as p2p.EntryContentV3],
+        [{ ...p2p.emptyLogin("big"), note: "x".repeat(70_000) } as p2p.EntryContent],
         () => "2",
       ),
     ).toEqual({ added: 0, duplicates: 0, tooLarge: 1 });

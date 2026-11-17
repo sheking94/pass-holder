@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { FieldDescriptor } from "../../src/autofill/fields.ts";
 import type { FieldKind } from "../../src/autofill/keywords.ts";
 import { fillValue, planFor, type FillPlan } from "../../src/autofill/values.ts";
-import type { EntryContentV3 } from "../../src/p2p/entry.ts";
+import type { EntryContent } from "../../src/p2p/entry.ts";
 
 const vectors = JSON.parse(
   readFileSync(new URL("../../test-vectors/autofill/values.json", import.meta.url), "utf8"),
@@ -31,7 +31,7 @@ const base = { name: "n", note: "", custom: [] };
 
 describe("planFor", () => {
   it("maps a login", () => {
-    const e: EntryContentV3 = {
+    const e: EntryContent = {
       ...base,
       type: "login",
       fields: { username: "u", password: "p", totp: "t", urls: [], androidApps: [] },
@@ -40,7 +40,7 @@ describe("planFor", () => {
   });
 
   it("maps a card without exposing the pin", () => {
-    const e: EntryContentV3 = {
+    const e: EntryContent = {
       ...base,
       type: "card",
       fields: { holder: "H", number: "1", expiry: "01/30", cvc: "9", pin: "0000" },
@@ -55,7 +55,7 @@ describe("planFor", () => {
   });
 
   it("maps a contact using the first phone, email and address", () => {
-    const e: EntryContentV3 = {
+    const e: EntryContent = {
       ...base,
       type: "contact",
       fields: {
@@ -88,7 +88,7 @@ describe("planFor", () => {
   });
 
   it("uses empty strings for a contact without phones, emails, addresses", () => {
-    const e: EntryContentV3 = {
+    const e: EntryContent = {
       ...base,
       type: "contact",
       fields: {
@@ -113,7 +113,7 @@ describe("planFor", () => {
 
   it("drops an invalid birth date", () => {
     for (const birthDate of ["1990-02-30", "01.05.1990", "garbage"]) {
-      const e: EntryContentV3 = {
+      const e: EntryContent = {
         ...base,
         type: "contact",
         fields: { firstName: "", lastName: "", birthDate, phones: [], emails: [], addresses: [] },

@@ -1,6 +1,5 @@
 package io.github.sheking94.passholder.app.autofill
 
-import android.os.Build
 import android.os.Bundle
 import android.view.autofill.AutofillId
 import io.github.sheking94.passholder.app.PassHolderApp
@@ -36,20 +35,12 @@ fun SaveSpec.toClientState(): Bundle = Bundle().apply {
     app.webScheme?.let { putString(KEY_WEB_SCHEME, it) }
 }
 
-// Bundle.getParcelable(String, Class) exists only from API 33.
-private fun Bundle.autofillId(key: String): AutofillId? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-    getParcelable(key, AutofillId::class.java)
-} else {
-    @Suppress("DEPRECATION")
-    getParcelable(key)
-}
-
 fun Bundle.saveSpecIds(): SavedIds? {
-    val password = autofillId(KEY_PASSWORD) ?: return null
+    val password = parcelable<AutofillId>(KEY_PASSWORD) ?: return null
     val pkg = getString(KEY_PACKAGE) ?: return null
     return SavedIds(
         password,
-        autofillId(KEY_USERNAME),
+        parcelable<AutofillId>(KEY_USERNAME),
         AppRequest(pkg, getString(KEY_WEB_DOMAIN), getString(KEY_WEB_SCHEME)),
     )
 }

@@ -73,7 +73,7 @@ object HostSync {
             ) {
                 return "malformed change"
             }
-            if (c["blob"].string()!!.length > EntryV3.MAX_BLOB_LENGTH) return "blob too large"
+            if (c["blob"].string()!!.length > EntryCodec.MAX_BLOB_LENGTH) return "blob too large"
             if (!ids.add(id)) return "duplicate change"
         }
         // A request from another epoch is not processed, so its base revisions do not matter.

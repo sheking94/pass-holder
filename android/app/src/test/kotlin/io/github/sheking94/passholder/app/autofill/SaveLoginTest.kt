@@ -6,7 +6,7 @@ import io.github.sheking94.passholder.app.PassHolderApp
 import io.github.sheking94.passholder.app.TestSecretWrapper
 import io.github.sheking94.passholder.core.autofill.AppRequest
 import io.github.sheking94.passholder.core.p2p.CustomField
-import io.github.sheking94.passholder.core.p2p.EntryContentV3
+import io.github.sheking94.passholder.core.p2p.EntryContent
 import io.github.sheking94.passholder.core.p2p.LoginFields
 import io.github.sheking94.passholder.core.save.PREVIOUS_PASSWORD_LABEL
 import org.junit.Assert.assertEquals
@@ -33,7 +33,7 @@ class SaveLoginTest {
     private fun logins() = app.phoneStore.entries().map { it.id to it.content }
     private fun addGithub() = app.phoneStore.upsertContent(
         "1",
-        EntryContentV3("GitHub", "notatka", LoginFields("jkowalski", "s3cret", urls = listOf("https://github.com")), emptyList()),
+        EntryContent("GitHub", "notatka", LoginFields("jkowalski", "s3cret", urls = listOf("https://github.com")), emptyList()),
     )
 
     @Test
@@ -81,7 +81,7 @@ class SaveLoginTest {
         // The replaced password stays in the hidden field „Poprzednie hasło” (review V3-S1).
         val previous = listOf(CustomField(PREVIOUS_PASSWORD_LABEL, "s3cret", hidden = true))
         assertEquals(
-            EntryContentV3("GitHub", "notatka", LoginFields("jkowalski", "new", urls = listOf("https://github.com")), previous),
+            EntryContent("GitHub", "notatka", LoginFields("jkowalski", "new", urls = listOf("https://github.com")), previous),
             content,
         )
     }
