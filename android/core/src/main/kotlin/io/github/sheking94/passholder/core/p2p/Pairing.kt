@@ -3,8 +3,11 @@ package io.github.sheking94.passholder.core.p2p
 
 import io.github.sheking94.passholder.core.Aead
 import io.github.sheking94.passholder.core.Encoding
+import io.github.sheking94.passholder.core.KEY_BYTES
 import io.github.sheking94.passholder.core.Kdf
 import io.github.sheking94.passholder.core.KdfParams
+import io.github.sheking94.passholder.core.RANDOM_ID_BYTES
+import io.github.sheking94.passholder.core.SALT_BYTES
 import io.github.sheking94.passholder.core.StrictJson
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -39,16 +42,17 @@ object Pairing {
     const val MAX_ADDRESSES = 16
     const val MAX_ADDRESS_LENGTH = 256
 
-    private const val MAX_DEVICE_ID_LENGTH = 64
+    const val CODE_LENGTH = 8
+
     private val PAIR_KEY_INFO = Encoding.utf8("passholder/v2/pair-key")
 
-    /** 8 decimal digits. Bytes >= 250 are rejected so every digit is equally likely (no `% 10` bias). */
+    /** [CODE_LENGTH] decimal digits. Bytes >= 250 are rejected so every digit is equally likely (no `% 10` bias). */
     fun generateCode(): String {
         val code = StringBuilder()
-        while (code.length < 8) {
+        while (code.length < CODE_LENGTH) {
             for (b in Encoding.randomBytes(16)) {
                 val v = b.toInt() and 0xff
-                if (v < 250 && code.length < 8) code.append(v % 10)
+                if (v < 250 && code.length < CODE_LENGTH) code.append(v % 10)
             }
         }
         return code.toString()
@@ -56,7 +60,7 @@ object Pairing {
 
     /** HKDF-SHA256 of the CPace ISK without salt, 32 bytes. */
     fun key(isk: ByteArray): ByteArray {
-        val out = ByteArray(32)
+        val out = ByteArray(KEY_BYTES)
         HKDFBytesGenerator(SHA256Digest()).apply { init(HKDFParameters(isk, null, PAIR_KEY_INFO)) }.generateBytes(out, 0, out.size)
         return out
     }
@@ -123,16 +127,16 @@ object Pairing {
         require(v is JsonObject) { "Identity must be an object" }
         val deviceId = boundedString(v["deviceId"], "deviceId", MAX_DEVICE_ID_LENGTH)
         val name = boundedString(v["name"], "name", MAX_DEVICE_NAME_LENGTH)
-        checkBase64(v["staticPublicKey"], "staticPublicKey", 32)
+        checkBase64(v["staticPublicKey"], "staticPublicKey", KEY_BYTES)
         return DeviceIdentity(deviceId, name, string(v["staticPublicKey"], "staticPublicKey"))
     }
 
     private fun parseVaultInfo(v: JsonElement): VaultInfo {
         require(v is JsonObject) { "Vault info must be an object" }
-        checkBase64(v["epoch"], "epoch", 16)
+        checkBase64(v["epoch"], "epoch", RANDOM_ID_BYTES)
         val kdfObject = v["kdf"]
         require(kdfObject is JsonObject) { "Invalid kdf" }
-        checkBase64(kdfObject["salt"], "kdf.salt", 16)
+        checkBase64(kdfObject["salt"], "kdf.salt", SALT_BYTES)
         val kdf = KdfParams(
             alg = string(kdfObject["alg"], "kdf.alg"),
             salt = string(kdfObject["salt"], "kdf.salt"),

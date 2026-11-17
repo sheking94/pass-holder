@@ -5,6 +5,8 @@ import { store } from "../ui/state.ts";
 import { PairedButSyncFailed } from "../vault-store.ts";
 import { showConnect } from "./connect.ts";
 import { listView, skippedNote } from "./list.ts";
+import { PAIRING_CODE_LABEL, pairingCodeInput } from "../ui/pairing-code.ts";
+import { MASTER_PASSWORD_LABEL } from "../ui/texts.ts";
 
 const REPAIRED: Record<"paired" | "restored", string> = {
   paired: "Sparowano z telefonem. Ta przeglądarka synchronizuje się teraz z nim.",
@@ -46,14 +48,7 @@ export async function addressesView(message = "") {
   };
 
   const other = phoneUrlFields();
-  const code = h("input", {
-    type: "text",
-    class: "mono",
-    inputmode: "numeric",
-    autocomplete: "off",
-    maxLength: 9,
-    placeholder: "12345678",
-  });
+  const code = pairingCodeInput();
   const password = h("input", { type: "password", autocomplete: "current-password" });
   const repairStatus = statusLine();
   const repair = () => {
@@ -107,9 +102,9 @@ export async function addressesView(message = "") {
       form(
         repair,
         ...other.fields,
-        h("label", {}, "Kod parowania (8 cyfr)"),
+        h("label", {}, PAIRING_CODE_LABEL),
         code,
-        h("label", {}, "Hasło główne"),
+        h("label", {}, MASTER_PASSWORD_LABEL),
         passwordField(password).row,
         h("div", { class: "actions" }, h("button", { type: "submit" }, "Sparuj")),
       ),

@@ -3,6 +3,7 @@ package io.github.sheking94.passholder.core
 import java.nio.ByteBuffer
 import java.nio.charset.CharacterCodingException
 import java.nio.charset.CodingErrorAction
+import java.security.MessageDigest
 import java.security.SecureRandom
 import java.text.Normalizer
 import java.util.Base64
@@ -33,6 +34,9 @@ object Encoding {
         .onUnmappableCharacter(CodingErrorAction.REPORT)
         .decode(ByteBuffer.wrap(bytes))
         .toString()
+
+    /** SHA-256 of the bytes as lowercase hex. */
+    fun sha256Hex(bytes: ByteArray): String = toHex(MessageDigest.getInstance("SHA-256").digest(bytes))
 
     /** Standard Base64 with padding (RFC 4648 §4), the same as btoa() in the TypeScript core. */
     fun toBase64(bytes: ByteArray): String = Base64.getEncoder().encodeToString(bytes)

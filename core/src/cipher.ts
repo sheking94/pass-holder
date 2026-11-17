@@ -1,10 +1,12 @@
 import { concat, fromBase64, randomBytes, toBase64, utf8 } from "./encoding.ts";
+import { GCM_NONCE_BYTES, GCM_TAG_BYTES, KEY_BYTES } from "./sizes.ts";
 
 const FORMAT_VERSION = 0x01;
-const NONCE_LENGTH = 12;
+/** Bytes `seal` adds to the plaintext: version (1) + nonce (12) + tag (16) = 29. */
+export const SEAL_OVERHEAD_BYTES = 1 + GCM_NONCE_BYTES + GCM_TAG_BYTES;
 
 async function importKey(rawKey: Uint8Array, usage: KeyUsage): Promise<CryptoKey> {
-  if (rawKey.length !== 32) throw new Error("Key must be 32 bytes");
+  if (rawKey.length !== KEY_BYTES) throw new Error("Key must be 32 bytes");
   return crypto.subtle.importKey("raw", rawKey as BufferSource, "AES-GCM", false, [usage]);
 }
 
@@ -16,9 +18,9 @@ export async function seal(
   key: Uint8Array,
   plaintext: Uint8Array,
   aad: string,
-  nonce: Uint8Array = randomBytes(NONCE_LENGTH),
+  nonce: Uint8Array = randomBytes(GCM_NONCE_BYTES),
 ): Promise<string> {
-  if (nonce.length !== NONCE_LENGTH) throw new Error("Nonce must be 12 bytes");
+  if (nonce.length !== GCM_NONCE_BYTES) throw new Error("Nonce must be 12 bytes");
   const ciphertext = await crypto.subtle.encrypt(
     { name: "AES-GCM", iv: nonce as BufferSource, additionalData: utf8(aad) as BufferSource },
     await importKey(key, "encrypt"),
@@ -29,10 +31,10 @@ export async function seal(
 
 export async function open(key: Uint8Array, blob: string, aad: string): Promise<Uint8Array> {
   const bytes = fromBase64(blob);
-  if (bytes.length < 1 + NONCE_LENGTH + 16) throw new Error("Blob too short");
+  if (bytes.length < SEAL_OVERHEAD_BYTES) throw new Error("Blob too short");
   if (bytes[0] !== FORMAT_VERSION) throw new Error(`Unsupported blob version: ${bytes[0]}`);
-  const nonce = bytes.subarray(1, 1 + NONCE_LENGTH);
-  const ciphertext = bytes.subarray(1 + NONCE_LENGTH);
+  const nonce = bytes.subarray(1, 1 + GCM_NONCE_BYTES);
+  const ciphertext = bytes.subarray(1 + GCM_NONCE_BYTES);
   const plaintext = await crypto.subtle.decrypt(
     { name: "AES-GCM", iv: nonce as BufferSource, additionalData: utf8(aad) as BufferSource },
     await importKey(key, "decrypt"),

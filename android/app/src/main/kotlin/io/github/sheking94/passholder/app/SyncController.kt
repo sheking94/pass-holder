@@ -47,7 +47,7 @@ class SyncController(
     private val onSynced: () -> Unit = {},
 ) {
     companion object {
-        const val IDLE_STOPPED = "Tryb synchronizacji wyłączony po 5 min bez synchronizacji."
+        val IDLE_STOPPED = "Tryb synchronizacji wyłączony po ${PhoneSync.SYNC_IDLE_MS / 60_000} min bez synchronizacji."
         const val LEFT_APP_STOPPED = "Tryb synchronizacji wyłączony po wyjściu z aplikacji."
     }
 

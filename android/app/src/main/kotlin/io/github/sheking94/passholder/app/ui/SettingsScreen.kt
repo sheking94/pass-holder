@@ -25,6 +25,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.sheking94.passholder.app.AppViewModel
 import io.github.sheking94.passholder.app.BiometricAvailability
+import io.github.sheking94.passholder.app.LeaveLock
 import io.github.sheking94.passholder.app.PassHolderApp
 import io.github.sheking94.passholder.app.UiState
 import android.provider.Settings as AndroidSettings
@@ -84,7 +85,7 @@ private fun LockDelaySetting(state: UiState, vm: AppViewModel) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text("Blokuj dopiero po 60 s poza aplikacją", style = MaterialTheme.typography.bodyLarge)
+            Text("Blokuj dopiero po ${LeaveLock.DELAY_MS / 1000} s poza aplikacją", style = MaterialTheme.typography.bodyLarge)
             Text(
                 if (on) "Krótkie wyjście (np. wklejenie hasła) nie blokuje sejfu." else "Sejf blokuje się od razu po wyjściu z aplikacji.",
                 style = MaterialTheme.typography.bodySmall,

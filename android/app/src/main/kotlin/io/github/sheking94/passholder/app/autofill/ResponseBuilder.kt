@@ -19,6 +19,7 @@ import androidx.autofill.inline.UiVersions
 import androidx.autofill.inline.v1.InlineSuggestionUi
 import io.github.sheking94.passholder.app.MainActivity
 import io.github.sheking94.passholder.app.R
+import io.github.sheking94.passholder.app.UiTexts
 import io.github.sheking94.passholder.core.autofill.DatasetSpec
 import io.github.sheking94.passholder.core.autofill.NodeValue
 
@@ -26,7 +27,6 @@ import io.github.sheking94.passholder.core.autofill.NodeValue
 object ResponseBuilder {
     /** The keyboard strip never shows more than this, whatever the keyboard allows. */
     private const val MAX_INLINE = 10
-    const val UNLOCK_TITLE = "Odblokuj PassHolder"
 
     /** Null only when there is nothing to offer: no datasets and no [save]. */
     fun datasets(
@@ -78,10 +78,10 @@ object ResponseBuilder {
         inline: InlineSuggestionsRequest?,
         save: SaveSpec?,
     ): FillResponse {
-        val presentation = presentation(context, UNLOCK_TITLE, null)
+        val presentation = presentation(context, UiTexts.UNLOCK_TITLE, null)
         val response = FillResponse.Builder()
         val inlinePresentation = if (inline != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            inlinePresentation(context, inline, 0, UNLOCK_TITLE, null)
+            inlinePresentation(context, inline, 0, UiTexts.UNLOCK_TITLE, null)
         } else {
             null
         }

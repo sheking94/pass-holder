@@ -14,6 +14,9 @@ package io.github.sheking94.passholder.core.p2p
 
 import io.github.sheking94.passholder.core.Encoding
 import io.github.sheking94.passholder.core.ErrorCode
+import io.github.sheking94.passholder.core.GCM_NONCE_BYTES
+import io.github.sheking94.passholder.core.GCM_TAG_BYTES
+import io.github.sheking94.passholder.core.KEY_BYTES
 import io.github.sheking94.passholder.core.PassHolderException
 import org.bouncycastle.math.ec.rfc7748.X25519
 import java.security.GeneralSecurityException
@@ -28,12 +31,12 @@ import javax.crypto.spec.SecretKeySpec
 val P2P_PROLOGUE: ByteArray = Encoding.utf8("passholder/v2/noise")
 
 private val PROTOCOL_NAME = Encoding.utf8("Noise_KK_25519_AESGCM_SHA256")
-private const val DHLEN = 32
+private const val DHLEN = KEY_BYTES
 private const val HASHLEN = 32
-private const val TAGLEN = 16
+private const val TAGLEN = GCM_TAG_BYTES
 
 /** Noise messages, handshake and transport, are at most 65535 bytes (section 3). */
-private const val MAX_MESSAGE = 65535
+internal const val MAX_NOISE_MESSAGE = 65535
 private val EMPTY = ByteArray(0)
 
 class KeyPair(val publicKey: ByteArray, val privateKey: ByteArray)
@@ -82,7 +85,7 @@ private fun hkdf2(chainingKey: ByteArray, ikm: ByteArray): Pair<ByteArray, ByteA
 
 /** AESGCM nonce: 32 bits of zeros followed by the 64-bit big-endian counter (section 12.3). */
 private fun aesGcmNonce(n: ULong): ByteArray {
-    val nonce = ByteArray(12)
+    val nonce = ByteArray(GCM_NONCE_BYTES)
     for (i in 0 until 8) nonce[11 - i] = (n shr (8 * i)).toByte()
     return nonce
 }
@@ -96,7 +99,7 @@ class CipherState(key: ByteArray?, n: ULong = 0uL) {
     private var n: ULong = n
 
     init {
-        noiseCheck(key == null || key.size == 32) { "cipher key must be 32 bytes" }
+        noiseCheck(key == null || key.size == KEY_BYTES) { "cipher key must be 32 bytes" }
         this.key = key?.let { SecretKeySpec(it, "AES") }
     }
 
@@ -105,14 +108,14 @@ class CipherState(key: ByteArray?, n: ULong = 0uL) {
     @Synchronized
     fun encrypt(ad: ByteArray, plaintext: ByteArray): ByteArray {
         if (key == null) return plaintext.copyOf()
-        noiseCheck(plaintext.size + TAGLEN <= MAX_MESSAGE) { "message exceeds 65535 bytes" }
+        noiseCheck(plaintext.size + TAGLEN <= MAX_NOISE_MESSAGE) { "message exceeds 65535 bytes" }
         return run(Cipher.ENCRYPT_MODE, ad, plaintext)
     }
 
     @Synchronized
     fun decrypt(ad: ByteArray, ciphertext: ByteArray): ByteArray {
         if (key == null) return ciphertext.copyOf()
-        noiseCheck(ciphertext.size <= MAX_MESSAGE) { "message exceeds 65535 bytes" }
+        noiseCheck(ciphertext.size <= MAX_NOISE_MESSAGE) { "message exceeds 65535 bytes" }
         noiseCheck(ciphertext.size >= TAGLEN) { "ciphertext too short" }
         return run(Cipher.DECRYPT_MODE, ad, ciphertext)
     }
@@ -148,7 +151,7 @@ private class SymmetricState(protocolName: ByteArray) {
     fun mixKey(ikm: ByteArray) {
         val (newCk, tempK) = hkdf2(ck, ikm)
         ck = newCk
-        cipher = CipherState(tempK.copyOf(32))
+        cipher = CipherState(tempK.copyOf(KEY_BYTES))
     }
 
     fun mixHash(data: ByteArray) {
@@ -169,7 +172,7 @@ private class SymmetricState(protocolName: ByteArray) {
 
     fun split(): Pair<CipherState, CipherState> {
         val (k1, k2) = hkdf2(ck, EMPTY)
-        return CipherState(k1.copyOf(32)) to CipherState(k2.copyOf(32))
+        return CipherState(k1.copyOf(KEY_BYTES)) to CipherState(k2.copyOf(KEY_BYTES))
     }
 }
 
@@ -214,7 +217,7 @@ class NoiseKK private constructor(
     @Synchronized
     fun writeMessage(payload: ByteArray): ByteArray {
         val expected = if (initiator) Step.WRITE1 else Step.WRITE2
-        noiseCheck(DHLEN + payload.size + TAGLEN <= MAX_MESSAGE) { "message exceeds 65535 bytes" }
+        noiseCheck(DHLEN + payload.size + TAGLEN <= MAX_NOISE_MESSAGE) { "message exceeds 65535 bytes" }
         return guard(expected) {
             // Token "e".
             val eph = e ?: NoiseKeys.generate()
@@ -236,7 +239,7 @@ class NoiseKK private constructor(
     @Synchronized
     fun readMessage(message: ByteArray): ByteArray {
         val expected = if (initiator) Step.READ2 else Step.READ1
-        noiseCheck(message.size <= MAX_MESSAGE) { "message exceeds 65535 bytes" }
+        noiseCheck(message.size <= MAX_NOISE_MESSAGE) { "message exceeds 65535 bytes" }
         noiseCheck(message.size >= DHLEN + TAGLEN) { "handshake message too short" }
         return guard(expected) {
             // Token "e".

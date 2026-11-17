@@ -167,7 +167,7 @@ class P2pInteropTest {
         assertEquals(1, result.getValue("uploaded").jsonPrimitive.content.toInt())
         assertEquals(1, result.getValue("downloaded").jsonPrimitive.content.toInt())
         assertEquals(0, result.getValue("pending").jsonPrimitive.content.toInt())
-        assertEquals(FileChunks.sha256Hex(original), result.getValue("downloadedSha256").jsonPrimitive.content)
+        assertEquals(Encoding.sha256Hex(original), result.getValue("downloadedSha256").jsonPrimitive.content)
         // The plugin's file reached the phone's store and decrypts to the original bytes.
         val fromPlugin: Attachment = f.vault.entries().single { it.data.content.name == "z-plikiem" }
             .data.content.attachments.single()
@@ -175,6 +175,6 @@ class P2pInteropTest {
         val blobs = (0 until fromPlugin.chunks).map { files.get(fromPlugin.id, it)!! }
         val bytes = FileChunks.decrypt(fromPlugin, blobs)
         assertEquals(600_000, bytes.size)
-        assertEquals(fromPlugin.sha256, FileChunks.sha256Hex(bytes))
+        assertEquals(fromPlugin.sha256, Encoding.sha256Hex(bytes))
     }
 }

@@ -1,10 +1,11 @@
 import { open, seal } from "./cipher.ts";
 import { randomBytes } from "./encoding.ts";
+import { KEY_BYTES } from "./sizes.ts";
 
 export const VAULT_KEY_AAD = "passholder/v1/vault-key";
 
 export function newVaultKey(): Uint8Array {
-  return randomBytes(32);
+  return randomBytes(KEY_BYTES);
 }
 
 export function wrapVaultKey(
@@ -18,6 +19,6 @@ export function wrapVaultKey(
 /** Throws if the master password is wrong (the GCM tag does not verify). */
 export async function unwrapVaultKey(encKey: Uint8Array, wrapped: string): Promise<Uint8Array> {
   const key = await open(encKey, wrapped, VAULT_KEY_AAD);
-  if (key.length !== 32) throw new Error("Vault key must be 32 bytes");
+  if (key.length !== KEY_BYTES) throw new Error("Vault key must be 32 bytes");
   return key;
 }

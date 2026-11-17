@@ -4,10 +4,16 @@ import { hasErrorCode, PassHolderError, type ErrorCode } from "../errors.ts";
 import { MAX_FILE_SIZE, type Attachment } from "../files/attachment.ts";
 import type { EntryContent } from "../p2p/entry.ts";
 import { sortForExport } from "./common.ts";
-import { parseArchiveIndex, type ArchivedFile, type ParsedArchive } from "./passholder-json.ts";
+import {
+  parseArchiveIndex,
+  passHolderJsonText,
+  type ArchivedFile,
+  type ParsedArchive,
+} from "./passholder-json.ts";
 import { ZipWriter, readZipEntry, readZipIndex, type ZipEntry } from "./zip.ts";
+import { MIB } from "../sizes.ts";
 
-export const MAX_ZIP_BYTES = 268435456;
+export const MAX_ZIP_BYTES = 256 * MIB;
 export const ARCHIVE_INDEX = "passholder.json";
 
 const notArchive = (cause?: unknown) =>
@@ -22,7 +28,7 @@ export type ArchiveFileError = Extract<
   | "ARCHIVE_FILE_CORRUPTED"
 >;
 /** Largest passholder.json accepted, after inflating. */
-const MAX_INDEX_BYTES = 10485760;
+const MAX_INDEX_BYTES = 10 * MIB;
 
 function archiveFileError(code: ArchiveFileError, cause?: unknown): PassHolderError {
   return new PassHolderError(code, `Archived file: ${code}`, { cause });
@@ -62,7 +68,7 @@ export async function exportPassHolderZip(
       (described.length > 0 ? { ...content, attachments: described } : content) as EntryContent,
     );
   }
-  const json = JSON.stringify({ format: "passholder", version: 3, entries: index }, null, 2) + "\n";
+  const json = passHolderJsonText(index);
   // The index is written first, so a reader that streams the archive (the phone) meets it before the files.
   await zip.add(ARCHIVE_INDEX, new TextEncoder().encode(json), { first: true });
   return { parts: zip.finish(), files, missing };

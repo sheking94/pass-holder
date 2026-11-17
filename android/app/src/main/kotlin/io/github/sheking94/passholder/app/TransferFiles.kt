@@ -4,6 +4,7 @@ import android.content.ContentResolver
 import android.net.Uri
 import io.github.sheking94.passholder.core.Encoding
 import io.github.sheking94.passholder.core.ErrorCode
+import io.github.sheking94.passholder.core.MIB
 import io.github.sheking94.passholder.core.PassHolderException
 import io.github.sheking94.passholder.core.transfer.TransferFormat
 import kotlinx.coroutines.CancellationException
@@ -20,9 +21,9 @@ import java.time.LocalDate
  */
 object TransferFiles {
     /** The largest import file read; one byte more is refused without reading the rest. */
-    const val MAX_BYTES = 10 * 1024 * 1024
+    const val MAX_BYTES = 10 * MIB
 
-    const val TOO_LARGE = "Plik jest za duży (limit 10 MiB)"
+    val TOO_LARGE = "Plik jest za duży (limit ${MAX_BYTES / MIB} MiB)"
     const val NOT_UTF8 = "Plik nie jest zapisany w UTF-8"
 
     const val READ_FAILED = "Nie udało się odczytać pliku."

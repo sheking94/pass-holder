@@ -10,13 +10,15 @@ import javax.crypto.spec.SecretKeySpec
  */
 object Aead {
     private const val FORMAT_VERSION: Byte = 0x01
-    private const val NONCE_LENGTH = 12
-    private const val TAG_BITS = 128
+    private const val TAG_BITS = GCM_TAG_BYTES * 8
+
+    /** Bytes [seal] adds to the plaintext: version (1) + nonce (12) + tag (16) = 29. */
+    const val SEAL_OVERHEAD_BYTES = 1 + GCM_NONCE_BYTES + GCM_TAG_BYTES
 
     /** [nonce] is only for test vectors; normal callers leave it out and get a random one. */
-    fun seal(key: ByteArray, plaintext: ByteArray, aad: String, nonce: ByteArray = Encoding.randomBytes(NONCE_LENGTH)): String {
-        require(key.size == 32) { "Key must be 32 bytes" }
-        require(nonce.size == NONCE_LENGTH) { "Nonce must be 12 bytes" }
+    fun seal(key: ByteArray, plaintext: ByteArray, aad: String, nonce: ByteArray = Encoding.randomBytes(GCM_NONCE_BYTES)): String {
+        require(key.size == KEY_BYTES) { "Key must be 32 bytes" }
+        require(nonce.size == GCM_NONCE_BYTES) { "Nonce must be 12 bytes" }
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(key, "AES"), GCMParameterSpec(TAG_BITS, nonce))
         cipher.updateAAD(Encoding.utf8(aad))
@@ -26,13 +28,13 @@ object Aead {
 
     /** Throws [javax.crypto.AEADBadTagException] if the key is wrong or the blob was changed. */
     fun open(key: ByteArray, blob: String, aad: String): ByteArray {
-        require(key.size == 32) { "Key must be 32 bytes" }
+        require(key.size == KEY_BYTES) { "Key must be 32 bytes" }
         val bytes = Encoding.fromBase64(blob)
-        require(bytes.size >= 1 + NONCE_LENGTH + 16) { "Blob too short" }
+        require(bytes.size >= SEAL_OVERHEAD_BYTES) { "Blob too short" }
         require(bytes[0] == FORMAT_VERSION) { "Unsupported blob version: ${bytes[0]}" }
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(key, "AES"), GCMParameterSpec(TAG_BITS, bytes, 1, NONCE_LENGTH))
+        cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(key, "AES"), GCMParameterSpec(TAG_BITS, bytes, 1, GCM_NONCE_BYTES))
         cipher.updateAAD(Encoding.utf8(aad))
-        return cipher.doFinal(bytes, 1 + NONCE_LENGTH, bytes.size - 1 - NONCE_LENGTH)
+        return cipher.doFinal(bytes, 1 + GCM_NONCE_BYTES, bytes.size - 1 - GCM_NONCE_BYTES)
     }
 }

@@ -5,6 +5,7 @@ import { PassHolderError } from "../errors.ts";
 import { cpaceFinish, cpaceStart, PAIRING_CI } from "./cpace.ts";
 import {
   openPairingMessage,
+  PAIRING_CODE_LENGTH,
   pairingKey,
   sealPairingMessage,
   type DeviceIdentity,
@@ -62,6 +63,7 @@ export async function phoneHello(
   return { sid, mode: res.mode };
 }
 
+const PAIRING_CODE_FORMAT = new RegExp(`^\\d{${PAIRING_CODE_LENGTH}}$`);
 /**
  * Pairs with the phone using the code it shows: hello, start (spends the code), finish.
  * In restore mode `restore` (the extension's vault info) is required and is checked before /start, so a missing
@@ -76,8 +78,11 @@ export async function pairWithPhone(o: {
   restore?: VaultInfo;
 }): Promise<{ mode: PhoneMode; phone: DeviceIdentity; vaultInfo: VaultInfo }> {
   const code = o.code.replace(/\s+/g, "");
-  if (!/^\d{8}$/.test(code))
-    throw new PassHolderError("PAIRING_BAD_CODE_FORMAT", "The pairing code is 8 digits");
+  if (!PAIRING_CODE_FORMAT.test(code))
+    throw new PassHolderError(
+      "PAIRING_BAD_CODE_FORMAT",
+      `The pairing code is ${PAIRING_CODE_LENGTH} digits`,
+    );
   const url = base(o.baseUrl);
 
   const { sid, mode } = await phoneHello(url, o.post);

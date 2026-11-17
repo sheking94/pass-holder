@@ -102,7 +102,7 @@ class LockController(
         if (!currentScreen().showsVault || isBusy()) return
         if (withContext(Dispatchers.IO) { store.lockIfIdle() }) {
             offerFingerprint = true
-            showLocked(Status("Zablokowano po 15 minutach bezczynności."))
+            showLocked(Status("Zablokowano po ${PhoneVaultStore.AUTO_LOCK_MS / 60_000} minutach bezczynności."))
         }
     }
 
@@ -154,6 +154,6 @@ class LockController(
     private enum class FilePicker { NONE, EXPECTED, OPEN }
 
     companion object {
-        const val FILE_PICK_TOO_LONG = "Zablokowano: wybór pliku trwał ponad 60 s"
+        val FILE_PICK_TOO_LONG = "Zablokowano: wybór pliku trwał ponad ${LeaveLock.DELAY_MS / 1000} s"
     }
 }

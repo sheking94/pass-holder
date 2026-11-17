@@ -3,6 +3,7 @@ package io.github.sheking94.passholder.core.p2p
 import io.github.sheking94.passholder.core.Aead
 import io.github.sheking94.passholder.core.Encoding
 import io.github.sheking94.passholder.core.ErrorCode
+import io.github.sheking94.passholder.core.KIB
 import io.github.sheking94.passholder.core.PassHolderException
 import io.github.sheking94.passholder.core.StrictJson
 import io.github.sheking94.passholder.core.StrictJson.appendQuoted
@@ -82,7 +83,7 @@ data class TombstoneData(val hlc: Hlc)
 
 /** v3 entry model: strict parser, JS-compatible serializer and AES-GCM payload encryption bound to the entry id. */
 object EntryCodec {
-    const val MAX_BLOB_LENGTH = 65536
+    const val MAX_BLOB_LENGTH = 64 * KIB
 
     private const val INVALID_ENTRY = "Invalid entry payload"
     private const val INVALID_TOMBSTONE = "Invalid tombstone payload"

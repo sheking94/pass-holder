@@ -1,6 +1,6 @@
 import { errorMessage } from "../error-messages.ts";
-import { autofill, type p2p } from "@passholder/core";
-import { ENTRY_TYPES, TYPE_INFO, entrySummary, matchesQuery } from "../entry-types.ts";
+import { autofill, p2p } from "@passholder/core";
+import { TYPE_INFO, entrySummary, matchesQuery } from "../entry-types.ts";
 import { UNSUPPORTED_PAGE } from "../autofill/fill-tab.ts";
 import type { FilesOutcome, StoredEntry } from "../vault-store.ts";
 import { copySecret, copyText } from "../ui/copy.ts";
@@ -128,7 +128,7 @@ export function listView(message = "", isError = false, type?: p2p.EntryType) {
   const status = statusLine();
   setStatus(status, message, isError);
 
-  const tabButtons = ENTRY_TYPES.map((t) =>
+  const tabButtons = p2p.ENTRY_TYPES.map((t) =>
     h(
       "button",
       { type: "button", title: TYPE_INFO[t].tab, onclick: () => selectTab(t) },
@@ -138,7 +138,7 @@ export function listView(message = "", isError = false, type?: p2p.EntryType) {
   );
   const markTab = () =>
     tabButtons.forEach((b, i) =>
-      b.setAttribute("aria-pressed", String(ENTRY_TYPES[i] === currentType)),
+      b.setAttribute("aria-pressed", String(p2p.ENTRY_TYPES[i] === currentType)),
     );
 
   // Logins matching the page the popup was opened over (Loginy tab only); filled in once the tab is known.

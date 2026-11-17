@@ -3,9 +3,9 @@ package io.github.sheking94.passholder.core.files
 import io.github.sheking94.passholder.core.Aead
 import io.github.sheking94.passholder.core.Encoding
 import io.github.sheking94.passholder.core.ErrorCode
+import io.github.sheking94.passholder.core.KEY_BYTES
 import io.github.sheking94.passholder.core.PassHolderException
 import io.github.sheking94.passholder.core.requireCode
-import java.security.MessageDigest
 import java.util.UUID
 
 /** Result of [FileChunks.encrypt]: the descriptor plus one Base64 blob per chunk. */
@@ -16,12 +16,10 @@ object FileChunks {
     /** AAD binding a chunk to its file, position and total count. */
     fun aad(id: String, index: Int, chunks: Int): String = "passholder/v3/file/$id/$index/$chunks"
 
-    fun sha256Hex(bytes: ByteArray): String = Encoding.toHex(MessageDigest.getInstance("SHA-256").digest(bytes))
-
     fun encrypt(bytes: ByteArray, name: String, mime: String): EncryptedFile {
         checkInput(bytes, name)
         val chunks = Attachments.chunkCount(bytes.size.toLong())
-        return build(bytes, name, mime, UUID.randomUUID().toString(), Encoding.randomBytes(32), chunks) { null }
+        return build(bytes, name, mime, UUID.randomUUID().toString(), Encoding.randomBytes(KEY_BYTES), chunks) { null }
     }
 
     /**
@@ -70,7 +68,7 @@ object FileChunks {
             mime = if (Attachments.isMime(mime)) mime else "",
             size = bytes.size.toLong(),
             chunks = chunks,
-            sha256 = sha256Hex(bytes),
+            sha256 = Encoding.sha256Hex(bytes),
             key = Encoding.toBase64(key),
         )
         return EncryptedFile(attachment, blobs)
@@ -104,7 +102,7 @@ object FileChunks {
             p.copyInto(out, pos)
             pos += p.size
         }
-        requireCode(sha256Hex(out) == a.sha256, ErrorCode.FILE_CORRUPTED)
+        requireCode(Encoding.sha256Hex(out) == a.sha256, ErrorCode.FILE_CORRUPTED)
         return out
     }
 }

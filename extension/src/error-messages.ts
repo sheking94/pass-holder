@@ -1,5 +1,5 @@
 // The only place where the core's error codes become the Polish text the user sees.
-import { p2p, PassHolderError, type ErrorCode } from "@passholder/core";
+import { files, KIB, MIB, p2p, PassHolderError, transfer, type ErrorCode } from "@passholder/core";
 
 export const PHONE_UNREACHABLE = "Telefon nie odpowiada. Czy tryb Synchronizacja jest włączony?";
 export const PHONE_FORGOT_BROWSER =
@@ -7,6 +7,7 @@ export const PHONE_FORGOT_BROWSER =
 export const PHONE_UPDATE_REQUIRED = "Zaktualizuj aplikację na telefonie";
 export const PHONE_MALFORMED = "Telefon odpowiedział niepoprawnie.";
 export const FILE_CORRUPTED = "Plik jest uszkodzony";
+const FILE_EMPTY = "Plik jest pusty";
 export const SYNC_AGAIN = "Zsynchronizuj ponownie";
 /** A background action (fill, save) found the vault locked. */
 export const UNLOCK_AND_RETRY = "Sejf jest zablokowany. Odblokuj go i spróbuj ponownie";
@@ -23,23 +24,23 @@ const TEXTS: Record<ErrorCode, (detail: string | undefined) => string> = {
   PAIRING_NOT_WAITING: () => "Telefon nie czeka na parowanie albo kod wygasł.",
   PAIRING_WRONG_CODE: () => "Zły kod parowania. Poproś telefon o nowy kod.",
   PAIRING_RESTORE_EXPECTED: () => "Telefon czeka na odtworzenie sejfu z wtyczki",
-  PAIRING_BAD_CODE_FORMAT: () => "Kod parowania to 8 cyfr.",
+  PAIRING_BAD_CODE_FORMAT: () => `Kod parowania to ${p2p.PAIRING_CODE_LENGTH} cyfr.`,
 
   ENTRY_TOO_LARGE: () => "Wpis jest za duży",
   ENTRY_TOO_LARGE_TO_SYNC: (name) =>
-    `Wpis „${name}” jest za duży (ponad 64 KiB) i nie może zostać zsynchronizowany. Skróć go.`,
+    `Wpis „${name}” jest za duży (ponad ${p2p.MAX_ENTRY_BLOB_LENGTH / KIB} KiB) i nie może zostać zsynchronizowany. Skróć go.`,
   SYNC_EPOCH_CHANGED_TWICE: () =>
     "Sejf na telefonie zmienił się w trakcie synchronizacji. Spróbuj ponownie.",
   SYNC_NOT_SETTLED: () => "Synchronizacja się nie ustaliła. Spróbuj ponownie.",
   SYNC_ROUND_LIMIT: () => "Synchronizacja trwała za długo. Spróbuj ponownie.",
 
-  FILE_EMPTY: () => "Plik jest pusty",
-  FILE_TOO_LARGE: () => "Plik jest za duży (limit 10 MB)",
+  FILE_EMPTY: () => FILE_EMPTY,
+  FILE_TOO_LARGE: () => `Plik jest za duży (limit ${files.MAX_FILE_SIZE / MIB} MB)`,
   FILE_INVALID_NAME: () => "Nieprawidłowa nazwa pliku",
   FILE_CORRUPTED: () => FILE_CORRUPTED,
   FILE_SYNC_EPOCH_MISMATCH: () => SYNC_AGAIN,
 
-  IMPORT_EMPTY_FILE: () => "Plik jest pusty",
+  IMPORT_EMPTY_FILE: () => FILE_EMPTY,
   IMPORT_BAD_JSON: () => "Plik JSON jest uszkodzony",
   IMPORT_UNKNOWN_FORMAT: () =>
     "Nie rozpoznano pliku: to nie jest eksport PassHolder, Bitwarden ani NordPass",
@@ -53,7 +54,7 @@ const TEXTS: Record<ErrorCode, (detail: string | undefined) => string> = {
     "Zaszyfrowany eksport Bitwarden nie jest obsługiwany. Wyeksportuj z Bitwardena plik JSON bez szyfrowania.",
 
   ZIP_INVALID: () => "Archiwum ZIP jest uszkodzone albo nieobsługiwane",
-  ZIP_TOO_LARGE: () => "Plik jest za duży (limit 256 MiB)",
+  ZIP_TOO_LARGE: () => `Plik jest za duży (limit ${transfer.MAX_ZIP_BYTES / MIB} MiB)`,
   ZIP_WRITE_TOO_LARGE: () => "Archiwum byłoby za duże",
   ZIP_ENTRY_TOO_LARGE: () => "Plik w archiwum jest za duży",
   ZIP_NOT_PASSHOLDER: () => "Archiwum nie jest eksportem PassHolder",

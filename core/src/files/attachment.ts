@@ -1,11 +1,13 @@
 import { fromBase64, toBase64 } from "../encoding.ts";
 import { hasExactKeys } from "../strict-json.ts";
+import { SEAL_OVERHEAD_BYTES } from "../cipher.ts";
+import { KEY_BYTES, KIB, MIB } from "../sizes.ts";
 
-export const MAX_FILE_SIZE = 10485760;
-export const FILE_CHUNK_SIZE = 262144;
-export const MAX_FILE_CHUNKS = 40;
-/** Base64 length of one sealed chunk: 4 * ceil((29 + FILE_CHUNK_SIZE) / 3). */
-export const MAX_FILE_BLOB_LENGTH = 349564;
+export const MAX_FILE_SIZE = 10 * MIB;
+export const FILE_CHUNK_SIZE = 256 * KIB;
+export const MAX_FILE_CHUNKS = MAX_FILE_SIZE / FILE_CHUNK_SIZE;
+/** Base64 length of one sealed chunk: 4 * ceil((29 + FILE_CHUNK_SIZE) / 3) = 349564. */
+export const MAX_FILE_BLOB_LENGTH = 4 * Math.ceil((SEAL_OVERHEAD_BYTES + FILE_CHUNK_SIZE) / 3);
 /** Limit enforced when adding a file in the UI. */
 export const MAX_ATTACHMENTS_PER_ENTRY = 20;
 /** Limit enforced by the parser and the merge (an entry can exceed 20 after a merge). */
@@ -74,7 +76,7 @@ export function invalidEntry(): never {
 function canonicalKey(key: string): boolean {
   try {
     const bytes = fromBase64(key);
-    return bytes.length === 32 && toBase64(bytes) === key;
+    return bytes.length === KEY_BYTES && toBase64(bytes) === key;
   } catch {
     return false;
   }

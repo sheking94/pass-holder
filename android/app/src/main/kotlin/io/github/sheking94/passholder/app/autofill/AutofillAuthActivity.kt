@@ -23,6 +23,7 @@ import androidx.lifecycle.lifecycleScope
 import io.github.sheking94.passholder.app.BiometricController
 import io.github.sheking94.passholder.app.PassHolderApp
 import io.github.sheking94.passholder.app.Status
+import io.github.sheking94.passholder.app.UiTexts
 import io.github.sheking94.passholder.app.errorMessage
 import io.github.sheking94.passholder.app.ui.AutofillUnlockScreen
 import io.github.sheking94.passholder.app.ui.FingerprintDialog
@@ -190,7 +191,7 @@ abstract class AutofillAuthActivity : FragmentActivity() {
 
     private fun unlockWithFingerprint() {
         if (busy) return
-        fingerprintDialog.show("Odblokuj PassHolder", ::cipherToUnlock) { cipher ->
+        fingerprintDialog.show(UiTexts.UNLOCK_TITLE, ::cipherToUnlock) { cipher ->
             runUnlock { biometrics.unlock(cipher, app.phoneStore::unlockWithVaultKey) }
         }
     }

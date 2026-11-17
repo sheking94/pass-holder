@@ -1,8 +1,9 @@
 import { concatAll, fromBase64, fromUtf8, toBase64, utf8 } from "../encoding.ts";
-import type { CipherState } from "./noise.ts";
+import { MAX_MESSAGE, type CipherState } from "./noise.ts";
+import { GCM_TAG_BYTES } from "../sizes.ts";
 
-/** Noise transport message limit (65535) minus the 16-byte AEAD tag. */
-export const MAX_FRAME_PLAINTEXT = 65519;
+/** Noise transport message limit (65535) minus the 16-byte AEAD tag = 65519. */
+export const MAX_FRAME_PLAINTEXT = MAX_MESSAGE - GCM_TAG_BYTES;
 /** Most frames a 1 MiB body may legitimately carry. */
 export const MAX_FRAMES = Math.ceil((1024 * 1024) / MAX_FRAME_PLAINTEXT) + 1;
 const NO_AD = new Uint8Array();

@@ -12,7 +12,7 @@ import { downloadFile } from "../../ui/download.ts";
 import { IN_TAB } from "../../ui/page.ts";
 import { store } from "../../ui/state.ts";
 
-const TOO_MANY = "Najwyżej 20 plików we wpisie";
+const TOO_MANY = `Najwyżej ${files.MAX_ATTACHMENTS_PER_ENTRY} plików we wpisie`;
 const WAITING = "czeka na synchronizację";
 const NEW = "nowy – zapisz wpis";
 const DOWNLOAD_WARNING =

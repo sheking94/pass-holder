@@ -5,7 +5,8 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 
-private const val MAX_DEVICE_ID_LENGTH = 64
+/** Longest device id (UTF-16 units); the same limit in the TS core. */
+const val MAX_DEVICE_ID_LENGTH = 64
 
 /**
  * Hybrid logical clock timestamp, ordered by (ms, c, d). Short field names, because they are stored in every entry.

@@ -12,6 +12,7 @@ import { processP2pSync, validateP2pSyncRequest, type P2pSyncRequest } from "./h
 import { processP2pFile, type FileStore } from "../files/host-files.ts";
 import { P2P_FILE_PATH, P2P_HANDSHAKE_PATH, P2P_SYNC_PATH } from "./transport.ts";
 import { CipherState, NoiseKK, P2P_PROLOGUE, type KeyPair } from "./noise.ts";
+import { KEY_BYTES, RANDOM_ID_BYTES } from "../sizes.ts";
 
 export interface PairedDevice {
   deviceId: string;
@@ -70,7 +71,7 @@ function decodeBase64(value: unknown): Uint8Array | undefined {
 export class P2pHost {
   readonly #options: P2pHostOptions;
   readonly #sessions = new Map<string, Session>();
-  /** Ephemeral keys (first 32 bytes) of accepted handshakes, in insertion order. */
+  /** Ephemeral keys (first KEY_BYTES bytes) of accepted handshakes, in insertion order. */
   readonly #seen = new Set<string>();
 
   constructor(o: P2pHostOptions) {
@@ -111,7 +112,7 @@ export class P2pHost {
     if (!device) return errorReply(403, "device not paired");
     const message = decodeBase64(body.message);
     if (!message) return errorReply(400, "malformed request");
-    const ephemeral = toBase64(message.subarray(0, 32));
+    const ephemeral = toBase64(message.subarray(0, KEY_BYTES));
     if (this.#seen.has(ephemeral)) return errorReply(400, "replayed handshake");
     // handle() already pruned the expired sessions.
     const refused = this.#sessionLimitReply(device.deviceId);
@@ -134,7 +135,7 @@ export class P2pHost {
     if (refusedNow) return refusedNow;
     this.#remember(ephemeral);
     const { send, recv } = noise.split();
-    const session = toBase64(randomBytes(16));
+    const session = toBase64(randomBytes(RANDOM_ID_BYTES));
     this.#sessions.set(session, {
       deviceId: device.deviceId,
       staticPublicKey: device.staticPublicKey.slice(),

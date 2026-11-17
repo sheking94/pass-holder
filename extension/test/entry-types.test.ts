@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { p2p } from "@passholder/core";
 import {
   emptyContent,
-  ENTRY_TYPES,
   entrySummary,
   matchesQuery,
   tidyContent,
@@ -55,7 +54,7 @@ const login = (over: Partial<p2p.LoginFields> = {}, name = "A"): C => ({
 
 describe("tabs", () => {
   it("lists types in tab order", () => {
-    expect(ENTRY_TYPES).toEqual(["login", "contact", "card", "note", "document"]);
+    expect(p2p.ENTRY_TYPES).toEqual(["login", "contact", "card", "note", "document"]);
     expect(TYPE_INFO.card.tab).toBe("Karty");
     expect(TYPE_INFO.login.newTitle).toBe("Nowy login");
     expect(TYPE_INFO.document.editTitle).toBe("Edytuj dokument");
@@ -192,7 +191,7 @@ describe("validateContent", () => {
 });
 
 describe("emptyContent", () => {
-  it.each(ENTRY_TYPES)("%s passes the strict parser", (type) => {
+  it.each(p2p.ENTRY_TYPES)("%s passes the strict parser", (type) => {
     const c = emptyContent(type);
     expect(c.type).toBe(type);
     expect(() => p2p.parseEntryData({ ...c, v: 3, hlc: { ms: 0, c: 0, d: "x" } })).not.toThrow();

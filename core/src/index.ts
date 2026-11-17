@@ -1,4 +1,6 @@
 export * from "./errors.ts";
+export * from "./sizes.ts";
+export * from "./field-formats.ts";
 export * from "./encoding.ts";
 export * from "./kdf.ts";
 export * from "./cipher.ts";

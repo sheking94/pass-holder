@@ -15,16 +15,17 @@ import { hmac } from "@noble/hashes/hmac.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { concat, utf8 } from "../encoding.ts";
 import { PassHolderError } from "../errors.ts";
+import { GCM_NONCE_BYTES, GCM_TAG_BYTES, KEY_BYTES } from "../sizes.ts";
 
 /** Prologue bound into every PassHolder device-to-device handshake. */
 export const P2P_PROLOGUE = utf8("passholder/v2/noise");
 
 const PROTOCOL_NAME = utf8("Noise_KK_25519_AESGCM_SHA256");
-const DHLEN = 32;
+const DHLEN = KEY_BYTES;
 const HASHLEN = 32;
-const TAGLEN = 16;
+const TAGLEN = GCM_TAG_BYTES;
 /** Noise messages, handshake and transport, are at most 65535 bytes (section 3). */
-const MAX_MESSAGE = 65535;
+export const MAX_MESSAGE = 65535;
 /** n = 2^64-1 is reserved; reaching it means the CipherState is exhausted (section 5.1). */
 const MAX_NONCE = 2n ** 64n - 1n;
 const EMPTY = new Uint8Array(0);
@@ -69,7 +70,7 @@ function hkdf2(chainingKey: Uint8Array, ikm: Uint8Array): [Uint8Array, Uint8Arra
 
 /** AESGCM nonce: 32 bits of zeros followed by the 64-bit big-endian counter (section 12.3). */
 function aesGcmNonce(n: bigint): Uint8Array {
-  const nonce = new Uint8Array(12);
+  const nonce = new Uint8Array(GCM_NONCE_BYTES);
   new DataView(nonce.buffer).setBigUint64(4, n, false);
   return nonce;
 }
@@ -86,7 +87,7 @@ export class CipherState {
 
   /** `n` is only for tests; normal callers start at 0. */
   constructor(key: Uint8Array | null, n = 0n) {
-    if (key !== null && key.length !== 32) throw noiseError("cipher key must be 32 bytes");
+    if (key !== null && key.length !== KEY_BYTES) throw noiseError("cipher key must be 32 bytes");
     if (n < 0n || n > MAX_NONCE) throw noiseError("nonce out of range");
     this.#key =
       key === null
@@ -168,7 +169,7 @@ class SymmetricState {
   mixKey(ikm: Uint8Array): void {
     const [ck, tempK] = hkdf2(this.ck, ikm);
     this.ck = ck;
-    this.cipher = new CipherState(tempK.subarray(0, 32));
+    this.cipher = new CipherState(tempK.subarray(0, KEY_BYTES));
   }
 
   mixHash(data: Uint8Array): void {
@@ -189,7 +190,7 @@ class SymmetricState {
 
   split(): [CipherState, CipherState] {
     const [k1, k2] = hkdf2(this.ck, EMPTY);
-    return [new CipherState(k1.subarray(0, 32)), new CipherState(k2.subarray(0, 32))];
+    return [new CipherState(k1.subarray(0, KEY_BYTES)), new CipherState(k2.subarray(0, KEY_BYTES))];
   }
 }
 

@@ -22,6 +22,7 @@ import { editView } from "./edit.ts";
 import { listView } from "./list.ts";
 import { saveQuestionView } from "./save-question.ts";
 import { transferView } from "./transfer.ts";
+import { LOCKED_TITLE, MASTER_PASSWORD_LABEL } from "../ui/texts.ts";
 
 const SHORT_PIN_MOVED =
   "Krótki PIN nie jest już zapisywany na dysku: działa do zamknięcia przeglądarki. Aby pamiętać PIN po restarcie, ustaw dłuższy (przycisk PIN).";
@@ -87,7 +88,7 @@ function pinLockedView(pinStatus: PinStatus, message = "") {
 
   show(
     openInTabButton(),
-    h("h1", {}, "PassHolder jest zablokowany"),
+    h("h1", {}, LOCKED_TITLE),
     form(
       () => void unlock(),
       h("label", {}, "PIN"),
@@ -135,7 +136,7 @@ function lockedView(message = "") {
 
   show(
     openInTabButton(),
-    h("h1", {}, "PassHolder jest zablokowany"),
+    h("h1", {}, LOCKED_TITLE),
     h(
       "p",
       { class: "hint" },
@@ -143,7 +144,7 @@ function lockedView(message = "") {
     ),
     form(
       () => void unlock(),
-      h("label", {}, "Hasło główne"),
+      h("label", {}, MASTER_PASSWORD_LABEL),
       passwordField(password).row,
       h(
         "div",

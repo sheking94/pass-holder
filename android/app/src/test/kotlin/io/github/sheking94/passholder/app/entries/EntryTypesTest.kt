@@ -10,6 +10,7 @@ import io.github.sheking94.passholder.core.p2p.LabeledValue
 import io.github.sheking94.passholder.core.p2p.LoginFields
 import io.github.sheking94.passholder.core.p2p.NoteFields
 import io.github.sheking94.passholder.core.p2p.PostalAddress
+import io.github.sheking94.passholder.core.transfer.DOCUMENT_KIND_NAMES
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -72,12 +73,12 @@ class EntryTypesTest {
     }
 
     @Test fun documentKindLabels() {
-        assertEquals("Dowód osobisty", DOCUMENT_KIND_LABELS[DocumentKind.ID_CARD])
-        assertEquals("Paszport", DOCUMENT_KIND_LABELS[DocumentKind.PASSPORT])
-        assertEquals("Prawo jazdy", DOCUMENT_KIND_LABELS[DocumentKind.DRIVING_LICENSE])
-        assertEquals("Legitymacja", DOCUMENT_KIND_LABELS[DocumentKind.STUDENT_ID])
-        assertEquals("Inny", DOCUMENT_KIND_LABELS[DocumentKind.OTHER])
-        assertEquals(DocumentKind.entries.size, DOCUMENT_KIND_LABELS.size)
+        assertEquals("Dowód osobisty", DOCUMENT_KIND_NAMES[DocumentKind.ID_CARD])
+        assertEquals("Paszport", DOCUMENT_KIND_NAMES[DocumentKind.PASSPORT])
+        assertEquals("Prawo jazdy", DOCUMENT_KIND_NAMES[DocumentKind.DRIVING_LICENSE])
+        assertEquals("Legitymacja", DOCUMENT_KIND_NAMES[DocumentKind.STUDENT_ID])
+        assertEquals("Inny", DOCUMENT_KIND_NAMES[DocumentKind.OTHER])
+        assertEquals(DocumentKind.entries.size, DOCUMENT_KIND_NAMES.size)
     }
 
     @Test fun summaryDescribesEachType() {

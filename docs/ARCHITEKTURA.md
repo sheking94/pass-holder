@@ -256,7 +256,8 @@ nowy kod używa go zamiast pisać własną kopię.
 | ścieżki HTTP | `P2P_*_PATH` w `p2p/transport.ts` | `P2pPaths` (`p2p/P2pPaths.kt`) |
 | łączenie bajtów | `concat(...parts)`, dla długiej listy `concatAll(parts)` | `+` / `copyInto` |
 | porównanie bajtów | `sameBytes` (stały czas, `encoding.ts`) | `contentEquals` / `MessageDigest.isEqual` |
-| SHA-256 jako hex | `files.sha256Hex(bytes)` (wtyczka: `sha256Hex(utf8(text))` w `clipboard.ts`) | – |
+| SHA-256 jako hex | `files.sha256Hex(bytes)` (wtyczka: `sha256Hex(utf8(text))` w `clipboard.ts`) | `Encoding.sha256Hex(bytes)` |
+| adres Tailscale (100.64.0.0/10) | – | `LocalAddresses.isTailscale(address)` |
 | ścisłe UTF-8 | `fromUtf8` | `Encoding.fromUtf8` (wyjątek) / `fromUtf8OrNull` |
 | zapis atomowy pliku | – | `AtomicFiles.write(file, bytes)`: `.tmp`, `fsync`, `rename`, `fsync` katalogu |
 | plik z systemowego okna wyboru | – | `ProviderStreams.readCapped(input, limit, knownSize)` i `failingAs(tekst) { … }` (`app/ProviderStreams.kt`) |
@@ -266,6 +267,43 @@ nowy kod używa go zamiast pisać własną kopię.
   pokazuje prawdziwy błąd, a użytkownik nasz tekst.
 - **`readCapped`** czyta najwyżej `limit + 1` bajtów do jednej tablicy i zeruje każdą większą (bez buforów
   strumienia, które trzymałyby jawny tekst). Bajt ponad limit oznacza „za duży”; komunikat wybiera wywołujący.
+
+## Stałe, limity i teksty
+
+Ustalone w grupie G7 przeglądu czystości kodu V3. Każda liczba i każdy limit mają jedną definicję. Tekst, który
+podaje limit („najwyżej 20 plików”, „10 MB”, „15 minut”), jest budowany ze stałej, więc zmiana stałej zmienia też tekst.
+
+**Rozmiary i długości kryptograficzne.** `core/src/sizes.ts` i `android/core/.../core/Sizes.kt` mają `KIB`, `MIB`,
+`KEY_BYTES` (32), `SALT_BYTES` (16), `GCM_NONCE_BYTES` (12), `GCM_TAG_BYTES` (16) i `RANDOM_ID_BYTES` (16: epoka, id sesji).
+Narzut `seal` (1 + 12 + 16 = 29) to `SEAL_OVERHEAD_BYTES` w `cipher.ts` / `Aead.kt`. Wartości pochodne liczy się
+ze stałych, np. `MAX_FILE_CHUNKS = MAX_FILE_SIZE / FILE_CHUNK_SIZE`, `MAX_FRAME_PLAINTEXT = 65535 − GCM_TAG_BYTES`,
+`MAX_FILE_BLOB_LENGTH = 4 · ⌈(29 + FILE_CHUNK_SIZE) / 3⌉`. W ZIP rozmiary nagłówków (30/46/22) i metody (0/8) mają nazwy.
+
+**Gdzie jest która stała** (TS / Kotlin):
+
+| Stała | TypeScript | Kotlin |
+|---|---|---|
+| długość `deviceId` (64) | `MAX_DEVICE_ID_LENGTH` w `p2p/hlc.ts` | `MAX_DEVICE_ID_LENGTH` w `p2p/Hlc.kt` (najwyżej poziom pakietu) |
+| kod parowania: 8 cyfr, 2 min | `PAIRING_CODE_LENGTH`, `PAIRING_CODE_TTL_MS` w `p2p/pairing.ts` | `Pairing.CODE_LENGTH`, `PAIRING_CODE_TTL_MS` w `PairingHost.kt` |
+| najwięcej id w `status` (500) | `MAX_STATUS_IDS` w `files/host-files.ts` | `Attachments.MAX_STATUS_IDS` |
+| typy wpisów i ich kolejność | `ENTRY_TYPES` w `p2p/entry.ts` (z niej typ `EntryType`) | `ENTRY_TYPE_ORDER` w `transfer/Common.kt` |
+| rodzaje dokumentów | `DOCUMENT_KINDS`, `isDocumentKind` w `p2p/entry.ts` | `DocumentKind` (enum) |
+| data ważności karty `MM/RR`, data `RRRR-MM-DD` | `CARD_EXPIRY`, `isCalendarDate` w `field-formats.ts` | `FieldFormats.CARD_EXPIRY`, `FieldFormats.isCalendarDate` |
+
+`field-formats.ts` nie importuje niczego, bo trafia do skryptu autouzupełniania wstrzykiwanego do strony. W Kotlinie
+wzorce używają `[0-9]`, nie `\d` (na Androidzie `\d` łapie też cyfry spoza ASCII).
+
+**Teksty.** Błędy z kodami są w `extension/src/error-messages.ts` i `app/ErrorMessages.kt` (grupy G4/G5). Teksty
+wspólne dla kilku ekranów: `extension/src/ui/texts.ts` (`MASTER_PASSWORD_LABEL`, `LOCKED_TITLE`),
+`extension/src/ui/pairing-code.ts` (pole kodu parowania i jego etykieta) oraz `app/UiTexts.kt` (`UNLOCK_TITLE`,
+`PASSWORDS_DIFFER`); podpowiedź pod hasłem głównym to `MasterPasswordRules.HINT`. Kod sprawdzany w aplikacji bez
+wyjątku dostaje tekst przez `errorMessage(ErrorCode)`.
+
+Teksty, które trafiają do plików eksportu, są w rdzeniu (`transfer/common.ts`, `transfer/Common.kt`):
+`DOCUMENT_KIND_NAMES` (nazwy rodzajów dokumentu, też w formularzu i na liście), `DOCUMENT_LABELS` /
+`DocumentLabels` (etykiety pól dokumentu w Bitwarden i NordPass; numer ma różne etykiety: „Numer dokumentu” i „Numer”)
+oraz powody pominięcia `SKIP_BAD_ENTRY` i `SKIP_NO_NAME`. Kopertę pliku PassHolder (`format`, `version: 3`, `entries`)
+buduje jedna funkcja: `passHolderJsonText` / `PassHolderJson.text`, dla eksportu JSON i dla indeksu ZIP.
 
 ## Przepływ autouzupełniania (Chrome)
 

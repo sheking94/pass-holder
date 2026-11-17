@@ -1,5 +1,6 @@
 package io.github.sheking94.passholder.app.entries
 
+import io.github.sheking94.passholder.core.FieldFormats
 import io.github.sheking94.passholder.core.p2p.CardFields
 import io.github.sheking94.passholder.core.p2p.ContactFields
 import io.github.sheking94.passholder.core.p2p.DocumentFields
@@ -8,10 +9,7 @@ import io.github.sheking94.passholder.core.p2p.EntryContent
 import io.github.sheking94.passholder.core.p2p.EntryFields
 import io.github.sheking94.passholder.core.p2p.LoginFields
 import io.github.sheking94.passholder.core.p2p.NoteFields
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import java.time.format.DateTimeParseException
-import java.time.format.ResolverStyle
+import io.github.sheking94.passholder.core.transfer.DOCUMENT_KIND_NAMES
 
 /** Entry types in tab order (logins first). Mirrors the browser extension's entry-types.ts. */
 enum class EntryType(val icon: String, val tab: String, val newTitle: String, val editTitle: String) {
@@ -33,20 +31,9 @@ enum class EntryType(val icon: String, val tab: String, val newTitle: String, va
     }
 }
 
-val DOCUMENT_KIND_LABELS: Map<DocumentKind, String> = mapOf(
-    DocumentKind.ID_CARD to "Dowód osobisty",
-    DocumentKind.PASSPORT to "Paszport",
-    DocumentKind.DRIVING_LICENSE to "Prawo jazdy",
-    DocumentKind.STUDENT_ID to "Legitymacja",
-    DocumentKind.OTHER to "Inny",
-)
-
 private val ANDROID_PACKAGE = Regex("^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+$")
-private val DATE_SHAPE = Regex("^\\d{4}-\\d{2}-\\d{2}$")
-private val CARD_EXPIRY = Regex("^(0[1-9]|1[0-2])/\\d{2}$")
 private val WHITESPACE = Regex("\\s")
 private val LINE_BREAK = Regex("\\r?\\n")
-private val DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd").withResolverStyle(ResolverStyle.STRICT)
 
 fun emptyContent(type: EntryType): EntryContent {
     val fields: EntryFields = when (type) {
@@ -68,7 +55,7 @@ fun entrySummary(content: EntryContent): String = when (val f = content.fields) 
         if (digits.isEmpty()) "" else "•••• " + digits.takeLast(4)
     }
 
-    is DocumentFields -> DOCUMENT_KIND_LABELS[f.kind].orEmpty()
+    is DocumentFields -> DOCUMENT_KIND_NAMES[f.kind].orEmpty()
 
     is ContactFields -> f.phones.firstOrNull()?.value.orEmpty()
 
@@ -100,17 +87,7 @@ fun tidyContent(content: EntryContent): EntryContent {
     )
 }
 
-private fun isCalendarDate(s: String): Boolean {
-    if (!DATE_SHAPE.matches(s)) return false
-    return try {
-        LocalDate.parse(s, DATE_FORMAT)
-        true
-    } catch (_: DateTimeParseException) {
-        false
-    }
-}
-
-private fun validDate(value: String, original: String?): Boolean = value == "" || value == original || isCalendarDate(value)
+private fun validDate(value: String, original: String?): Boolean = value == "" || value == original || FieldFormats.isCalendarDate(value)
 
 /** Returns the first form error, or null. Only values changed against [original] are format-checked. */
 fun validateContent(content: EntryContent, original: EntryContent?): String? {
@@ -138,7 +115,7 @@ fun validateContent(content: EntryContent, original: EntryContent?): String? {
 
         is CardFields -> {
             val o = (before as? CardFields)?.expiry
-            if (f.expiry != "" && f.expiry != o && !CARD_EXPIRY.matches(f.expiry)) "Ważność: wpisz MM/RR" else null
+            if (f.expiry != "" && f.expiry != o && !FieldFormats.CARD_EXPIRY.matches(f.expiry)) "Ważność: wpisz MM/RR" else null
         }
 
         NoteFields -> null

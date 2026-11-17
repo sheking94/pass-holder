@@ -1,6 +1,10 @@
 package io.github.sheking94.passholder.core.files
 
+import io.github.sheking94.passholder.core.Aead
 import io.github.sheking94.passholder.core.Encoding
+import io.github.sheking94.passholder.core.KEY_BYTES
+import io.github.sheking94.passholder.core.KIB
+import io.github.sheking94.passholder.core.MIB
 import io.github.sheking94.passholder.core.StrictJson
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -35,19 +39,19 @@ internal fun jsonInt(value: JsonElement?, min: Long, max: Long): Long? {
 }
 
 object Attachments {
-    const val MAX_FILE_SIZE = 10485760
-    const val FILE_CHUNK_SIZE = 262144
-    const val MAX_FILE_CHUNKS = 40
+    const val MAX_FILE_SIZE = 10 * MIB
+    const val FILE_CHUNK_SIZE = 256 * KIB
+    const val MAX_FILE_CHUNKS = MAX_FILE_SIZE / FILE_CHUNK_SIZE
 
-    /** Base64 length of one sealed chunk: 4 * ceil((29 + FILE_CHUNK_SIZE) / 3). */
-    const val MAX_FILE_BLOB_LENGTH = 349564
+    /** Base64 length of one sealed chunk: 4 * ceil((29 + FILE_CHUNK_SIZE) / 3) = 349564. */
+    const val MAX_FILE_BLOB_LENGTH = 4 * ((Aead.SEAL_OVERHEAD_BYTES + FILE_CHUNK_SIZE + 2) / 3)
 
     /** Limit enforced when adding a file in the UI. */
     const val MAX_ATTACHMENTS_PER_ENTRY = 20
 
     /** Limit enforced by the parser and the merge (an entry can exceed 20 after a merge). */
     const val MAX_ATTACHMENTS_PARSED = 40
-    const val ORPHAN_FILE_AGE_MS = 86_400_000L
+    const val ORPHAN_FILE_AGE_MS = 24 * 60 * 60_000L
     const val MAX_STATUS_IDS = 500
 
     /** Lowercase UUID v4. */
@@ -90,7 +94,7 @@ object Attachments {
 
     private fun canonicalKey(key: String): Boolean = try {
         val bytes = Encoding.fromBase64(key)
-        bytes.size == 32 && Encoding.toBase64(bytes) == key
+        bytes.size == KEY_BYTES && Encoding.toBase64(bytes) == key
     } catch (_: IllegalArgumentException) {
         false
     }

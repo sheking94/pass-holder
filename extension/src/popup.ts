@@ -8,12 +8,13 @@ import { store } from "./ui/state.ts";
 import { addressesView } from "./views/addresses.ts";
 import { showConnect } from "./views/connect.ts";
 import { showLocked, showUnlocked } from "./views/locked.ts";
+import { AUTO_LOCK_MS } from "./vault-store.ts";
 
 async function start() {
   if (IN_TAB) document.body.classList.add("tab");
   if (!(await store.getAccount())) return showConnect();
   if (MODE === "addresses") return addressesView();
-  // The open page locks itself after 15 minutes without a click or a key (S1 of the security review).
+  // The open page locks itself after AUTO_LOCK_MS without a click or a key (S1 of the security review).
   watchIdle(
     store,
     {
@@ -23,7 +24,7 @@ async function start() {
     },
     () =>
       void showLocked(
-        "Sejf został zablokowany: 15 minut bez działania albo blokada w innym oknie PassHoldera.",
+        `Sejf został zablokowany: ${AUTO_LOCK_MS / 60_000} minut bez działania albo blokada w innym oknie PassHoldera.`,
       ),
   );
   if (await store.resume()) return showUnlocked();

@@ -23,7 +23,7 @@ class FileChunksTest {
         assertEquals(3, blobs.size)
         assertEquals(3, a.chunks)
         assertEquals(bytes.size.toLong(), a.size)
-        assertEquals(FileChunks.sha256Hex(bytes), a.sha256)
+        assertEquals(Encoding.sha256Hex(bytes), a.sha256)
         assertEquals(5, FileChunks.decryptChunk(a, 2, blobs[2]).size)
         assertArrayEquals(bytes, FileChunks.decrypt(a, blobs))
         assertEquals(true, Attachments.UUID_V4.matches(a.id))

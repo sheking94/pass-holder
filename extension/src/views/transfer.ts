@@ -6,6 +6,7 @@ import { downloadFile } from "../ui/download.ts";
 import { showInTab } from "../ui/page.ts";
 import { store } from "../ui/state.ts";
 import { listView } from "./list.ts";
+import { MASTER_PASSWORD_LABEL } from "../ui/texts.ts";
 
 /** Chrome closes the toolbar popup when the file chooser opens, so choosing a file to import only works in a tab. */
 export function openTransfer() {
@@ -136,7 +137,7 @@ function exportSection(status: HTMLElement) {
       understood,
       "Rozumiem, plik będzie zawierał hasła jawnym tekstem",
     ),
-    h("label", {}, "Hasło główne"),
+    h("label", {}, MASTER_PASSWORD_LABEL),
     passwordField(password).row,
     h("div", { class: "actions" }, exportButton),
   );

@@ -1,31 +1,34 @@
 import { PassHolderError } from "../errors.ts";
 import { isRecord, type JsonObject } from "../strict-json.ts";
-import type { CardFields, CustomField, DocumentKind, EntryContent } from "../p2p/entry.ts";
+import {
+  isDocumentKind,
+  type CardFields,
+  type CustomField,
+  type DocumentKind,
+  type EntryContent,
+} from "../p2p/entry.ts";
 import {
   addressLine,
+  DOCUMENT_LABELS,
   labelled,
+  SKIP_BAD_ENTRY,
+  SKIP_NO_NAME,
   sortForExport,
   type ImportSkip,
   type ParsedImport,
 } from "./common.ts";
+import { CARD_EXPIRY } from "../field-formats.ts";
 
 const notBitwarden = (cause?: unknown) =>
   new PassHolderError("IMPORT_NOT_BITWARDEN", "Not a Bitwarden JSON file", { cause });
 const ANDROID_PREFIX = "androidapp://";
-const DOCUMENT_KINDS: readonly string[] = [
-  "id_card",
-  "passport",
-  "driving_license",
-  "student_id",
-  "other",
-];
 
-const L_KIND = "Rodzaj dokumentu";
+const L_KIND = DOCUMENT_LABELS.kind;
 const L_NUMBER = "Numer dokumentu";
-const L_FULL_NAME = "Imię i nazwisko";
-const L_ISSUE = "Data wydania";
-const L_EXPIRY = "Data ważności";
-const L_ISSUER = "Wystawca";
+const L_FULL_NAME = DOCUMENT_LABELS.fullName;
+const L_ISSUE = DOCUMENT_LABELS.issueDate;
+const L_EXPIRY = DOCUMENT_LABELS.expiryDate;
+const L_ISSUER = DOCUMENT_LABELS.issuer;
 
 /** True for an object with an `items` array (used to detect the file kind). */
 export function isBitwardenJson(value: unknown): boolean {
@@ -84,7 +87,7 @@ function importIdentity(
   id: JsonObject,
   fields: CustomField[],
 ): EntryContent {
-  const kindIdx = fields.findIndex((f) => f.label === L_KIND && DOCUMENT_KINDS.includes(f.value));
+  const kindIdx = fields.findIndex((f) => f.label === L_KIND && isDocumentKind(f.value));
   const isDocument = kindIdx >= 0;
   const address = {
     label: "",
@@ -175,7 +178,7 @@ function importItem(item: JsonObject): EntryContent | string {
   if (![1, 2, 3, 4].includes(item.type as number))
     return `typ ${s(item.type)} nie jest obsługiwany`;
   const name = s(item.name);
-  if (name.trim() === "") return "brak nazwy";
+  if (name.trim() === "") return SKIP_NO_NAME;
   const note = s(item.notes);
   const fields = importFields(item.fields);
   switch (item.type) {
@@ -237,7 +240,7 @@ export function parseBitwardenJson(text: string): ParsedImport {
   const entries: EntryContent[] = [];
   const skipped: ImportSkip[] = [];
   (doc as { items: unknown[] }).items.forEach((item, i) => {
-    const r = isRecord(item) ? importItem(item) : "zły format wpisu";
+    const r = isRecord(item) ? importItem(item) : SKIP_BAD_ENTRY;
     if (typeof r === "string") skipped.push({ at: `wpis ${i + 1}`, reason: r });
     else entries.push(r);
   });
@@ -307,7 +310,7 @@ function exportItem(e: EntryContent): JsonObject {
       break;
     case "card": {
       const f = e.fields;
-      const m = /^(0[1-9]|1[0-2])\/(\d{2})$/.exec(f.expiry);
+      const m = CARD_EXPIRY.exec(f.expiry);
       type = 3;
       if (f.pin !== "") extra.push(field(L_PIN, f.pin, true));
       if (!m && f.expiry !== "") extra.push(field("Ważność", f.expiry));

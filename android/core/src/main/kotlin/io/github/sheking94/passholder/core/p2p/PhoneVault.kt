@@ -6,8 +6,6 @@ import io.github.sheking94.passholder.core.RemoteRecord
 import io.github.sheking94.passholder.core.transfer.contentKey
 import java.util.UUID
 
-private const val MAX_DEVICE_ID_LENGTH = 64
-
 data class PhoneEntry(val id: String, val revision: Long, val data: EntryData) {
     val content: EntryContent get() = data.content
     val hlc: Hlc get() = data.hlc

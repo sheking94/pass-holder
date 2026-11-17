@@ -23,8 +23,10 @@ import {
  * security review): at least 8 characters and not only digits. See docs/FUNKCJE.md, "PIN we wtyczce".
  */
 
+export const SHORT_PIN_MIN_LENGTH = 4;
+export const SHORT_PIN_MAX_LENGTH = 6;
 /** A short PIN: 4-6 digits. Allowed only while the PIN lock is kept in memory. */
-export const PIN_PATTERN = /^\d{4,6}$/;
+export const PIN_PATTERN = new RegExp(`^\\d{${SHORT_PIN_MIN_LENGTH},${SHORT_PIN_MAX_LENGTH}}$`);
 
 export const LONG_PIN_MIN_LENGTH = 8;
 export const LONG_PIN_MAX_LENGTH = 64;
@@ -33,12 +35,10 @@ export const LONG_PIN_MAX_LENGTH = 64;
 export const MAX_PIN_ATTEMPTS = 5;
 
 /** Shown wherever a PIN of the wrong shape is typed. */
-export const INVALID_PIN =
-  "PIN musi mieć od 4 do 6 cyfr albo co najmniej 8 znaków (nie same cyfry)";
+export const INVALID_PIN = `PIN musi mieć od ${SHORT_PIN_MIN_LENGTH} do ${SHORT_PIN_MAX_LENGTH} cyfr albo co najmniej ${LONG_PIN_MIN_LENGTH} znaków (nie same cyfry)`;
 
 /** Shown when a short PIN is chosen together with "remember after restart". */
-export const INVALID_REMEMBERED_PIN =
-  "PIN pamiętany po zamknięciu przeglądarki musi mieć co najmniej 8 znaków i zawierać literę lub inny znak niż cyfra";
+export const INVALID_REMEMBERED_PIN = `PIN pamiętany po zamknięciu przeglądarki musi mieć co najmniej ${LONG_PIN_MIN_LENGTH} znaków i zawierać literę lub inny znak niż cyfra`;
 
 const PIN_LOCK_AAD = "passholder/v1/pin-lock";
 

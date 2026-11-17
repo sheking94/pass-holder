@@ -1,9 +1,9 @@
 package io.github.sheking94.passholder.core.p2p
 
+import io.github.sheking94.passholder.core.Encoding
 import io.github.sheking94.passholder.core.ErrorCode
 import io.github.sheking94.passholder.core.assertCode
 import io.github.sheking94.passholder.core.files.Attachment
-import io.github.sheking94.passholder.core.files.FileChunks
 import io.github.sheking94.passholder.core.transfer.ArchiveImportResult
 import io.github.sheking94.passholder.core.transfer.ImportSkip
 import io.github.sheking94.passholder.core.transfer.PassHolderZip
@@ -38,7 +38,7 @@ class PhoneVaultStoreArchiveTest {
         "application/octet-stream",
         bodies.getValue(name).size.toLong(),
         1,
-        FileChunks.sha256Hex(bodies.getValue(name)),
+        Encoding.sha256Hex(bodies.getValue(name)),
         "A".repeat(43) + "=",
     )
 

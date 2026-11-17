@@ -27,20 +27,19 @@ data class ParsedArchive(val entries: List<ArchiveEntry>, val skipped: List<Impo
 
 /** PassHolder JSON v3 import and export; port of core/src/transfer/passholder-json.ts. */
 object PassHolderJson {
+    private const val FORMAT = "passholder"
+    private const val VERSION = 3
+
+    /** The text of a PassHolder JSON file or archive index: format marker, version and entries, pretty-printed. */
+    internal fun text(entries: JsonArray): String = JsonText.stringify(
+        JsonObject(linkedMapOf("format" to JsonPrimitive(FORMAT), "version" to JsonPrimitive(VERSION), "entries" to entries)),
+    ) + "\n"
+
     /** True for an object carrying the PassHolder format marker (used to detect the file kind). */
     fun isFormat(value: JsonElement): Boolean =
-        value is JsonObject && (value["format"] as? JsonPrimitive)?.let { it.isString && it.content == "passholder" } == true
+        value is JsonObject && (value["format"] as? JsonPrimitive)?.let { it.isString && it.content == FORMAT } == true
 
-    fun export(entries: List<EntryContent>): String {
-        val doc = JsonObject(
-            linkedMapOf(
-                "format" to JsonPrimitive("passholder"),
-                "version" to JsonPrimitive(3),
-                "entries" to JsonArray(sortForExport(entries).map(EntryCodec::contentJson)),
-            ),
-        )
-        return JsonText.stringify(doc) + "\n"
-    }
+    fun export(entries: List<EntryContent>): String = text(JsonArray(sortForExport(entries).map(EntryCodec::contentJson)))
 
     private val FILE_KEYS = setOf("name", "mime", "size", "path")
 
@@ -106,12 +105,12 @@ object PassHolderJson {
             val parsed = parseIndexItem(item)
             val own = parsed?.second.orEmpty().map { it.path }
             if (parsed == null || own.toSet().size != own.size || own.any { it in paths }) {
-                skipped.add(ImportSkip("wpis $position", "zły format wpisu"))
+                skipped.add(ImportSkip("wpis $position", SKIP_BAD_ENTRY))
                 return@forEachIndexed
             }
             val (content, files) = parsed
             if (content.name.jsTrim() == "") {
-                skipped.add(ImportSkip("wpis $position", "brak nazwy"))
+                skipped.add(ImportSkip("wpis $position", SKIP_NO_NAME))
             } else {
                 files.forEach { paths.add(it.path) }
                 entries.add(ArchiveEntry(content, files, position))

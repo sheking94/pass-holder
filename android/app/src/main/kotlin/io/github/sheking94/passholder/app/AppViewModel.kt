@@ -150,7 +150,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // Auto-lock also while the app sits in the background, as long as the process lives.
         viewModelScope.launch {
             while (true) {
-                delay(15_000)
+                delay(AUTO_LOCK_CHECK_MS)
                 checkAutoLock()
             }
         }
@@ -214,7 +214,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** "Nowy sejf": the master password must pass [MasterPasswordRules]. */
     fun createVault(masterPassword: String, repeat: String) {
         MasterPasswordRules.problem(masterPassword)?.let { return fail(it) }
-        if (masterPassword != repeat) return fail("Hasła się różnią")
+        if (masterPassword != repeat) return fail(UiTexts.PASSWORDS_DIFFER)
         launchVaultOperation("Liczę klucze z hasła głównego… (to celowo trwa kilka sekund)") {
             store.createVault(masterPassword)
             // A fingerprint key left from an earlier vault would only fail.
@@ -313,8 +313,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun changeMasterPassword(oldPassword: String, newPassword: String, repeat: String) {
         if (oldPassword.isEmpty()) return fail("Podaj obecne hasło główne")
         MasterPasswordRules.problem(newPassword)?.let { return fail(it) }
-        if (newPassword != repeat) return fail("Hasła się różnią")
-        if (newPassword == oldPassword) return fail("Nowe hasło musi być inne niż obecne")
+        if (newPassword != repeat) return fail(UiTexts.PASSWORDS_DIFFER)
+        if (newPassword == oldPassword) return fail(errorMessage(ErrorCode.PASSWORD_UNCHANGED))
         launchVaultOperation("Liczę klucze z nowego hasła… (to celowo trwa kilka sekund)") {
             sync.stop(null)
             store.changeMasterPassword(oldPassword, newPassword)
@@ -802,6 +802,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private companion object {
         const val TAG = "AppViewModel"
+
+        /** How often the auto-lock is checked while the process lives; same as IDLE_CHECK_INTERVAL_MS in the extension. */
+        const val AUTO_LOCK_CHECK_MS = 15_000L
         const val EXPORT_NEEDS_PASSWORD = "Wpisz hasło główne, żeby zapisać plik."
         const val SAVED = "Zapisano na telefonie. Wtyczka dostanie zmianę przy następnej synchronizacji."
         const val DELETED = "Usunięto na telefonie. Wtyczka dostanie zmianę przy następnej synchronizacji."

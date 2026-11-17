@@ -1,6 +1,7 @@
 import type { EntryContent } from "../p2p/entry.ts";
 import type { FieldDescriptor } from "./fields.ts";
 import type { FieldKind } from "./keywords.ts";
+import { CARD_EXPIRY, isCalendarDate } from "../field-formats.ts";
 
 export type FillPlan =
   | { kind: "login"; username: string; password: string }
@@ -20,10 +21,7 @@ export type FillPlan =
 
 /** Stored birth dates are RRRR-MM-DD; anything that is not a real calendar date is dropped. */
 function validBirthDate(s: string): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
-  if (!m) return "";
-  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
-  return d.toISOString().slice(0, 10) === s ? s : "";
+  return isCalendarDate(s) ? s : "";
 }
 
 export function planFor(entry: EntryContent): FillPlan | undefined {
@@ -70,7 +68,7 @@ function selectOption(
 
 /** Splits "MM/RR"; undefined when the expiry is not in that format. */
 function parseExpiry(expiry: string): { month: string; year2: string } | undefined {
-  const m = /^(0[1-9]|1[0-2])\/(\d{2})$/.exec(expiry);
+  const m = CARD_EXPIRY.exec(expiry);
   return m ? { month: m[1]!, year2: m[2]! } : undefined;
 }
 

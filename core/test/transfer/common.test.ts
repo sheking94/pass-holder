@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { contentKey, ENTRY_TYPE_ORDER, sortForExport } from "../../src/transfer/index.ts";
+import { ENTRY_TYPES } from "../../src/p2p/index.ts";
+import { contentKey, sortForExport } from "../../src/transfer/index.ts";
 import { emptyLogin, type EntryContent } from "../../src/p2p/index.ts";
 
 const note = (name: string): EntryContent => ({
@@ -66,6 +67,6 @@ describe("sortForExport", () => {
       "Zebra/note",
     ]);
     expect(input).toEqual(copy);
-    expect(ENTRY_TYPE_ORDER).toEqual(["login", "contact", "card", "note", "document"]);
+    expect(ENTRY_TYPES).toEqual(["login", "contact", "card", "note", "document"]);
   });
 });

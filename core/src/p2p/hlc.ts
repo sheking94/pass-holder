@@ -11,7 +11,7 @@ export interface Hlc {
   d: string;
 }
 
-const MAX_DEVICE_ID_LENGTH = 64;
+export const MAX_DEVICE_ID_LENGTH = 64;
 
 export function compareHlc(a: Hlc, b: Hlc): -1 | 0 | 1 {
   if (a.ms !== b.ms) return a.ms < b.ms ? -1 : 1;

@@ -1,5 +1,6 @@
 package io.github.sheking94.passholder.core.transfer
 
+import io.github.sheking94.passholder.core.MIB
 import io.github.sheking94.passholder.core.files.Attachment
 import io.github.sheking94.passholder.core.files.Attachments
 import io.github.sheking94.passholder.core.p2p.EntryCodec
@@ -25,11 +26,11 @@ data class ArchiveImportResult(val entries: ImportResult, val filesAdded: Int, v
  * used to look entries up in the ZIP, never as file system paths.
  */
 object PassHolderZip {
-    const val MAX_ZIP_BYTES = 268435456L
+    const val MAX_ZIP_BYTES = 256L * MIB
     const val ARCHIVE_INDEX = "passholder.json"
 
     /** Largest passholder.json accepted, after inflating. */
-    internal const val MAX_INDEX_BYTES = 10485760
+    internal const val MAX_INDEX_BYTES = 10 * MIB
 
     /** Most entries a readable archive may hold. */
     internal const val MAX_ZIP_ENTRIES = 5000
@@ -94,8 +95,7 @@ object PassHolderZip {
                 }
             },
         )
-        val doc = JsonObject(linkedMapOf("format" to JsonPrimitive("passholder"), "version" to JsonPrimitive(3), "entries" to index))
-        val json = (JsonText.stringify(doc) + "\n").toByteArray(Charsets.UTF_8)
+        val json = PassHolderJson.text(index).toByteArray(Charsets.UTF_8)
         var files = 0
         // Closing the ZIP stream frees its deflater; the caller's stream stays open.
         val keepOpen = object : FilterOutputStream(out) {

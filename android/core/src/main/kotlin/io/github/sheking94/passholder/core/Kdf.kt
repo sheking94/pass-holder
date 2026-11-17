@@ -35,7 +35,7 @@ object Kdf {
     const val MIN_PARALLELISM = 1
 
     /** Upper bounds so a malicious peer cannot make the phone run out of memory (1 GiB) or hash for minutes. Same as core/src/kdf.ts. */
-    const val MAX_MEMORY_KIB = 1_048_576
+    const val MAX_MEMORY_KIB = 1024 * 1024
     const val MAX_ITERATIONS = 100
     const val MAX_PARALLELISM = 64
 
@@ -43,7 +43,7 @@ object Kdf {
 
     fun newParams(): KdfParams = KdfParams(
         alg = "argon2id",
-        salt = Encoding.toBase64(Encoding.randomBytes(16)),
+        salt = Encoding.toBase64(Encoding.randomBytes(SALT_BYTES)),
         memoryKiB = DEFAULT_MEMORY_KIB,
         iterations = DEFAULT_ITERATIONS,
         parallelism = DEFAULT_PARALLELISM,
@@ -51,7 +51,7 @@ object Kdf {
 
     fun assertAcceptable(params: KdfParams) {
         require(params.alg == "argon2id") { "Unsupported KDF: ${params.alg}" }
-        require(Encoding.fromBase64(params.salt).size == 16) { "KDF salt must be 16 bytes" }
+        require(Encoding.fromBase64(params.salt).size == SALT_BYTES) { "KDF salt must be 16 bytes" }
         require(params.memoryKiB >= MIN_MEMORY_KIB) { "KDF memory too low" }
         require(params.memoryKiB <= MAX_MEMORY_KIB) { "KDF memory too high for this device" }
         require(params.iterations >= MIN_ITERATIONS) { "KDF iterations too low" }
@@ -69,7 +69,7 @@ object Kdf {
             .withIterations(params.iterations)
             .withParallelism(params.parallelism)
             .build()
-        val out = ByteArray(32)
+        val out = ByteArray(KEY_BYTES)
         val password = Encoding.utf8(masterPassword)
         try {
             Argon2BytesGenerator().apply { init(argon) }.generateBytes(password, out)
@@ -97,7 +97,7 @@ object Kdf {
      * so the expand step is a single HMAC(prk, info || 0x01).
      */
     internal fun hkdfSha256(ikm: ByteArray, info: ByteArray): ByteArray {
-        val extract = Mac.getInstance("HmacSHA256").apply { init(SecretKeySpec(ByteArray(32), "HmacSHA256")) }
+        val extract = Mac.getInstance("HmacSHA256").apply { init(SecretKeySpec(ByteArray(KEY_BYTES), "HmacSHA256")) }
         val prk = extract.doFinal(ikm)
         val expand = Mac.getInstance("HmacSHA256").apply { init(SecretKeySpec(prk, "HmacSHA256")) }
         expand.update(info)

@@ -1,6 +1,5 @@
 /** Document section: kind, number, full name, issue and expiry dates, issuer. */
-import type { p2p } from "@passholder/core";
-import { DOCUMENT_KIND_LABELS } from "../../entry-types.ts";
+import { transfer, type p2p } from "@passholder/core";
 import { h } from "../../ui/dom.ts";
 import type { FieldsForm } from "./types.ts";
 
@@ -12,7 +11,7 @@ export function documentForm(fields: p2p.DocumentFields): FieldsForm<"document">
   const kind = h(
     "select",
     {},
-    ...(Object.entries(DOCUMENT_KIND_LABELS) as [p2p.DocumentKind, string][]).map(
+    ...(Object.entries(transfer.DOCUMENT_KIND_NAMES) as [p2p.DocumentKind, string][]).map(
       ([value, label]) => {
         const option = h("option", { value }, label);
         option.selected = value === fields.kind;

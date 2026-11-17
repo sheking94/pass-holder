@@ -1,8 +1,10 @@
 package io.github.sheking94.passholder.app
 
 import io.github.sheking94.passholder.core.ErrorCode
+import io.github.sheking94.passholder.core.MIB
 import io.github.sheking94.passholder.core.PassHolderException
 import io.github.sheking94.passholder.core.PasswordGenerator
+import io.github.sheking94.passholder.core.transfer.PassHolderZip
 
 // The only place where the core's error codes become the Polish text the user sees (like extension/src/error-messages.ts).
 
@@ -52,7 +54,7 @@ private fun text(code: ErrorCode, detail: String?): String = when (code) {
 
     ErrorCode.FILE_CORRUPTED -> AttachmentFiles.CORRUPTED
 
-    ErrorCode.IMPORT_EMPTY_FILE -> "Plik jest pusty"
+    ErrorCode.IMPORT_EMPTY_FILE -> AttachmentFiles.EMPTY
 
     ErrorCode.IMPORT_BAD_JSON -> "Plik JSON jest uszkodzony"
 
@@ -71,10 +73,13 @@ private fun text(code: ErrorCode, detail: String?): String = when (code) {
 
     ErrorCode.ZIP_INVALID -> "Archiwum ZIP jest uszkodzone albo nieobsługiwane"
 
-    ErrorCode.ZIP_TOO_LARGE -> "Plik jest za duży (limit 256 MiB)"
+    ErrorCode.ZIP_TOO_LARGE -> "Plik jest za duży (limit ${PassHolderZip.MAX_ZIP_BYTES / MIB} MiB)"
 
     ErrorCode.ZIP_NOT_PASSHOLDER -> "Archiwum nie jest eksportem PassHolder"
 }
+
+/** Text of a code the app checks itself (no exception thrown). */
+fun errorMessage(code: ErrorCode): String = text(code, null)
 
 /**
  * What the user sees for any error: the Polish text of a core code, otherwise the message (the app's own errors

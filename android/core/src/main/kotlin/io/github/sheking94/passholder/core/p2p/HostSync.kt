@@ -2,6 +2,7 @@ package io.github.sheking94.passholder.core.p2p
 
 import io.github.sheking94.passholder.core.Accepted
 import io.github.sheking94.passholder.core.ChangeRequest
+import io.github.sheking94.passholder.core.KIB
 import io.github.sheking94.passholder.core.RemoteRecord
 import io.github.sheking94.passholder.core.StrictJson
 import io.github.sheking94.passholder.core.SyncResponse
@@ -44,7 +45,7 @@ object HostSync {
     const val MAX_CHANGES_PER_REQUEST = 500
     const val MAX_CHANGES_PER_RESPONSE = 500
     const val MAX_ENTRY_ID_LENGTH = 128
-    const val MAX_BLOB_BYTES_PER_ROUND = 524288
+    const val MAX_BLOB_BYTES_PER_ROUND = 512 * KIB
 
     /**
      * Checks a decrypted sync request before anything is written. Returns the error text for a 400, or null.

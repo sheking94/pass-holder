@@ -3,7 +3,7 @@ package io.github.sheking94.passholder.app
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
-import java.net.Inet4Address
+import io.github.sheking94.passholder.core.p2p.LocalAddresses
 import java.net.InetAddress
 
 /**
@@ -35,19 +35,12 @@ class SyncNetworks(context: Context) {
          * addresses. Then Wi-Fi and Ethernet: all addresses. Anything else (cellular) none.
          */
         fun allowed(caps: NetworkCapabilities, addresses: List<InetAddress>): List<InetAddress> = when {
-            caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) -> addresses.filter(::isTailscale)
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) -> addresses.filter(LocalAddresses::isTailscale)
 
             caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
                 caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> addresses
 
             else -> emptyList()
-        }
-
-        /** Tailscale gives each device an address in 100.64.0.0/10. */
-        fun isTailscale(address: InetAddress): Boolean {
-            if (address !is Inet4Address) return false
-            val b = address.address
-            return b[0].toInt() and 0xff == 100 && (b[1].toInt() and 0xc0) == 64
         }
     }
 }

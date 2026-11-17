@@ -10,9 +10,23 @@ import {
 } from "../files/attachment.ts";
 import { hasExactKeys, isRecord, requireString, type JsonObject } from "../strict-json.ts";
 import { parseHlc, type Hlc } from "./hlc.ts";
+import { KIB } from "../sizes.ts";
 
-export type EntryType = "login" | "contact" | "card" | "note" | "document";
-export type DocumentKind = "id_card" | "passport" | "driving_license" | "student_id" | "other";
+/** Entry types in tab and export order (logins first). */
+export const ENTRY_TYPES = ["login", "contact", "card", "note", "document"] as const;
+export type EntryType = (typeof ENTRY_TYPES)[number];
+export const DOCUMENT_KINDS = [
+  "id_card",
+  "passport",
+  "driving_license",
+  "student_id",
+  "other",
+] as const;
+export type DocumentKind = (typeof DOCUMENT_KINDS)[number];
+
+export function isDocumentKind(value: string): value is DocumentKind {
+  return (DOCUMENT_KINDS as readonly string[]).includes(value);
+}
 
 export interface LabeledValue {
   label: string;
@@ -80,7 +94,7 @@ export interface TombstoneData {
   hlc: Hlc;
 }
 
-export const MAX_ENTRY_BLOB_LENGTH = 65536;
+export const MAX_ENTRY_BLOB_LENGTH = 64 * KIB;
 
 /** upsertEntry: the entry's blob would exceed MAX_ENTRY_BLOB_LENGTH. */
 export function entryTooLarge(): PassHolderError {
@@ -95,13 +109,6 @@ export function entryTooLargeToSync(name: string): PassHolderError {
 }
 
 const INVALID_TOMBSTONE = "Invalid tombstone payload";
-const DOCUMENT_KINDS: readonly string[] = [
-  "id_card",
-  "passport",
-  "driving_license",
-  "student_id",
-  "other",
-];
 
 export function entryAad(id: string): string {
   return `passholder/v2/entry/${id}`;
@@ -301,9 +308,9 @@ function parseContent(type: string, raw: unknown): { type: EntryType; fields: un
     case "document": {
       const o = record(raw, ["kind", "number", "fullName", "issueDate", "expiryDate", "issuer"]);
       const kind = str(o.kind);
-      if (!DOCUMENT_KINDS.includes(kind)) invalidEntry();
+      if (!isDocumentKind(kind)) invalidEntry();
       const fields: DocumentFields = {
-        kind: kind as DocumentKind,
+        kind,
         number: str(o.number),
         fullName: str(o.fullName),
         issueDate: str(o.issueDate),
