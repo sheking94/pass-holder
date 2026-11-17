@@ -1,6 +1,5 @@
 package io.github.sheking94.passholder.core.p2p
 
-import io.github.sheking94.passholder.core.Credentials
 import io.github.sheking94.passholder.core.Encoding
 import io.github.sheking94.passholder.core.Kdf
 import io.github.sheking94.passholder.core.KdfParams
@@ -175,7 +174,6 @@ class PhoneVaultStore(
             VaultCrypto.wrapVaultKey(keys.encKey, vaultKey)
         } finally {
             keys.encKey.fill(0)
-            keys.authKey.fill(0)
         }
         try {
             val fresh = stateStore.newState(kdf, wrapped).copy(keyCheck = keyCheck(vaultKey))
@@ -261,7 +259,6 @@ class PhoneVaultStore(
             VaultCrypto.wrapVaultKey(keys.encKey, current.vaultKey)
         } finally {
             keys.encKey.fill(0)
-            keys.authKey.fill(0)
         }
         pairing.cancel()
         synchronized(stateLock) {
@@ -372,13 +369,6 @@ class PhoneVaultStore(
 
     @Synchronized
     fun entry(id: String): PhoneEntry? = entries().firstOrNull { it.id == id }
-
-    @Synchronized
-    fun upsert(id: String, credentials: Credentials) {
-        requireSession().vault.upsert(id, credentials)
-        touch()
-        pruneQuietly()
-    }
 
     /** Writes any entry content; [EntryTypeMismatchException] for another live type, [EntryTooLargeException] leaves the store as it was. */
     @Synchronized
@@ -802,7 +792,6 @@ class PhoneVaultStore(
             throw IllegalArgumentException("Złe hasło główne", e)
         } finally {
             keys.encKey.fill(0)
-            keys.authKey.fill(0)
         }
     }
 

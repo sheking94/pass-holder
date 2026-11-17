@@ -8,7 +8,7 @@ import {
   type PinLock,
 } from "../src/pin-lock.ts";
 import { memoryStore, STORAGE_KEYS, VaultStore } from "../src/vault-store.ts";
-import { pairedBrowser, PASSWORD } from "./fake-phone.ts";
+import { pairedBrowser, PASSWORD, newLogin } from "./fake-phone.ts";
 
 const PIN = "4821";
 /** A PIN kept on disk must be long (S4 of the security review). */
@@ -20,13 +20,13 @@ async function lockedBrowserWithPin(
   pin = rememberAfterRestart ? LONG_PIN : PIN,
 ) {
   const { local, session, store, makeClient } = await pairedBrowser();
-  await store.upsert("1", { name: "bank.pl", username: "jan", password: "s3cret" });
+  await store.putEntry("1", newLogin({ name: "bank.pl", username: "jan", password: "s3cret" }));
   await store.enablePin(pin, rememberAfterRestart);
   await store.lock();
   return { local, session, store, makeClient };
 }
 
-const names = (store: VaultStore) => store.entries().map((e) => e.data.name);
+const names = (store: VaultStore) => store.listEntries("login").map((e) => e.data.name);
 
 describe("Unlocking with a PIN", () => {
   it("unlocks with the PIN, and the keys it restores can still sync", async () => {

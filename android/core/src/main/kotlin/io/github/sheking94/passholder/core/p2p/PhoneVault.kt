@@ -1,6 +1,5 @@
 package io.github.sheking94.passholder.core.p2p
 
-import io.github.sheking94.passholder.core.Credentials
 import io.github.sheking94.passholder.core.RemoteRecord
 import io.github.sheking94.passholder.core.transfer.contentKey
 import java.util.UUID
@@ -31,30 +30,6 @@ class PhoneVault(
         require(deviceId.length in 1..MAX_DEVICE_ID_LENGTH) { "deviceId must be 1..$MAX_DEVICE_ID_LENGTH characters" }
         synchronized(store) {
             for (r in store.listSince(0)) read(r)?.let(clock::observe)
-        }
-    }
-
-    /**
-     * Saves a login edited on the phone: an existing login keeps everything but name, username and password;
-     * a new one starts with empty note, URLs and custom fields. An id holding a live entry of another type is
-     * refused ([EntryTypeMismatchException]) and nothing is written. [EntryTooLargeException] leaves the store as it was.
-     */
-    fun upsert(id: String, credentials: Credentials) {
-        requireValidId(id)
-        synchronized(store) {
-            val existing = store.get(id)?.takeIf { !it.deleted }?.let(::readData)
-            val content = when (val old = existing?.content) {
-                null -> EntryContentV3(credentials.name, "", LoginFields(credentials.username, credentials.password), emptyList())
-
-                else -> {
-                    val fields = old.fields as? LoginFields ?: throw EntryTypeMismatchException()
-                    old.copy(
-                        name = credentials.name,
-                        fields = fields.copy(username = credentials.username, password = credentials.password),
-                    )
-                }
-            }
-            write(id, content)
         }
     }
 

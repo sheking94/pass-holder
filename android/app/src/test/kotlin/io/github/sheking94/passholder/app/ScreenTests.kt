@@ -20,8 +20,8 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.work.testing.WorkManagerTestInitHelper
 import com.github.takahirom.roborazzi.captureRoboImage
-import io.github.sheking94.passholder.core.Credentials
 import io.github.sheking94.passholder.core.RemoteRecord
+import io.github.sheking94.passholder.core.login
 import io.github.sheking94.passholder.core.p2p.EntryContentV3
 import io.github.sheking94.passholder.core.p2p.FileSyncStore
 import io.github.sheking94.passholder.core.p2p.PhoneVaultStore
@@ -346,7 +346,7 @@ class UnreadableEntriesTest : ScreenTestBase() {
     override fun beforeLaunch(app: PassHolderApp) {
         PhoneVaultStore(app.filesDir, TestSecretWrapper).apply {
             createVault(masterPassword)
-            upsert("1", Credentials("github.com", "jkowalski", "s3cret"))
+            upsertContent("1", login("github.com", "jkowalski", "s3cret"))
             lock()
         }
         FileSyncStore(File(app.filesDir, "p2p/records.jsonl")).apply {

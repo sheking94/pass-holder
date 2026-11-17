@@ -21,7 +21,6 @@ bit w bit. Synchronizację telefon–wtyczka opisuje [SYNCHRONIZACJA.md](SYNCHRO
 ```
 hasło główne ──NFC, UTF-8──► Argon2id(salt, m, t, p) ──► masterKey (32 B)
 masterKey ──HKDF-SHA256(info="passholder/v1/enc")──►  encKey  (32 B, nigdy nie opuszcza urządzenia)
-masterKey ──HKDF-SHA256(info="passholder/v1/auth")──► authKey (32 B, nieużywany)
 vaultKey  = 32 losowe bajty, utworzony raz przy zakładaniu sejfu
 wrappedVaultKey = seal(encKey, vaultKey, aad="passholder/v1/vault-key")
 ```
@@ -35,9 +34,9 @@ wrappedVaultKey = seal(encKey, vaultKey, aad="passholder/v1/vault-key")
   wyczerpać pamięci urządzenia. Każdy parametr musi być liczbą całkowitą.
 - Hasło jest normalizowane do NFC przed kodowaniem UTF-8 (to samo „ż” wpisane na różnych klawiaturach
   daje te same bajty).
-- **`authKey`** służył do logowania na serwerze Pi (serwer trzymał `SHA-256(authKey)`). Od planu 4 nikt go
-  nie używa, ale nadal jest wyprowadzany: podział `masterKey` na dwa klucze to część formatu danych i jego
-  zmiana dałaby inny `encKey`, czyli nieczytelne istniejące sejfy.
+- **`authKey`** (`info="passholder/v1/auth"`) służył do logowania na serwerze Pi. Usunięty w grupie G2
+  przeglądu czystości kodu: `encKey` i `authKey` to dwa niezależne wywołania HKDF, więc `encKey` się nie
+  zmienił i istniejące sejfy działają bez zmian.
 - **Zmiana hasła głównego** (tylko na telefonie, przegląd bezpieczeństwa I1): nowe `kdf` z nowym saltem i
   `wrappedVaultKey = wrap(encKey(nowe hasło), ten sam vaultKey)`. Wpisy, pliki, `keyCheck` i epoka bez zmian; vaultKey
   nie jest rotowany. Telefon usuwa wszystkie sparowane urządzenia, więc każda wtyczka paruje się od nowa i dostaje nową

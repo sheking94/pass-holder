@@ -46,15 +46,9 @@ export function assertKdfParamsAcceptable(params: KdfParams): void {
 export interface DerivedKeys {
   /** Wraps and unwraps the vault key. Never leaves the device. */
   encKey: Uint8Array;
-  /**
-   * Unused since the Pi server was removed. Still derived because the split is part of the data format:
-   * changing it would change encKey and make existing vaults unreadable.
-   */
-  authKey: Uint8Array;
 }
 
 const INFO_ENC = utf8("passholder/v1/enc");
-const INFO_AUTH = utf8("passholder/v1/auth");
 
 export async function deriveMasterKey(
   masterPassword: string,
@@ -71,7 +65,6 @@ export async function deriveMasterKey(
 export function splitMasterKey(masterKey: Uint8Array): DerivedKeys {
   return {
     encKey: hkdf(sha256, masterKey, undefined, INFO_ENC, 32),
-    authKey: hkdf(sha256, masterKey, undefined, INFO_AUTH, 32),
   };
 }
 

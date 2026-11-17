@@ -59,14 +59,6 @@ describe("typed entry API", () => {
     await store.putEntry("3", card("Ala"));
     expect(store.listEntries("card").map((e) => e.data.name)).toEqual(["Ala", "Zielona", "Żółta"]);
   }, 30_000);
-
-  it("lists a login added with the old upsert", async () => {
-    const { store } = await pairedBrowser();
-    await store.upsert("l1", { name: "bank", username: "u", password: "p" });
-    expect(store.listEntries("login").map((e) => e.id)).toEqual(["l1"]);
-    expect(store.getEntry("l1")!.data.type).toBe("login");
-  }, 30_000);
-
   it("refuses another type over a live entry, but allows it after delete", async () => {
     const { store } = await pairedBrowser();
     await store.putEntry("x", card("Visa"));
@@ -91,18 +83,5 @@ describe("typed entry API", () => {
     await expect(store.putEntry("big", note)).rejects.toThrow("Wpis jest za duży");
     expect(store.getEntry("big")).toBeUndefined();
     expect(store.pendingCount()).toBe(0);
-  }, 30_000);
-
-  it("keeps androidApps when the old upsert changes the password", async () => {
-    const { store } = await pairedBrowser();
-    const login = p2p.emptyLogin("bank");
-    await store.putEntry("l", {
-      ...login,
-      fields: { ...login.fields, password: "a", androidApps: ["pl.bank"] },
-    });
-    await store.upsert("l", { name: "bank", username: "", password: "b" });
-    const data = store.getEntry("l")!.data;
-    expect(data.type === "login" && data.fields.androidApps).toEqual(["pl.bank"]);
-    expect(data.type === "login" && data.fields.password).toBe("b");
   }, 30_000);
 });

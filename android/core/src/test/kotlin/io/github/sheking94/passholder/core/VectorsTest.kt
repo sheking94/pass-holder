@@ -16,7 +16,6 @@ private data class KdfVector(
     val kdf: KdfParams,
     val masterKey: String,
     val encKey: String,
-    val authKey: String,
 )
 
 @Serializable
@@ -47,7 +46,6 @@ class VectorsTest {
             val keys = Kdf.splitMasterKey(masterKey)
             assertEquals(v.masterKey, hex(masterKey))
             assertEquals(v.encKey, hex(keys.encKey))
-            assertEquals(v.authKey, hex(keys.authKey))
         }
     }
 

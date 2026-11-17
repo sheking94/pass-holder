@@ -14,7 +14,6 @@ const vectors = JSON.parse(
     kdf: KdfParams;
     masterKey: string;
     encKey: string;
-    authKey: string;
   }[];
   seal: {
     description: string;
@@ -31,10 +30,9 @@ describe("test vectors v1", () => {
     it(`KDF: ${v.description}`, async () => {
       expect(toHex(utf8(v.password))).toBe(v.passwordUtf8Nfc);
       const masterKey = await deriveMasterKey(v.password, v.kdf);
-      const { encKey, authKey } = splitMasterKey(masterKey);
+      const { encKey } = splitMasterKey(masterKey);
       expect(toHex(masterKey)).toBe(v.masterKey);
       expect(toHex(encKey)).toBe(v.encKey);
-      expect(toHex(authKey)).toBe(v.authKey);
     }, 30_000);
   }
 

@@ -16,7 +16,7 @@ import {
 } from "@passholder/core";
 import * as files from "@passholder/core/files";
 import { PhoneClient } from "../src/phone-client.ts";
-import { memoryStore, VaultStore } from "../src/vault-store.ts";
+import { memoryStore, VaultStore, type StoredEntry } from "../src/vault-store.ts";
 
 export const CODE = "12345678";
 export const PASSWORD = "Zażółć gęślą jaźń 2026";
@@ -327,8 +327,24 @@ export async function pairedBrowser(o: { now?: () => number; phoneAddresses?: st
   return { phone, network, ...browser };
 }
 
+/** A new login with only name, username and password set (the rest empty), as putEntry() takes it. */
+export function newLogin(f: {
+  name: string;
+  username: string;
+  password: string;
+}): p2p.EntryContentV3 {
+  const empty = p2p.emptyLogin(f.name);
+  return { ...empty, fields: { ...empty.fields, username: f.username, password: f.password } };
+}
+
+/** Name, username and password of a stored login; undefined for another type or a missing entry. */
+export function loginFields(e: StoredEntry | undefined) {
+  if (e?.data.type !== "login") return undefined;
+  return { name: e.data.name, username: e.data.fields.username, password: e.data.fields.password };
+}
+
 export const names = (store: VaultStore) =>
   store
-    .entries()
+    .listEntries("login")
     .map((e) => e.data.name)
     .sort();

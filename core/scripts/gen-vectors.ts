@@ -1,6 +1,5 @@
 // Generates test-vectors/v1.json. Every client (TypeScript, Kotlin) must reproduce these values exactly.
 // Run: npm run gen-vectors -w core
-// The committed v1.json also has an authHash field per KDF vector, from the removed Pi server; nothing checks it.
 import { writeFileSync } from "node:fs";
 import { deriveMasterKey, splitMasterKey, type KdfParams } from "../src/kdf.ts";
 import { seal } from "../src/cipher.ts";
@@ -15,7 +14,7 @@ async function kdfVector(
 ) {
   const params: KdfParams = { alg: "argon2id", salt: toBase64(fromHex(saltHex)), ...cost };
   const masterKey = await deriveMasterKey(password, params);
-  const { encKey, authKey } = splitMasterKey(masterKey);
+  const { encKey } = splitMasterKey(masterKey);
   return {
     description,
     password,
@@ -23,7 +22,6 @@ async function kdfVector(
     kdf: params,
     masterKey: toHex(masterKey),
     encKey: toHex(encKey),
-    authKey: toHex(authKey),
   };
 }
 

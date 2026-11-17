@@ -9,6 +9,8 @@ import {
   pairedBrowser,
   PASSWORD,
   PHONE_URL,
+  newLogin,
+  loginFields,
 } from "./fake-phone.ts";
 
 describe("VaultStore edge cases", () => {
@@ -20,35 +22,38 @@ describe("VaultStore edge cases", () => {
       // The browser's clock runs an hour ahead of (or behind) the phone's.
       let skew: number = offset;
       const { store, phone } = await pairedBrowser({ now: () => Date.now() + skew });
-      await store.upsert("1", { name: "a.pl", username: "u", password: "old" });
+      await store.putEntry("1", newLogin({ name: "a.pl", username: "u", password: "old" }));
       await store.sync();
 
       await phone.addEntry("1", "a.pl", "from-phone");
       // The phone's clock jumped to the browser's "old" edit; the browser's next edit is clearly later than that.
       skew += 10_000;
-      await store.upsert("1", { name: "a.pl", username: "u", password: "from-browser" });
+      await store.putEntry(
+        "1",
+        newLogin({ name: "a.pl", username: "u", password: "from-browser" }),
+      );
       await store.sync();
-      expect(store.entry("1")!.data).toMatchObject({ password: winner });
+      expect(loginFields(store.getEntry("1"))).toMatchObject({ password: winner });
       expect(await phone.passwords()).toEqual({ "1": winner });
     }
   }, 60_000);
 
   it("keeps unsynced changes on disk across a lock and unlock", async () => {
     const { store } = await pairedBrowser();
-    await store.upsert("1", { name: "offline.pl", username: "u", password: "p" });
+    await store.putEntry("1", newLogin({ name: "offline.pl", username: "u", password: "p" }));
     await store.lock();
     await store.unlock(PASSWORD);
-    expect(store.entry("1")).toMatchObject({ dirty: true });
+    expect(store.getEntry("1")).toMatchObject({ dirty: true });
     await store.sync();
-    expect(store.entry("1")).toMatchObject({ dirty: false });
+    expect(store.getEntry("1")).toMatchObject({ dirty: false });
     expect(names(store)).toEqual(["offline.pl"]);
   }, 30_000);
 
   it("refuses to use the vault while locked", async () => {
     const browser = new VaultStore(memoryStore(), memoryStore());
-    expect(() => browser.entries()).toThrow("zablokowany");
+    expect(() => browser.listEntries("login")).toThrow("zablokowany");
     await expect(
-      browser.upsert("1", { name: "a.pl", username: "u", password: "p" }),
+      browser.putEntry("1", newLogin({ name: "a.pl", username: "u", password: "p" })),
     ).rejects.toThrow("zablokowany");
     await expect(browser.sync()).rejects.toThrow("zablokowany");
     await expect(browser.unlock(PASSWORD)).rejects.toThrow("nie jest sparowana");
