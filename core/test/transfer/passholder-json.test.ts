@@ -1,3 +1,4 @@
+import { withCode } from "../error-code.ts";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
@@ -29,7 +30,7 @@ describe("parsePassHolderJson", () => {
   });
 
   it("rejects other versions, formats and shapes", () => {
-    const msg = "To nie jest plik PassHolder w wersji 3";
+    const msg = withCode("IMPORT_NOT_PASSHOLDER");
     expect(() =>
       parsePassHolderJson(JSON.stringify({ format: "passholder", version: 2, entries: [] })),
     ).toThrow(msg);

@@ -1,3 +1,4 @@
+import { withCode } from "../error-code.ts";
 import { describe, expect, it } from "vitest";
 import { fromBase64, randomBytes, toBase64 } from "../../src/encoding.ts";
 import { newVaultKey } from "../../src/vault.ts";
@@ -13,7 +14,6 @@ import {
   noiseTransport,
   P2P_HANDSHAKE_PATH,
   P2P_SYNC_PATH,
-  PHONE_UPDATE_REQUIRED,
   P2P_PROLOGUE,
   P2pHost,
   processP2pSync,
@@ -150,9 +150,8 @@ describe("p2p noise transport", () => {
       post: async () => ({ status: 404, body: { error: "not found" } }),
     });
     await expect(t({ epoch: s.epoch, sinceRevision: 0, changes: [] })).rejects.toThrow(
-      PHONE_UPDATE_REQUIRED,
+      withCode("PHONE_UPDATE_REQUIRED"),
     );
-    expect(PHONE_UPDATE_REQUIRED).toBe("Phone app needs an update");
   });
 
   it("refuses a device that is not paired or was removed", async () => {

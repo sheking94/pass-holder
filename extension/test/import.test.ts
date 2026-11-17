@@ -115,8 +115,12 @@ describe("VaultStore.importContents", () => {
   it("a file that fails to parse leaves the vault unchanged", async () => {
     const { store } = await pairedBrowser();
     await store.putEntry("1", newLogin({ name: "Bank", username: "jan", password: "x" }));
-    expect(() => transfer.parseImportFile("{zły")).toThrow("Plik JSON jest uszkodzony");
-    expect(() => transfer.parseImportFile("foo,bar\n1,2")).toThrow(/NordPass/);
+    expect(() => transfer.parseImportFile("{zły")).toThrow(
+      expect.objectContaining({ code: "IMPORT_BAD_JSON" }),
+    );
+    expect(() => transfer.parseImportFile("foo,bar\n1,2")).toThrow(
+      expect.objectContaining({ code: "IMPORT_NOT_NORDPASS" }),
+    );
     expect(store.allContents().length).toBe(1);
     expect(store.pendingCount()).toBe(1);
   }, 30_000);

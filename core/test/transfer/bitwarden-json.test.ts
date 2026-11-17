@@ -1,3 +1,4 @@
+import { withCode } from "../error-code.ts";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { parseEntryContent, type DocumentKind, type EntryContent } from "../../src/p2p/entry.ts";
@@ -41,15 +42,14 @@ describe("parseBitwardenJson", () => {
   });
 
   it("rejects an encrypted export", () => {
-    const msg =
-      "Zaszyfrowany eksport Bitwarden nie jest obsługiwany. Wyeksportuj z Bitwardena plik JSON bez szyfrowania.";
+    const msg = withCode("IMPORT_BITWARDEN_ENCRYPTED");
     expect(() => parseBitwardenJson(JSON.stringify({ encrypted: true, data: "x" }))).toThrow(msg);
   });
 
   it("rejects other files", () => {
-    expect(() => parseBitwardenJson("nie json")).toThrow("To nie jest plik Bitwarden JSON");
-    expect(() => parseBitwardenJson("[]")).toThrow("To nie jest plik Bitwarden JSON");
-    expect(() => parseBitwardenJson('{"items":{}}')).toThrow("To nie jest plik Bitwarden JSON");
+    expect(() => parseBitwardenJson("nie json")).toThrow(withCode("IMPORT_NOT_BITWARDEN"));
+    expect(() => parseBitwardenJson("[]")).toThrow(withCode("IMPORT_NOT_BITWARDEN"));
+    expect(() => parseBitwardenJson('{"items":{}}')).toThrow(withCode("IMPORT_NOT_BITWARDEN"));
   });
 });
 

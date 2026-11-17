@@ -1,3 +1,4 @@
+import { errorMessage } from "../error-messages.ts";
 import { editTarget } from "../page-mode.ts";
 import { MAX_PIN_ATTEMPTS } from "../pin-lock.ts";
 import type { PinStatus } from "../pin-store.ts";
@@ -77,7 +78,7 @@ function pinLockedView(pinStatus: PinStatus, message = "") {
         ({ movedToMemory } = await store.unlockWithPin(pin.value));
       } catch (error) {
         // After the last wrong attempt the PIN is gone: move to the master password screen.
-        if (!(await store.pinStatus())) return lockedView((error as Error).message);
+        if (!(await store.pinStatus())) return lockedView(errorMessage(error));
         pin.value = "";
         throw error;
       }

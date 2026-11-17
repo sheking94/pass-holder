@@ -1,3 +1,4 @@
+import { withCode } from "../error-code.ts";
 import { describe, expect, it } from "vitest";
 import { fromBase64, toBase64 } from "../../src/encoding.ts";
 import {
@@ -41,12 +42,12 @@ describe("encryptFile / decryptFile", () => {
   });
 
   it("rejects empty, too large and badly named files", async () => {
-    await expect(encryptFile(new Uint8Array(0), meta)).rejects.toThrow("Empty file");
+    await expect(encryptFile(new Uint8Array(0), meta)).rejects.toThrow(withCode("FILE_EMPTY"));
     await expect(encryptFile(new Uint8Array(MAX_FILE_SIZE + 1), meta)).rejects.toThrow(
-      "File too large",
+      withCode("FILE_TOO_LARGE"),
     );
     await expect(encryptFile(sample(3), { name: "a/b", mime: "" })).rejects.toThrow(
-      "Invalid file name",
+      withCode("FILE_INVALID_NAME"),
     );
   });
 

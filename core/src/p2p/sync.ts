@@ -1,11 +1,12 @@
 import { MAX_ATTACHMENTS_PARSED, parseAttachments } from "../files/attachment.ts";
+import { PassHolderError } from "../errors.ts";
 import { mergeAttachments } from "../files/merge.ts";
 import type { RemoteRecord } from "../protocol.ts";
 import {
   decryptPayload,
   encryptPayload,
-  ENTRY_TOO_LARGE,
-  ENTRY_TOO_LARGE_TO_SYNC,
+  entryTooLarge,
+  entryTooLargeToSync,
   entryBlobLength,
   MAX_ENTRY_BLOB_LENGTH,
   parseEntryData,
@@ -64,7 +65,7 @@ export function upsertEntry(
   const probe = clock.clone();
   if (existing) probe.observe(existing.data.hlc);
   if (entryBlobLength({ ...content, v: 3, hlc: probe.tick() }) > MAX_ENTRY_BLOB_LENGTH)
-    throw new Error(ENTRY_TOO_LARGE);
+    throw entryTooLarge();
   // A restarted clock must still order this edit after the version it overwrites.
   if (existing) clock.observe(existing.data.hlc);
   const revision = existing?.revision ?? 0;
@@ -125,7 +126,7 @@ async function buildRequest(vault: LocalVault, vaultKey: Uint8Array): Promise<Bu
   // (An entry saved before v3 can grow past the limit when it is serialized as v3.)
   for (const e of allDirty) {
     if (entryBlobLength(e.data) > MAX_ENTRY_BLOB_LENGTH) {
-      throw new Error(`${ENTRY_TOO_LARGE_TO_SYNC}: ${e.deleted ? e.id : e.data.name}`);
+      throw entryTooLargeToSync(e.deleted ? e.id : e.data.name);
     }
   }
   // Up to MAX_CHANGES_PER_REQUEST entries and MAX_BLOB_BYTES_PER_ROUND blob characters; the first always goes in.
@@ -323,7 +324,8 @@ export async function syncVault(
     const wentBack =
       response.epoch === vault.epoch && response.currentRevision < vault.lastSyncRevision;
     if (response.epoch !== vault.epoch || wentBack) {
-      if (epochChanged) throw new Error("Epoch changed twice during sync");
+      if (epochChanged)
+        throw new PassHolderError("SYNC_EPOCH_CHANGED_TWICE", "Epoch changed twice during sync");
       epochChanged = true;
       adoptEpoch(vault, response.epoch);
       vault.addresses = [...new Set(response.addresses)];
@@ -333,8 +335,8 @@ export async function syncVault(
     const needsResync = await applyResponse(vault, clock, response, sent, vaultKey);
     // A round whose answer was cut (more) resolves at least one record, so it is paging, not a conflict ping-pong.
     if (needsResync && !response.more && ++resyncs >= MAX_CONFLICT_RESYNCS)
-      throw new Error("Sync did not settle, try again");
+      throw new PassHolderError("SYNC_NOT_SETTLED", "Sync did not settle, try again");
     if (!needsResync && !capped && !response.more) return;
   }
-  throw new Error("Sync exceeded the round limit");
+  throw new PassHolderError("SYNC_ROUND_LIMIT", "Sync exceeded the round limit");
 }

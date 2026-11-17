@@ -1,7 +1,8 @@
+import { UNLOCK_AND_RETRY } from "../error-messages.ts";
+import type { ActionResult } from "../result.ts";
 import { matchLogins, planFor, type FillPlan } from "@passholder/core/autofill";
 import type { VaultStore } from "../vault-store.ts";
 
-export const LOCKED = "Sejf jest zablokowany. Odblokuj go i spróbuj ponownie";
 export const NOT_MATCHING = "Ta strona nie pasuje do loginu";
 export const CARD_NEEDS_HTTPS = "Kartę wypełniam tylko na stronach https";
 export const UNSUPPORTED_PAGE = "Na tej stronie nie można wypełniać";
@@ -12,7 +13,7 @@ export const NO_FIELDS = {
   contact: "Nie znaleziono pól adresu",
 } as const;
 
-export interface TabApi {
+export interface FillTabApi {
   get(tabId: number): Promise<{ id?: number; url?: string }>;
   /**
    * Runs the page script in the tab and returns how many fields it filled (all frames summed).
@@ -22,9 +23,8 @@ export interface TabApi {
 }
 
 export type FillMessage = { target: "background"; type: "fill"; entryId: string; tabId: number };
-export type FillResult = { ok: true } | { ok: false; error: string };
 
-export function chromeTabApi(): TabApi {
+export function chromeFillTabApi(): FillTabApi {
   return {
     get: (tabId) => chrome.tabs.get(tabId),
     async inject(tabId, plan, expectedOrigin) {
@@ -45,7 +45,7 @@ export function chromeTabApi(): TabApi {
   };
 }
 
-const fail = (error: string): FillResult => ({ ok: false, error });
+const fail = (error: string): ActionResult => ({ ok: false, error });
 
 function pageUrl(raw: string | undefined): URL | undefined {
   if (!raw) return undefined;
@@ -60,11 +60,11 @@ function pageUrl(raw: string | undefined): URL | undefined {
 /** Fills the tab with one entry, re-checking in here (not trusting the popup) that the page is allowed. */
 export async function fillTab(
   store: VaultStore,
-  tabs: TabApi,
+  tabs: FillTabApi,
   tabId: number,
   entryId: string,
-): Promise<FillResult> {
-  if (!(await store.resume())) return fail(LOCKED);
+): Promise<ActionResult> {
+  if (!(await store.resume())) return fail(UNLOCK_AND_RETRY);
   const entry = store.getEntry(entryId);
   const plan = entry && planFor(entry.data);
   if (!entry || !plan) return fail(CANNOT_FILL_ENTRY);
@@ -96,7 +96,7 @@ export async function fillTab(
  */
 export async function onFillCommand(
   store: VaultStore,
-  tabs: TabApi,
+  tabs: FillTabApi,
   tab: { id?: number; url?: string } | undefined,
   openPopup: () => Promise<void>,
 ): Promise<void> {

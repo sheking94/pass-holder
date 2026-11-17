@@ -1,3 +1,4 @@
+import { withCode } from "../error-code.ts";
 import { describe, expect, it } from "vitest";
 import { fromBase64, randomBytes, toBase64, utf8 } from "../../src/encoding.ts";
 import {
@@ -164,7 +165,7 @@ describe("pairing client", () => {
     const phone = fakePhone("pair");
     await expect(
       pairWithPhone({ baseUrl: BASE, code: "87654321", identity: extIdentity, post: phone.post }),
-    ).rejects.toThrow("Zły kod parowania. Poproś telefon o nowy kod.");
+    ).rejects.toThrow(withCode("PAIRING_WRONG_CODE"));
     expect(phone.got.identity).toBeUndefined();
   });
 
@@ -172,7 +173,7 @@ describe("pairing client", () => {
     const phone = fakePhone("pair");
     await expect(
       pairWithPhone({ baseUrl: BASE, code: "1234567", identity: extIdentity, post: phone.post }),
-    ).rejects.toThrow("Kod parowania to 8 cyfr.");
+    ).rejects.toThrow(withCode("PAIRING_BAD_CODE_FORMAT"));
     expect(phone.calls).not.toContain("/p2p/v1/pair/start");
   });
 
@@ -195,7 +196,7 @@ describe("pairing client", () => {
     const phone = fakePhone("restore");
     await expect(
       pairWithPhone({ baseUrl: BASE, code: "12345678", identity: extIdentity, post: phone.post }),
-    ).rejects.toThrow("Telefon czeka na odtworzenie sejfu z wtyczki");
+    ).rejects.toThrow(withCode("PAIRING_RESTORE_EXPECTED"));
     expect(phone.calls).toEqual(["/p2p/v1/pair/hello"]);
   });
 
@@ -216,10 +217,8 @@ describe("pairing client", () => {
     const phone = fakePhone(null);
     await expect(
       pairWithPhone({ baseUrl: BASE, code: "12345678", identity: extIdentity, post: phone.post }),
-    ).rejects.toThrow("Telefon nie czeka na parowanie albo kod wygasł.");
-    await expect(phoneHello(BASE, phone.post)).rejects.toThrow(
-      "Telefon nie czeka na parowanie albo kod wygasł.",
-    );
+    ).rejects.toThrow(withCode("PAIRING_NOT_WAITING"));
+    await expect(phoneHello(BASE, phone.post)).rejects.toThrow(withCode("PAIRING_NOT_WAITING"));
   });
 
   it("404 on /start and /finish gives the expired message", async () => {
@@ -231,7 +230,7 @@ describe("pairing client", () => {
           : phone.post(url, body);
       await expect(
         pairWithPhone({ baseUrl: BASE, code: "12345678", identity: extIdentity, post }),
-      ).rejects.toThrow("Telefon nie czeka na parowanie albo kod wygasł.");
+      ).rejects.toThrow(withCode("PAIRING_NOT_WAITING"));
     }
   });
 
@@ -243,7 +242,7 @@ describe("pairing client", () => {
         : phone.post(url, body);
     await expect(
       pairWithPhone({ baseUrl: BASE, code: "12345678", identity: extIdentity, post }),
-    ).rejects.toThrow("P2P host returned 500: internal error");
+    ).rejects.toThrow(withCode("HOST_ERROR", "internal error"));
     const forbidden: FetchJson = async () => ({ status: 403, body: { error: "forbidden host" } });
     await expect(phoneHello(BASE, forbidden)).rejects.toThrow(
       "P2P host returned 403: forbidden host",
@@ -258,7 +257,7 @@ describe("pairing client", () => {
     ];
     for (const body of answers) {
       await expect(phoneHello(BASE, async () => ({ status: 200, body }))).rejects.toThrow(
-        "P2P host returned a malformed response",
+        withCode("HOST_MALFORMED"),
       );
     }
   });
@@ -268,7 +267,7 @@ describe("pairing client", () => {
     await expect(pingPhone(BASE, phone.post)).resolves.toBeUndefined();
     expect(phone.calls).toEqual(["/p2p/v1/ping"]);
     await expect(pingPhone(BASE, async () => ({ status: 200, body: {} }))).rejects.toThrow(
-      "P2P host returned a malformed response",
+      withCode("HOST_MALFORMED"),
     );
     await expect(
       pingPhone(BASE, async () => ({ status: 404, body: { error: "not found" } })),

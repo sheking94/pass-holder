@@ -1,4 +1,4 @@
-import { transfer } from "@passholder/core";
+import { PassHolderError, transfer } from "@passholder/core";
 import { importSummary } from "../import-summary.ts";
 import { entriesNoun, filesNoun, missingFilesSentence, skippedFilesPhrase } from "../plural.ts";
 import { busy, h, passwordField, setStatus, show, statusLine } from "../ui/dom.ts";
@@ -54,7 +54,6 @@ const PLAIN_WARNING =
   "Uwaga: plik nie jest zaszyfrowany. Każdy, kto go zobaczy (inny program, kopia zapasowa, synchronizacja folderu Pobrane z chmurą), pozna wszystkie Twoje hasła. Usuń go zaraz po użyciu.";
 const ZIP_WARNING =
   "Uwaga: archiwum nie jest zaszyfrowane. Zawiera hasła jawnym tekstem i odszyfrowane pliki. Każdy, kto je zobaczy (inny program, kopia zapasowa, folder w chmurze), pozna je wszystkie. Usuń je zaraz po użyciu.";
-const ZIP_TOO_LARGE = "Plik jest za duży (limit 256 MiB)";
 
 async function exportZip(status: HTMLElement, day: string) {
   const out = await store.exportArchive();
@@ -154,7 +153,7 @@ function importSection(status: HTMLElement) {
     if (!chosen) return setStatus(status, "Wybierz plik JSON, CSV lub ZIP.", true);
     void busy(status, "Importuję…", async () => {
       // Refused before reading: the largest file anything here accepts is a 256 MiB archive.
-      if (chosen.size > transfer.MAX_ZIP_BYTES) throw new Error(ZIP_TOO_LARGE);
+      if (chosen.size > transfer.MAX_ZIP_BYTES) throw new PassHolderError("ZIP_TOO_LARGE");
       const bytes = new Uint8Array(await chosen.arrayBuffer());
       if (transfer.isZip(bytes)) {
         const { parsed, result, filesAdded, fileSkips } = await store.importArchive(bytes);

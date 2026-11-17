@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LOCKED } from "../../src/autofill/fill-tab.ts";
+import { UNLOCK_AND_RETRY } from "../../src/error-messages.ts";
 import {
   neverList,
   removeFromNever,
@@ -493,7 +493,7 @@ describe("SaveCandidates", () => {
         { target: "background", type: "save-answer", candidateId: id, answer: "save" },
         extSender,
       ),
-    ).toEqual({ ok: false, error: LOCKED });
+    ).toEqual({ ok: false, error: UNLOCK_AND_RETRY });
     expect(Object.keys(await s.stored())).toEqual(["7"]);
   }, 30_000);
 

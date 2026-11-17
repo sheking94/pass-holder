@@ -1,3 +1,4 @@
+import { withCode } from "../error-code.ts";
 import { describe, expect, it } from "vitest";
 import { parseCsv, toCsv } from "../../src/transfer/csv.ts";
 
@@ -19,7 +20,7 @@ describe("parseCsv", () => {
   });
 
   it("rejects an unclosed quote", () => {
-    expect(() => parseCsv('a\n"oops')).toThrow(/niezamknięty cudzysłów/);
+    expect(() => parseCsv('a\n"oops')).toThrow(withCode("IMPORT_CSV_UNCLOSED_QUOTE", "2"));
   });
 });
 

@@ -32,6 +32,7 @@ Formatowanie i lint dla całego repo: `.editorconfig`, `.prettierrc.json`, `.pre
 
 | Plik | Co robi |
 |---|---|
+| `src/errors.ts` | `PassHolderError` (pole `code: ErrorCode`, `detail`, `cause`) i `hasErrorCode`: błędy, które aplikacja rozpoznaje albo pokazuje użytkownikowi (patrz „Błędy” niżej) |
 | `src/encoding.ts` | UTF-8 z normalizacją NFC, Base64, hex, `randomBytes` |
 | `src/kdf.ts` | Argon2id, HKDF (`encKey`), granice `MIN_KDF` / `MAX_KDF` |
 | `src/cipher.ts` | AES-256-GCM w formacie `0x01 ‖ nonce ‖ szyfrogram ‖ tag` (`seal`, `open`) |
@@ -43,7 +44,7 @@ Formatowanie i lint dla całego repo: `.editorconfig`, `.prettierrc.json`, `.pre
 | `src/p2p/sync.ts` | sejf wtyczki (`LocalVault`) i `syncVault`; budżet bajtów żądania, rundy ucięte (`more`) poza limitem ponowień po konflikcie (`MAX_CONFLICT_RESYNCS` = 3; wszystkie rundy razem: `MAX_SYNC_ROUNDS`) |
 | `src/p2p/host-sync.ts` | strona hosta: `validateP2pSyncRequest` (też blob ≤ 64 KiB), `processP2pSync` (na `processSync`), epoka, stronicowanie po 500 zmianach i `MAX_BLOB_BYTES_PER_ROUND` (tnie też `conflicts`) |
 | `src/p2p/cpace.ts`, `pairing.ts`, `pair-client.ts` | parowanie: CPace, kod 8 cyfr, zapieczętowane tożsamości, klient HTTP parowania wtyczki |
-| `src/p2p/noise.ts`, `frames.ts`, `transport.ts` | Noise KK, ramki, `noiseTransport` i `callP2pHost`; ścieżki `/p2p/v2/*`, 404 → „Phone app needs an update” |
+| `src/p2p/noise.ts`, `frames.ts`, `transport.ts` | Noise KK (każdy błąd: kod `NOISE_FAILED`), ramki, `noiseTransport` i `callP2pHost`; ścieżki `/p2p/v2/*`, 404 na uzgadnianiu → kod `PHONE_UPDATE_REQUIRED`; `P2pHostError` (status ≠ 200: `HOST_ERROR` albo `DEVICE_NOT_PAIRED`), `malformedResponse()` (`HOST_MALFORMED`) |
 | `src/p2p/host.ts` | `P2pHost`: referencyjny host (uzgadnianie, sesje, sync; tylko testy i skrypty, telefon ma host w Kotlinie); `/p2p/v1/handshake` i `/p2p/v1/sync` → 410 |
 | `src/files/attachment.ts` | opis załącznika: stałe (`MAX_FILE_SIZE`, `FILE_CHUNK_SIZE`, limity 20/40), `parseAttachments`, `attachmentJson` (stała kolejność kluczy), `canAddAttachment`, wzorzec UUID v4 |
 | `src/files/chunks.ts` | szyfrowanie pliku kawałkami: `encryptFile`, `decryptChunk`, `decryptFile` (rozmiar, `sha256`), AAD `passholder/v3/file/<id>/<i>/<n>` |
@@ -77,13 +78,15 @@ osobno przez `fake-indexeddb`). Treść jawna nigdy nie jest zapisywana: odszyfr
 | `src/vault-store.ts` | `VaultStore`: konto, lokalny sejf, parowanie (`pairStart`, `pairFinish`, `repair`: też nowym hasłem z telefonu po zmianie hasła głównego), `sync`, adresy, PIN, import, `exportArchive` / `importArchive` (ZIP: plik po pliku, odszyfrowanie na czas jednego pliku; błąd archiwum albo blokada sejfu usuwa dodane pliki); serce wtyczki. Wpisy każdego typu: `listEntries(typ)`, `getEntry`, `putEntry` (odmowa zapisu pod `id` innego typu); import przez `importContents` (wszystkie typy, jeden zapis), eksport przez `allContents`; starą treść v2 czyta jako login |
 | `src/entry-types.ts` | typy wpisów w kolejności zakładek (`ENTRY_TYPES`, `TYPE_INFO`), rodzaje dokumentu, pusty wpis, opis wiersza (`entrySummary`), wyszukiwanie, sprzątanie przed zapisem (`tidyContent`) i sprawdzanie formatów (`validateContent`) |
 | `src/storage.ts` | klucze `chrome.storage` (`STORAGE_KEYS`), `chromeStore`, `memoryStore` do testów |
-| `src/phone-client.ts` | `PhoneClient`: JSON `POST` do telefonu z limitem 30 s, polskie komunikaty błędów (też „Zaktualizuj aplikację na telefonie”) |
+| `src/phone-client.ts` | `PhoneClient`: JSON `POST` do telefonu z limitem 30 s; brak odpowiedzi → `PhoneUnreachableError` |
+| `src/error-messages.ts` | jedyne miejsce, gdzie kody błędów rdzenia stają się polskim tekstem: `errorMessage(error: unknown)` (tekst dla użytkownika z dowolnej wartości), `toUserError` (błąd z tekstem dla ekranu, oryginał w `cause`), wspólne teksty (`PHONE_UNREACHABLE`, `UNLOCK_AND_RETRY`…) |
+| `src/result.ts` | `ActionResult` (`{ ok: true }` albo `{ ok: false; error }`): wynik akcji przesyłany między tłem a stronami (wypełnianie, odpowiedź na pytanie o zapis) |
 | `src/phone-urls.ts` | adresy telefonu: `normalizePhoneUrl` (tylko IPv4), `learnedPhoneUrls`, `pickPhone` (wybór działającego adresu, ping 4 s) |
 | `src/auto-lock.ts` | blokada po 15 minutach: `watchIdle` na stronie i alarm w service workerze |
 | `src/pin-lock.ts`, `src/pin-store.ts` | PIN: kryptografia (`createPinLock`, `openPinLock`) i przechowywanie z licznikiem prób |
 | `src/import-summary.ts`, `src/plural.ts` | polskie podsumowanie importu (dodano, duplikaty, pominięte) i odmiana „wpis/wpisy/wpisów” oraz zdanie o pominiętych plikach (`skippedFilesPhrase`) |
 | `src/clipboard.ts`, `src/background.ts`, `src/offscreen.ts` | czyszczenie schowka po minucie (alarm + dokument offscreen); `background.ts` ma jeden nasłuch `onMessage`, który rozdziela komunikaty po `type` (`password-copied`, `fill`, `save-*`), i obsługuje polecenie `fill-login` |
-| `src/autofill/fill-tab.ts` | `fillTab` (sprawdza sejf, wpis, adres karty, https, `matchLogins`; wstrzykuje skrypt), `onFillCommand` (skrót: tylko login dokładnego hosta), `chromeTabApi` (`tabs.get`, `scripting.executeScript`, przypięty origin) |
+| `src/autofill/fill-tab.ts` | `fillTab` (sprawdza sejf, wpis, adres karty, https, `matchLogins`; wstrzykuje skrypt), `onFillCommand` (skrót: tylko login dokładnego hosta), `chromeFillTabApi` (`FillTabApi`: `tabs.get`, `scripting.executeScript`, przypięty origin) |
 | `src/autofill/fill-page.ts`, `src/autofill-content.ts` | `fillPage` w stronie: pola, widoczność (`isVisible`, dla kontaktu i karty `strict`: `clip-path`/`clip`, min. 10 px, `overflow` rodzica, `elementFromPoint`), kontakt i karta tylko w formularzu pola z kursorem, ramki tego samego origin, wpisanie wartości; `autofill-content.ts` wystawia `globalThis.passholderFill` |
 | `src/ui/active-tab.ts` | `activeTab` (karta pod okienkiem) i `requestFill` (komunikat `fill` do service workera) |
 | `src/save/read-form.ts`, `watch.ts`, `src/save-watch.ts` | skrypt w stronie: `readLogin` (hasło i login, `formSignature`), `loginScope`, `emptyLoginForms`; `startSaveWatch` (submit, Enter, klik tylko od użytkownika: `isTrusted`, przy submit też `navigator.userActivation`; ramka główna i ramki tego samego origin; nic nie dodaje do strony) |
@@ -92,7 +95,7 @@ osobno przez `fake-indexeddb`). Treść jawna nigdy nie jest zapisywana: odszyfr
 | `src/save/messages.ts`, `prompt-view.ts`, `prompt-page.ts`, `src/save-prompt.ts` | typy wiadomości (`save-candidate`, `save-pending`, `save-info`, `save-preview` (decyzja dla wpisanego loginu i hasła), `save-answer` (z `draft {name, username, password}`), `save-unlock`); `promptView`: podgląd z edycją (Nazwa, Login, Hasło; przy zmianie hasła uwaga o „Poprzednie hasło”), wspólny dla okna (`save-prompt.html`) i okienka; `startPromptPage`: strona okna (brak kandydata → zamyka okno, sejf zablokowany po załadowaniu → „Odblokuj i zapisz”) |
 | `src/save/prompt-window.ts` | `PromptWindows`: okno pytania (`chrome.windows.create`, `type: "popup"`, 380 × 420 przy prawym górnym rogu okna karty), odznaka „?” (`chrome.action.setBadgeText` dla karty), mapa karta → okno w `storage.session`, `show`/`hide`/`closeWindow`/`badge`/`closedByUser` |
 | `src/views/save-settings.ts`, `save-question.ts` | „Zapis haseł” (przełącznik, lista „Nigdy”) i pytanie w okienku po odblokowaniu (`showUnlocked` w `locked.ts` pyta tło o kandydata karty) |
-| `src/page-mode.ts`, `src/open-in-tab.ts` | tryby strony, przycisk „Otwórz w karcie ↗” |
+| `src/page-mode.ts`, `src/open-in-tab.ts` | tryby strony, przycisk „Otwórz w karcie ↗” (`OpenTabApi`, `chromeOpenTabApi`) |
 | `src/ui/dom.ts` | pomocniki DOM: `h`, `show`, `form`, `passwordField`, `secretField` (pole wrażliwe: „Pokaż/Ukryj”, „Kopiuj”), `pinInput`, `confirmButton`, `busy` |
 | `src/ui/copy.ts`, `src/ui/status.ts` | kopiowanie (`copyText`, `copySecret` z czyszczeniem schowka), linia statusu |
 | `src/ui/list-editor.ts` | `listEditor`: lista z „+ Dodaj” i „Usuń” (adresy, aplikacje, telefony, własne pola) |
@@ -180,6 +183,30 @@ Ustalone w grupie G3 przeglądu czystości kodu V3.
   to `onX` (kolejkują w `serial`), prywatne `handleX` (wykonują).
 - **Stan jako unia:** zamiast pary pól, z których jedno ma sens tylko przy drugim, unia z dyskryminatorem
   (`SavePromptInfo`: `{ locked: true; decision: null }` albo `{ locked: false; decision; entryName? }`).
+
+## Błędy
+
+Ustalone w grupie G4 przeglądu czystości kodu V3 (decyzja D4: rdzeń zgłasza kody, teksty w warstwie UI).
+
+- **Rdzeń (`core/`) rzuca `PassHolderError` z kodem** dla wszystkiego, co aplikacja musi rozpoznać albo pokazać:
+  rozmowa z telefonem (`HOST_MALFORMED`, `HOST_ERROR`, `DEVICE_NOT_PAIRED`, `PHONE_UPDATE_REQUIRED`,
+  `NOISE_FAILED`), parowanie (`PAIRING_*`), wpisy i synchronizacja (`ENTRY_TOO_LARGE`, `ENTRY_TOO_LARGE_TO_SYNC`
+  z nazwą w `detail`, `SYNC_*`), pliki (`FILE_*`), import (`IMPORT_*`, linia CSV w `detail`) i ZIP (`ZIP_*`,
+  `ARCHIVE_FILE_*`). Komunikat jest po angielsku, tylko do logów; teksty rdzenia, które trafiają do wektorów
+  testowych (np. „Invalid entry payload”), nie zmieniły się.
+- **Rozpoznawanie tylko po kodzie:** `hasErrorCode(error, "ENTRY_TOO_LARGE")`, nigdy `error.message === …`.
+  Nowy kod dopisuje się do unii `ErrorCode`; kompilator wymaga wtedy tekstu w `extension/src/error-messages.ts`
+  (`Record<ErrorCode, …>`).
+- **Błędy programisty** (zły argument, zła długość klucza, niespójny stan Noise poza `NOISE_FAILED`) zostają
+  zwykłym `Error`: użytkownik nie powinien ich zobaczyć.
+- **Wtyczka tłumaczy w jednym miejscu:** `VaultStore` przepuszcza wywołania rdzenia przez `inUserTerms` /
+  `toUserError`, więc jego błędy mają polski `message`; ekrany pokazują każdy błąd przez `errorMessage(error)`
+  (też kody, które ominęły `VaultStore`, np. `parseImportFile` w widoku importu). Własne błędy wtyczki
+  („Złe hasło główne”, „Sejf jest zablokowany”) są polskie od razu.
+- **Trzy kształty porażki:** wyjątek dla błędu akcji; `ActionResult` dla wyniku przesyłanego wiadomością;
+  walidacja formularza zwraca pierwszy tekst błędu albo `undefined` (`validateContent`, `phoneUrlFields().read()`).
+- **Bez rzutowań błędu:** `catch (error)` ma typ `unknown`; tekst bierze się przez `errorMessage(error)`, nie
+  `(error as Error).message`. Błąd rzucony w `catch` dostaje `cause` (reguła ESLint `preserve-caught-error`).
 
 ## Przepływ autouzupełniania (Chrome)
 

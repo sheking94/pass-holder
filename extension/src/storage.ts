@@ -18,6 +18,8 @@ export const STORAGE_KEYS = {
   savePromptWindows: "savePromptWindows",
   /** local: ids of attachments whose download did not match their descriptor; sync skips them. */
   corruptFiles: "corruptFiles",
+  /** session: SHA-256 of the password last copied, so the alarm clears the clipboard only if it still holds it. */
+  copiedPasswordHash: "copiedPasswordHash",
 } as const;
 
 /** Key-value storage; chrome.storage.local and chrome.storage.session in the extension, a Map in tests. */

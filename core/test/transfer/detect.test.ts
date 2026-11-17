@@ -1,3 +1,4 @@
+import { withCode } from "../error-code.ts";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { exportFile, parseImportFile } from "../../src/transfer/index.ts";
@@ -21,18 +22,16 @@ describe("parseImportFile", () => {
     expect(parseImportFile("﻿  \n" + read("passholder.json")).format).toBe("passholder");
   });
 
-  it("reports an empty, broken or unknown file in Polish", () => {
-    expect(() => parseImportFile("")).toThrow("Plik jest pusty");
-    expect(() => parseImportFile(" \n ")).toThrow("Plik jest pusty");
-    expect(() => parseImportFile("{zły")).toThrow("Plik JSON jest uszkodzony");
-    expect(() => parseImportFile('{"x":1}')).toThrow(
-      "Nie rozpoznano pliku: to nie jest eksport PassHolder, Bitwarden ani NordPass",
-    );
+  it("reports an empty, broken or unknown file by its code", () => {
+    expect(() => parseImportFile("")).toThrow(withCode("IMPORT_EMPTY_FILE"));
+    expect(() => parseImportFile(" \n ")).toThrow(withCode("IMPORT_EMPTY_FILE"));
+    expect(() => parseImportFile("{zły")).toThrow(withCode("IMPORT_BAD_JSON"));
+    expect(() => parseImportFile('{"x":1}')).toThrow(withCode("IMPORT_UNKNOWN_FORMAT"));
   });
 
   it("lets a parser's own error through (encrypted Bitwarden)", () => {
     expect(() => parseImportFile(JSON.stringify({ encrypted: true, items: [] }))).toThrow(
-      /zaszyfrowan/i,
+      withCode("IMPORT_BITWARDEN_ENCRYPTED"),
     );
   });
 
@@ -46,7 +45,7 @@ describe("parseImportFile", () => {
       encKeyValidation_DO_NOT_EDIT: "2.x",
       data: "2.y",
     });
-    expect(() => parseImportFile(protectedFile)).toThrow(/Zaszyfrowany eksport Bitwarden/);
+    expect(() => parseImportFile(protectedFile)).toThrow(withCode("IMPORT_BITWARDEN_ENCRYPTED"));
   });
 });
 

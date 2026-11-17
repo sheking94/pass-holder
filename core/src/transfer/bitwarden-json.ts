@@ -1,3 +1,4 @@
+import { PassHolderError } from "../errors.ts";
 import type { CardFields, CustomField, DocumentKind, EntryContent } from "../p2p/entry.ts";
 import {
   addressLine,
@@ -7,9 +8,8 @@ import {
   type ParsedImport,
 } from "./common.ts";
 
-const NOT_BITWARDEN = "To nie jest plik Bitwarden JSON";
-const ENCRYPTED =
-  "Zaszyfrowany eksport Bitwarden nie jest obsługiwany. Wyeksportuj z Bitwardena plik JSON bez szyfrowania.";
+const notBitwarden = (cause?: unknown) =>
+  new PassHolderError("IMPORT_NOT_BITWARDEN", "Not a Bitwarden JSON file", { cause });
 const ANDROID_PREFIX = "androidapp://";
 const DOCUMENT_KINDS: readonly string[] = [
   "id_card",
@@ -223,16 +223,17 @@ function importItem(item: Obj): EntryContent | string {
   }
 }
 
-/** Throws a Polish message for an encrypted or unrecognised file; a bad item is skipped as "wpis N" (from 1). */
+/** Throws code IMPORT_BITWARDEN_ENCRYPTED or IMPORT_NOT_BITWARDEN for an encrypted or unrecognised file; a bad item is skipped as "wpis N" (from 1). */
 export function parseBitwardenJson(text: string): ParsedImport {
   let doc: unknown;
   try {
     doc = JSON.parse(text);
-  } catch {
-    throw new Error(NOT_BITWARDEN);
+  } catch (error) {
+    throw notBitwarden(error);
   }
-  if (isObj(doc) && doc.encrypted === true) throw new Error(ENCRYPTED);
-  if (!isBitwardenJson(doc)) throw new Error(NOT_BITWARDEN);
+  if (isObj(doc) && doc.encrypted === true)
+    throw new PassHolderError("IMPORT_BITWARDEN_ENCRYPTED", "Encrypted Bitwarden export");
+  if (!isBitwardenJson(doc)) throw notBitwarden();
   const entries: EntryContent[] = [];
   const skipped: ImportSkip[] = [];
   (doc as { items: unknown[] }).items.forEach((item, i) => {

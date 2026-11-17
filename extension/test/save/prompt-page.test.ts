@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, it, vi } from "vitest";
-import { LOCKED } from "../../src/autofill/fill-tab.ts";
+import { UNLOCK_AND_RETRY } from "../../src/error-messages.ts";
 import { startPromptPage } from "../../src/save/prompt-page.ts";
 import type {
   SaveAnswerMessage,
@@ -72,7 +72,7 @@ describe("startPromptPage", () => {
     const app = document.createElement("div");
     const rt = runtime(
       [info(), info({ decision: null, locked: true })],
-      [{ ok: false, error: LOCKED }],
+      [{ ok: false, error: UNLOCK_AND_RETRY }],
     );
     await startPromptPage(app, "c1", rt);
     button(app, "Zapisz")!.click();

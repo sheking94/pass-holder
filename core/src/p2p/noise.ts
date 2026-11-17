@@ -14,6 +14,7 @@ import { x25519 } from "@noble/curves/ed25519.js";
 import { hmac } from "@noble/hashes/hmac.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { concat, utf8 } from "../encoding.ts";
+import { PassHolderError } from "../errors.ts";
 
 /** Prologue bound into every PassHolder device-to-device handshake. */
 export const P2P_PROLOGUE = utf8("passholder/v2/noise");
@@ -28,6 +29,11 @@ const MAX_MESSAGE = 65535;
 const MAX_NONCE = 2n ** 64n - 1n;
 const EMPTY = new Uint8Array(0);
 
+/** Every Noise failure has code NOISE_FAILED and a message starting "Noise: ". */
+function noiseError(what: string, cause?: unknown): PassHolderError {
+  return new PassHolderError("NOISE_FAILED", `Noise: ${what}`, { cause });
+}
+
 export interface KeyPair {
   publicKey: Uint8Array;
   privateKey: Uint8Array;
@@ -41,7 +47,7 @@ export function generateKeyPair(): KeyPair {
 
 /** X25519 key pair for an existing 32-byte private key (stored keys, test vectors). */
 export function keyPairFromPrivateKey(privateKey: Uint8Array): KeyPair {
-  if (privateKey.length !== DHLEN) throw new Error("Noise: private key must be 32 bytes");
+  if (privateKey.length !== DHLEN) throw noiseError("private key must be 32 bytes");
   return { publicKey: x25519.getPublicKey(privateKey), privateKey: privateKey.slice() };
 }
 
@@ -80,8 +86,8 @@ export class CipherState {
 
   /** `n` is only for tests; normal callers start at 0. */
   constructor(key: Uint8Array | null, n = 0n) {
-    if (key !== null && key.length !== 32) throw new Error("Noise: cipher key must be 32 bytes");
-    if (n < 0n || n > MAX_NONCE) throw new Error("Noise: nonce out of range");
+    if (key !== null && key.length !== 32) throw noiseError("cipher key must be 32 bytes");
+    if (n < 0n || n > MAX_NONCE) throw noiseError("nonce out of range");
     this.#key =
       key === null
         ? null
@@ -98,8 +104,7 @@ export class CipherState {
 
   async encrypt(ad: Uint8Array, plaintext: Uint8Array): Promise<Uint8Array> {
     if (this.#key === null) return plaintext.slice();
-    if (plaintext.length + TAGLEN > MAX_MESSAGE)
-      throw new Error("Noise: message exceeds 65535 bytes");
+    if (plaintext.length + TAGLEN > MAX_MESSAGE) throw noiseError("message exceeds 65535 bytes");
     return this.#run(async (key, nonce) => {
       const ct = await crypto.subtle.encrypt(
         { name: "AES-GCM", iv: nonce as BufferSource, additionalData: ad as BufferSource },
@@ -112,8 +117,8 @@ export class CipherState {
 
   async decrypt(ad: Uint8Array, ciphertext: Uint8Array): Promise<Uint8Array> {
     if (this.#key === null) return ciphertext.slice();
-    if (ciphertext.length > MAX_MESSAGE) throw new Error("Noise: message exceeds 65535 bytes");
-    if (ciphertext.length < TAGLEN) throw new Error("Noise: ciphertext too short");
+    if (ciphertext.length > MAX_MESSAGE) throw noiseError("message exceeds 65535 bytes");
+    if (ciphertext.length < TAGLEN) throw noiseError("ciphertext too short");
     return this.#run(async (key, nonce) => {
       let pt: ArrayBuffer;
       try {
@@ -122,8 +127,8 @@ export class CipherState {
           key,
           ciphertext as BufferSource,
         );
-      } catch {
-        throw new Error("Noise: decryption failed");
+      } catch (error) {
+        throw noiseError("decryption failed", error);
       }
       return new Uint8Array(pt);
     });
@@ -131,8 +136,8 @@ export class CipherState {
 
   /** Runs one AEAD operation with the current nonce; n advances only on success. */
   async #run(op: (key: CryptoKey, nonce: Uint8Array) => Promise<Uint8Array>): Promise<Uint8Array> {
-    if (this.#n >= MAX_NONCE) throw new Error("Noise: nonce exhausted");
-    if (this.#busy) throw new Error("Noise: concurrent CipherState use");
+    if (this.#n >= MAX_NONCE) throw noiseError("nonce exhausted");
+    if (this.#busy) throw noiseError("concurrent CipherState use");
     this.#busy = true;
     try {
       const out = await op(await this.#key!, aesGcmNonce(this.#n));
@@ -217,8 +222,8 @@ export class NoiseKK {
 
   private constructor(initiator: boolean, o: NoiseKKOptions) {
     if (o.s.privateKey.length !== DHLEN || o.s.publicKey.length !== DHLEN)
-      throw new Error("Noise: static key pair must be 32-byte X25519 keys");
-    if (o.rs.length !== DHLEN) throw new Error("Noise: remote static key must be 32 bytes");
+      throw noiseError("static key pair must be 32-byte X25519 keys");
+    if (o.rs.length !== DHLEN) throw noiseError("remote static key must be 32 bytes");
     this.#initiator = initiator;
     this.#s = o.s;
     this.#rs = o.rs.slice();
@@ -244,7 +249,7 @@ export class NoiseKK {
   async writeMessage(payload: Uint8Array): Promise<Uint8Array> {
     const expected = this.#initiator ? "write1" : "write2";
     if (DHLEN + payload.length + TAGLEN > MAX_MESSAGE)
-      throw new Error("Noise: message exceeds 65535 bytes");
+      throw noiseError("message exceeds 65535 bytes");
     return this.#guard(expected, async () => {
       // Token "e".
       const e = this.#e ?? generateKeyPair();
@@ -267,8 +272,8 @@ export class NoiseKK {
 
   async readMessage(message: Uint8Array): Promise<Uint8Array> {
     const expected = this.#initiator ? "read2" : "read1";
-    if (message.length > MAX_MESSAGE) throw new Error("Noise: message exceeds 65535 bytes");
-    if (message.length < DHLEN + TAGLEN) throw new Error("Noise: handshake message too short");
+    if (message.length > MAX_MESSAGE) throw noiseError("message exceeds 65535 bytes");
+    if (message.length < DHLEN + TAGLEN) throw noiseError("handshake message too short");
     return this.#guard(expected, async () => {
       // Token "e".
       const re = message.slice(0, DHLEN);
@@ -290,7 +295,7 @@ export class NoiseKK {
   /** Transport ciphers after both handshake messages; callable once. */
   split(): { send: CipherState; recv: CipherState } {
     if (this.#busy || this.#step !== "done")
-      throw new Error("Noise: split() before the handshake finished");
+      throw noiseError("split() before the handshake finished");
     const [c1, c2] = this.#ss.split();
     this.#step = "split";
     // c1 encrypts initiator -> responder, c2 responder -> initiator.
@@ -299,16 +304,15 @@ export class NoiseKK {
 
   /** Final handshake hash h, for channel binding; available once the handshake has finished. */
   get handshakeHash(): Uint8Array {
-    if (this.#step !== "done" && this.#step !== "split")
-      throw new Error("Noise: handshake not finished");
+    if (this.#step !== "done" && this.#step !== "split") throw noiseError("handshake not finished");
     return this.#ss.h.slice();
   }
 
   /** Runs one handshake step; input-size errors above leave the state intact, any later error fails it. */
   async #guard(expected: Step, op: () => Promise<Uint8Array>): Promise<Uint8Array> {
-    if (this.#busy) throw new Error("Noise: concurrent handshake use");
+    if (this.#busy) throw noiseError("concurrent handshake use");
     if (this.#step !== expected)
-      throw new Error(`Noise: unexpected handshake step (state ${this.#step})`);
+      throw noiseError(`unexpected handshake step (state ${this.#step})`);
     this.#busy = true;
     try {
       const out = await op();
@@ -333,6 +337,6 @@ function advance(step: Step): Step {
     case "read2":
       return "done";
     default:
-      throw new Error("Noise: invalid handshake step");
+      throw noiseError("invalid handshake step");
   }
 }

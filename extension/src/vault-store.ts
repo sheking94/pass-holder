@@ -3,7 +3,9 @@ import {
   deriveKeys,
   fromBase64,
   fromUtf8,
+  hasErrorCode,
   open,
+  PassHolderError,
   p2p,
   randomBytes,
   seal,
@@ -14,7 +16,8 @@ import {
   type KdfParams,
 } from "@passholder/core";
 import * as files from "@passholder/core/files";
-import { PhoneClient, phoneErrorInPolish } from "./phone-client.ts";
+import { errorMessage, FILE_CORRUPTED, toUserError } from "./error-messages.ts";
+import { PhoneClient } from "./phone-client.ts";
 import { invalidPinMessage, isValidPin } from "./pin-lock.ts";
 import { PinStore, type PinStatus } from "./pin-store.ts";
 import { learnedPhoneUrls, normalizePhoneUrls, pickPhone } from "./phone-urls.ts";
@@ -160,17 +163,20 @@ export class PairedButSyncFailed extends Error {
     readonly syncError: unknown,
   ) {
     super(
-      `Sparowano z telefonem, ale pierwsza synchronizacja się nie udała: ${syncError instanceof Error ? syncError.message : String(syncError)}`,
+      `Sparowano z telefonem, ale pierwsza synchronizacja się nie udała: ${errorMessage(syncError)}`,
     );
   }
 }
 
-/** Runs a call to the phone and turns the core's English errors into Polish ones. */
-async function talkToPhone<T>(call: () => Promise<T>): Promise<T> {
+/**
+ * Runs a call into the core and turns its coded errors into errors with the user's text (toUserError), so a
+ * screen can show `error.message`.
+ */
+async function inUserTerms<T>(call: () => Promise<T>): Promise<T> {
   try {
     return await call();
   } catch (error) {
-    throw phoneErrorInPolish(error);
+    throw toUserError(error);
   }
 }
 
@@ -195,17 +201,7 @@ export interface StoredEntry {
 }
 
 const OTHER_TYPE = "Ten wpis ma inny typ";
-const ENTRY_TOO_LARGE_PL = "Wpis jest za duży";
-const FILE_CORRUPTED_PL = "Plik jest uszkodzony";
 const FILE_NOT_READY = "Plik czeka na synchronizację";
-const SYNC_AGAIN = "Zsynchronizuj ponownie";
-
-/** The file phase's error as the screen shows it. */
-function fileErrorInPolish(error: unknown): string {
-  if (error instanceof Error && error.message === files.FILE_SYNC_EPOCH_MISMATCH) return SYNC_AGAIN;
-  const polish = phoneErrorInPolish(error);
-  return polish instanceof Error ? polish.message : String(polish);
-}
 
 /**
  * Removes local files no live entry of `vault` uses, except files added on this browser and never uploaded
@@ -231,12 +227,6 @@ function storedView(e: p2p.LocalEntry): StoredEntry | undefined {
   if (e.deleted) return undefined;
   const { v, hlc, ...data } = e.data;
   return { id: e.id, dirty: e.dirty, data: data as p2p.EntryContent };
-}
-
-function tooLargeInPolish(error: unknown): unknown {
-  return error instanceof Error && error.message === p2p.ENTRY_TOO_LARGE
-    ? new Error(ENTRY_TOO_LARGE_PL)
-    : error;
 }
 
 function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
@@ -407,7 +397,7 @@ export class VaultStore {
       try {
         p2p.upsertEntry(vault, clock, id, content);
       } catch (error) {
-        throw tooLargeInPolish(error);
+        throw toUserError(error);
       }
     } catch (error) {
       // Nothing refers to the new files: remove them, without letting a failed delete hide the error.
@@ -440,15 +430,13 @@ export class VaultStore {
     const blobs: string[] = [];
     for (let index = 0; index < a.chunks; index++) {
       const blob = await this.fileStore.getChunk(a.id, index);
-      if (blob === undefined) throw new Error(FILE_CORRUPTED_PL);
+      if (blob === undefined) throw new Error(FILE_CORRUPTED);
       blobs.push(blob);
     }
     try {
       return await files.decryptFile(a, blobs);
     } catch (error) {
-      if (error instanceof Error && error.message === files.FILE_CORRUPTED)
-        throw new Error(FILE_CORRUPTED_PL);
-      throw error;
+      throw toUserError(error);
     }
   }
 
@@ -486,7 +474,7 @@ export class VaultStore {
         try {
           p2p.upsertEntry(vault, clock, newId(), entry);
         } catch (error) {
-          if (error instanceof Error && error.message === p2p.ENTRY_TOO_LARGE) {
+          if (hasErrorCode(error, "ENTRY_TOO_LARGE")) {
             tooLarge++;
             continue;
           }
@@ -553,7 +541,7 @@ export class VaultStore {
     fileSkips: transfer.ImportSkip[];
   }> {
     const vault = this.requireVault();
-    const archive = await transfer.openPassHolderZip(bytes);
+    const archive = await inUserTerms(() => transfer.openPassHolderZip(bytes));
     const { parsed } = archive;
     const added: string[] = [];
     let result: ImportResult;
@@ -575,12 +563,12 @@ export class VaultStore {
             plain = await archive.readFile(f);
             if (plain.length !== f.size) {
               plain.fill(0);
-              throw new Error("inny rozmiar niż w opisie");
+              throw new PassHolderError("ARCHIVE_FILE_SIZE_MISMATCH");
             }
           } catch (error) {
             fileSkips.push({
               at: `wpis ${e.position}, ${f.name}`,
-              reason: error instanceof Error ? error.message : String(error),
+              reason: errorMessage(error),
             });
             continue;
           }
@@ -642,7 +630,7 @@ export class VaultStore {
       throw new Error("Ta przeglądarka jest już sparowana. Użyj „Sparuj z innym telefonem”.");
     const { url: baseUrl, client } = await pickPhone(typed, this.makeClient);
     // pairWithPhone refuses restore mode too, but only with a short message; this one says what to do.
-    if ((await talkToPhone(() => p2p.phoneHello(baseUrl, client.post))).mode === "restore")
+    if ((await inUserTerms(() => p2p.phoneHello(baseUrl, client.post))).mode === "restore")
       throw new Error(PHONE_WAITS_FOR_RESTORE);
 
     const staticKey = p2p.generateKeyPair();
@@ -651,7 +639,7 @@ export class VaultStore {
       name,
       staticPublicKey: toBase64(staticKey.publicKey),
     };
-    const res = await talkToPhone(() =>
+    const res = await inUserTerms(() =>
       p2p.pairWithPhone({ baseUrl, code, identity, post: client.post }),
     );
     if (res.mode !== "pair") throw new Error(PHONE_WAITS_FOR_RESTORE);
@@ -797,12 +785,12 @@ export class VaultStore {
         wrappedVaultKey: account.wrappedVaultKey,
         addresses: [],
       };
-    } else if ((await talkToPhone(() => p2p.phoneHello(baseUrl, client.post))).mode === "restore") {
+    } else if ((await inUserTerms(() => p2p.phoneHello(baseUrl, client.post))).mode === "restore") {
       // Only this browser's vault can restore the phone, and the password does not open it.
       throw new Error(WRONG_PASSWORD);
     }
     // In pair mode pairWithPhone does not send `restore`: the phone keeps its own vault.
-    const res = await talkToPhone(() =>
+    const res = await inUserTerms(() =>
       p2p.pairWithPhone({ baseUrl, code, identity, post: client.post, restore }),
     );
     if (res.mode === "restore" && !knownVault) throw new Error(WRONG_PASSWORD);
@@ -1021,7 +1009,7 @@ export class VaultStore {
       peerPublicKey: fromBase64(account.phone.staticPublicKey),
       post: client.post,
     };
-    await talkToPhone(() => p2p.syncVault(vault, vaultKey, clock, p2p.noiseTransport(noise)));
+    await inUserTerms(() => p2p.syncVault(vault, vaultKey, clock, p2p.noiseTransport(noise)));
     await this.save();
     const filesOutcome = await this.syncFilePhase(
       vault,
@@ -1080,7 +1068,7 @@ export class VaultStore {
         pending: 0,
         corrupted: [],
         corruptedIds: [],
-        error: fileErrorInPolish(error),
+        error: errorMessage(error),
       };
     }
     const used = files.usedAttachments(vault);

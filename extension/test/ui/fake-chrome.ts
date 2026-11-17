@@ -6,8 +6,8 @@
  */
 import type { p2p } from "@passholder/core";
 import { vi } from "vitest";
-import type { FillResult } from "../../src/autofill/fill-tab.ts";
-import type { SaveAnswerResponse, SavePromptInfo } from "../../src/save/messages.ts";
+import type { ActionResult } from "../../src/result.ts";
+import type { SavePromptInfo } from "../../src/save/messages.ts";
 import { PhoneClient } from "../../src/phone-client.ts";
 import { chromeStore, VaultStore } from "../../src/vault-store.ts";
 import { CODE, FakePhone, networkFetch, PASSWORD, PHONE_URL, type Network } from "../fake-phone.ts";
@@ -64,10 +64,10 @@ export async function setupPopup(
   entries: { id: string; content: p2p.EntryContent }[] = [],
   options: {
     activeTab?: { id: number; url: string };
-    fillResult?: FillResult;
+    fillResult?: ActionResult;
     /** The answer to "save-info" (an Error makes sendMessage reject) and to "save-answer" (default ok). */
     saveInfo?: SavePromptInfo | Error;
-    saveAnswer?: SaveAnswerResponse;
+    saveAnswer?: ActionResult;
     /** Host permissions: held (default: everything is allowed) and what permissions.request answers. */
     permissions?: { held?: string[]; requestResult?: boolean };
   } = {},

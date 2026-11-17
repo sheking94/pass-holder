@@ -115,9 +115,12 @@ export class PinStore {
         await this.disable();
         throw new Error(
           "Zły PIN. To była ostatnia próba: PIN został wyłączony, odblokuj hasłem głównym.",
+          { cause: error },
         );
       }
-      throw new Error(`Zły PIN. Pozostało prób: ${MAX_PIN_ATTEMPTS - attempts}.`);
+      throw new Error(`Zły PIN. Pozostało prób: ${MAX_PIN_ATTEMPTS - attempts}.`, {
+        cause: error,
+      });
     }
     const reset: PinLock = { ...lock, failedAttempts: 0 };
     // A short PIN on disk (from before S4 was fixed): keep it only in memory from now on.

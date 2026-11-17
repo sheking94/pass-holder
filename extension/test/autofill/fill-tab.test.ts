@@ -1,3 +1,4 @@
+import { UNLOCK_AND_RETRY } from "../../src/error-messages.ts";
 import { describe, expect, it } from "vitest";
 import type { p2p } from "@passholder/core";
 import type { FillPlan } from "@passholder/core/autofill";
@@ -5,12 +6,11 @@ import {
   CANNOT_FILL_ENTRY,
   CARD_NEEDS_HTTPS,
   fillTab,
-  LOCKED,
   NO_FIELDS,
   NOT_MATCHING,
   onFillCommand,
   UNSUPPORTED_PAGE,
-  type TabApi,
+  type FillTabApi,
 } from "../../src/autofill/fill-tab.ts";
 import { STORAGE_KEYS } from "../../src/storage.ts";
 import { pairedBrowser } from "../fake-phone.ts";
@@ -55,7 +55,7 @@ const contact: p2p.EntryContent = {
 function fakeTabs(url: string | undefined, filled = 1) {
   const injected: FillPlan[] = [];
   const origins: string[] = [];
-  const api: TabApi = {
+  const api: FillTabApi = {
     get: async (id) => ({ id, url }),
     inject: async (_id, plan, origin) => {
       injected.push(plan);
@@ -125,7 +125,7 @@ describe("fillTab", () => {
 
   it("reports an unsupported page when injection throws", async () => {
     const { store } = await setup();
-    const api: TabApi = {
+    const api: FillTabApi = {
       get: async (id) => ({ id, url: "https://bank.pl/" }),
       inject: async () => {
         throw new Error("no access");
@@ -138,7 +138,7 @@ describe("fillTab", () => {
     const { store, session } = await setup();
     await session.remove(STORAGE_KEYS.sessionKeys);
     const { api, injected } = fakeTabs("https://bank.pl/");
-    expect(await fillTab(store, api, 7, "l1")).toEqual({ ok: false, error: LOCKED });
+    expect(await fillTab(store, api, 7, "l1")).toEqual({ ok: false, error: UNLOCK_AND_RETRY });
     expect(injected).toEqual([]);
   }, 30_000);
 

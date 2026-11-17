@@ -1,4 +1,5 @@
 // CSV (RFC 4180) reading and writing shared by the importers and exporters.
+import { PassHolderError } from "../errors.ts";
 
 /**
  * Splits CSV text into rows of fields. Handles quoted fields with commas, doubled quotes and
@@ -47,7 +48,11 @@ export function parseCsv(text: string): { line: number; fields: string[] }[] {
     }
   }
   if (quoted)
-    throw new Error(`Plik CSV jest uszkodzony: niezamknięty cudzysłów (wiersz ${rowStartLine})`);
+    throw new PassHolderError(
+      "IMPORT_CSV_UNCLOSED_QUOTE",
+      `CSV file is damaged: unclosed quote (line ${rowStartLine})`,
+      { detail: String(rowStartLine) },
+    );
   if (field !== "" || fields.length > 0) endRow();
   return rows;
 }

@@ -1,5 +1,6 @@
 import { open, seal } from "../cipher.ts";
 import { fromUtf8, utf8 } from "../encoding.ts";
+import { PassHolderError } from "../errors.ts";
 import { attachmentJson, parseAttachments, type Attachment } from "../files/attachment.ts";
 import { parseHlc, type Hlc } from "./hlc.ts";
 
@@ -73,9 +74,18 @@ export interface TombstoneData {
 }
 
 export const MAX_ENTRY_BLOB_LENGTH = 65536;
-export const ENTRY_TOO_LARGE = "Entry too large";
-/** Prefix of the error syncVault throws for a dirty entry whose blob exceeds the host limit; ": <name>" follows. */
-export const ENTRY_TOO_LARGE_TO_SYNC = "Entry too large to sync";
+
+/** upsertEntry: the entry's blob would exceed MAX_ENTRY_BLOB_LENGTH. */
+export function entryTooLarge(): PassHolderError {
+  return new PassHolderError("ENTRY_TOO_LARGE", "Entry too large");
+}
+
+/** syncVault: a dirty entry's blob exceeds the host limit; `detail` is its name (a tombstone's id). */
+export function entryTooLargeToSync(name: string): PassHolderError {
+  return new PassHolderError("ENTRY_TOO_LARGE_TO_SYNC", `Entry too large to sync: ${name}`, {
+    detail: name,
+  });
+}
 
 const INVALID_ENTRY = "Invalid entry payload";
 const INVALID_TOMBSTONE = "Invalid tombstone payload";

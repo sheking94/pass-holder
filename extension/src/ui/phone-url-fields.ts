@@ -1,3 +1,4 @@
+import { errorMessage } from "../error-messages.ts";
 import { normalizePhoneUrls, PHONE_PORT } from "../phone-urls.ts";
 import { h, setStatus } from "./dom.ts";
 
@@ -53,7 +54,7 @@ export function phoneUrlFields(current: readonly string[] = []) {
       try {
         urls = normalizePhoneUrls([...box.querySelectorAll("input")].map((i) => i.value));
       } catch (error) {
-        return (error as Error).message;
+        return errorMessage(error);
       }
       if (urls.length === 0) return `Podaj adres telefonu, np. ${URL_EXAMPLE}`;
       return { urls, origins: [...new Set(urls.map(originPattern))] };

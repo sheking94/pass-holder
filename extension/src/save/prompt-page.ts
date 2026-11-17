@@ -1,8 +1,8 @@
+import type { ActionResult } from "../result.ts";
 /** The question window's page (save-prompt.html?id=<candidate id>) without the chrome.* wiring, so it can be tested. */
 import { promptView } from "./prompt-view.ts";
 import type {
   SaveAnswerMessage,
-  SaveAnswerResponse,
   SaveInfoMessage,
   SavePreviewMessage,
   SavePreviewResponse,
@@ -50,7 +50,7 @@ export async function startPromptPage(
             password,
           })) as SavePreviewResponse,
         answer: async (answer, draft) => {
-          const result = (await runtime.send(answerMessage(answer, draft))) as SaveAnswerResponse;
+          const result = (await runtime.send(answerMessage(answer, draft))) as ActionResult;
           // The vault may have locked after the panel loaded: show "Odblokuj i zapisz" instead of the error.
           if (!result.ok && answer === "save") {
             const fresh = await info().catch(() => undefined);

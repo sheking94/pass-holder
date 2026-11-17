@@ -1,3 +1,4 @@
+import { withCode } from "../error-code.ts";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
@@ -107,10 +108,8 @@ describe("parseNordPassCsv sample files", () => {
 
 describe("parseNordPassCsv", () => {
   it("rejects an empty file and one that is not a NordPass export", () => {
-    expect(() => parseNordPassCsv("")).toThrow("Plik jest pusty");
-    expect(() => parseNordPassCsv("foo,bar\n1,2")).toThrow(
-      "To nie wygląda na eksport z NordPass: brak kolumn name/url w pierwszym wierszu",
-    );
+    expect(() => parseNordPassCsv("")).toThrow(withCode("IMPORT_EMPTY_FILE"));
+    expect(() => parseNordPassCsv("foo,bar\n1,2")).toThrow(withCode("IMPORT_NOT_NORDPASS"));
   });
 
   it("accepts the header only", () => {

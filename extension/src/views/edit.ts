@@ -45,6 +45,8 @@ function leaveEditTarget(): void {
 export async function editView(type: p2p.EntryType, id?: string): Promise<void> {
   const existing = id ? store.getEntry(id)?.data : undefined;
   const original = existing && existing.type === type ? existing : undefined;
+  /** The id this form saves under: the edited entry's, or none for a new entry. */
+  const editedId = original ? id : undefined;
   const base = original ?? emptyContent(type);
   const status = statusLine();
 
@@ -55,7 +57,7 @@ export async function editView(type: p2p.EntryType, id?: string): Promise<void> 
   const files = await attachmentsEditor(
     base.attachments ?? [],
     status,
-    () => void openEditTab(type, original && id),
+    () => void openEditTab(type, editedId),
   );
   const custom = customFieldsEditor(base.custom, status);
 
@@ -74,14 +76,15 @@ export async function editView(type: p2p.EntryType, id?: string): Promise<void> 
       const error = validateContent(content, original);
       if (error) throw new Error(error);
       // An id of another type is not this entry: the form saves a new one and leaves that one alone.
-      await store.putEntry(original ? id! : crypto.randomUUID(), content, added);
+      await store.putEntry(editedId ?? crypto.randomUUID(), content, added);
       leaveEditTarget();
       listView(SAVED, false, type);
     });
 
   const remove = confirmButton("Usuń", { class: "danger" }, () => {
     void busy(status, "Usuwam…", async () => {
-      await store.delete(id!);
+      if (editedId === undefined) return;
+      await store.delete(editedId);
       leaveEditTarget();
       listView(DELETED, false, type);
     });
