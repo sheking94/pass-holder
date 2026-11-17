@@ -9,8 +9,7 @@
  *  - "transfer":  import and export of all formats (the file chooser),
  *  - "edit":      the form of one entry, to add attachments (the file chooser); see editQuery.
  */
-import type { p2p } from "@passholder/core";
-import { ENTRY_TYPES } from "./entry-types.ts";
+import { p2p } from "@passholder/core";
 
 export type PageMode = "popup" | "tab" | "setup" | "addresses" | "transfer" | "edit";
 export type TabMode = Exclude<PageMode, "popup">;
@@ -46,7 +45,7 @@ export function editQuery(type: p2p.EntryType, id?: string): string {
 /** The form an edit tab shows (see editQuery); undefined when the type is missing or unknown. */
 export function editTarget(search: string): { type: p2p.EntryType; id?: string } | undefined {
   const params = new URLSearchParams(search);
-  const type = ENTRY_TYPES.find((t) => t === params.get("type"));
+  const type = p2p.ENTRY_TYPES.find((t) => t === params.get("type"));
   if (!type) return undefined;
   const id = params.get("id");
   return id ? { type, id } : { type };

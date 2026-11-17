@@ -9,6 +9,7 @@ import {
   isAttachmentName,
   type Attachment,
 } from "./attachment.ts";
+import { KEY_BYTES } from "../sizes.ts";
 
 /** A file whose chunks do not match its descriptor (count, size, SHA-256 or AES-GCM). */
 const corrupted = (cause?: unknown) =>
@@ -43,7 +44,7 @@ export async function encryptFile(
   if (!isAttachmentName(meta.name))
     throw new PassHolderError("FILE_INVALID_NAME", "Invalid file name");
   const id = fixed?.id ?? crypto.randomUUID();
-  const key = fixed?.key ?? randomBytes(32);
+  const key = fixed?.key ?? randomBytes(KEY_BYTES);
   const chunks = chunkCount(bytes.length);
   if (fixed && fixed.nonces.length !== chunks)
     throw new Error("Nonce count must equal chunk count");

@@ -7,20 +7,31 @@ import {
 import { PassHolderError } from "../errors.ts";
 import { parseEntryContent, type EntryContent } from "../p2p/entry.ts";
 import { hasExactKeys, isRecord } from "../strict-json.ts";
-import { sortForExport, type ImportSkip, type ParsedImport } from "./common.ts";
+import {
+  SKIP_BAD_ENTRY,
+  SKIP_NO_NAME,
+  sortForExport,
+  type ImportSkip,
+  type ParsedImport,
+} from "./common.ts";
+
+const FORMAT = "passholder";
+const VERSION = 3;
+
+/** The text of a PassHolder JSON file or archive index: format marker, version and entries, pretty-printed. */
+export function passHolderJsonText(entries: readonly unknown[]): string {
+  return JSON.stringify({ format: FORMAT, version: VERSION, entries }, null, 2) + "\n";
+}
 
 /** True for an object carrying the PassHolder format marker (used to detect the file kind). */
 export function isPassHolderJson(value: unknown): boolean {
-  return isRecord(value) && value.format === "passholder";
+  return isRecord(value) && value.format === FORMAT;
 }
 
 export function exportPassHolderJson(entries: readonly EntryContent[]): string {
   // Attachment descriptors carry file keys and the files are not exported, so they are left out.
   const bare = entries.map(({ attachments: _attachments, ...rest }) => rest as EntryContent);
-  return (
-    JSON.stringify({ format: "passholder", version: 3, entries: sortForExport(bare) }, null, 2) +
-    "\n"
-  );
+  return passHolderJsonText(sortForExport(bare));
 }
 
 /** Number of files that an export of these entries leaves out. */
@@ -115,7 +126,7 @@ export function parseArchiveIndex(text: string): ParsedArchive {
   }
   if (!isPassHolderJson(doc)) throw notPassHolder();
   const { version, entries: raw } = doc as Record<string, unknown>;
-  if (version !== 3 || !Array.isArray(raw)) throw notPassHolder();
+  if (version !== VERSION || !Array.isArray(raw)) throw notPassHolder();
   const entries: ArchiveEntry[] = [];
   const skipped: ImportSkip[] = [];
   // A path may be described once in the whole index, so one stored file cannot be imported many times.
@@ -125,11 +136,11 @@ export function parseArchiveIndex(text: string): ParsedArchive {
     const parsed = parseIndexItem(item);
     const own = parsed?.files.map((f) => f.path) ?? [];
     if (parsed === undefined || new Set(own).size !== own.length || own.some((p) => paths.has(p))) {
-      skipped.push({ at, reason: "zły format wpisu" });
+      skipped.push({ at, reason: SKIP_BAD_ENTRY });
       return;
     }
     if (parsed.content.name.trim() === "") {
-      skipped.push({ at, reason: "brak nazwy" });
+      skipped.push({ at, reason: SKIP_NO_NAME });
       return;
     }
     own.forEach((p) => paths.add(p));

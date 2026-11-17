@@ -14,6 +14,9 @@ import {
   type PendingPairingInfo,
 } from "../vault-store.ts";
 import { listView, skippedNote } from "./list.ts";
+import { p2p } from "@passholder/core";
+import { PAIRING_CODE_LABEL, pairingCodeInput } from "../ui/pairing-code.ts";
+import { MASTER_PASSWORD_LABEL } from "../ui/texts.ts";
 
 const PAIRED =
   "Sparowano z telefonem. Możesz zamknąć tę kartę i używać ikony PassHolder na pasku. Logowanie PIN-em włączysz przyciskiem PIN.";
@@ -64,15 +67,12 @@ async function connectView(message = "") {
 /** Step 1: the phone's address and the one-time code from its "Synchronizacja" screen. */
 function codeStep(message = "") {
   const addresses = phoneUrlFields();
-  const code = h("input", {
+  const code = pairingCodeInput();
+  const name = h("input", {
     type: "text",
-    class: "mono",
-    inputmode: "numeric",
-    autocomplete: "off",
-    maxLength: 9,
-    placeholder: "12345678",
+    value: defaultDeviceName(),
+    maxLength: p2p.MAX_DEVICE_NAME_LENGTH,
   });
-  const name = h("input", { type: "text", value: defaultDeviceName(), maxLength: 64 });
   const status = statusLine();
   setStatus(status, message, Boolean(message));
 
@@ -102,13 +102,13 @@ function codeStep(message = "") {
       h(
         "li",
         {},
-        "Przepisz tu adres i 8-cyfrowy kod z ekranu telefonu. Kod jest ważny 2 minuty i działa raz.",
+        `Przepisz tu adres i ${p2p.PAIRING_CODE_LENGTH}-cyfrowy kod z ekranu telefonu. Kod jest ważny ${p2p.PAIRING_CODE_TTL_MS / 60_000} minuty i działa raz.`,
       ),
     ),
     form(
       submit,
       ...addresses.fields,
-      h("label", {}, "Kod parowania (8 cyfr)"),
+      h("label", {}, PAIRING_CODE_LABEL),
       code,
       h("label", {}, "Nazwa tej przeglądarki (zobaczysz ją w telefonie)"),
       name,
@@ -177,7 +177,7 @@ function passwordStep(pending: PendingPairingInfo, message = "") {
     ),
     form(
       submit,
-      h("label", {}, "Hasło główne"),
+      h("label", {}, MASTER_PASSWORD_LABEL),
       passwordField(password).row,
       h(
         "div",

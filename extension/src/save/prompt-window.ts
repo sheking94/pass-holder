@@ -6,6 +6,10 @@ import { STORAGE_KEYS, type KeyValueStore } from "../storage.ts";
 
 export const PROMPT_WIDTH = 380;
 export const PROMPT_HEIGHT = 420;
+/** Gap between the prompt and the right edge of the tab's window. */
+const PROMPT_RIGHT_MARGIN = 16;
+/** Distance from the top of the window, below the tab strip and the address bar. */
+const PROMPT_TOP_OFFSET = 80;
 /** Badge text while the tab has a question waiting; clicking the icon shows it in the popup. */
 export const PROMPT_BADGE = "?";
 
@@ -31,8 +35,14 @@ type Open = Record<string, { windowId: number; candidateId: string }>;
 
 /** The tab and window the prompt is placed against: top right of the tab's window, like the old panel. */
 export function promptBounds(of: Partial<Bounds> | undefined): Bounds {
-  const left = (of?.left ?? 0) + Math.max(0, (of?.width ?? PROMPT_WIDTH) - PROMPT_WIDTH - 16);
-  return { left, top: (of?.top ?? 0) + 80, width: PROMPT_WIDTH, height: PROMPT_HEIGHT };
+  const left =
+    (of?.left ?? 0) + Math.max(0, (of?.width ?? PROMPT_WIDTH) - PROMPT_WIDTH - PROMPT_RIGHT_MARGIN);
+  return {
+    left,
+    top: (of?.top ?? 0) + PROMPT_TOP_OFFSET,
+    width: PROMPT_WIDTH,
+    height: PROMPT_HEIGHT,
+  };
 }
 
 export class PromptWindows {

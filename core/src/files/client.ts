@@ -10,9 +10,7 @@ import {
 } from "../p2p/transport.ts";
 import type { Attachment } from "./attachment.ts";
 import { decryptFile, type EncryptedFile } from "./chunks.ts";
-import type { P2pFileRequest, P2pFileStatus } from "./host-files.ts";
-
-const MAX_STATUS_IDS = 500;
+import { MAX_STATUS_IDS, type P2pFileRequest, type P2pFileStatus } from "./host-files.ts";
 
 /** Sends one file request; returns the decrypted 200 answer, or null for a `get` of a chunk the phone lacks. */
 export type P2pFileTransport = (request: P2pFileRequest) => Promise<unknown>;

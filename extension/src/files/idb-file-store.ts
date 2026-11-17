@@ -1,11 +1,11 @@
 // Subpath import: the @passholder/core root pulls crypto libraries into the page bundle.
-import type { LocalFileState, LocalFileStore } from "@passholder/core/files";
+import { MAX_FILE_CHUNKS, type LocalFileState, type LocalFileStore } from "@passholder/core/files";
 
 /** File record without `have`: that is computed from the keys of the `chunks` store. */
 type FileRecord = Omit<LocalFileState, "have">;
 
-/** The largest chunk index a file can have (the core limits a file to 40 chunks). */
-const MAX_CHUNK_INDEX = 40;
+/** The largest chunk index a file can have. */
+const MAX_CHUNK_INDEX = MAX_FILE_CHUNKS - 1;
 
 const request = <T>(r: IDBRequest<T>): Promise<T> =>
   new Promise((resolve, reject) => {

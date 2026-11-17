@@ -1,13 +1,31 @@
-import type { EntryContent, EntryType, PostalAddress } from "../p2p/entry.ts";
+import {
+  ENTRY_TYPES,
+  type DocumentKind,
+  type EntryContent,
+  type PostalAddress,
+} from "../p2p/entry.ts";
 
-/** Order of entry types in exports when names are equal. */
-export const ENTRY_TYPE_ORDER: readonly EntryType[] = [
-  "login",
-  "contact",
-  "card",
-  "note",
-  "document",
-];
+/** Polish names of document kinds: written into exports and shown in the extension. */
+export const DOCUMENT_KIND_NAMES: Record<DocumentKind, string> = {
+  id_card: "Dowód osobisty",
+  passport: "Paszport",
+  driving_license: "Prawo jazdy",
+  student_id: "Legitymacja",
+  other: "Inny",
+};
+
+/** Polish labels of document fields in exports (Bitwarden custom fields, NordPass note lines). */
+export const DOCUMENT_LABELS = {
+  kind: "Rodzaj dokumentu",
+  fullName: "Imię i nazwisko",
+  issueDate: "Data wydania",
+  expiryDate: "Data ważności",
+  issuer: "Wystawca",
+} as const;
+
+/** ImportSkip reasons shared by the importers. */
+export const SKIP_BAD_ENTRY = "zły format wpisu";
+export const SKIP_NO_NAME = "brak nazwy";
 
 /** An entry or row an importer did not take. `at` is ready to show, e.g. "wiersz 3" (CSV, header is row 1) or "wpis 2" (JSON, from 1). */
 export interface ImportSkip {
@@ -44,12 +62,12 @@ export function contentKey(c: EntryContent): string {
   return JSON.stringify(trimmed(rest));
 }
 
-/** A copy sorted by name (Polish collation), then by type in ENTRY_TYPE_ORDER. */
+/** A copy sorted by name (Polish collation), then by type in ENTRY_TYPES order. */
 export function sortForExport(entries: readonly EntryContent[]): EntryContent[] {
   return [...entries].sort(
     (a, b) =>
       a.name.localeCompare(b.name, "pl") ||
-      ENTRY_TYPE_ORDER.indexOf(a.type) - ENTRY_TYPE_ORDER.indexOf(b.type),
+      ENTRY_TYPES.indexOf(a.type) - ENTRY_TYPES.indexOf(b.type),
   );
 }
 

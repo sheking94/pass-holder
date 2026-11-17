@@ -1,11 +1,7 @@
-import { p2p } from "@passholder/core";
+import { CARD_EXPIRY, isCalendarDate, p2p, transfer } from "@passholder/core";
 
 type EntryType = p2p.EntryType;
-type DocumentKind = p2p.DocumentKind;
 type Content = p2p.EntryContent;
-
-/** Entry types in tab order (logins first). */
-export const ENTRY_TYPES: readonly EntryType[] = ["login", "contact", "card", "note", "document"];
 
 export const TYPE_INFO: Record<
   EntryType,
@@ -21,14 +17,6 @@ export const TYPE_INFO: Record<
     newTitle: "Nowy dokument",
     editTitle: "Edytuj dokument",
   },
-};
-
-export const DOCUMENT_KIND_LABELS: Record<DocumentKind, string> = {
-  id_card: "Dowód osobisty",
-  passport: "Paszport",
-  driving_license: "Prawo jazdy",
-  student_id: "Legitymacja",
-  other: "Inny",
 };
 
 const ANDROID_PACKAGE = /^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$/;
@@ -81,7 +69,7 @@ export function entrySummary(content: Content): string {
       return digits ? `•••• ${digits.slice(-4)}` : "";
     }
     case "document":
-      return DOCUMENT_KIND_LABELS[content.fields.kind] ?? "";
+      return transfer.DOCUMENT_KIND_NAMES[content.fields.kind] ?? "";
     case "contact":
       return content.fields.phones[0]?.value ?? "";
     case "note":
@@ -121,14 +109,6 @@ export function tidyContent(content: Content): Content {
   return out;
 }
 
-function isCalendarDate(s: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
-  const [y, m, d] = s.split("-").map(Number) as [number, number, number];
-  const t = new Date(Date.UTC(y, m - 1, d));
-  t.setUTCFullYear(y); // years 0000-0099 map to 1900+ in the constructor
-  return t.getUTCFullYear() === y && t.getUTCMonth() === m - 1 && t.getUTCDate() === d;
-}
-
 function validDate(value: string, original: string | undefined): boolean {
   return value === "" || value === original || isCalendarDate(value);
 }
@@ -165,7 +145,7 @@ export function validateContent(content: Content, original?: Content): string | 
     case "card": {
       const e = content.fields.expiry;
       const o = before?.type === "card" ? before.fields.expiry : undefined;
-      if (e !== "" && e !== o && !/^(0[1-9]|1[0-2])\/\d{2}$/.test(e)) return "Ważność: wpisz MM/RR";
+      if (e !== "" && e !== o && !CARD_EXPIRY.test(e)) return "Ważność: wpisz MM/RR";
       return undefined;
     }
     case "note":

@@ -6,6 +6,7 @@
 import { MAX_ENTRY_BLOB_LENGTH } from "./entry.ts";
 import { isRecord } from "../strict-json.ts";
 import { processSync, type ChangeRequest, type RemoteRecord, type SyncStore } from "../protocol.ts";
+import { KIB } from "../sizes.ts";
 
 export interface P2pSyncRequest {
   epoch: string;
@@ -38,7 +39,7 @@ export const MAX_CHANGES_PER_REQUEST = 500;
  * in, even when it alone is larger. Kept below 768 KiB because a request body is Base64 of the frames (x4/3)
  * and must stay under MAX_BODY_BYTES.
  */
-export const MAX_BLOB_BYTES_PER_ROUND = 524288;
+export const MAX_BLOB_BYTES_PER_ROUND = 512 * KIB;
 
 export const MAX_ENTRY_ID_LENGTH = 128;
 

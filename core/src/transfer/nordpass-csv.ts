@@ -1,8 +1,10 @@
 import { PassHolderError } from "../errors.ts";
-import type { CustomField, DocumentKind, EntryContent } from "../p2p/entry.ts";
+import type { CustomField, EntryContent } from "../p2p/entry.ts";
 import { parseCsv, toCsv } from "./csv.ts";
 import {
   addressLine,
+  DOCUMENT_KIND_NAMES,
+  DOCUMENT_LABELS,
   labelled,
   sortForExport,
   type ImportSkip,
@@ -35,15 +37,6 @@ export const NORDPASS_COLUMNS = [
 ] as const;
 
 type Column = (typeof NORDPASS_COLUMNS)[number] | "type";
-
-/** Polish names of document kinds, as in the extension (its DOCUMENT_KIND_LABELS is not shared). */
-const DOCUMENT_KIND_NAMES: Record<DocumentKind, string> = {
-  id_card: "Dowód osobisty",
-  passport: "Paszport",
-  driving_license: "Prawo jazdy",
-  student_id: "Legitymacja",
-  other: "Inny",
-};
 
 const TYPES: Record<string, "login" | "note" | "card" | "contact"> = {
   password: "login",
@@ -251,12 +244,12 @@ function exportRow(e: EntryContent): string[] {
     case "document": {
       const f = e.fields;
       lines = [
-        ...line("Rodzaj dokumentu", DOCUMENT_KIND_NAMES[f.kind] ?? ""),
+        ...line(DOCUMENT_LABELS.kind, DOCUMENT_KIND_NAMES[f.kind] ?? ""),
         ...line("Numer", f.number),
-        ...line("Imię i nazwisko", f.fullName),
-        ...line("Data wydania", f.issueDate),
-        ...line("Data ważności", f.expiryDate),
-        ...line("Wystawca", f.issuer),
+        ...line(DOCUMENT_LABELS.fullName, f.fullName),
+        ...line(DOCUMENT_LABELS.issueDate, f.issueDate),
+        ...line(DOCUMENT_LABELS.expiryDate, f.expiryDate),
+        ...line(DOCUMENT_LABELS.issuer, f.issuer),
       ];
       break;
     }

@@ -8,8 +8,9 @@ import { isRecord } from "../strict-json.ts";
 import { MAX_FILE_BLOB_LENGTH, MAX_FILE_CHUNKS, UUID_V4 } from "./attachment.ts";
 
 /** Files nobody references and older than this are removed by the host's cleanup. */
-export const ORPHAN_FILE_AGE_MS = 86_400_000;
-const MAX_STATUS_IDS = 500;
+export const ORPHAN_FILE_AGE_MS = 24 * 60 * 60_000;
+/** Most ids in one `status` request; the client splits longer lists. */
+export const MAX_STATUS_IDS = 500;
 
 export interface FileStore {
   /** Chunk count the file was announced with, undefined for an unknown id. */

@@ -4,6 +4,8 @@ import { open, seal } from "../cipher.ts";
 import { fromBase64, fromUtf8, randomBytes, toBase64, utf8 } from "../encoding.ts";
 import { assertKdfParamsAcceptable, type KdfParams } from "../kdf.ts";
 import { isRecord } from "../strict-json.ts";
+import { KEY_BYTES, RANDOM_ID_BYTES, SALT_BYTES } from "../sizes.ts";
+import { MAX_DEVICE_ID_LENGTH } from "./hlc.ts";
 
 export interface DeviceIdentity {
   deviceId: string;
@@ -27,22 +29,25 @@ export type PairingRole = "initiator" | "responder";
 export const MAX_DEVICE_NAME_LENGTH = 64;
 export const MAX_ADDRESSES = 16;
 export const MAX_ADDRESS_LENGTH = 256;
+export const PAIRING_CODE_LENGTH = 8;
+/** How long the phone accepts a pairing code (PAIRING_CODE_TTL_MS in the Kotlin PairingHost). */
+export const PAIRING_CODE_TTL_MS = 2 * 60_000;
 
 const PAIR_KEY_INFO = utf8("passholder/v2/pair-key");
 
-/** 8 decimal digits. Bytes >= 250 are rejected so every digit is equally likely (no `% 10` bias). */
+/** PAIRING_CODE_LENGTH decimal digits. Bytes >= 250 are rejected so every digit is equally likely (no `% 10` bias). */
 export function generatePairingCode(): string {
   let code = "";
-  while (code.length < 8) {
+  while (code.length < PAIRING_CODE_LENGTH) {
     for (const b of randomBytes(16)) {
-      if (b < 250 && code.length < 8) code += String(b % 10);
+      if (b < 250 && code.length < PAIRING_CODE_LENGTH) code += String(b % 10);
     }
   }
   return code;
 }
 
 export function pairingKey(isk: Uint8Array): Uint8Array {
-  return hkdf(sha256, isk, undefined, PAIR_KEY_INFO, 32);
+  return hkdf(sha256, isk, undefined, PAIR_KEY_INFO, KEY_BYTES);
 }
 
 /** AAD binds the message to its kind and to the sender's role, so a reflected message does not open. */
@@ -81,20 +86,20 @@ function checkBase64(value: unknown, field: string, length?: number): Uint8Array
 function parseIdentity(v: unknown): DeviceIdentity {
   if (!isRecord(v)) throw new Error("Identity must be an object");
   const { deviceId, name, staticPublicKey } = v;
-  if (typeof deviceId !== "string" || deviceId.length < 1 || deviceId.length > 64)
+  if (typeof deviceId !== "string" || deviceId.length < 1 || deviceId.length > MAX_DEVICE_ID_LENGTH)
     throw new Error("Invalid deviceId");
   if (typeof name !== "string" || name.length < 1 || name.length > MAX_DEVICE_NAME_LENGTH)
     throw new Error("Invalid name");
-  checkBase64(staticPublicKey, "staticPublicKey", 32);
+  checkBase64(staticPublicKey, "staticPublicKey", KEY_BYTES);
   return { deviceId, name, staticPublicKey: staticPublicKey as string };
 }
 
 function parseVaultInfo(v: unknown): VaultInfo {
   if (!isRecord(v)) throw new Error("Vault info must be an object");
   const { epoch, kdf, wrappedVaultKey, addresses } = v;
-  checkBase64(epoch, "epoch", 16);
+  checkBase64(epoch, "epoch", RANDOM_ID_BYTES);
   if (!isRecord(kdf)) throw new Error("Invalid kdf");
-  checkBase64(kdf.salt, "kdf.salt", 16);
+  checkBase64(kdf.salt, "kdf.salt", SALT_BYTES);
   assertKdfParamsAcceptable(kdf as unknown as KdfParams);
   checkBase64(wrappedVaultKey, "wrappedVaultKey");
   if (

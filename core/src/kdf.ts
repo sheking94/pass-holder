@@ -2,6 +2,7 @@ import { argon2idAsync } from "@noble/hashes/argon2.js";
 import { hkdf } from "@noble/hashes/hkdf.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { fromBase64, randomBytes, toBase64, utf8 } from "./encoding.ts";
+import { KEY_BYTES, SALT_BYTES } from "./sizes.ts";
 
 /** Argon2id parameters. Stored in plain text next to the vault so another device can derive the same keys. */
 export interface KdfParams {
@@ -20,19 +21,19 @@ export const DEFAULT_KDF = { memoryKiB: 65536, iterations: 3, parallelism: 4 } a
 export const MIN_KDF = { memoryKiB: 19456, iterations: 2, parallelism: 1 } as const;
 
 /** Upper bounds, so a malicious peer cannot make the device allocate gigabytes or hash for minutes. */
-export const MAX_KDF = { memoryKiB: 1_048_576, iterations: 100, parallelism: 64 } as const;
+export const MAX_KDF = { memoryKiB: 1024 * 1024, iterations: 100, parallelism: 64 } as const;
 
 function inRange(value: unknown, min: number, max: number): boolean {
   return Number.isSafeInteger(value) && (value as number) >= min && (value as number) <= max;
 }
 
 export function newKdfParams(): KdfParams {
-  return { alg: "argon2id", salt: toBase64(randomBytes(16)), ...DEFAULT_KDF };
+  return { alg: "argon2id", salt: toBase64(randomBytes(SALT_BYTES)), ...DEFAULT_KDF };
 }
 
 export function assertKdfParamsAcceptable(params: KdfParams): void {
   if (params.alg !== "argon2id") throw new Error(`Unsupported KDF: ${params.alg}`);
-  if (fromBase64(params.salt).length !== 16) throw new Error("KDF salt must be 16 bytes");
+  if (fromBase64(params.salt).length !== SALT_BYTES) throw new Error("KDF salt must be 16 bytes");
   // Checked as integers in range, not just "not below the minimum": NaN or a string compares false with
   // everything and would otherwise slip through.
   if (!inRange(params.memoryKiB, MIN_KDF.memoryKiB, MAX_KDF.memoryKiB))
@@ -58,13 +59,13 @@ export async function deriveMasterKey(
     m: params.memoryKiB,
     t: params.iterations,
     p: params.parallelism,
-    dkLen: 32,
+    dkLen: KEY_BYTES,
   });
 }
 
 export function splitMasterKey(masterKey: Uint8Array): DerivedKeys {
   return {
-    encKey: hkdf(sha256, masterKey, undefined, INFO_ENC, 32),
+    encKey: hkdf(sha256, masterKey, undefined, INFO_ENC, KEY_BYTES),
   };
 }
 

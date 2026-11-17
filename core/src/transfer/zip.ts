@@ -3,11 +3,12 @@
 
 import { concatAll } from "../encoding.ts";
 import { hasErrorCode, PassHolderError } from "../errors.ts";
+import { KIB } from "../sizes.ts";
 
 /** Most entries a readable archive may hold. */
 const MAX_ZIP_ENTRIES = 5000;
 /** Input slice fed to the inflater, so a zip bomb is stopped after a bounded amount of output. */
-const INFLATE_SLICE = 16384;
+const INFLATE_SLICE = 16 * KIB;
 
 const LOCAL_SIG = 0x04034b50;
 const CENTRAL_SIG = 0x02014b50;
@@ -16,10 +17,17 @@ const ZIP64_LOCATOR_SIG = 0x07064b50;
 const FLAG_ENCRYPTED = 0x0001;
 const FLAG_UTF8 = 0x0800;
 const VERSION = 20;
+/** Fixed parts of the records, without the variable-length name, extra field and comment. */
+const LOCAL_HEADER_SIZE = 30;
+const CENTRAL_HEADER_SIZE = 46;
+const END_RECORD_SIZE = 22;
+const ZIP64_LOCATOR_SIZE = 20;
+const METHOD_STORED = 0;
+const METHOD_DEFLATE = 8;
 
 export interface ZipEntry {
   path: string;
-  method: 0 | 8;
+  method: typeof METHOD_STORED | typeof METHOD_DEFLATE;
   compressedSize: number;
   size: number;
   crc: number;
@@ -73,7 +81,7 @@ async function deflateRaw(bytes: Uint8Array): Promise<Uint8Array> {
 
 interface Pending {
   name: Uint8Array;
-  method: 0 | 8;
+  method: typeof METHOD_STORED | typeof METHOD_DEFLATE;
   crc: number;
   size: number;
   data: Uint8Array;
@@ -104,7 +112,7 @@ export class ZipWriter {
     const stored = deflated.length >= bytes.length;
     const entry: Pending = {
       name: new TextEncoder().encode(path),
-      method: stored ? 0 : 8,
+      method: stored ? METHOD_STORED : METHOD_DEFLATE,
       crc: crc32(bytes),
       size: bytes.length,
       // A copy, so the caller may zero its plaintext as soon as add resolves.
@@ -126,18 +134,18 @@ export class ZipWriter {
     let offset = 0;
     for (const e of this.#entries) {
       if (offset >= 0xffffffff || e.size >= 0xffffffff || e.data.length >= 0xffffffff) tooLarge();
-      const local = new Uint8Array(30 + e.name.length);
+      const local = new Uint8Array(LOCAL_HEADER_SIZE + e.name.length);
       const lv = new DataView(local.buffer);
       lv.setUint32(0, LOCAL_SIG, true);
       this.#common(lv, 4, e);
-      local.set(e.name, 30);
-      const record = new Uint8Array(46 + e.name.length);
+      local.set(e.name, LOCAL_HEADER_SIZE);
+      const record = new Uint8Array(CENTRAL_HEADER_SIZE + e.name.length);
       const cv = new DataView(record.buffer);
       cv.setUint32(0, CENTRAL_SIG, true);
       cv.setUint16(4, VERSION, true);
       this.#common(cv, 6, e);
       cv.setUint32(42, offset, true);
-      record.set(e.name, 46);
+      record.set(e.name, CENTRAL_HEADER_SIZE);
       parts.push(local, e.data);
       central.push(record);
       offset += local.length + e.data.length;
@@ -145,7 +153,7 @@ export class ZipWriter {
     const centralSize = central.reduce((n, c) => n + c.length, 0);
     if (offset >= 0xffffffff || centralSize >= 0xffffffff || offset + centralSize >= 0xffffffff)
       tooLarge();
-    const end = new Uint8Array(22);
+    const end = new Uint8Array(END_RECORD_SIZE);
     const ev = new DataView(end.buffer);
     ev.setUint32(0, END_SIG, true);
     ev.setUint16(8, this.#entries.length, true);
@@ -171,9 +179,12 @@ export class ZipWriter {
 }
 
 function findEnd(bytes: Uint8Array, v: DataView): number {
-  const last = bytes.length - 22;
+  const last = bytes.length - END_RECORD_SIZE;
   for (let at = last; at >= 0 && at >= last - 0xffff; at--) {
-    if (v.getUint32(at, true) === END_SIG && at + 22 + v.getUint16(at + 20, true) === bytes.length)
+    if (
+      v.getUint32(at, true) === END_SIG &&
+      at + END_RECORD_SIZE + v.getUint16(at + 20, true) === bytes.length
+    )
       return at;
   }
   return invalid();
@@ -187,7 +198,11 @@ function findEnd(bytes: Uint8Array, v: DataView): number {
 export function readZipIndex(bytes: Uint8Array): ZipEntry[] {
   const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const end = findEnd(bytes, v);
-  if (end >= 20 && v.getUint32(end - 20, true) === ZIP64_LOCATOR_SIG) invalid();
+  if (
+    end >= ZIP64_LOCATOR_SIZE &&
+    v.getUint32(end - ZIP64_LOCATOR_SIZE, true) === ZIP64_LOCATOR_SIG
+  )
+    invalid();
   const count = v.getUint16(end + 10, true);
   const size = v.getUint32(end + 12, true);
   const start = v.getUint32(end + 16, true);
@@ -205,27 +220,34 @@ export function readZipIndex(bytes: Uint8Array): ZipEntry[] {
   const entries: ZipEntry[] = [];
   let at = start;
   for (let i = 0; i < count; i++) {
-    if (at + 46 > start + size || v.getUint32(at, true) !== CENTRAL_SIG) invalid();
+    if (at + CENTRAL_HEADER_SIZE > start + size || v.getUint32(at, true) !== CENTRAL_SIG) invalid();
     const flags = v.getUint16(at + 8, true);
     const method = v.getUint16(at + 10, true);
     const crc = v.getUint32(at + 16, true);
     const compressedSize = v.getUint32(at + 20, true);
     const entrySize = v.getUint32(at + 24, true);
     const nameLength = v.getUint16(at + 28, true);
-    const next = at + 46 + nameLength + v.getUint16(at + 30, true) + v.getUint16(at + 32, true);
+    const next =
+      at +
+      CENTRAL_HEADER_SIZE +
+      nameLength +
+      v.getUint16(at + 30, true) +
+      v.getUint16(at + 32, true);
     const offset = v.getUint32(at + 42, true);
     if (
       flags & FLAG_ENCRYPTED ||
-      (method !== 0 && method !== 8) ||
+      (method !== METHOD_STORED && method !== METHOD_DEFLATE) ||
       v.getUint16(at + 34, true) !== 0
     )
       invalid();
     if (compressedSize === 0xffffffff || entrySize === 0xffffffff || offset === 0xffffffff)
       invalid();
-    if (next > start + size || offset + 30 > start) invalid();
+    if (next > start + size || offset + LOCAL_HEADER_SIZE > start) invalid();
     let path: string;
     try {
-      path = decoder.decode(bytes.subarray(at + 46, at + 46 + nameLength));
+      path = decoder.decode(
+        bytes.subarray(at + CENTRAL_HEADER_SIZE, at + CENTRAL_HEADER_SIZE + nameLength),
+      );
     } catch {
       return invalid();
     }
@@ -247,15 +269,19 @@ export async function readZipEntry(
   maxSize: number,
 ): Promise<Uint8Array> {
   const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  if (e.offset + 30 > bytes.length || v.getUint32(e.offset, true) !== LOCAL_SIG) invalid();
+  if (e.offset + LOCAL_HEADER_SIZE > bytes.length || v.getUint32(e.offset, true) !== LOCAL_SIG)
+    invalid();
   const dataStart =
-    e.offset + 30 + v.getUint16(e.offset + 26, true) + v.getUint16(e.offset + 28, true);
+    e.offset +
+    LOCAL_HEADER_SIZE +
+    v.getUint16(e.offset + 26, true) +
+    v.getUint16(e.offset + 28, true);
   const dataEnd = dataStart + e.compressedSize;
   if (dataEnd > bytes.length) invalid();
   if (e.size > maxSize) throw entryTooLarge();
   const data = bytes.subarray(dataStart, dataEnd);
   let out: Uint8Array;
-  if (e.method === 0) {
+  if (e.method === METHOD_STORED) {
     if (e.compressedSize !== e.size) invalid();
     out = data.slice();
   } else {
