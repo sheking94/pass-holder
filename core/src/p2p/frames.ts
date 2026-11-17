@@ -1,4 +1,4 @@
-import { fromBase64, fromUtf8, toBase64, utf8 } from "../encoding.ts";
+import { concatAll, fromBase64, fromUtf8, toBase64, utf8 } from "../encoding.ts";
 import type { CipherState } from "./noise.ts";
 
 /** Noise transport message limit (65535) minus the 16-byte AEAD tag. */
@@ -20,17 +20,6 @@ export async function encryptFrames(cipher: CipherState, payload: unknown): Prom
 /** Decrypts frames in order, concatenates them and parses the JSON. Throws on any failure. */
 export async function decryptFrames(cipher: CipherState, frames: string[]): Promise<unknown> {
   const parts: Uint8Array[] = [];
-  let total = 0;
-  for (const frame of frames) {
-    const part = await cipher.decrypt(NO_AD, fromBase64(frame));
-    parts.push(part);
-    total += part.length;
-  }
-  const all = new Uint8Array(total);
-  let off = 0;
-  for (const p of parts) {
-    all.set(p, off);
-    off += p.length;
-  }
-  return JSON.parse(fromUtf8(all));
+  for (const frame of frames) parts.push(await cipher.decrypt(NO_AD, fromBase64(frame)));
+  return JSON.parse(fromUtf8(concatAll(parts)));
 }

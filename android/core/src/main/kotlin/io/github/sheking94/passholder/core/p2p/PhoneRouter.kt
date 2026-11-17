@@ -31,32 +31,35 @@ class PhoneRouter(
     private val onError: (Throwable) -> Unit = {},
 ) {
     private companion object {
-        const val PING = "/p2p/v1/ping"
-        val SYNC_PATHS = setOf("/p2p/v1/handshake", "/p2p/v1/sync", "/p2p/v2/handshake", "/p2p/v2/sync", "/p2p/v2/file")
-        val PAIRING_PATHS = setOf("/p2p/v1/pair/hello", "/p2p/v1/pair/start", "/p2p/v1/pair/finish")
+        val SYNC_PATHS = setOf(
+            P2pPaths.LEGACY_HANDSHAKE,
+            P2pPaths.LEGACY_SYNC,
+            P2pPaths.HANDSHAKE,
+            P2pPaths.SYNC,
+            P2pPaths.FILE,
+        )
+        val PAIRING_PATHS = setOf(P2pPaths.PAIR_HELLO, P2pPaths.PAIR_START, P2pPaths.PAIR_FINISH)
 
         /** Paths whose 200 answer proves a paired device (Noise session) or the pairing code (CPace). */
-        val ACTIVITY_PATHS = setOf("/p2p/v2/sync", "/p2p/v2/file", "/p2p/v1/pair/finish")
+        val ACTIVITY_PATHS = setOf(P2pPaths.SYNC, P2pPaths.FILE, P2pPaths.PAIR_FINISH)
     }
 
-    private fun fail(status: Int, error: String) = HostReply(status, buildJsonObject { put("error", error) }.toString())
-
     fun handle(path: String, body: ByteArray): HostReply {
-        if (path != PING && path !in SYNC_PATHS && path !in PAIRING_PATHS) return fail(404, "not found")
+        if (path != P2pPaths.PING && path !in SYNC_PATHS && path !in PAIRING_PATHS) return HostReply.error(404, "not found")
         val obj = try {
             P2pJson.json.parseToJsonElement(Encoding.fromUtf8(body)) as? JsonObject
         } catch (_: Exception) {
             null
-        } ?: return fail(400, "malformed request")
+        } ?: return HostReply.error(400, "malformed request")
         val reply = try {
             when (path) {
-                PING -> HostReply(200, buildJsonObject { put("ok", true) }.toString())
-                in SYNC_PATHS -> host()?.handle(path, body) ?: fail(503, "vault not ready")
-                else -> pairing.handle(path, obj) ?: fail(404, "not found")
+                P2pPaths.PING -> HostReply(200, buildJsonObject { put("ok", true) }.toString())
+                in SYNC_PATHS -> host()?.handle(path, body) ?: HostReply.error(503, "vault not ready")
+                else -> pairing.handle(path, obj) ?: HostReply.error(404, "not found")
             }
         } catch (e: Exception) {
             reportError(onError, e)
-            fail(500, "internal error")
+            HostReply.error(500, "internal error")
         }
         // Only proven devices keep sync mode awake: a pinging neighbour or web page cannot.
         if (reply.status == 200 && path in ACTIVITY_PATHS) onActivity()

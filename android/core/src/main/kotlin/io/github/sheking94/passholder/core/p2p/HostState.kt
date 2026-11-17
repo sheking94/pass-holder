@@ -1,13 +1,12 @@
 package io.github.sheking94.passholder.core.p2p
 
+import io.github.sheking94.passholder.core.AtomicFiles
 import io.github.sheking94.passholder.core.Encoding
 import io.github.sheking94.passholder.core.KdfParams
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
-import java.io.FileOutputStream
 import java.nio.file.Files
-import java.nio.file.StandardCopyOption
 import java.util.UUID
 
 /** Protects a secret at rest; on Android backed by the Keystore, in tests by a plain Base64 stand-in. */
@@ -61,15 +60,9 @@ class HostStateStore(private val file: File, private val wrapper: SecretWrapper)
         }
     }
 
-    /** Writes file.tmp, fsyncs it, then renames over the target. */
+    /** Replaces the file atomically ([AtomicFiles.write]). */
     fun save(state: HostState) {
-        val tmp = File(file.path + ".tmp")
-        FileOutputStream(tmp).use { out ->
-            out.write(json.encodeToString(HostState.serializer(), state).toByteArray(Charsets.UTF_8))
-            out.flush()
-            out.fd.sync()
-        }
-        Files.move(tmp.toPath(), file.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+        AtomicFiles.write(file, json.encodeToString(HostState.serializer(), state).toByteArray(Charsets.UTF_8))
     }
 
     fun staticKey(state: HostState): KeyPair = NoiseKeys.fromPrivateKey(wrapper.unwrap(state.wrappedStaticKey))

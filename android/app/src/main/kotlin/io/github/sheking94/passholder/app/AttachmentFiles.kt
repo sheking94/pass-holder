@@ -7,7 +7,6 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.result.contract.ActivityResultContract
 import io.github.sheking94.passholder.core.files.Attachments
-import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
@@ -71,14 +70,10 @@ object AttachmentFiles {
             if (size > Attachments.MAX_FILE_SIZE) throw IllegalArgumentException(TOO_LARGE)
             if (size == 0L) throw IllegalArgumentException(EMPTY)
         }
-        val bytes = try {
+        // Our own limit messages are thrown below, outside the provider call.
+        val bytes = ProviderStreams.failingAs(READ_FAILED, anyRuntime = true) {
             val input = open() ?: throw IOException("no stream")
-            input.use { readCapped(it, size) }
-        } catch (_: IOException) {
-            throw IOException(READ_FAILED)
-        } catch (_: RuntimeException) {
-            // SecurityException and whatever else a provider throws; our own limit messages are thrown below.
-            throw IOException(READ_FAILED)
+            input.use { ProviderStreams.readCapped(it, Attachments.MAX_FILE_SIZE, size) }
         }
         try {
             if (bytes.isEmpty()) throw IllegalArgumentException(EMPTY)
@@ -92,46 +87,14 @@ object AttachmentFiles {
         }
     }
 
-    /**
-     * Reads at most [Attachments.MAX_FILE_SIZE] + 1 bytes into one array of our own (no stream buffers that would
-     * keep plaintext): the extra byte tells the caller the file is too large. The result has exactly the bytes read;
-     * every larger array is zeroed, also when reading fails.
-     */
-    private fun readCapped(input: InputStream, knownSize: Long?): ByteArray {
-        val limit = Attachments.MAX_FILE_SIZE + 1
-        var buf = ByteArray(if (knownSize != null) minOf(maxOf(knownSize + 1, 1L), limit.toLong()).toInt() else 64 * 1024)
-        var n = 0
-        try {
-            while (n < limit) {
-                if (n == buf.size) {
-                    val bigger = buf.copyOf(minOf(buf.size.toLong() * 2, limit.toLong()).toInt())
-                    buf.fill(0)
-                    buf = bigger
-                }
-                val r = input.read(buf, n, buf.size - n)
-                if (r < 0) break
-                n += r
-            }
-            return if (n == buf.size) buf else buf.copyOf(n).also { buf.fill(0) }
-        } catch (e: Throwable) {
-            buf.fill(0)
-            throw e
-        }
-    }
-
     /** Writes [bytes] over the whole document at [uri] ("wt": an existing file is truncated, not overwritten in part). */
     fun write(resolver: ContentResolver, uri: Uri, bytes: ByteArray) = write(bytes) { resolver.openOutputStream(uri, "wt") }
 
     /** Provider failures (IOException, SecurityException, null stream) become the Polish [WRITE_FAILED]. */
     internal fun write(bytes: ByteArray, open: () -> OutputStream?) {
-        try {
+        ProviderStreams.failingAs(WRITE_FAILED, anyRuntime = true) {
             val output = open() ?: throw IOException("no stream")
             output.use { it.write(bytes) }
-        } catch (_: IOException) {
-            throw IOException(WRITE_FAILED)
-        } catch (_: RuntimeException) {
-            // SecurityException and whatever else a provider throws: never its raw (English) message.
-            throw IOException(WRITE_FAILED)
         }
     }
 }

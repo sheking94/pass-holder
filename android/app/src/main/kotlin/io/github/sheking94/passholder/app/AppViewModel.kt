@@ -504,8 +504,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             // FILE_CORRUPTED and VAULT_LOCKED end the operation with their text on the status line.
             val bytes = try {
                 store.readFile(a)
-            } catch (_: IOException) {
-                throw IOException(AttachmentFiles.VAULT_READ_FAILED)
+            } catch (e: IOException) {
+                throw IOException(AttachmentFiles.VAULT_READ_FAILED, e)
             }
             try {
                 AttachmentFiles.write(app.contentResolver, uri, bytes)

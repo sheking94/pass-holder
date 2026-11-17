@@ -33,7 +33,8 @@ Formatowanie i lint dla całego repo: `.editorconfig`, `.prettierrc.json`, `.pre
 | Plik | Co robi |
 |---|---|
 | `src/errors.ts` | `PassHolderError` (pole `code: ErrorCode`, `detail`, `cause`) i `hasErrorCode`: błędy, które aplikacja rozpoznaje albo pokazuje użytkownikowi (patrz „Błędy” niżej) |
-| `src/encoding.ts` | UTF-8 z normalizacją NFC, Base64, hex, `randomBytes` |
+| `src/encoding.ts` | UTF-8 z normalizacją NFC, Base64, hex, `randomBytes`, `concat` / `concatAll`, `sameBytes` (porównanie w stałym czasie) |
+| `src/strict-json.ts` | pomocniki ścisłego JSON: `isRecord`, `hasExactKeys`, `requireString` (patrz „Wspólne pomocniki” niżej) |
 | `src/kdf.ts` | Argon2id, HKDF (`encKey`), granice `MIN_KDF` / `MAX_KDF` |
 | `src/cipher.ts` | AES-256-GCM w formacie `0x01 ‖ nonce ‖ szyfrogram ‖ tag` (`seal`, `open`) |
 | `src/vault.ts` | klucz sejfu: `newVaultKey`, `wrapVaultKey`, `unwrapVaultKey` |
@@ -44,8 +45,8 @@ Formatowanie i lint dla całego repo: `.editorconfig`, `.prettierrc.json`, `.pre
 | `src/p2p/sync.ts` | sejf wtyczki (`LocalVault`) i `syncVault`; budżet bajtów żądania, rundy ucięte (`more`) poza limitem ponowień po konflikcie (`MAX_CONFLICT_RESYNCS` = 3; wszystkie rundy razem: `MAX_SYNC_ROUNDS`) |
 | `src/p2p/host-sync.ts` | strona hosta: `validateP2pSyncRequest` (też blob ≤ 64 KiB), `processP2pSync` (na `processSync`), epoka, stronicowanie po 500 zmianach i `MAX_BLOB_BYTES_PER_ROUND` (tnie też `conflicts`) |
 | `src/p2p/cpace.ts`, `pairing.ts`, `pair-client.ts` | parowanie: CPace, kod 8 cyfr, zapieczętowane tożsamości, klient HTTP parowania wtyczki |
-| `src/p2p/noise.ts`, `frames.ts`, `transport.ts` | Noise KK (każdy błąd: kod `NOISE_FAILED`), ramki, `noiseTransport` i `callP2pHost`; ścieżki `/p2p/v2/*`, 404 na uzgadnianiu → kod `PHONE_UPDATE_REQUIRED`; `P2pHostError` (status ≠ 200: `HOST_ERROR` albo `DEVICE_NOT_PAIRED`), `malformedResponse()` (`HOST_MALFORMED`) |
-| `src/p2p/host.ts` | `P2pHost`: referencyjny host (uzgadnianie, sesje, sync; tylko testy i skrypty, telefon ma host w Kotlinie); `/p2p/v1/handshake` i `/p2p/v1/sync` → 410 |
+| `src/p2p/noise.ts`, `frames.ts`, `transport.ts` | Noise KK (każdy błąd: kod `NOISE_FAILED`), ramki, `noiseTransport` i `callP2pHost`; stałe ścieżek `P2P_*_PATH` (`/p2p/v2/*` i parowanie `/p2p/v1/*`), `responseString`, 404 na uzgadnianiu → kod `PHONE_UPDATE_REQUIRED`; `P2pHostError` (status ≠ 200: `HOST_ERROR` albo `DEVICE_NOT_PAIRED`), `malformedResponse()` (`HOST_MALFORMED`) |
+| `src/p2p/host.ts`, `host-reply.ts` | `P2pHost`: referencyjny host (uzgadnianie, sesje, sync; tylko testy i skrypty, telefon ma host w Kotlinie); `/p2p/v1/handshake` i `/p2p/v1/sync` → 410; `HostReply` i `errorReply` (wspólne z `files/host-files.ts`) |
 | `src/files/attachment.ts` | opis załącznika: stałe (`MAX_FILE_SIZE`, `FILE_CHUNK_SIZE`, limity 20/40), `parseAttachments`, `attachmentJson` (stała kolejność kluczy), `canAddAttachment`, wzorzec UUID v4 |
 | `src/files/chunks.ts` | szyfrowanie pliku kawałkami: `encryptFile`, `decryptChunk`, `decryptFile` (rozmiar, `sha256`), AAD `passholder/v3/file/<id>/<i>/<n>` |
 | `src/files/host-files.ts` | strona hosta `/p2p/v2/file`: `FileStore`, `MemoryFileStore`, `processP2pFile` (`status`/`put`/`get`, 400/404/409/507), `orphanFileIds` (24 h) |
@@ -114,15 +115,16 @@ Dwa moduły Gradle: `core` (czysta JVM, testy bez emulatora) i `app` (Jetpack Co
 
 | Plik (`android/core/.../core/`) | Co robi |
 |---|---|
-| `Encoding.kt`, `Kdf.kt`, `Aead.kt`, `VaultCrypto.kt`, `Generator.kt` | odpowiedniki plików z `core/src/` (`VaultCrypto`: klucz sejfu) |
+| `Encoding.kt`, `Kdf.kt`, `Aead.kt`, `VaultCrypto.kt`, `Generator.kt` | odpowiedniki plików z `core/src/` (`VaultCrypto`: klucz sejfu; `Encoding.fromUtf8OrNull`: ścisłe UTF-8 bez wyjątku) |
+| `StrictJson.kt`, `AtomicFiles.kt` | pomocniki ścisłego JSON (`string`, `boolean`, `appendQuoted`) i zapis atomowy pliku (patrz „Wspólne pomocniki” niżej) |
 | `Errors.kt` | `PassHolderException` (pole `code: ErrorCode`, `detail`, `cause`), `hasErrorCode`, `requireCode`/`checkCode`: odpowiednik `core/src/errors.ts` (patrz „Błędy” niżej) |
 | `Protocol.kt` | `RemoteRecord`, `ChangeRequest`, `Accepted`, `SyncResponse` |
 | `p2p/Hlc.kt`, `Entry.kt`, `P2pJson.kt` | HLC, wpis v3 (`EntryCodec`: modele, ścisły parser, serializacja w kolejności z TypeScriptu, limit, odczyt v2 jako login), wspólny `Json` |
 | `p2p/RistrettoPoint.kt`, `Cpace.kt`, `Pairing.kt`, `PairingHost.kt`, `ReportError.kt` | parowanie: grupa, CPace, kod i zapieczętowane wiadomości, strona telefonu po HTTP; `reportError` (wspólny dla hostów: błąd zgłaszany bez wpływu na odpowiedź) |
-| `p2p/Noise.kt`, `Frames.kt`, `P2pHost.kt`, `HostSync.kt` | Noise KK, ramki, host synchronizacji (`/p2p/v2/*`, stare ścieżki → 410), `processSync` i budżet bajtów rundy |
+| `p2p/Noise.kt`, `Frames.kt`, `P2pHost.kt`, `HostSync.kt`, `P2pPaths.kt` | Noise KK, ramki, host synchronizacji (`/p2p/v2/*`, stare ścieżki → 410; `HostReply.error`), stałe ścieżek HTTP, `processSync` i budżet bajtów rundy |
 | `p2p/SyncHttpServer.kt`, `PhoneRouter.kt`, `LocalAddresses.kt` | serwer HTTP na porcie 8787 z limitami, trasy `/p2p/v1/pair/*`, `/p2p/v1/ping` i `/p2p/v2/*` (stare `/p2p/v1/handshake` i `/sync` przekazane do hosta, który odpowiada 410), adresy telefonu |
 | `transfer/Common.kt`, `Csv.kt`, `JsonText.kt`, `PassHolderJson.kt`, `BitwardenJson.kt`, `NordPassCsv.kt`, `Transfer.kt`, `PassHolderZip.kt`, `ArchiveReader.kt` | pakiet `core.transfer`: ZIP bez `ZipInputStream` (własny strumieniowy parser: CRC i pomijanie pliku bez rozpakowania, budżet rozpakowywania; zapis `java.util.zip`); port `core/src/transfer/` (`contentKey`, `sortForExport` na `RuleBasedCollator` zgodnym z wektorem `sort.json`, CSV RFC 4180, serializacja JSON jak `JSON.stringify`, `Transfer.parseImportFile` i `exportFile`); te same pliki przykładowe z `core/test-vectors/transfer/` |
-| `files/Attachment.kt`, `FileChunks.kt`, `FileHost.kt`, `DiskFileStore.kt` | pliki w sejfie (port `core/src/files/` bez klienta): opis załącznika (stałe, ścisły parser), szyfrowanie kawałkami, host `/p2p/v2/file` (`FileHost`, `FileStore`) i magazyn na dysku telefonu (`p2p/files/`, zapis przez `.tmp` i `rename`); `P2pHost` dostaje magazyn jako ostatni parametr |
+| `files/Attachment.kt`, `FileChunks.kt`, `FileHost.kt`, `DiskFileStore.kt` | pliki w sejfie (port `core/src/files/` bez klienta): opis załącznika (stałe, ścisły parser), szyfrowanie kawałkami, host `/p2p/v2/file` (`FileHost`, `FileStore`) i magazyn na dysku telefonu (`p2p/files/`, zapis przez `AtomicFiles.write`); `P2pHost` dostaje magazyn jako ostatni parametr |
 | `p2p/PhoneVaultStore.kt`, `PhoneVault.kt`, `FileSyncStore.kt`, `HostState.kt` | sejf telefonu: tworzenie, odtwarzanie, blokada (15 min), wpisy (`entries()` zwraca wszystkie typy, `upsertContent` zapisuje dokładnie podaną treść i odmawia nadpisania wpisu innego typu), urządzenia; pliki `records.jsonl` i `host.json`; import: `importContents` (duplikaty po `contentKey`, jeden zapis) i `allContents`; pliki: `addFile`, `isFileComplete`, `readFile`, `pruneFiles`, `discardFiles` (kasuje podane pliki poza używanymi przez żywy wpis), kasowanie przy zmianie epoki |
 | `autofill/Keywords.kt`, `Fields.kt`, `Values.kt`, `Match.kt`, `PublicSuffix.kt` | port `core/src/autofill/` 1:1 (`classifyField`, `planFor`, `fillValue`, `matchUrl` z własnym parserem adresu, `matchLogins`, `publicSuffix`/`registrableDomain` z zasobu `public_suffix_rules.txt`) na tych samych wektorach `{match,psl,fields,values}.json`; `matchApp`: przeglądarka zweryfikowana podpisem (`AppRequest.browserVerified`; 13 pakietów z certyfikatami SHA-256 w `TRUSTED_BROWSERS`) z `webDomain` → `matchLogins` (brak `webScheme` = `http`, `pageScheme`), inaczej loginy z pakietem w `androidApps`, po nazwie, tylko przy `appVerified`; `verifyApp` ustawia obie flagi z certyfikatów pakietu i zapamiętanych (V3-S3); wektory `test-vectors/autofill/app.json` (tylko Kotlin) |
 | `autofill/Planner.kt` | `planRequest`: grupa formularza (login, karta, kontakt) i jej pola; `planDatasets`: pasujące wpisy → wartości pól (`ListIndex` dla list), bez wpisów bez wartości, najwyżej 10; generyczne po typie id pola, więc testowane bez Androida |
@@ -236,6 +238,34 @@ Ustalone w grupie G5, te same zasady co w TypeScripcie.
 - **Porażka bez wyjątku:** `PassHolderJson` zwraca `null` dla złego wpisu indeksu (zamiast pustego
   `IllegalArgumentException` jako „pomiń”), `forgetFingerprint()` zwraca `Result<Unit>`. Powody pominięcia
   w podsumowaniu importu (`ImportSkip.reason`) są nadal polskim tekstem rdzenia, tak jak w TS.
+
+## Wspólne pomocniki
+
+Ustalone w grupie G6 przeglądu czystości kodu V3. Mały pomocnik, którego potrzebują dwa pliki, ma jedno miejsce;
+nowy kod używa go zamiast pisać własną kopię.
+
+| Potrzeba | TypeScript | Kotlin |
+|---|---|---|
+| obiekt JSON (nie `null`, nie tablica) | `isRecord` (`core/src/strict-json.ts`) | `value is JsonObject` |
+| dokładnie te klucze | `hasExactKeys(value, keys)` | `value.keys != KEYS` (zbiór) |
+| napis albo porażka | `requireString(value, () => błąd)`; w transporcie `responseString` (`HOST_MALFORMED`) | `StrictJson.string(value)` (null dla innego typu), `?: fail()` |
+| prawda/fałsz albo null | – | `StrictJson.boolean(value)` (napis `"true"` to null) |
+| napis JSON jak `JSON.stringify` | – | `StrictJson.appendQuoted(sb, s)` (`EntryCodec`, `JsonText`) |
+| „Invalid entry payload” | `INVALID_ENTRY`, `invalidEntry()` w `files/attachment.ts` (też dla `p2p/entry.ts`) | `INVALID_ENTRY` w każdym parserze |
+| odpowiedź błędu hosta | `errorReply(status, error)` (`p2p/host-reply.ts`) | `HostReply.error(status, error)`; `FileHost` ma własny `FileReply` |
+| ścieżki HTTP | `P2P_*_PATH` w `p2p/transport.ts` | `P2pPaths` (`p2p/P2pPaths.kt`) |
+| łączenie bajtów | `concat(...parts)`, dla długiej listy `concatAll(parts)` | `+` / `copyInto` |
+| porównanie bajtów | `sameBytes` (stały czas, `encoding.ts`) | `contentEquals` / `MessageDigest.isEqual` |
+| SHA-256 jako hex | `files.sha256Hex(bytes)` (wtyczka: `sha256Hex(utf8(text))` w `clipboard.ts`) | – |
+| ścisłe UTF-8 | `fromUtf8` | `Encoding.fromUtf8` (wyjątek) / `fromUtf8OrNull` |
+| zapis atomowy pliku | – | `AtomicFiles.write(file, bytes)`: `.tmp`, `fsync`, `rename`, `fsync` katalogu |
+| plik z systemowego okna wyboru | – | `ProviderStreams.readCapped(input, limit, knownSize)` i `failingAs(tekst) { … }` (`app/ProviderStreams.kt`) |
+
+- **`failingAs`** zamienia błąd dostawcy dokumentu (`IOException`, `SecurityException`; z `anyRuntime = true`
+  każdy `RuntimeException`) na `IOException` z polskim tekstem i **zawsze z przyczyną** (`cause`), więc log
+  pokazuje prawdziwy błąd, a użytkownik nasz tekst.
+- **`readCapped`** czyta najwyżej `limit + 1` bajtów do jednej tablicy i zeruje każdą większą (bez buforów
+  strumienia, które trzymałyby jawny tekst). Bajt ponad limit oznacza „za duży”; komunikat wybiera wywołujący.
 
 ## Przepływ autouzupełniania (Chrome)
 

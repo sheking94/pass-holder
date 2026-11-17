@@ -3,6 +3,7 @@ import { sha256 } from "@noble/hashes/sha2.js";
 import { open, seal } from "../cipher.ts";
 import { fromBase64, fromUtf8, randomBytes, toBase64, utf8 } from "../encoding.ts";
 import { assertKdfParamsAcceptable, type KdfParams } from "../kdf.ts";
+import { isRecord } from "../strict-json.ts";
 
 export interface DeviceIdentity {
   deviceId: string;
@@ -75,10 +76,6 @@ function checkBase64(value: unknown, field: string, length?: number): Uint8Array
     throw new Error(`${field} must be ${length} bytes`);
   if (bytes.length === 0) throw new Error(`${field} must not be empty`);
   return bytes;
-}
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
 function parseIdentity(v: unknown): DeviceIdentity {

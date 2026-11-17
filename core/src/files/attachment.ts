@@ -1,4 +1,5 @@
 import { fromBase64, toBase64 } from "../encoding.ts";
+import { hasExactKeys } from "../strict-json.ts";
 
 export const MAX_FILE_SIZE = 10485760;
 export const FILE_CHUNK_SIZE = 262144;
@@ -13,7 +14,8 @@ export const MAX_ATTACHMENTS_PARSED = 40;
 /** Lowercase UUID v4, as produced by crypto.randomUUID(). */
 export const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
-const INVALID_ENTRY = "Invalid entry payload";
+/** Message of every error the entry and attachment parsers throw (shared with p2p/entry.ts). */
+export const INVALID_ENTRY = "Invalid entry payload";
 const SHA256_HEX = /^[0-9a-f]{64}$/;
 // Name and MIME lengths are counted in UTF-16 code units, like String.length in TS and Kotlin.
 const MAX_NAME_LENGTH = 255;
@@ -64,7 +66,8 @@ export function isAttachmentMime(mime: string): boolean {
   return mime.length <= MAX_MIME_LENGTH && !CONTROL.test(mime);
 }
 
-function fail(): never {
+/** Throws the parsers' INVALID_ENTRY error (shared with p2p/entry.ts). */
+export function invalidEntry(): never {
   throw new Error(INVALID_ENTRY);
 }
 
@@ -77,28 +80,27 @@ function canonicalKey(key: string): boolean {
   }
 }
 
+const ATTACHMENT_KEYS = ["id", "name", "mime", "size", "chunks", "sha256", "key"];
+
 function parseAttachment(value: unknown): Attachment {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) fail();
-  const o = value as Record<string, unknown>;
-  const keys = ["id", "name", "mime", "size", "chunks", "sha256", "key"];
-  const own = Object.keys(o);
-  if (own.length !== keys.length || !keys.every((k) => Object.hasOwn(o, k))) fail();
-  const { id, name, mime, size, chunks, sha256, key } = o;
-  if (typeof id !== "string" || !UUID_V4.test(id)) fail();
-  if (typeof name !== "string" || !isAttachmentName(name)) fail();
-  if (typeof mime !== "string" || !isAttachmentMime(mime)) fail();
+  if (!hasExactKeys(value, ATTACHMENT_KEYS)) invalidEntry();
+  const { id, name, mime, size, chunks, sha256, key } = value;
+  if (typeof id !== "string" || !UUID_V4.test(id)) invalidEntry();
+  if (typeof name !== "string" || !isAttachmentName(name)) invalidEntry();
+  if (typeof mime !== "string" || !isAttachmentMime(mime)) invalidEntry();
   if (typeof size !== "number" || !Number.isInteger(size) || size < 1 || size > MAX_FILE_SIZE)
-    fail();
-  if (chunks !== chunkCount(size)) fail();
-  if (typeof sha256 !== "string" || !SHA256_HEX.test(sha256)) fail();
-  if (typeof key !== "string" || !canonicalKey(key)) fail();
+    invalidEntry();
+  if (chunks !== chunkCount(size)) invalidEntry();
+  if (typeof sha256 !== "string" || !SHA256_HEX.test(sha256)) invalidEntry();
+  if (typeof key !== "string" || !canonicalKey(key)) invalidEntry();
   return { id, name, mime, size, chunks, sha256, key };
 }
 
 /** Validates a non-empty list of up to MAX_ATTACHMENTS_PARSED descriptors with unique ids; throws "Invalid entry payload". */
 export function parseAttachments(value: unknown): Attachment[] {
-  if (!Array.isArray(value) || value.length < 1 || value.length > MAX_ATTACHMENTS_PARSED) fail();
+  if (!Array.isArray(value) || value.length < 1 || value.length > MAX_ATTACHMENTS_PARSED)
+    invalidEntry();
   const list = value.map(parseAttachment);
-  if (new Set(list.map((a) => a.id)).size !== list.length) fail();
+  if (new Set(list.map((a) => a.id)).size !== list.length) invalidEntry();
   return list;
 }

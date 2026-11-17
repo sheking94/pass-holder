@@ -136,7 +136,7 @@ class SyncHttpServer(
      */
     private fun busy(client: Socket) {
         try {
-            write(client, error(503, "busy"))
+            write(client, HostReply.error(503, "busy"))
             client.shutdownOutput()
             val input = client.getInputStream()
             val scratch = ByteArray(4096)
@@ -187,10 +187,10 @@ class SyncHttpServer(
                     try {
                         handler(path, body)
                     } catch (e: Exception) {
-                        error(500, "internal error")
+                        HostReply.error(500, "internal error")
                     }
                 } catch (e: HttpError) {
-                    error(e.status, e.error)
+                    HostReply.error(e.status, e.error)
                 }
                 write(client, reply)
             } catch (_: IOException) {
@@ -204,8 +204,6 @@ class SyncHttpServer(
     } catch (_: Exception) {
         false
     }
-
-    private fun error(status: Int, message: String) = HostReply(status, """{"error":"$message"}""")
 
     private fun readRequest(input: InputStream): Pair<String, ByteArray> {
         val lines = readHeaderLines(input)

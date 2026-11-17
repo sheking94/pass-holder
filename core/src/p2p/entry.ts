@@ -1,7 +1,14 @@
 import { open, seal } from "../cipher.ts";
 import { fromUtf8, utf8 } from "../encoding.ts";
 import { PassHolderError } from "../errors.ts";
-import { attachmentJson, parseAttachments, type Attachment } from "../files/attachment.ts";
+import {
+  attachmentJson,
+  INVALID_ENTRY,
+  invalidEntry,
+  parseAttachments,
+  type Attachment,
+} from "../files/attachment.ts";
+import { hasExactKeys, isRecord, requireString, type JsonObject } from "../strict-json.ts";
 import { parseHlc, type Hlc } from "./hlc.ts";
 
 export type EntryType = "login" | "contact" | "card" | "note" | "document";
@@ -87,7 +94,6 @@ export function entryTooLargeToSync(name: string): PassHolderError {
   });
 }
 
-const INVALID_ENTRY = "Invalid entry payload";
 const INVALID_TOMBSTONE = "Invalid tombstone payload";
 const DOCUMENT_KINDS: readonly string[] = [
   "id_card",
@@ -204,33 +210,23 @@ export async function decryptPayload(
   return JSON.parse(fromUtf8(await open(vaultKey, blob, entryAad(id))));
 }
 
-function fail(): never {
-  throw new Error(INVALID_ENTRY);
-}
-
-function record(value: unknown, keys: readonly string[]): Record<string, unknown> {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) fail();
-  const obj = value as Record<string, unknown>;
-  const own = Object.keys(obj);
-  if (own.length !== keys.length || !keys.every((k) => Object.hasOwn(obj, k))) fail();
-  return obj;
+function record(value: unknown, keys: readonly string[]): JsonObject {
+  if (!hasExactKeys(value, keys)) invalidEntry();
+  return value;
 }
 
 /** parseHlc ignores extra keys, so entries and tombstones check that the hlc object has exactly ms, c, d. */
 function strictHlc(value: unknown, error: string): Hlc {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error(error);
-  const keys = Object.keys(value);
-  if (keys.length !== 3 || !["ms", "c", "d"].every((k) => keys.includes(k))) throw new Error(error);
+  if (!hasExactKeys(value, ["ms", "c", "d"])) throw new Error(error);
   return parseHlc(value);
 }
 
 function str(value: unknown): string {
-  if (typeof value !== "string") fail();
-  return value;
+  return requireString(value, () => new Error(INVALID_ENTRY));
 }
 
 function list<T>(value: unknown, item: (x: unknown) => T): T[] {
-  if (!Array.isArray(value)) fail();
+  if (!Array.isArray(value)) invalidEntry();
   return value.map(item);
 }
 
@@ -252,7 +248,7 @@ function address(value: unknown): PostalAddress {
 
 function customField(value: unknown): CustomField {
   const o = record(value, ["label", "value", "hidden"]);
-  if (typeof o.hidden !== "boolean") fail();
+  if (typeof o.hidden !== "boolean") invalidEntry();
   return { label: str(o.label), value: str(o.value), hidden: o.hidden };
 }
 
@@ -305,7 +301,7 @@ function parseContent(type: string, raw: unknown): { type: EntryType; fields: un
     case "document": {
       const o = record(raw, ["kind", "number", "fullName", "issueDate", "expiryDate", "issuer"]);
       const kind = str(o.kind);
-      if (!DOCUMENT_KINDS.includes(kind)) fail();
+      if (!DOCUMENT_KINDS.includes(kind)) invalidEntry();
       const fields: DocumentFields = {
         kind: kind as DocumentKind,
         number: str(o.number),
@@ -317,15 +313,14 @@ function parseContent(type: string, raw: unknown): { type: EntryType; fields: un
       return { type, fields };
     }
     default:
-      return fail();
+      return invalidEntry();
   }
 }
 
 /** Accepts a v3 payload or a legacy v2 login payload (exactly name, username, password, hlc). */
 export function parseEntryData(value: unknown): EntryData {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) fail();
-  const obj = value as Record<string, unknown>;
-  if (!("v" in obj)) {
+  if (!isRecord(value)) invalidEntry();
+  if (!("v" in value)) {
     const o = record(value, ["name", "username", "password", "hlc"]);
     return {
       v: 3,
@@ -343,7 +338,7 @@ export function parseEntryData(value: unknown): EntryData {
       hlc: strictHlc(o.hlc, INVALID_ENTRY),
     };
   }
-  const withAttachments = Object.hasOwn(obj, "attachments");
+  const withAttachments = Object.hasOwn(value, "attachments");
   const o = record(value, [
     "v",
     "type",
@@ -354,14 +349,14 @@ export function parseEntryData(value: unknown): EntryData {
     ...(withAttachments ? ["attachments"] : []),
     "hlc",
   ]);
-  if (o.v !== 3) fail();
+  if (o.v !== 3) invalidEntry();
   const content = contentOf(o);
   if (withAttachments) content.attachments = parseAttachments(o.attachments);
   return { v: 3, ...content, hlc: strictHlc(o.hlc, INVALID_ENTRY) } as EntryData;
 }
 
 /** Fields shared by a stored entry and an exported one; the caller has checked the object's own keys. */
-function contentOf(o: Record<string, unknown>): EntryContent {
+function contentOf(o: JsonObject): EntryContent {
   const content = parseContent(str(o.type), o.fields);
   return {
     type: content.type,
@@ -378,9 +373,6 @@ export function parseEntryContent(value: unknown): EntryContent {
 }
 
 export function parseTombstoneData(value: unknown): TombstoneData {
-  if (typeof value !== "object" || value === null || Array.isArray(value))
-    throw new Error(INVALID_TOMBSTONE);
-  const keys = Object.keys(value);
-  if (keys.length !== 1 || keys[0] !== "hlc") throw new Error(INVALID_TOMBSTONE);
-  return { hlc: strictHlc((value as Record<string, unknown>).hlc, INVALID_TOMBSTONE) };
+  if (!hasExactKeys(value, ["hlc"])) throw new Error(INVALID_TOMBSTONE);
+  return { hlc: strictHlc(value.hlc, INVALID_TOMBSTONE) };
 }

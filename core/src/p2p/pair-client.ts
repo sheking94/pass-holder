@@ -1,4 +1,4 @@
-// Extension side of pairing with the phone over HTTP (/p2p/v1/pair/hello, start, finish).
+// Extension side of pairing with the phone over HTTP (ping, pair/hello, start, finish; paths in transport.ts).
 // The extension is the CPace initiator; its `ad` is the UTF-8 of its own deviceId.
 import { fromBase64, toBase64, utf8 } from "../encoding.ts";
 import { PassHolderError } from "../errors.ts";
@@ -10,7 +10,16 @@ import {
   type DeviceIdentity,
   type VaultInfo,
 } from "./pairing.ts";
-import { callP2pHost, malformedResponse, type FetchJson } from "./transport.ts";
+import {
+  callP2pHost,
+  malformedResponse,
+  P2P_PAIR_FINISH_PATH,
+  P2P_PAIR_HELLO_PATH,
+  P2P_PAIR_START_PATH,
+  P2P_PING_PATH,
+  responseString,
+  type FetchJson,
+} from "./transport.ts";
 
 /** "pair": the phone has a vault; "restore": the phone waits for the extension's vault ("Odtwórz z wtyczki"). */
 export type PhoneMode = "pair" | "restore";
@@ -19,15 +28,10 @@ const SID_LENGTH = 16;
 
 const base = (baseUrl: string): string => baseUrl.replace(/\/+$/, "");
 
-function str(v: unknown): string {
-  if (typeof v !== "string") throw malformedResponse();
-  return v;
-}
-
 function base64(v: unknown, length?: number): Uint8Array {
   let bytes: Uint8Array;
   try {
-    bytes = fromBase64(str(v));
+    bytes = fromBase64(responseString(v));
   } catch (error) {
     throw malformedResponse(error);
   }
@@ -37,7 +41,7 @@ function base64(v: unknown, length?: number): Uint8Array {
 
 /** Checks the phone is reachable and answers as a PassHolder host. */
 export async function pingPhone(baseUrl: string, post: FetchJson): Promise<void> {
-  const res = await callP2pHost(post, `${base(baseUrl)}/p2p/v1/ping`, {});
+  const res = await callP2pHost(post, `${base(baseUrl)}${P2P_PING_PATH}`, {});
   if (res.ok !== true) throw malformedResponse();
 }
 
@@ -48,11 +52,11 @@ export async function phoneHello(
 ): Promise<{ sid: string; mode: PhoneMode }> {
   const res = await callP2pHost(
     post,
-    `${base(baseUrl)}/p2p/v1/pair/hello`,
+    `${base(baseUrl)}${P2P_PAIR_HELLO_PATH}`,
     {},
     { 404: "PAIRING_NOT_WAITING" },
   );
-  const sid = str(res.sid);
+  const sid = responseString(res.sid);
   base64(sid, SID_LENGTH);
   if (res.mode !== "pair" && res.mode !== "restore") throw malformedResponse();
   return { sid, mode: res.mode };
@@ -84,7 +88,7 @@ export async function pairWithPhone(o: {
   const cpace = cpaceStart(utf8(code), PAIRING_CI, sidBytes, utf8(o.identity.deviceId));
   const started = await callP2pHost(
     o.post,
-    `${url}/p2p/v1/pair/start`,
+    `${url}${P2P_PAIR_START_PATH}`,
     { sid, message: toBase64(cpace.message) },
     { 404: "PAIRING_NOT_WAITING" },
   );
@@ -107,7 +111,7 @@ export async function pairWithPhone(o: {
       "initiator",
       o.restore as VaultInfo,
     );
-  const finished = await callP2pHost(o.post, `${url}/p2p/v1/pair/finish`, request, {
+  const finished = await callP2pHost(o.post, `${url}${P2P_PAIR_FINISH_PATH}`, request, {
     403: "PAIRING_WRONG_CODE",
     404: "PAIRING_NOT_WAITING",
   });
@@ -119,13 +123,13 @@ export async function pairWithPhone(o: {
       key,
       "identity",
       "responder",
-      str(finished.identity),
+      responseString(finished.identity),
     )) as DeviceIdentity;
     vaultInfo = (await openPairingMessage(
       key,
       "vault-info",
       "responder",
-      str(finished.vaultInfo),
+      responseString(finished.vaultInfo),
     )) as VaultInfo;
   } catch (error) {
     throw malformedResponse(error);

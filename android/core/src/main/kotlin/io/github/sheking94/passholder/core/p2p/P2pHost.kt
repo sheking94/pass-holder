@@ -3,6 +3,7 @@ package io.github.sheking94.passholder.core.p2p
 import io.github.sheking94.passholder.core.Encoding
 import io.github.sheking94.passholder.core.ErrorCode
 import io.github.sheking94.passholder.core.PassHolderException
+import io.github.sheking94.passholder.core.StrictJson
 import io.github.sheking94.passholder.core.files.FileHost
 import io.github.sheking94.passholder.core.files.FileStore
 import kotlinx.serialization.json.JsonArray
@@ -16,7 +17,12 @@ import java.security.MessageDigest
 class PairedDevice(val deviceId: String, val name: String, val staticPublicKey: ByteArray)
 
 /** Status code and JSON body of a host answer; the HTTP layer only copies them out. */
-data class HostReply(val status: Int, val body: String)
+data class HostReply(val status: Int, val body: String) {
+    companion object {
+        /** An error answer: `{"error": ...}` with this status. */
+        fun error(status: Int, error: String) = HostReply(status, buildJsonObject { put("error", error) }.toString())
+    }
+}
 
 private class Session(
     val deviceId: String,
@@ -68,30 +74,28 @@ class P2pHost(
     /** Ephemeral keys (first 32 bytes, Base64) of accepted handshakes, oldest first. Guarded by the sessions lock. */
     private val seen = LinkedHashSet<String>()
 
-    private fun fail(status: Int, error: String) = HostReply(status, buildJsonObject { put("error", error) }.toString())
-
     fun handle(path: String, body: ByteArray): HostReply {
-        if (body.size > MAX_BODY_BYTES) return fail(413, "body too large")
+        if (body.size > MAX_BODY_BYTES) return HostReply.error(413, "body too large")
         synchronized(sessions) { prune() }
         return when (path) {
-            "/p2p/v2/handshake" -> handshake(body)
+            P2pPaths.HANDSHAKE -> handshake(body)
 
-            "/p2p/v2/sync" -> sync(body)
+            P2pPaths.SYNC -> sync(body)
 
-            "/p2p/v2/file" -> if (files != null) file(files, body) else fail(404, "not found")
+            P2pPaths.FILE -> if (files != null) file(files, body) else HostReply.error(404, "not found")
 
             // The v1 sync protocol is gone; tell old clients to update instead of pretending the path is unknown.
-            "/p2p/v1/handshake", "/p2p/v1/sync" -> fail(410, "update required")
+            P2pPaths.LEGACY_HANDSHAKE, P2pPaths.LEGACY_SYNC -> HostReply.error(410, "update required")
 
-            else -> fail(404, "not found")
+            else -> HostReply.error(404, "not found")
         }
     }
 
     /** 400 for a copy of an accepted message, 503 when the table or the device's share is full. Caller holds the lock. */
     private fun refusal(ephemeral: String, deviceId: String): HostReply? = when {
-        ephemeral in seen -> fail(400, "replayed handshake")
-        sessions.size >= MAX_SESSIONS -> fail(503, "too many sessions")
-        sessions.values.count { it.deviceId == deviceId } >= MAX_SESSIONS_PER_DEVICE -> fail(503, "too many sessions")
+        ephemeral in seen -> HostReply.error(400, "replayed handshake")
+        sessions.size >= MAX_SESSIONS -> HostReply.error(503, "too many sessions")
+        sessions.values.count { it.deviceId == deviceId } >= MAX_SESSIONS_PER_DEVICE -> HostReply.error(503, "too many sessions")
         else -> null
     }
 
@@ -108,18 +112,16 @@ class P2pHost(
         null
     }
 
-    private fun JsonElement?.text(): String? = if (this is JsonPrimitive && isString) content else null
-
     private fun handshake(body: ByteArray): HostReply {
-        val obj = parseObject(body) ?: return fail(400, "malformed request")
-        val deviceId = obj["deviceId"].text()
-        val messageText = obj["message"].text()
-        if (deviceId == null || messageText == null) return fail(400, "malformed request")
-        val device = devices().firstOrNull { it.deviceId == deviceId } ?: return fail(403, "device not paired")
+        val obj = parseObject(body) ?: return HostReply.error(400, "malformed request")
+        val deviceId = StrictJson.string(obj["deviceId"])
+        val messageText = StrictJson.string(obj["message"])
+        if (deviceId == null || messageText == null) return HostReply.error(400, "malformed request")
+        val device = devices().firstOrNull { it.deviceId == deviceId } ?: return HostReply.error(403, "device not paired")
         val message = try {
             Encoding.fromBase64(messageText)
         } catch (_: IllegalArgumentException) {
-            return fail(400, "malformed request")
+            return HostReply.error(400, "malformed request")
         }
         val ephemeral = Encoding.toBase64(message.copyOf(minOf(message.size, 32)))
         // handle() already pruned the expired sessions.
@@ -133,7 +135,7 @@ class P2pHost(
             ciphers = noise.split()
         } catch (e: PassHolderException) {
             if (e.code != ErrorCode.NOISE_FAILED) throw e
-            return fail(400, "handshake failed")
+            return HostReply.error(400, "handshake failed")
         }
         val id = Encoding.toBase64(Encoding.randomBytes(16))
         val session = Session(
@@ -164,30 +166,30 @@ class P2pHost(
      * Then [process] gets the session and the decrypted request.
      */
     private fun withSession(body: ByteArray, process: (Session, JsonElement) -> HostReply): HostReply {
-        val obj = parseObject(body) ?: return fail(400, "malformed request")
-        val sessionId = obj["session"].text()
+        val obj = parseObject(body) ?: return HostReply.error(400, "malformed request")
+        val sessionId = StrictJson.string(obj["session"])
         val frameArray = obj["frames"] as? JsonArray
         if (sessionId == null || frameArray == null ||
             frameArray.size < 1 || frameArray.size > Frames.MAX_FRAMES
         ) {
-            return fail(400, "malformed request")
+            return HostReply.error(400, "malformed request")
         }
-        val frames = frameArray.map { it.text() ?: return fail(400, "malformed request") }
+        val frames = frameArray.map { StrictJson.string(it) ?: return HostReply.error(400, "malformed request") }
         // One attempt per session, whatever the outcome.
         val session = synchronized(sessions) { sessions.remove(sessionId) }
-        if (session == null || session.expiresAt <= now()) return fail(401, "unknown or expired session")
+        if (session == null || session.expiresAt <= now()) return HostReply.error(401, "unknown or expired session")
         // The device may have been removed (or re-paired with another key) after the handshake.
         val stillPaired = devices().any {
             it.deviceId == session.deviceId && MessageDigest.isEqual(it.staticPublicKey, session.staticPublicKey)
         }
-        if (!stillPaired) return fail(403, "device not paired")
+        if (!stillPaired) return HostReply.error(403, "device not paired")
         val request = try {
             Frames.decrypt(session.recv, frames)
         } catch (e: PassHolderException) {
             if (e.code != ErrorCode.NOISE_FAILED) throw e
-            return fail(400, "cannot decrypt request")
+            return HostReply.error(400, "cannot decrypt request")
         } catch (_: IllegalArgumentException) {
-            return fail(400, "cannot decrypt request")
+            return HostReply.error(400, "cannot decrypt request")
         }
         return process(session, request)
     }
@@ -199,13 +201,13 @@ class P2pHost(
     }
 
     private fun sync(body: ByteArray): HostReply = withSession(body) { session, request ->
-        synchronized(store) { HostSync.validate(store, epoch, request) }?.let { return@withSession fail(400, it) }
+        synchronized(store) { HostSync.validate(store, epoch, request) }?.let { return@withSession HostReply.error(400, it) }
         val reply = try {
             val response = HostSync.process(store, epoch, addresses(), request)
             encrypted(session, P2pJson.json.encodeToString(P2pSyncResponse.serializer(), response))
         } catch (e: Exception) {
             reportError(onError, e)
-            return@withSession fail(500, "internal error")
+            return@withSession HostReply.error(500, "internal error")
         }
         try {
             onSynced(session.deviceId)
@@ -223,7 +225,7 @@ class P2pHost(
             if (reply.status == 200) encrypted(session, reply.body.toString()) else HostReply(reply.status, reply.body.toString())
         } catch (e: Exception) {
             reportError(onError, e)
-            fail(500, "internal error")
+            HostReply.error(500, "internal error")
         }
     }
 }

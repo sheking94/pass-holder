@@ -3,14 +3,12 @@ package io.github.sheking94.passholder.core.p2p
 import io.github.sheking94.passholder.core.Accepted
 import io.github.sheking94.passholder.core.ChangeRequest
 import io.github.sheking94.passholder.core.RemoteRecord
+import io.github.sheking94.passholder.core.StrictJson
 import io.github.sheking94.passholder.core.SyncResponse
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.booleanOrNull
 
 /** Storage the host needs; same contract as SyncStore in core/src/protocol.ts. */
 interface SyncStore {
@@ -48,17 +46,13 @@ object HostSync {
     const val MAX_ENTRY_ID_LENGTH = 128
     const val MAX_BLOB_BYTES_PER_ROUND = 524288
 
-    private fun JsonElement?.string(): String? = if (this is JsonPrimitive && isString) content else null
-
-    private fun JsonElement?.boolean(): Boolean? = if (this is JsonPrimitive && this !is JsonNull && !isString) booleanOrNull else null
-
     /**
      * Checks a decrypted sync request before anything is written. Returns the error text for a 400, or null.
      * Every change is checked against the store first, so a bad change never leaves earlier ones applied.
      */
     fun validate(store: SyncStore, epoch: String, request: JsonElement): String? {
         if (request !is JsonObject) return "malformed sync request"
-        val requestEpoch = request["epoch"].string()
+        val requestEpoch = StrictJson.string(request["epoch"])
         val since = P2pJson.safeLong(request["sinceRevision"])
         val changes = request["changes"] as? JsonArray
         if (requestEpoch == null || since == null || changes == null) return "malformed sync request"
@@ -66,14 +60,14 @@ object HostSync {
         val ids = HashSet<String>()
         for (c in changes) {
             if (c !is JsonObject) return "malformed change"
-            val id = c["id"].string()
+            val id = StrictJson.string(c["id"])
             if (id == null || id.isEmpty() || id.length > MAX_ENTRY_ID_LENGTH ||
                 P2pJson.safeLong(c["baseRevision"]) == null ||
-                c["deleted"].boolean() == null || c["blob"].string() == null
+                StrictJson.boolean(c["deleted"]) == null || StrictJson.string(c["blob"]) == null
             ) {
                 return "malformed change"
             }
-            if (c["blob"].string()!!.length > EntryCodec.MAX_BLOB_LENGTH) return "blob too large"
+            if (StrictJson.string(c["blob"])!!.length > EntryCodec.MAX_BLOB_LENGTH) return "blob too large"
             if (!ids.add(id)) return "duplicate change"
         }
         // A request from another epoch is not processed, so its base revisions do not matter.
@@ -82,7 +76,7 @@ object HostSync {
         if (since > store.currentRevision()) return null
         for (c in changes) {
             c as JsonObject
-            val id = c["id"].string()!!
+            val id = StrictJson.string(c["id"])!!
             if (P2pJson.safeLong(c["baseRevision"]) != 0L && store.get(id) == null) {
                 return "unknown base revision"
             }
@@ -100,15 +94,15 @@ object HostSync {
         // Validated, so the shape is known; built by hand to ignore extra fields the way the TypeScript host does.
         val obj = request as JsonObject
         val parsed = P2pSyncRequest(
-            epoch = obj["epoch"].string()!!,
+            epoch = StrictJson.string(obj["epoch"])!!,
             sinceRevision = P2pJson.safeLong(obj["sinceRevision"])!!,
             changes = (obj["changes"] as JsonArray).map { c ->
                 c as JsonObject
                 ChangeRequest(
-                    id = c["id"].string()!!,
+                    id = StrictJson.string(c["id"])!!,
                     baseRevision = P2pJson.safeLong(c["baseRevision"])!!,
-                    deleted = c["deleted"].boolean()!!,
-                    blob = c["blob"].string()!!,
+                    deleted = StrictJson.boolean(c["deleted"])!!,
+                    blob = StrictJson.string(c["blob"])!!,
                 )
             },
         )

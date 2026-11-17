@@ -4,6 +4,7 @@
  * limits from here. The extension's tests drive this host as a fake phone.
  */
 import { MAX_ENTRY_BLOB_LENGTH } from "./entry.ts";
+import { isRecord } from "../strict-json.ts";
 import { processSync, type ChangeRequest, type RemoteRecord, type SyncStore } from "../protocol.ts";
 
 export interface P2pSyncRequest {
@@ -53,16 +54,15 @@ export function validateP2pSyncRequest(
   epoch: string,
   request: unknown,
 ): string | undefined {
-  if (typeof request !== "object" || request === null || Array.isArray(request))
-    return "malformed sync request";
-  const r = request as Record<string, unknown>;
+  if (!isRecord(request)) return "malformed sync request";
+  const r = request;
   if (typeof r.epoch !== "string" || !isRevision(r.sinceRevision) || !Array.isArray(r.changes))
     return "malformed sync request";
   if (r.changes.length > MAX_CHANGES_PER_REQUEST) return "too many changes";
   const ids = new Set<string>();
   for (const c of r.changes as unknown[]) {
-    if (typeof c !== "object" || c === null || Array.isArray(c)) return "malformed change";
-    const { id, baseRevision, deleted, blob } = c as Record<string, unknown>;
+    if (!isRecord(c)) return "malformed change";
+    const { id, baseRevision, deleted, blob } = c;
     if (
       typeof id !== "string" ||
       id.length < 1 ||

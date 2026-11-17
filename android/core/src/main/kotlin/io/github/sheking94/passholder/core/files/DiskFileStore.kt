@@ -1,15 +1,10 @@
 package io.github.sheking94.passholder.core.files
 
+import io.github.sheking94.passholder.core.AtomicFiles
 import io.github.sheking94.passholder.core.p2p.P2pJson
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import java.io.File
-import java.io.FileOutputStream
-import java.io.IOException
-import java.nio.channels.FileChannel
-import java.nio.file.Files
-import java.nio.file.StandardCopyOption
-import java.nio.file.StandardOpenOption
 
 /**
  * [FileStore] on disk: `dir/<id>/meta.json` (`{"chunks":n,"createdAt":ms}`) and `dir/<id>/<i>` (blob).
@@ -48,21 +43,6 @@ class DiskFileStore(
         }
     }
 
-    private fun writeAtomic(target: File, bytes: ByteArray) {
-        val tmp = File(target.path + ".tmp")
-        FileOutputStream(tmp).use { out ->
-            out.write(bytes)
-            out.flush()
-            out.fd.sync()
-        }
-        Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
-        // Persist the rename itself (the directory entry); best effort, some platforms do not allow opening a directory.
-        try {
-            FileChannel.open(target.parentFile.toPath(), StandardOpenOption.READ).use { it.force(true) }
-        } catch (_: IOException) {
-        }
-    }
-
     private fun valid(id: String) = Attachments.UUID_V4.matches(id)
 
     override fun chunks(id: String): Int? = if (valid(id)) readMeta(id)?.chunks else null
@@ -84,9 +64,12 @@ class DiskFileStore(
         val d = File(dir, id)
         d.mkdirs()
         if (readMeta(id) == null) {
-            writeAtomic(File(d, "meta.json"), P2pJson.json.encodeToString(Meta.serializer(), Meta(chunks, now)).toByteArray(Charsets.UTF_8))
+            AtomicFiles.write(
+                File(d, "meta.json"),
+                P2pJson.json.encodeToString(Meta.serializer(), Meta(chunks, now)).toByteArray(Charsets.UTF_8),
+            )
         }
-        writeAtomic(File(d, index.toString()), blob.toByteArray(Charsets.UTF_8))
+        AtomicFiles.write(File(d, index.toString()), blob.toByteArray(Charsets.UTF_8))
     }
 
     override fun canStore(bytes: Long) = freeSpace() - bytes >= minFree

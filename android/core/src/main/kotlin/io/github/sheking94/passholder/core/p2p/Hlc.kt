@@ -1,9 +1,9 @@
 package io.github.sheking94.passholder.core.p2p
 
+import io.github.sheking94.passholder.core.StrictJson
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 
 private const val MAX_DEVICE_ID_LENGTH = 64
 
@@ -29,8 +29,7 @@ fun parseHlc(value: JsonElement?): Hlc {
     if (value !is JsonObject) throw IllegalArgumentException("Invalid HLC")
     val ms = P2pJson.safeLong(value["ms"])
     val c = P2pJson.safeLong(value["c"])
-    val dEl = value["d"]
-    val d = if (dEl is JsonPrimitive && dEl.isString) dEl.content else null
+    val d = StrictJson.string(value["d"])
     if (ms == null || c == null || d == null || d.isEmpty() || d.length > MAX_DEVICE_ID_LENGTH) {
         throw IllegalArgumentException("Invalid HLC")
     }

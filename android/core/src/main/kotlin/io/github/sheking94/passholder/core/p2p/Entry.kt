@@ -4,6 +4,8 @@ import io.github.sheking94.passholder.core.Aead
 import io.github.sheking94.passholder.core.Encoding
 import io.github.sheking94.passholder.core.ErrorCode
 import io.github.sheking94.passholder.core.PassHolderException
+import io.github.sheking94.passholder.core.StrictJson
+import io.github.sheking94.passholder.core.StrictJson.appendQuoted
 import io.github.sheking94.passholder.core.files.Attachment
 import io.github.sheking94.passholder.core.files.Attachments
 import kotlinx.serialization.json.JsonArray
@@ -11,7 +13,6 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.booleanOrNull
 
 enum class DocumentKind(val json: String) {
     ID_CARD("id_card"),
@@ -94,36 +95,36 @@ object EntryCodec {
         val c = data.content
         val sb = StringBuilder()
         sb.append("{\"v\":3,\"type\":")
-        str(sb, c.fields.type)
+        appendQuoted(sb, c.fields.type)
         sb.append(",\"name\":")
-        str(sb, c.name)
+        appendQuoted(sb, c.name)
         sb.append(",\"note\":")
-        str(sb, c.note)
+        appendQuoted(sb, c.note)
         sb.append(",\"fields\":")
         fields(sb, c.fields)
         sb.append(",\"custom\":")
         array(sb, c.custom) { s, f ->
             s.append("{\"label\":")
-            str(s, f.label)
+            appendQuoted(s, f.label)
             s.append(",\"value\":")
-            str(s, f.value)
+            appendQuoted(s, f.value)
             s.append(",\"hidden\":").append(f.hidden).append('}')
         }
         if (c.attachments.isNotEmpty()) {
             sb.append(",\"attachments\":")
             array(sb, c.attachments) { s, a ->
                 s.append("{\"id\":")
-                str(s, a.id)
+                appendQuoted(s, a.id)
                 s.append(",\"name\":")
-                str(s, a.name)
+                appendQuoted(s, a.name)
                 s.append(",\"mime\":")
-                str(s, a.mime)
+                appendQuoted(s, a.mime)
                 s.append(",\"size\":").append(a.size)
                 s.append(",\"chunks\":").append(a.chunks)
                 s.append(",\"sha256\":")
-                str(s, a.sha256)
+                appendQuoted(s, a.sha256)
                 s.append(",\"key\":")
-                str(s, a.key)
+                appendQuoted(s, a.key)
                 s.append('}')
             }
         }
@@ -140,7 +141,7 @@ object EntryCodec {
 
     private fun hlc(sb: StringBuilder, h: Hlc) {
         sb.append("{\"ms\":").append(h.ms).append(",\"c\":").append(h.c).append(",\"d\":")
-        str(sb, h.d)
+        appendQuoted(sb, h.d)
         sb.append('}')
     }
 
@@ -148,25 +149,25 @@ object EntryCodec {
         when (f) {
             is LoginFields -> {
                 sb.append("{\"username\":")
-                str(sb, f.username)
+                appendQuoted(sb, f.username)
                 sb.append(",\"password\":")
-                str(sb, f.password)
+                appendQuoted(sb, f.password)
                 sb.append(",\"totp\":")
-                str(sb, f.totp)
+                appendQuoted(sb, f.totp)
                 sb.append(",\"urls\":")
-                array(sb, f.urls, ::str)
+                array(sb, f.urls, ::appendQuoted)
                 sb.append(",\"androidApps\":")
-                array(sb, f.androidApps, ::str)
+                array(sb, f.androidApps, ::appendQuoted)
                 sb.append('}')
             }
 
             is ContactFields -> {
                 sb.append("{\"firstName\":")
-                str(sb, f.firstName)
+                appendQuoted(sb, f.firstName)
                 sb.append(",\"lastName\":")
-                str(sb, f.lastName)
+                appendQuoted(sb, f.lastName)
                 sb.append(",\"birthDate\":")
-                str(sb, f.birthDate)
+                appendQuoted(sb, f.birthDate)
                 sb.append(",\"phones\":")
                 array(sb, f.phones, ::labeled)
                 sb.append(",\"emails\":")
@@ -174,15 +175,15 @@ object EntryCodec {
                 sb.append(",\"addresses\":")
                 array(sb, f.addresses) { s, a ->
                     s.append("{\"label\":")
-                    str(s, a.label)
+                    appendQuoted(s, a.label)
                     s.append(",\"street\":")
-                    str(s, a.street)
+                    appendQuoted(s, a.street)
                     s.append(",\"postalCode\":")
-                    str(s, a.postalCode)
+                    appendQuoted(s, a.postalCode)
                     s.append(",\"city\":")
-                    str(s, a.city)
+                    appendQuoted(s, a.city)
                     s.append(",\"country\":")
-                    str(s, a.country)
+                    appendQuoted(s, a.country)
                     s.append('}')
                 }
                 sb.append('}')
@@ -190,15 +191,15 @@ object EntryCodec {
 
             is CardFields -> {
                 sb.append("{\"holder\":")
-                str(sb, f.holder)
+                appendQuoted(sb, f.holder)
                 sb.append(",\"number\":")
-                str(sb, f.number)
+                appendQuoted(sb, f.number)
                 sb.append(",\"expiry\":")
-                str(sb, f.expiry)
+                appendQuoted(sb, f.expiry)
                 sb.append(",\"cvc\":")
-                str(sb, f.cvc)
+                appendQuoted(sb, f.cvc)
                 sb.append(",\"pin\":")
-                str(sb, f.pin)
+                appendQuoted(sb, f.pin)
                 sb.append('}')
             }
 
@@ -206,17 +207,17 @@ object EntryCodec {
 
             is DocumentFields -> {
                 sb.append("{\"kind\":")
-                str(sb, f.kind.json)
+                appendQuoted(sb, f.kind.json)
                 sb.append(",\"number\":")
-                str(sb, f.number)
+                appendQuoted(sb, f.number)
                 sb.append(",\"fullName\":")
-                str(sb, f.fullName)
+                appendQuoted(sb, f.fullName)
                 sb.append(",\"issueDate\":")
-                str(sb, f.issueDate)
+                appendQuoted(sb, f.issueDate)
                 sb.append(",\"expiryDate\":")
-                str(sb, f.expiryDate)
+                appendQuoted(sb, f.expiryDate)
                 sb.append(",\"issuer\":")
-                str(sb, f.issuer)
+                appendQuoted(sb, f.issuer)
                 sb.append('}')
             }
         }
@@ -224,9 +225,9 @@ object EntryCodec {
 
     private fun labeled(sb: StringBuilder, l: LabeledValue) {
         sb.append("{\"label\":")
-        str(sb, l.label)
+        appendQuoted(sb, l.label)
         sb.append(",\"value\":")
-        str(sb, l.value)
+        appendQuoted(sb, l.value)
         sb.append('}')
     }
 
@@ -237,39 +238,6 @@ object EntryCodec {
             item(sb, x)
         }
         sb.append(']')
-    }
-
-    /** JS JSON.stringify string escaping: quote, backslash, C0 controls (short forms, else lowercase \u00xx), lone surrogates. */
-    private fun str(sb: StringBuilder, s: String) {
-        sb.append('"')
-        for ((i, ch) in s.withIndex()) {
-            when {
-                ch == '"' -> sb.append("\\\"")
-
-                ch == '\\' -> sb.append("\\\\")
-
-                ch == '\b' -> sb.append("\\b")
-
-                ch == '\u000C' -> sb.append("\\f")
-
-                ch == '\n' -> sb.append("\\n")
-
-                ch == '\r' -> sb.append("\\r")
-
-                ch == '\t' -> sb.append("\\t")
-
-                ch < ' ' -> sb.append("\\u").append(String.format("%04x", ch.code))
-
-                ch.isHighSurrogate() && !(i + 1 < s.length && s[i + 1].isLowSurrogate()) ->
-                    sb.append("\\u").append(String.format("%04x", ch.code))
-
-                ch.isLowSurrogate() && !(i > 0 && s[i - 1].isHighSurrogate()) ->
-                    sb.append("\\u").append(String.format("%04x", ch.code))
-
-                else -> sb.append(ch)
-            }
-        }
-        sb.append('"')
     }
 
     /** Length of the Base64 blob, computed without encrypting: 1 + 12 + n + 16 bytes. */
@@ -303,10 +271,7 @@ object EntryCodec {
         return value
     }
 
-    private fun str(value: JsonElement?): String {
-        if (value !is JsonPrimitive || value is JsonNull || !value.isString) fail()
-        return value.content
-    }
+    private fun str(value: JsonElement?): String = StrictJson.string(value) ?: fail()
 
     private fun strings(value: JsonElement?): List<String> {
         if (value !is JsonArray) fail()
@@ -331,7 +296,7 @@ object EntryCodec {
     private fun customField(value: JsonElement): CustomField {
         val o = record(value, "label", "value", "hidden")
         val h = o["hidden"]
-        val hidden = if (h is JsonPrimitive && h !is JsonNull && !h.isString) h.booleanOrNull else null
+        val hidden = StrictJson.boolean(h)
         if (hidden == null) fail()
         return CustomField(str(o["label"]), str(o["value"]), hidden)
     }

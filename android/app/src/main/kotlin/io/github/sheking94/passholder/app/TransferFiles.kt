@@ -2,19 +2,16 @@ package io.github.sheking94.passholder.app
 
 import android.content.ContentResolver
 import android.net.Uri
+import io.github.sheking94.passholder.core.Encoding
 import io.github.sheking94.passholder.core.ErrorCode
 import io.github.sheking94.passholder.core.PassHolderException
 import io.github.sheking94.passholder.core.transfer.TransferFormat
 import kotlinx.coroutines.CancellationException
 import java.io.BufferedOutputStream
-import java.io.ByteArrayOutputStream
 import java.io.FilterInputStream
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
-import java.nio.ByteBuffer
-import java.nio.charset.CharacterCodingException
-import java.nio.charset.CodingErrorAction
 import java.time.LocalDate
 
 /**
@@ -36,53 +33,31 @@ object TransferFiles {
 
     /** Provider failures (IOException, SecurityException, null stream) become the Polish [READ_FAILED]; the size and UTF-8 messages stay. */
     internal fun readText(open: () -> InputStream?): String {
-        val bytes = try {
+        val bytes = readFailing {
             val input = open() ?: throw IOException("no stream")
             input.use { readCapped(it) }
-        } catch (_: IOException) {
-            throw IOException(READ_FAILED)
-        } catch (_: SecurityException) {
-            throw IOException(READ_FAILED)
         }
         return decode(bytes)
     }
 
     /** Reads at most [MAX_BYTES] + 1 bytes; the extra byte means the file is too large. */
     fun readCapped(input: InputStream): ByteArray {
-        val out = ByteArrayOutputStream()
-        val buffer = ByteArray(64 * 1024)
-        while (out.size() <= MAX_BYTES) {
-            val n = input.read(buffer, 0, minOf(buffer.size, MAX_BYTES + 1 - out.size()))
-            if (n < 0) break
-            out.write(buffer, 0, n)
-        }
-        if (out.size() > MAX_BYTES) throw IllegalArgumentException(TOO_LARGE)
-        return out.toByteArray()
+        val bytes = ProviderStreams.readCapped(input, MAX_BYTES)
+        if (bytes.size > MAX_BYTES) throw IllegalArgumentException(TOO_LARGE)
+        return bytes
     }
 
     /** UTF-8 that refuses malformed bytes instead of replacing them (a Windows-1250 file would import garbled names). */
-    fun decode(bytes: ByteArray): String = try {
-        Charsets.UTF_8.newDecoder()
-            .onMalformedInput(CodingErrorAction.REPORT)
-            .onUnmappableCharacter(CodingErrorAction.REPORT)
-            .decode(ByteBuffer.wrap(bytes))
-            .toString()
-    } catch (_: CharacterCodingException) {
-        throw IllegalArgumentException(NOT_UTF8)
-    }
+    fun decode(bytes: ByteArray): String = Encoding.fromUtf8OrNull(bytes) ?: throw IllegalArgumentException(NOT_UTF8)
 
     /** Writes [text] as UTF-8 over the whole document at [uri] ("wt": an existing file is truncated, not overwritten in part). */
     fun writeText(resolver: ContentResolver, uri: Uri, text: String) = writeText(text) { resolver.openOutputStream(uri, "wt") }
 
     /** Provider failures (IOException, SecurityException, null stream) become the Polish [WRITE_FAILED]. */
     internal fun writeText(text: String, open: () -> OutputStream?) {
-        try {
+        ProviderStreams.failingAs(WRITE_FAILED) {
             val output = open() ?: throw IOException("no stream")
             output.use { it.write(text.toByteArray(Charsets.UTF_8)) }
-        } catch (_: IOException) {
-            throw IOException(WRITE_FAILED)
-        } catch (_: SecurityException) {
-            throw IOException(WRITE_FAILED)
         }
     }
 
@@ -133,13 +108,7 @@ object TransferFiles {
         }
     }
 
-    private inline fun <T> readFailing(block: () -> T): T = try {
-        block()
-    } catch (_: IOException) {
-        throw IOException(READ_FAILED)
-    } catch (_: SecurityException) {
-        throw IOException(READ_FAILED)
-    }
+    private inline fun <T> readFailing(block: () -> T): T = ProviderStreams.failingAs(READ_FAILED, block = block)
 
     /**
      * Streams an archive into the document at [uri] ("wt", like [writeText]); [write] gets a buffered stream that is
