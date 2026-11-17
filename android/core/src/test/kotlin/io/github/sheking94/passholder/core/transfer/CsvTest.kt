@@ -1,5 +1,7 @@
 package io.github.sheking94.passholder.core.transfer
 
+import io.github.sheking94.passholder.core.ErrorCode
+import io.github.sheking94.passholder.core.assertCode
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -26,9 +28,8 @@ class CsvTest {
 
     @Test
     fun rejectsUnclosedQuote() {
-        val e = assertThrows(IllegalArgumentException::class.java) { Csv.parse("a\n\"oops") }
-        assertTrue(e.message!!.contains("niezamknięty cudzysłów"))
-        assertTrue(e.message!!.contains("wiersz 2"))
+        val e = assertCode(ErrorCode.IMPORT_CSV_UNCLOSED_QUOTE) { Csv.parse("a\n\"oops") }
+        assertEquals("2", e.detail)
     }
 
     @Test

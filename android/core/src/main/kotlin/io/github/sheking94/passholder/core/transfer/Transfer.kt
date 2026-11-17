@@ -1,6 +1,9 @@
 package io.github.sheking94.passholder.core.transfer
 
+import io.github.sheking94.passholder.core.ErrorCode
+import io.github.sheking94.passholder.core.PassHolderException
 import io.github.sheking94.passholder.core.p2p.EntryContent
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -14,17 +17,17 @@ object Transfer {
     /** Recognises the format from the file's content (JSON starts with "{", anything else is read as NordPass CSV) and parses it. */
     fun parseImportFile(text: String): ImportFile {
         val body = (if (text.startsWith("\uFEFF")) text.substring(1) else text).jsTrim()
-        if (body == "") throw IllegalArgumentException("Plik jest pusty")
+        if (body == "") throw PassHolderException(ErrorCode.IMPORT_EMPTY_FILE)
         if (!body.startsWith("{")) return ImportFile(TransferFormat.NORDPASS, NordPassCsv.parse(text))
         val value = try {
             Json.parseToJsonElement(body)
-        } catch (_: Exception) {
-            throw IllegalArgumentException("Plik JSON jest uszkodzony")
+        } catch (e: SerializationException) {
+            throw PassHolderException(ErrorCode.IMPORT_BAD_JSON, "Invalid JSON", cause = e)
         }
         return when {
             PassHolderJson.isFormat(value) -> ImportFile(TransferFormat.PASSHOLDER, PassHolderJson.parse(body))
             BitwardenJson.isFormat(value) || isEncryptedBitwarden(value) -> ImportFile(TransferFormat.BITWARDEN, BitwardenJson.parse(body))
-            else -> throw IllegalArgumentException("Nie rozpoznano pliku: to nie jest eksport PassHolder, Bitwarden ani NordPass")
+            else -> throw PassHolderException(ErrorCode.IMPORT_UNKNOWN_FORMAT)
         }
     }
 

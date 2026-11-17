@@ -1,5 +1,7 @@
 package io.github.sheking94.passholder.core.p2p
 
+import io.github.sheking94.passholder.core.ErrorCode
+import io.github.sheking94.passholder.core.PassHolderException
 import io.github.sheking94.passholder.core.RemoteRecord
 import io.github.sheking94.passholder.core.transfer.contentKey
 import java.util.UUID
@@ -13,9 +15,6 @@ data class PhoneEntry(val id: String, val revision: Long, val data: EntryData) {
 
 /** What [PhoneVault.importContents] did. */
 data class ImportResult(val added: Int, val duplicates: Int, val tooLarge: Int)
-
-/** An id holds a live entry of another type than the one being written. */
-class EntryTypeMismatchException : IllegalArgumentException("Entry has another type")
 
 /** The phone's own edits to its vault, written straight into the store with HLC stamps. */
 class PhoneVault(
@@ -35,14 +34,18 @@ class PhoneVault(
 
     /**
      * Writes any entry content. An id holding a live entry of another type is refused
-     * ([EntryTypeMismatchException]); over a tombstone or an unreadable record the type may differ.
-     * [EntryTooLargeException] leaves the store as it was.
+     * ([ErrorCode.ENTRY_TYPE_MISMATCH]); over a tombstone or an unreadable record the type may differ.
+     * [ErrorCode.ENTRY_TOO_LARGE] leaves the store as it was.
      */
     fun upsertContent(id: String, content: EntryContent) {
         requireValidId(id)
         synchronized(store) {
             val old = store.get(id)?.takeIf { !it.deleted }?.let(::readData)
-            if (old != null && old.content.fields.type != content.fields.type) throw EntryTypeMismatchException()
+            if (old != null &&
+                old.content.fields.type != content.fields.type
+            ) {
+                throw PassHolderException(ErrorCode.ENTRY_TYPE_MISMATCH, "Entry has another type")
+            }
             write(id, content)
         }
     }
@@ -75,7 +78,8 @@ class PhoneVault(
                 requireValidId(id)
                 val blob = try {
                     EntryCodec.encrypt(vaultKey, id, EntryData(entry, clock.tick()))
-                } catch (e: EntryTooLargeException) {
+                } catch (e: PassHolderException) {
+                    if (e.code != ErrorCode.ENTRY_TOO_LARGE) throw e
                     tooLarge++
                     continue
                 }

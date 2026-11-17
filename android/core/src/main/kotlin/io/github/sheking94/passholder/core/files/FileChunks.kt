@@ -2,19 +2,17 @@ package io.github.sheking94.passholder.core.files
 
 import io.github.sheking94.passholder.core.Aead
 import io.github.sheking94.passholder.core.Encoding
+import io.github.sheking94.passholder.core.ErrorCode
+import io.github.sheking94.passholder.core.PassHolderException
+import io.github.sheking94.passholder.core.requireCode
 import java.security.MessageDigest
 import java.util.UUID
 
 /** Result of [FileChunks.encrypt]: the descriptor plus one Base64 blob per chunk. */
 data class EncryptedFile(val attachment: Attachment, val blobs: List<String>)
 
-/** Chunked file encryption, same as core/src/files/chunks.ts. Errors are [IllegalArgumentException]s with the TS texts. */
+/** Chunked file encryption, same as core/src/files/chunks.ts. Errors are [PassHolderException]s with the TS codes. */
 object FileChunks {
-    const val FILE_TOO_LARGE = "File too large"
-    const val EMPTY_FILE = "Empty file"
-    const val INVALID_FILE_NAME = "Invalid file name"
-    const val FILE_CORRUPTED = "File is corrupted"
-
     /** AAD binding a chunk to its file, position and total count. */
     fun aad(id: String, index: Int, chunks: Int): String = "passholder/v3/file/$id/$index/$chunks"
 
@@ -45,9 +43,9 @@ object FileChunks {
     }
 
     private fun checkInput(bytes: ByteArray, name: String) {
-        require(bytes.isNotEmpty()) { EMPTY_FILE }
-        require(bytes.size <= Attachments.MAX_FILE_SIZE) { FILE_TOO_LARGE }
-        require(Attachments.isName(name)) { INVALID_FILE_NAME }
+        requireCode(bytes.isNotEmpty(), ErrorCode.FILE_EMPTY)
+        requireCode(bytes.size <= Attachments.MAX_FILE_SIZE, ErrorCode.FILE_TOO_LARGE)
+        requireCode(Attachments.isName(name), ErrorCode.FILE_INVALID_NAME)
     }
 
     private fun build(
@@ -79,34 +77,34 @@ object FileChunks {
     }
 
     fun decryptChunk(a: Attachment, index: Int, blob: String): ByteArray {
-        require(index in 0 until a.chunks) { FILE_CORRUPTED }
+        requireCode(index in 0 until a.chunks, ErrorCode.FILE_CORRUPTED)
         return try {
             Aead.open(Encoding.fromBase64(a.key), blob, aad(a.id, index, a.chunks))
         } catch (e: Exception) {
-            throw IllegalArgumentException(FILE_CORRUPTED)
+            throw PassHolderException(ErrorCode.FILE_CORRUPTED, cause = e)
         }
     }
 
-    /** Decrypts all chunks; any mismatch in count, size, SHA-256 or AES-GCM yields [FILE_CORRUPTED]. */
+    /** Decrypts all chunks; any mismatch in count, size, SHA-256 or AES-GCM yields [ErrorCode.FILE_CORRUPTED]. */
     fun decrypt(a: Attachment, blobs: List<String>): ByteArray {
-        require(blobs.size == a.chunks && a.chunks == Attachments.chunkCount(a.size)) { FILE_CORRUPTED }
+        requireCode(blobs.size == a.chunks && a.chunks == Attachments.chunkCount(a.size), ErrorCode.FILE_CORRUPTED)
         val parts = ArrayList<ByteArray>(blobs.size)
         var total = 0L
         for (i in blobs.indices) {
             val part = decryptChunk(a, i, blobs[i])
             total += part.size
             // Check the size before assembling so a bogus descriptor cannot force a huge allocation.
-            require(total <= a.size) { FILE_CORRUPTED }
+            requireCode(total <= a.size, ErrorCode.FILE_CORRUPTED)
             parts.add(part)
         }
-        require(total == a.size) { FILE_CORRUPTED }
+        requireCode(total == a.size, ErrorCode.FILE_CORRUPTED)
         val out = ByteArray(total.toInt())
         var pos = 0
         for (p in parts) {
             p.copyInto(out, pos)
             pos += p.size
         }
-        require(sha256Hex(out) == a.sha256) { FILE_CORRUPTED }
+        requireCode(sha256Hex(out) == a.sha256, ErrorCode.FILE_CORRUPTED)
         return out
     }
 }

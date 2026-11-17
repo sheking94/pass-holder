@@ -1,6 +1,8 @@
 package io.github.sheking94.passholder.core.p2p
 
 import io.github.sheking94.passholder.core.Encoding
+import io.github.sheking94.passholder.core.ErrorCode
+import io.github.sheking94.passholder.core.assertCode
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -51,7 +53,7 @@ class FramesTest {
     @Test
     fun `swapped frames fail`() {
         val (frames, dec) = threeFrames()
-        assertThrows<IllegalArgumentException> { Frames.decrypt(dec, listOf(frames[1], frames[0], frames[2])) }
+        assertCode(ErrorCode.NOISE_FAILED) { Frames.decrypt(dec, listOf(frames[1], frames[0], frames[2])) }
     }
 
     @Test
@@ -65,7 +67,7 @@ class FramesTest {
         val frames = Frames.encrypt(enc, """{"a":1}""")
         val raw = Encoding.fromBase64(frames[0])
         raw[0] = (raw[0].toInt() xor 1).toByte()
-        assertThrows<IllegalArgumentException> { Frames.decrypt(dec, listOf(Encoding.toBase64(raw))) }
+        assertCode(ErrorCode.NOISE_FAILED) { Frames.decrypt(dec, listOf(Encoding.toBase64(raw))) }
     }
 
     @Test
@@ -80,10 +82,10 @@ class FramesTest {
     }
 
     @Test
-    fun `exhausted nonce surfaces as IllegalArgumentException`() {
+    fun `exhausted nonce surfaces as NOISE_FAILED`() {
         val enc = CipherState(key, ULong.MAX_VALUE - 1uL)
         val frames = Frames.encrypt(enc, """{"a":1}""")
         val dec = CipherState(key, ULong.MAX_VALUE)
-        assertThrows<IllegalArgumentException> { Frames.decrypt(dec, frames) }
+        assertCode(ErrorCode.NOISE_FAILED) { Frames.decrypt(dec, frames) }
     }
 }

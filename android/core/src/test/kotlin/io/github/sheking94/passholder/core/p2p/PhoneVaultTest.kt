@@ -3,7 +3,9 @@ package io.github.sheking94.passholder.core.p2p
 import io.github.sheking94.passholder.core.Aead
 import io.github.sheking94.passholder.core.Credentials
 import io.github.sheking94.passholder.core.Encoding
+import io.github.sheking94.passholder.core.ErrorCode
 import io.github.sheking94.passholder.core.RemoteRecord
+import io.github.sheking94.passholder.core.assertCode
 import io.github.sheking94.passholder.core.login
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -204,7 +206,7 @@ class PhoneVaultTest {
         val v = vault()
         v.upsertContent("e1", cardContent("Karta"))
         val before = store.get("e1")
-        assertThrows<EntryTypeMismatchException> {
+        assertCode(ErrorCode.ENTRY_TYPE_MISMATCH) {
             v.upsertContent("e1", EntryContent("L", "", LoginFields("u", "p"), emptyList()))
         }
         assertEquals(before, store.get("e1"))
@@ -235,8 +237,8 @@ class PhoneVaultTest {
         val v = vault()
         v.upsertContent("a", cred("A"))
         val before = store.get("a")
-        assertThrows<EntryTooLargeException> { v.upsertContent("a", login("A", "u", "x".repeat(70_000))) }
-        assertThrows<EntryTooLargeException> { v.upsertContent("b", login("B", "u", "x".repeat(70_000))) }
+        assertCode(ErrorCode.ENTRY_TOO_LARGE) { v.upsertContent("a", login("A", "u", "x".repeat(70_000))) }
+        assertCode(ErrorCode.ENTRY_TOO_LARGE) { v.upsertContent("b", login("B", "u", "x".repeat(70_000))) }
         assertEquals(1L, store.currentRevision())
         assertEquals(before, store.get("a"))
         assertEquals(null, store.get("b"))

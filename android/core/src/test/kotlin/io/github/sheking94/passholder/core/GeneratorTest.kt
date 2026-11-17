@@ -1,5 +1,7 @@
 package io.github.sheking94.passholder.core
 
+import io.github.sheking94.passholder.core.ErrorCode
+import io.github.sheking94.passholder.core.assertCode
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -29,9 +31,9 @@ class GeneratorTest {
 
     @Test
     fun `rejects bad options`() {
-        assertThrows<IllegalArgumentException> { PasswordGenerator.generate(GeneratorOptions(20, emptySet())) }
-        assertThrows<IllegalArgumentException> { PasswordGenerator.generate(GeneratorOptions(3)) }
-        assertThrows<IllegalArgumentException> { PasswordGenerator.generate(GeneratorOptions(129)) }
+        assertCode(ErrorCode.GENERATOR_NO_GROUPS) { PasswordGenerator.generate(GeneratorOptions(20, emptySet())) }
+        assertCode(ErrorCode.GENERATOR_BAD_LENGTH) { PasswordGenerator.generate(GeneratorOptions(3)) }
+        assertCode(ErrorCode.GENERATOR_BAD_LENGTH) { PasswordGenerator.generate(GeneratorOptions(129)) }
     }
 
     @Test

@@ -1,5 +1,7 @@
 package io.github.sheking94.passholder.core.transfer
 
+import io.github.sheking94.passholder.core.ErrorCode
+import io.github.sheking94.passholder.core.PassHolderException
 import io.github.sheking94.passholder.core.p2p.CardFields
 import io.github.sheking94.passholder.core.p2p.ContactFields
 import io.github.sheking94.passholder.core.p2p.CustomField
@@ -10,6 +12,7 @@ import io.github.sheking94.passholder.core.p2p.LabeledValue
 import io.github.sheking94.passholder.core.p2p.LoginFields
 import io.github.sheking94.passholder.core.p2p.NoteFields
 import io.github.sheking94.passholder.core.p2p.PostalAddress
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -19,9 +22,6 @@ import kotlinx.serialization.json.JsonPrimitive
 
 /** Bitwarden JSON (unencrypted) import and export; port of core/src/transfer/bitwarden-json.ts. */
 object BitwardenJson {
-    private const val NOT_BITWARDEN = "To nie jest plik Bitwarden JSON"
-    private const val ENCRYPTED =
-        "Zaszyfrowany eksport Bitwarden nie jest obsługiwany. Wyeksportuj z Bitwardena plik JSON bez szyfrowania."
     private const val ANDROID_PREFIX = "androidapp://"
     private val DOCUMENT_KINDS = DocumentKind.entries.associateBy { it.json }
 
@@ -211,18 +211,22 @@ object BitwardenJson {
         }
     }
 
-    /** Throws a Polish message for an encrypted or unrecognised file; a bad item is skipped as "wpis N" (from 1). */
+    /** Throws [ErrorCode.IMPORT_BITWARDEN_ENCRYPTED] or [ErrorCode.IMPORT_NOT_BITWARDEN]; a bad item is skipped as "wpis N" (from 1). */
     fun parse(text: String): ParsedImport {
         val doc = try {
             Json.parseToJsonElement(text)
-        } catch (_: Exception) {
-            throw IllegalArgumentException(NOT_BITWARDEN)
+        } catch (e: SerializationException) {
+            throw PassHolderException(ErrorCode.IMPORT_NOT_BITWARDEN, "Not a Bitwarden JSON file", cause = e)
         }
         if (doc is JsonObject) {
             val enc = doc["encrypted"]
-            if (enc is JsonPrimitive && !enc.isString && enc.content == "true") throw IllegalArgumentException(ENCRYPTED)
+            if (enc is JsonPrimitive && !enc.isString &&
+                enc.content == "true"
+            ) {
+                throw PassHolderException(ErrorCode.IMPORT_BITWARDEN_ENCRYPTED)
+            }
         }
-        if (!isFormat(doc)) throw IllegalArgumentException(NOT_BITWARDEN)
+        if (!isFormat(doc)) throw PassHolderException(ErrorCode.IMPORT_NOT_BITWARDEN, "Not a Bitwarden JSON file")
         val entries = mutableListOf<EntryContent>()
         val skipped = mutableListOf<ImportSkip>()
         ((doc as JsonObject)["items"] as JsonArray).forEachIndexed { i, item ->

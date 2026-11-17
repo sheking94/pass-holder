@@ -8,12 +8,12 @@ import androidx.lifecycle.viewModelScope
 import io.github.sheking94.passholder.app.entries.EntryType
 import io.github.sheking94.passholder.app.entries.tidyContent
 import io.github.sheking94.passholder.app.entries.validateContent
+import io.github.sheking94.passholder.core.ErrorCode
 import io.github.sheking94.passholder.core.GeneratorOptions
+import io.github.sheking94.passholder.core.PassHolderException
 import io.github.sheking94.passholder.core.files.Attachment
 import io.github.sheking94.passholder.core.files.Attachments
 import io.github.sheking94.passholder.core.p2p.EntryContent
-import io.github.sheking94.passholder.core.p2p.EntryTooLargeException
-import io.github.sheking94.passholder.core.p2p.EntryTypeMismatchException
 import io.github.sheking94.passholder.core.p2p.PairingOffer
 import io.github.sheking94.passholder.core.p2p.PhoneEntry
 import io.github.sheking94.passholder.core.transfer.PassHolderZip
@@ -265,7 +265,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                fail(e.message ?: e.javaClass.simpleName)
+                fail(errorMessage(e))
             }
         }
     }
@@ -289,23 +289,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         sync.stop(null)
         store.disconnect()
         // The vault is gone: whatever happens to the fingerprint key below, the start screen is the only right one.
-        val warning = forgetFingerprint()?.let {
-            Status("Usunięto sejf, ale nie udało się usunąć klucza odcisku palca: ${it.message ?: it.javaClass.simpleName}", isError = true)
+        val warning = forgetFingerprint().exceptionOrNull()?.let {
+            Status("Usunięto sejf, ale nie udało się usunąć klucza odcisku palca: ${errorMessage(it)}", isError = true)
         }
         _state.value = UiState(Screen.Start, status = warning)
     }
 
     /**
      * Turns fingerprint unlock off: the stored key belongs to the vault that is gone or replaced, and a vault
-     * created later needs its own. Returns the error instead of throwing; the encrypted key is forgotten even then
+     * created later needs its own. Returns a failure instead of throwing; the encrypted key is forgotten even then
      * (BiometricUnlock clears it before it deletes the Keystore key).
      */
-    private fun forgetFingerprint(): Exception? = try {
-        biometrics.disable()
-        null
-    } catch (e: Exception) {
-        e
-    }
+    private fun forgetFingerprint(): Result<Unit> = runCatching { biometrics.disable() }
 
     // --- Master password -------------------------------------------------------------------------
 
@@ -324,12 +319,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             sync.stop(null)
             store.changeMasterPassword(oldPassword, newPassword)
             val hadFingerprint = biometrics.enabled.value
-            val fingerprintError = forgetFingerprint()
+            val fingerprintError = forgetFingerprint().exceptionOrNull()
             sync.refreshDevices()
             val text = buildString {
                 append("Zmieniono hasło główne. Sparuj ponownie każdą wtyczkę i wpisz w niej nowe hasło.")
                 if (hadFingerprint) append(" Odblokowanie odciskiem palca wyłączono, możesz je włączyć ponownie.")
-                fingerprintError?.let { append(" Nie udało się usunąć klucza odcisku palca: ${it.message ?: it.javaClass.simpleName}") }
+                fingerprintError?.let { append(" Nie udało się usunąć klucza odcisku palca: ${errorMessage(it)}") }
             }
             _state.update { it.copy(screen = Screen.Settings, status = Status(text, isError = fingerprintError != null)) }
         }
@@ -373,7 +368,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private fun preparing(prepare: () -> Cipher): Cipher? = try {
         prepare()
     } catch (e: Exception) {
-        fail(e.message ?: e.javaClass.simpleName)
+        fail(errorMessage(e))
         null
     }
 
@@ -400,7 +395,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         if (_state.value.busy) return
         viewModelScope.launch {
             val read = withContext(Dispatchers.IO) { runCatching { store.entry(id) } }
-            val entry = read.getOrElse { return@launch fail(it.message ?: it.javaClass.simpleName) }
+            val entry = read.getOrElse { return@launch fail(errorMessage(it)) }
             if (entry == null) {
                 refresh()
                 return@launch fail("Tego wpisu już nie ma na telefonie.")
@@ -435,13 +430,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val tidy = tidyContent(content)
         validateContent(tidy, original)?.let { return fail(it) }
         launchVaultOperation("Zapisuję…") {
-            try {
-                store.upsertContent(id ?: UUID.randomUUID().toString(), tidy)
-            } catch (e: EntryTooLargeException) {
-                return@launchVaultOperation fail("Wpis jest za duży")
-            } catch (e: EntryTypeMismatchException) {
-                return@launchVaultOperation fail("Ten wpis ma inny typ")
-            }
+            // ENTRY_TOO_LARGE and ENTRY_TYPE_MISMATCH end the operation with their text on the status line.
+            store.upsertContent(id ?: UUID.randomUUID().toString(), tidy)
             // Files added in this form and removed from it before saving belong to no entry.
             discardAdded(keep = tidy.attachments.mapTo(HashSet()) { it.id })
             showList(SAVED, EntryType.of(tidy.fields))
@@ -511,10 +501,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         endFilePick()
         if (uri == null || !store.isUnlocked) return
         launchVaultOperation("Odszyfrowuję plik…") {
+            // FILE_CORRUPTED and VAULT_LOCKED end the operation with their text on the status line.
             val bytes = try {
                 store.readFile(a)
-            } catch (_: IllegalArgumentException) {
-                throw IllegalArgumentException(AttachmentFiles.CORRUPTED)
             } catch (_: IOException) {
                 throw IOException(AttachmentFiles.VAULT_READ_FAILED)
             }
@@ -608,7 +597,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             locks.onOperationFinished()
             checked.exceptionOrNull()?.let { e ->
                 if (e is CancellationException) throw e
-                return@launch fail(e.message ?: e.javaClass.simpleName)
+                return@launch fail(errorMessage(e))
             }
             exportApproved = true
             _state.update { it.copy(status = null) }
@@ -663,11 +652,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * A file's decrypted bytes for the archive, or null when it is not complete or cannot be read (counted as missing).
-     * The vault locking (IllegalStateException) is not a missing file: it ends the export.
+     * The vault locking ([ErrorCode.VAULT_LOCKED]) is not a missing file: it ends the export.
      */
     private fun readForExport(a: Attachment): ByteArray? = try {
         if (store.isFileComplete(a)) store.readFile(a) else null
-    } catch (_: IllegalArgumentException) {
+    } catch (e: PassHolderException) {
+        if (e.code != ErrorCode.FILE_CORRUPTED) throw e
         null
     } catch (_: IOException) {
         null
@@ -705,7 +695,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                fail(e.message ?: e.javaClass.simpleName)
+                fail(errorMessage(e))
             }
         }
     }
@@ -732,7 +722,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                fail(e.message ?: e.javaClass.simpleName)
+                fail(errorMessage(e))
             }
         }
     }
@@ -802,7 +792,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _state.update { it.copy(status = Status(e.message ?: e.javaClass.simpleName, isError = true)) }
+                _state.update { it.copy(status = Status(errorMessage(e), isError = true)) }
             } finally {
                 _state.update { it.copy(busy = false) }
                 locks.onOperationFinished()

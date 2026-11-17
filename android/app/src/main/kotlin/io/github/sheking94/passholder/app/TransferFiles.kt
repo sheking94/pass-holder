@@ -2,6 +2,8 @@ package io.github.sheking94.passholder.app
 
 import android.content.ContentResolver
 import android.net.Uri
+import io.github.sheking94.passholder.core.ErrorCode
+import io.github.sheking94.passholder.core.PassHolderException
 import io.github.sheking94.passholder.core.transfer.TransferFormat
 import kotlinx.coroutines.CancellationException
 import java.io.BufferedOutputStream
@@ -142,7 +144,7 @@ object TransferFiles {
     /**
      * Streams an archive into the document at [uri] ("wt", like [writeText]); [write] gets a buffered stream that is
      * flushed and closed afterwards. Provider and stream failures (IOException, SecurityException) and the vault
-     * locking half way (IllegalStateException) become the Polish [WRITE_FAILED]: part of the archive may already be
+     * locking half way ([ErrorCode.VAULT_LOCKED]) become the Polish [WRITE_FAILED]: part of the archive may already be
      * on disk and must be deleted. Cancellation and other exceptions (programming errors) pass through unchanged.
      */
     fun <T> writeArchive(resolver: ContentResolver, uri: Uri, write: (OutputStream) -> T): T =
@@ -157,8 +159,9 @@ object TransferFiles {
         throw IOException(WRITE_FAILED, e)
     } catch (e: SecurityException) {
         throw IOException(WRITE_FAILED, e)
-    } catch (e: IllegalStateException) {
-        // The vault locked half way ("Sejf jest zablokowany"); other programming errors are not masked.
+    } catch (e: PassHolderException) {
+        // The vault locked half way; other errors are not masked.
+        if (e.code != ErrorCode.VAULT_LOCKED) throw e
         throw IOException(WRITE_FAILED, e)
     }
 }

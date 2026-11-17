@@ -115,6 +115,7 @@ Dwa moduły Gradle: `core` (czysta JVM, testy bez emulatora) i `app` (Jetpack Co
 | Plik (`android/core/.../core/`) | Co robi |
 |---|---|
 | `Encoding.kt`, `Kdf.kt`, `Aead.kt`, `VaultCrypto.kt`, `Generator.kt` | odpowiedniki plików z `core/src/` (`VaultCrypto`: klucz sejfu) |
+| `Errors.kt` | `PassHolderException` (pole `code: ErrorCode`, `detail`, `cause`), `hasErrorCode`, `requireCode`/`checkCode`: odpowiednik `core/src/errors.ts` (patrz „Błędy” niżej) |
 | `Protocol.kt` | `RemoteRecord`, `ChangeRequest`, `Accepted`, `SyncResponse` |
 | `p2p/Hlc.kt`, `Entry.kt`, `P2pJson.kt` | HLC, wpis v3 (`EntryCodec`: modele, ścisły parser, serializacja w kolejności z TypeScriptu, limit, odczyt v2 jako login), wspólny `Json` |
 | `p2p/RistrettoPoint.kt`, `Cpace.kt`, `Pairing.kt`, `PairingHost.kt`, `ReportError.kt` | parowanie: grupa, CPace, kod i zapieczętowane wiadomości, strona telefonu po HTTP; `reportError` (wspólny dla hostów: błąd zgłaszany bez wpływu na odpowiedź) |
@@ -139,6 +140,7 @@ Dwa moduły Gradle: `core` (czysta JVM, testy bez emulatora) i `app` (Jetpack Co
 | `LockController.kt` | kiedy sejf się blokuje (wyjście z aplikacji, 15 minut, „Zablokuj”) i kiedy samo otwiera się okno odcisku |
 | `LeaveLock.kt` | minutnik blokady 60 s po wyjściu z aplikacji (`schedule()`, `expired()`, `cancel()`; pytanie o upływ czasu jest osobno od zatrzymania); `lockNow()` przy wyłączeniu ekranu (odbiornik `ACTION_SCREEN_OFF` w `PassHolderApp`) |
 | `MasterPasswordRules.kt` | reguły nowego hasła głównego: 12 znaków i bez oczywistych wzorców |
+| `ErrorMessages.kt` | `errorMessage(error)`: jedyne miejsce, gdzie kod błędu rdzenia staje się polskim tekstem (odpowiednik `extension/src/error-messages.ts`) |
 | `ImportSummary.kt`, `TransferFiles.kt` | podsumowanie importu (port `import-summary.ts`, także pliki ZIP); czytanie pliku (limit 10 MiB, ścisły UTF-8), rozpoznanie ZIP, strumień archiwum (limit 256 MiB, `PhoneVaultStore.importArchive`) i zapis, nazwa pliku |
 | `AttachmentFiles.kt`, `FileSize.kt` | wybrany plik (nazwa i rozmiar z `OpenableColumns`, najwyżej 10 MiB + 1 bajt, kolejność sprawdzeń jak we wtyczce), zapis przez `CreateDocumentOf` (własny kontrakt: nazwa i typ, tryb `"wt"`); `formatSize` („N KB”, „4,6 MB”) |
 | `BiometricController.kt`, `BiometricUnlock.kt`, `BiometricKeyProtector.kt`, `FingerprintPrompt.kt` | odcisk palca: zaszyfrowany klucz sejfu (`BiometricUnlock`, `exportVaultKey`/`unlockWithVaultKey`), klucz w Android Keystore (`BiometricKeyProtector`/`KeystoreKeyProtector`; StrongBox, gdy jest; tylko przy odblokowanym telefonie), systemowe okno odcisku (`FingerprintPrompt`) |
@@ -207,6 +209,33 @@ Ustalone w grupie G4 przeglądu czystości kodu V3 (decyzja D4: rdzeń zgłasza 
   walidacja formularza zwraca pierwszy tekst błędu albo `undefined` (`validateContent`, `phoneUrlFields().read()`).
 - **Bez rzutowań błędu:** `catch (error)` ma typ `unknown`; tekst bierze się przez `errorMessage(error)`, nie
   `(error as Error).message`. Błąd rzucony w `catch` dostaje `cause` (reguła ESLint `preserve-caught-error`).
+
+### Kotlin (Android)
+
+Ustalone w grupie G5, te same zasady co w TypeScripcie.
+
+- **`android/core` rzuca `PassHolderException` z kodem** (`enum class ErrorCode` w `Errors.kt`): sejf na
+  telefonie (`VAULT_*`, `NO_VAULT`, `WRONG_MASTER_PASSWORD`, `WRONG_UNLOCK_KEYS`, `PASSWORD_UNCHANGED`,
+  `NO_SPACE`), odtwarzanie (`RESTORE_*`), wpisy (`ENTRY_TOO_LARGE`, `ENTRY_TYPE_MISMATCH`; zastąpiły klasy
+  `EntryTooLargeException` i `EntryTypeMismatchException`), generator (`GENERATOR_*`), Noise (`NOISE_FAILED`,
+  komunikat „Noise: …” jak w `noise.ts`), pliki (`FILE_*`), import (`IMPORT_*`, linia CSV w `detail`) i ZIP
+  (`ZIP_*`). Nazwy kodów wspólnych z TS są takie same. Komunikat jest po angielsku; teksty z wektorów testowych
+  („Invalid entry payload”, „Entry too large”) się nie zmieniły.
+- **Rozpoznawanie tylko po kodzie:** `catch (e: PassHolderException) { if (e.code != ErrorCode.X) throw e … }`
+  albo `e.hasErrorCode(…)`, nigdy po `message` ani po ogólnym typie. Przykłady: `P2pHost` (nieudane Noise → 400),
+  `ArchiveReader.readIndex` (`IMPORT_NOT_PASSHOLDER` → `ZIP_NOT_PASSHOLDER`), `TransferFiles.writeArchive`
+  (`VAULT_LOCKED` → „Nie udało się zapisać pliku…”), `AppViewModel.readForExport` (`FILE_CORRUPTED` → plik
+  pominięty), `BiometricController.unlock` (`WRONG_UNLOCK_KEYS` → odcisk wyłączony).
+- **Teksty:** `errorMessage(error)` w `app/ErrorMessages.kt`; `when` bez `else`, więc nowy kod nie skompiluje
+  się bez tekstu. Ekrany i `launchVaultOperation` pokazują każdy błąd przez `errorMessage`. Własne błędy
+  aplikacji (`TransferFiles`, `AttachmentFiles`, `SyncController`, `BiometricController`) są polskie od razu.
+- **Zostają zwykłymi wyjątkami:** błędy programisty (`require`/`check` bez kodu), stan wewnętrzny (`"No host
+  state"`, uszkodzony `host.json` / `records.jsonl` jako `IllegalStateException` łapany tylko w
+  `PhoneVaultStore.loadState`) i walidacja danych z sieci po stronie hosta (CPace, `Pairing`, Base64, HLC,
+  `Frames` poza `NOISE_FAILED`): ta zamienia się na kod HTTP w jednym miejscu i nie trafia do użytkownika.
+- **Porażka bez wyjątku:** `PassHolderJson` zwraca `null` dla złego wpisu indeksu (zamiast pustego
+  `IllegalArgumentException` jako „pomiń”), `forgetFingerprint()` zwraca `Result<Unit>`. Powody pominięcia
+  w podsumowaniu importu (`ImportSkip.reason`) są nadal polskim tekstem rdzenia, tak jak w TS.
 
 ## Przepływ autouzupełniania (Chrome)
 

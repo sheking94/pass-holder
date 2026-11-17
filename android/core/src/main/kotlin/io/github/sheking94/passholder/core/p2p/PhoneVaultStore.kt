@@ -1,15 +1,19 @@
 package io.github.sheking94.passholder.core.p2p
 
 import io.github.sheking94.passholder.core.Encoding
+import io.github.sheking94.passholder.core.ErrorCode
 import io.github.sheking94.passholder.core.Kdf
 import io.github.sheking94.passholder.core.KdfParams
+import io.github.sheking94.passholder.core.PassHolderException
 import io.github.sheking94.passholder.core.RemoteRecord
 import io.github.sheking94.passholder.core.VaultCrypto
+import io.github.sheking94.passholder.core.checkCode
 import io.github.sheking94.passholder.core.files.Attachment
 import io.github.sheking94.passholder.core.files.DiskFileStore
 import io.github.sheking94.passholder.core.files.FileChunks
 import io.github.sheking94.passholder.core.files.FileHost
 import io.github.sheking94.passholder.core.files.FileStore
+import io.github.sheking94.passholder.core.requireCode
 import io.github.sheking94.passholder.core.transfer.ArchiveImportResult
 import io.github.sheking94.passholder.core.transfer.ArchiveReader
 import io.github.sheking94.passholder.core.transfer.ImportSkip
@@ -164,7 +168,7 @@ class PhoneVaultStore(
     /** A new, empty vault with a new identity; unlocks it. */
     @Synchronized
     fun createVault(masterPassword: String) {
-        check(!hasVault) { "Na telefonie już jest sejf" }
+        checkCode(!hasVault, ErrorCode.VAULT_EXISTS)
         checkNotCorrupt()
         lock()
         val kdf = Kdf.newParams()
@@ -192,7 +196,7 @@ class PhoneVaultStore(
     /** Starts "restore from the extension": a new identity without a vault; earlier records are deleted. */
     @Synchronized
     fun startRestore() {
-        check(!hasVault) { "Na telefonie już jest sejf" }
+        checkCode(!hasVault, ErrorCode.VAULT_EXISTS)
         checkNotCorrupt()
         lock()
         pairing.cancel()
@@ -204,25 +208,24 @@ class PhoneVaultStore(
 
     /**
      * Ends a restore: checks [masterPassword] against the wrapped vault key the extension sent and unlocks.
-     * IllegalStateException while the extension has not paired and synced yet; IllegalArgumentException for a
-     * wrong password (nothing changes then).
+     * [ErrorCode.RESTORE_NOT_SENT] while the extension has not paired and synced yet; [ErrorCode.WRONG_MASTER_PASSWORD]
+     * for a wrong password (nothing changes then).
      */
     @Synchronized
     fun finishRestore(masterPassword: String) {
-        val notSent = "Wtyczka jeszcze nie przesłała sejfu"
         val hostState = synchronized(stateLock) { state }
-        check(hostState != null && hostState.keyCheck == null) { "Odtwarzanie z wtyczki nie trwa" }
-        val kdf = hostState.kdf ?: throw IllegalStateException(notSent)
-        val wrapped = hostState.wrappedVaultKey ?: throw IllegalStateException(notSent)
-        check(hostState.devices.isNotEmpty()) { notSent }
+        if (hostState == null || hostState.keyCheck != null) throw PassHolderException(ErrorCode.RESTORE_NOT_RUNNING)
+        val kdf = hostState.kdf ?: throw PassHolderException(ErrorCode.RESTORE_NOT_SENT)
+        val wrapped = hostState.wrappedVaultKey ?: throw PassHolderException(ErrorCode.RESTORE_NOT_SENT)
+        checkCode(hostState.devices.isNotEmpty(), ErrorCode.RESTORE_NOT_SENT)
         val store = synchronized(stateLock) { openRecords() }
-        check(synchronized(store) { store.currentRevision() > 0 }) { notSent }
+        checkCode(synchronized(store) { store.currentRevision() > 0 }, ErrorCode.RESTORE_NOT_SENT)
         val vaultKey = unwrap(masterPassword, kdf, wrapped)
         try {
             synchronized(stateLock) {
                 val current = state
                 if (current == null || current.epoch != hostState.epoch || current.wrappedVaultKey != wrapped) {
-                    throw IllegalStateException("Odtwarzanie zmieniło się w trakcie, spróbuj jeszcze raz")
+                    throw PassHolderException(ErrorCode.RESTORE_CHANGED)
                 }
                 saveState(current.copy(keyCheck = keyCheck(vaultKey)))
             }
@@ -239,17 +242,17 @@ class PhoneVaultStore(
      * Wraps the same vault key with [newPassword] under a new salt (security review I1, variant "a"): entries,
      * epoch and identity stay, the vault key is not rotated. Every paired device is removed and a pending pairing
      * code dropped, so each extension must pair again and learns the new wrapping only with the new password.
-     * Needs an unlocked vault; [oldPassword] is checked again (IllegalArgumentException "Złe hasło główne").
+     * Needs an unlocked vault; [oldPassword] is checked again ([ErrorCode.WRONG_MASTER_PASSWORD]).
      * The caller checks [newPassword] against its strength rules first.
      */
     @Synchronized
     fun changeMasterPassword(oldPassword: String, newPassword: String) {
         val current = requireSession()
         val hostState = requireVault()
-        require(oldPassword != newPassword) { "Nowe hasło musi być inne niż obecne" }
+        requireCode(oldPassword != newPassword, ErrorCode.PASSWORD_UNCHANGED)
         val checked = unwrap(oldPassword, hostState.kdf!!, hostState.wrappedVaultKey!!)
         try {
-            if (!MessageDigest.isEqual(checked, current.vaultKey)) throw IllegalArgumentException("Złe hasło główne")
+            if (!MessageDigest.isEqual(checked, current.vaultKey)) throw PassHolderException(ErrorCode.WRONG_MASTER_PASSWORD)
         } finally {
             checked.fill(0)
         }
@@ -263,8 +266,8 @@ class PhoneVaultStore(
         pairing.cancel()
         synchronized(stateLock) {
             val latest = state
-            check(latest != null && latest.epoch == hostState.epoch && latest.keyCheck == hostState.keyCheck) {
-                "Sejf zmienił się w trakcie, spróbuj jeszcze raz"
+            if (latest == null || latest.epoch != hostState.epoch || latest.keyCheck != hostState.keyCheck) {
+                throw PassHolderException(ErrorCode.VAULT_CHANGED)
             }
             saveState(latest.copy(kdf = kdf, wrappedVaultKey = wrapped, devices = emptyList()))
         }
@@ -273,8 +276,8 @@ class PhoneVaultStore(
 
     /**
      * Checks [masterPassword] again while unlocked, before a plain-text export (security review V3-N6): someone with
-     * the unlocked phone in hand cannot take the whole vault in one file without knowing it. IllegalArgumentException
-     * "Złe hasło główne" for a password that does not open this vault; IllegalStateException while locked.
+     * the unlocked phone in hand cannot take the whole vault in one file without knowing it.
+     * [ErrorCode.WRONG_MASTER_PASSWORD] for a password that does not open this vault; [ErrorCode.VAULT_LOCKED] while locked.
      */
     @Synchronized
     fun confirmMasterPassword(masterPassword: String) {
@@ -282,7 +285,7 @@ class PhoneVaultStore(
         val hostState = requireVault()
         val checked = unwrap(masterPassword, hostState.kdf!!, hostState.wrappedVaultKey!!)
         try {
-            if (!MessageDigest.isEqual(checked, current.vaultKey)) throw IllegalArgumentException("Złe hasło główne")
+            if (!MessageDigest.isEqual(checked, current.vaultKey)) throw PassHolderException(ErrorCode.WRONG_MASTER_PASSWORD)
         } finally {
             checked.fill(0)
         }
@@ -297,7 +300,7 @@ class PhoneVaultStore(
         val vaultKey = unwrap(masterPassword, hostState.kdf!!, hostState.wrappedVaultKey!!)
         try {
             if (!MessageDigest.isEqual(Encoding.utf8(keyCheck(vaultKey)), Encoding.utf8(hostState.keyCheck!!))) {
-                throw IllegalArgumentException("Złe hasło główne")
+                throw PassHolderException(ErrorCode.WRONG_MASTER_PASSWORD)
             }
             start(vaultKey)
         } catch (e: Throwable) {
@@ -313,10 +316,10 @@ class PhoneVaultStore(
     /** Unlocks with the key from [exportVaultKey], checked against the stored key check in constant time. */
     @Synchronized
     fun unlockWithVaultKey(key: ByteArray) {
-        require(key.size == KEY_LENGTH) { "Złe klucze odblokowania" }
+        requireCode(key.size == KEY_LENGTH, ErrorCode.WRONG_UNLOCK_KEYS)
         val hostState = requireVault()
         if (!MessageDigest.isEqual(Encoding.utf8(keyCheck(key)), Encoding.utf8(hostState.keyCheck!!))) {
-            throw IllegalArgumentException("Złe klucze odblokowania")
+            throw PassHolderException(ErrorCode.WRONG_UNLOCK_KEYS)
         }
         val vaultKey = key.copyOf()
         try {
@@ -370,7 +373,7 @@ class PhoneVaultStore(
     @Synchronized
     fun entry(id: String): PhoneEntry? = entries().firstOrNull { it.id == id }
 
-    /** Writes any entry content; [EntryTypeMismatchException] for another live type, [EntryTooLargeException] leaves the store as it was. */
+    /** Writes any entry content; [ErrorCode.ENTRY_TYPE_MISMATCH] for another live type, [ErrorCode.ENTRY_TOO_LARGE] leaves the store as it was. */
     @Synchronized
     fun upsertContent(id: String, content: EntryContent) {
         requireSession().vault.upsertContent(id, content)
@@ -418,7 +421,7 @@ class PhoneVaultStore(
         val attachment = encrypted.attachment
         val store = openFiles()
         synchronized(store) {
-            check(store.canStore(encrypted.blobs.sumOf { it.length.toLong() })) { "Za mało miejsca na telefonie" }
+            checkCode(store.canStore(encrypted.blobs.sumOf { it.length.toLong() }), ErrorCode.NO_SPACE)
             val at = now()
             encrypted.blobs.forEachIndexed { i, blob -> store.put(attachment.id, i, attachment.chunks, blob, at) }
         }
@@ -434,14 +437,14 @@ class PhoneVaultStore(
         return synchronized(store) { store.chunks(a.id) == a.chunks && store.have(a.id).size == a.chunks }
     }
 
-    /** The file's contents; IllegalArgumentException("File is corrupted") when a chunk is missing or does not match. */
+    /** The file's contents; [ErrorCode.FILE_CORRUPTED] when a chunk is missing or does not match. */
     @Synchronized
     fun readFile(a: Attachment): ByteArray {
         requireSession()
         val store = openFiles()
         val blobs = synchronized(store) {
-            if (store.chunks(a.id) != a.chunks) throw IllegalArgumentException(FileChunks.FILE_CORRUPTED)
-            (0 until a.chunks).map { store.get(a.id, it) ?: throw IllegalArgumentException(FileChunks.FILE_CORRUPTED) }
+            if (store.chunks(a.id) != a.chunks) throw PassHolderException(ErrorCode.FILE_CORRUPTED)
+            (0 until a.chunks).map { store.get(a.id, it) ?: throw PassHolderException(ErrorCode.FILE_CORRUPTED) }
         }
         touch()
         return FileChunks.decrypt(a, blobs)
@@ -613,7 +616,7 @@ class PhoneVaultStore(
     /** A new pairing code; in restore mode while a restore is in progress. */
     fun offerPairing(): PairingOffer {
         val mode = synchronized(stateLock) {
-            val hostState = state ?: throw IllegalStateException("Brak sejfu na telefonie")
+            val hostState = state ?: throw PassHolderException(ErrorCode.NO_VAULT)
             if (hostState.keyCheck == null) PairingMode.RESTORE else PairingMode.PAIR
         }
         return pairing.offer(mode)
@@ -721,9 +724,7 @@ class PhoneVaultStore(
         return null
     }
 
-    private fun checkNotCorrupt() = check(!corruptState) {
-        "Nie mogę odczytać danych sejfu na telefonie. Najpierw je usuń."
-    }
+    private fun checkNotCorrupt() = checkCode(!corruptState, ErrorCode.VAULT_UNREADABLE)
 
     /** Caller holds [stateLock]. Opens the file store too. */
     private fun openRecords(): ResettableStore {
@@ -789,7 +790,7 @@ class PhoneVaultStore(
         return try {
             VaultCrypto.unwrapVaultKey(keys.encKey, wrapped)
         } catch (e: Exception) {
-            throw IllegalArgumentException("Złe hasło główne", e)
+            throw PassHolderException(ErrorCode.WRONG_MASTER_PASSWORD, cause = e)
         } finally {
             keys.encKey.fill(0)
         }
@@ -797,13 +798,13 @@ class PhoneVaultStore(
 
     private fun requireVault(): HostState {
         val hostState = synchronized(stateLock) { state }
-        check(hostState != null && hostState.kdf != null && hostState.wrappedVaultKey != null && hostState.keyCheck != null) {
-            "Brak sejfu na telefonie"
+        if (hostState == null || hostState.kdf == null || hostState.wrappedVaultKey == null || hostState.keyCheck == null) {
+            throw PassHolderException(ErrorCode.NO_VAULT)
         }
         return hostState
     }
 
-    private fun requireSession(): Session = session ?: throw IllegalStateException("Sejf jest zablokowany")
+    private fun requireSession(): Session = session ?: throw PassHolderException(ErrorCode.VAULT_LOCKED)
 
     /** Caller holds this object's lock. */
     private fun start(vaultKey: ByteArray) {

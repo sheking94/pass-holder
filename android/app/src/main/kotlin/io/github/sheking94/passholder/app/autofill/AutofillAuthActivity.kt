@@ -23,6 +23,7 @@ import androidx.lifecycle.lifecycleScope
 import io.github.sheking94.passholder.app.BiometricController
 import io.github.sheking94.passholder.app.PassHolderApp
 import io.github.sheking94.passholder.app.Status
+import io.github.sheking94.passholder.app.errorMessage
 import io.github.sheking94.passholder.app.ui.AutofillUnlockScreen
 import io.github.sheking94.passholder.app.ui.FingerprintDialog
 import io.github.sheking94.passholder.app.ui.PassHolderTheme
@@ -198,7 +199,7 @@ abstract class AutofillAuthActivity : FragmentActivity() {
     private fun cipherToUnlock(): Cipher? = try {
         biometrics.cipherToUnlock()
     } catch (e: Exception) {
-        status = Status(e.message ?: e.javaClass.simpleName, isError = true)
+        status = Status(errorMessage(e), isError = true)
         null
     }
 
@@ -268,7 +269,7 @@ abstract class AutofillAuthActivity : FragmentActivity() {
                 // Wrong password and the like: the same message as on the locked screen of the app.
                 busy = false
                 skipping = false
-                status = Status(e.message ?: e.javaClass.simpleName, isError = true)
+                status = Status(errorMessage(e), isError = true)
                 return@launch
             }
             when (next) {

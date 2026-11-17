@@ -2,6 +2,8 @@ package io.github.sheking94.passholder.core.p2p
 
 import io.github.sheking94.passholder.core.Aead
 import io.github.sheking94.passholder.core.Encoding
+import io.github.sheking94.passholder.core.ErrorCode
+import io.github.sheking94.passholder.core.PassHolderException
 import io.github.sheking94.passholder.core.files.Attachment
 import io.github.sheking94.passholder.core.files.Attachments
 import kotlinx.serialization.json.JsonArray
@@ -76,8 +78,6 @@ data class EntryContent(
 )
 data class EntryData(val content: EntryContent, val hlc: Hlc)
 data class TombstoneData(val hlc: Hlc)
-
-class EntryTooLargeException : IllegalArgumentException("Entry too large")
 
 /** v3 entry model: strict parser, JS-compatible serializer and AES-GCM payload encryption bound to the entry id. */
 object EntryCodec {
@@ -286,7 +286,7 @@ object EntryCodec {
         Aead.seal(vaultKey, Encoding.utf8(json), aad(id), nonce)
 
     private fun sealChecked(vaultKey: ByteArray, id: String, json: String): String {
-        if (blobLength(json) > MAX_BLOB_LENGTH) throw EntryTooLargeException()
+        if (blobLength(json) > MAX_BLOB_LENGTH) throw PassHolderException(ErrorCode.ENTRY_TOO_LARGE, "Entry too large")
         return Aead.seal(vaultKey, Encoding.utf8(json), aad(id))
     }
 

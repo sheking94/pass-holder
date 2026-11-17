@@ -13,6 +13,8 @@
 package io.github.sheking94.passholder.core.p2p
 
 import io.github.sheking94.passholder.core.Encoding
+import io.github.sheking94.passholder.core.ErrorCode
+import io.github.sheking94.passholder.core.PassHolderException
 import org.bouncycastle.math.ec.rfc7748.X25519
 import java.security.GeneralSecurityException
 import java.security.MessageDigest
@@ -48,7 +50,7 @@ object NoiseKeys {
 
     /** X25519 key pair for an existing 32-byte private key (stored keys, test vectors). */
     fun fromPrivateKey(privateKey: ByteArray): KeyPair {
-        require(privateKey.size == DHLEN) { "Noise: private key must be 32 bytes" }
+        noiseCheck(privateKey.size == DHLEN) { "private key must be 32 bytes" }
         val pk = ByteArray(DHLEN)
         X25519.scalarMultBase(privateKey, 0, pk, 0)
         return KeyPair(pk, privateKey.copyOf())
@@ -58,7 +60,7 @@ object NoiseKeys {
 private fun dh(keyPair: KeyPair, publicKey: ByteArray): ByteArray {
     val out = ByteArray(DHLEN)
     // false means an all-zero result, i.e. a low-order peer key.
-    require(X25519.calculateAgreement(keyPair.privateKey, 0, publicKey, 0, out, 0)) { "Noise: invalid public key" }
+    noiseCheck(X25519.calculateAgreement(keyPair.privateKey, 0, publicKey, 0, out, 0)) { "invalid public key" }
     return out
 }
 
@@ -94,7 +96,7 @@ class CipherState(key: ByteArray?, n: ULong = 0uL) {
     private var n: ULong = n
 
     init {
-        require(key == null || key.size == 32) { "Noise: cipher key must be 32 bytes" }
+        noiseCheck(key == null || key.size == 32) { "cipher key must be 32 bytes" }
         this.key = key?.let { SecretKeySpec(it, "AES") }
     }
 
@@ -103,28 +105,28 @@ class CipherState(key: ByteArray?, n: ULong = 0uL) {
     @Synchronized
     fun encrypt(ad: ByteArray, plaintext: ByteArray): ByteArray {
         if (key == null) return plaintext.copyOf()
-        require(plaintext.size + TAGLEN <= MAX_MESSAGE) { "Noise: message exceeds 65535 bytes" }
+        noiseCheck(plaintext.size + TAGLEN <= MAX_MESSAGE) { "message exceeds 65535 bytes" }
         return run(Cipher.ENCRYPT_MODE, ad, plaintext)
     }
 
     @Synchronized
     fun decrypt(ad: ByteArray, ciphertext: ByteArray): ByteArray {
         if (key == null) return ciphertext.copyOf()
-        require(ciphertext.size <= MAX_MESSAGE) { "Noise: message exceeds 65535 bytes" }
-        require(ciphertext.size >= TAGLEN) { "Noise: ciphertext too short" }
+        noiseCheck(ciphertext.size <= MAX_MESSAGE) { "message exceeds 65535 bytes" }
+        noiseCheck(ciphertext.size >= TAGLEN) { "ciphertext too short" }
         return run(Cipher.DECRYPT_MODE, ad, ciphertext)
     }
 
     /** One AEAD operation with the current nonce on a fresh Cipher; n advances only on success. */
     private fun run(mode: Int, ad: ByteArray, input: ByteArray): ByteArray {
-        check(n != ULong.MAX_VALUE) { "Noise: nonce exhausted" }
+        noiseCheck(n != ULong.MAX_VALUE) { "nonce exhausted" }
         val out = try {
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
             cipher.init(mode, key, GCMParameterSpec(TAGLEN * 8, aesGcmNonce(n)))
             cipher.updateAAD(ad)
             cipher.doFinal(input)
         } catch (e: GeneralSecurityException) {
-            if (mode == Cipher.DECRYPT_MODE) throw IllegalArgumentException("Noise: decryption failed", e)
+            if (mode == Cipher.DECRYPT_MODE) throw noiseError("decryption failed", e)
             throw e
         }
         n++
@@ -193,10 +195,10 @@ class NoiseKK private constructor(
     private var step: Step = if (initiator) Step.WRITE1 else Step.READ1
 
     init {
-        require(s.privateKey.size == DHLEN && s.publicKey.size == DHLEN) {
-            "Noise: static key pair must be 32-byte X25519 keys"
+        noiseCheck(s.privateKey.size == DHLEN && s.publicKey.size == DHLEN) {
+            "static key pair must be 32-byte X25519 keys"
         }
-        require(rs.size == DHLEN) { "Noise: remote static key must be 32 bytes" }
+        noiseCheck(rs.size == DHLEN) { "remote static key must be 32 bytes" }
         ss.mixHash(prologue)
         // Pre-messages: "-> s" then "<- s", hashed in pattern order on both sides.
         ss.mixHash(if (initiator) s.publicKey else this.rs)
@@ -212,7 +214,7 @@ class NoiseKK private constructor(
     @Synchronized
     fun writeMessage(payload: ByteArray): ByteArray {
         val expected = if (initiator) Step.WRITE1 else Step.WRITE2
-        require(DHLEN + payload.size + TAGLEN <= MAX_MESSAGE) { "Noise: message exceeds 65535 bytes" }
+        noiseCheck(DHLEN + payload.size + TAGLEN <= MAX_MESSAGE) { "message exceeds 65535 bytes" }
         return guard(expected) {
             // Token "e".
             val eph = e ?: NoiseKeys.generate()
@@ -234,8 +236,8 @@ class NoiseKK private constructor(
     @Synchronized
     fun readMessage(message: ByteArray): ByteArray {
         val expected = if (initiator) Step.READ2 else Step.READ1
-        require(message.size <= MAX_MESSAGE) { "Noise: message exceeds 65535 bytes" }
-        require(message.size >= DHLEN + TAGLEN) { "Noise: handshake message too short" }
+        noiseCheck(message.size <= MAX_MESSAGE) { "message exceeds 65535 bytes" }
+        noiseCheck(message.size >= DHLEN + TAGLEN) { "handshake message too short" }
         return guard(expected) {
             // Token "e".
             val remoteE = message.copyOfRange(0, DHLEN)
@@ -257,7 +259,7 @@ class NoiseKK private constructor(
     /** Transport ciphers after both handshake messages; callable once. */
     @Synchronized
     fun split(): TransportCiphers {
-        check(step == Step.DONE) { "Noise: split() before the handshake finished" }
+        noiseCheck(step == Step.DONE) { "split() before the handshake finished" }
         val (c1, c2) = ss.split()
         step = Step.SPLIT
         // c1 encrypts initiator -> responder, c2 responder -> initiator.
@@ -267,13 +269,13 @@ class NoiseKK private constructor(
     /** Final handshake hash h, for channel binding; available once the handshake has finished. */
     val handshakeHash: ByteArray
         @Synchronized get() {
-            check(step == Step.DONE || step == Step.SPLIT) { "Noise: handshake not finished" }
+            noiseCheck(step == Step.DONE || step == Step.SPLIT) { "handshake not finished" }
             return ss.h.copyOf()
         }
 
     /** Runs one handshake step; input-size errors above leave the state intact, any later error fails it. */
     private fun guard(expected: Step, op: () -> ByteArray): ByteArray {
-        check(step == expected) { "Noise: unexpected handshake step (state ${step.name.lowercase()})" }
+        noiseCheck(step == expected) { "unexpected handshake step (state ${step.name.lowercase()})" }
         try {
             val out = op()
             step = when (expected) {
@@ -287,4 +289,11 @@ class NoiseKK private constructor(
             throw e
         }
     }
+}
+
+/** Every Noise failure has code [ErrorCode.NOISE_FAILED] and a message starting "Noise: ", like noise.ts. */
+private fun noiseError(what: String, cause: Throwable? = null) = PassHolderException(ErrorCode.NOISE_FAILED, "Noise: $what", cause = cause)
+
+private inline fun noiseCheck(value: Boolean, what: () -> String) {
+    if (!value) throw noiseError(what())
 }

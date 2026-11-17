@@ -1,5 +1,7 @@
 package io.github.sheking94.passholder.core.transfer
 
+import io.github.sheking94.passholder.core.ErrorCode
+import io.github.sheking94.passholder.core.PassHolderException
 import io.github.sheking94.passholder.core.p2p.CardFields
 import io.github.sheking94.passholder.core.p2p.ContactFields
 import io.github.sheking94.passholder.core.p2p.CustomField
@@ -28,8 +30,6 @@ object NordPassCsv {
         DocumentKind.OTHER to "Inny",
     )
 
-    private const val EMPTY_FILE = "Plik jest pusty"
-    private const val NOT_NORDPASS = "To nie wygląda na eksport z NordPass: brak kolumn name/url w pierwszym wierszu"
     private val TYPES = mapOf("password" to "login", "note" to "note", "credit_card" to "card", "identity" to "contact")
 
     /** Columns that do not make a row more than a note when guessing the type. */
@@ -50,14 +50,18 @@ object NordPassCsv {
     private fun extra(label: String, value: String) = CustomField(label, value, false)
     private fun filled(v: String) = v.jsTrim() != ""
 
-    /** Throws a Polish message for an empty or unrecognised file; a row that cannot be taken is skipped as "wiersz N" (header is 1). */
+    /** Throws [ErrorCode.IMPORT_EMPTY_FILE] or [ErrorCode.IMPORT_NOT_NORDPASS] (also the errors of [Csv.parse]); a row that cannot be taken is skipped as "wiersz N" (header is 1). */
     fun parse(text: String): ParsedImport {
         val all = Csv.parse(text)
-        val header = all.firstOrNull() ?: throw IllegalArgumentException(EMPTY_FILE)
+        val header = all.firstOrNull() ?: throw PassHolderException(ErrorCode.IMPORT_EMPTY_FILE)
         val rows = all.drop(1)
         val index = LinkedHashMap<String, Int>()
         header.fields.forEachIndexed { i, name -> index[name.jsTrim().lowercase()] = i }
-        if ("name" !in index && "url" !in index) throw IllegalArgumentException(NOT_NORDPASS)
+        if ("name" !in index &&
+            "url" !in index
+        ) {
+            throw PassHolderException(ErrorCode.IMPORT_NOT_NORDPASS, "No name/url column in the first row")
+        }
 
         val entries = mutableListOf<EntryContent>()
         val skipped = mutableListOf<ImportSkip>()

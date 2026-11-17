@@ -1,5 +1,7 @@
 package io.github.sheking94.passholder.app
 
+import io.github.sheking94.passholder.core.ErrorCode
+import io.github.sheking94.passholder.core.PassHolderException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,7 +22,7 @@ class BiometricController(private val biometric: BiometricUnlock) {
     fun cipherToEnable(): Cipher = try {
         biometric.cipherToEnable()
     } catch (e: Exception) {
-        throw IllegalStateException("Nie udało się przygotować klucza: ${e.message ?: e.javaClass.simpleName}", e)
+        throw IllegalStateException("Nie udało się przygotować klucza: ${errorMessage(e)}", e)
     }
 
     /** Step 2: [cipher] came back from the dialog; [vaultKey] is the 32-byte vault key. Blocking (Keystore): run it as a vault operation. */
@@ -36,7 +38,7 @@ class BiometricController(private val biometric: BiometricUnlock) {
         _enabled.value = false
         throw e
     } catch (e: Exception) {
-        throw IllegalStateException("Odcisk palca niedostępny: ${e.message ?: e.javaClass.simpleName}", e)
+        throw IllegalStateException("Odcisk palca niedostępny: ${errorMessage(e)}", e)
     }
 
     /**
@@ -47,7 +49,8 @@ class BiometricController(private val biometric: BiometricUnlock) {
         biometric.decrypt(cipher).useAndWipe { vaultKey ->
             try {
                 unlock(vaultKey)
-            } catch (e: IllegalArgumentException) {
+            } catch (e: PassHolderException) {
+                if (e.code != ErrorCode.WRONG_UNLOCK_KEYS) throw e
                 disable()
                 throw IllegalArgumentException("Zapisane klucze nie pasują do sejfu. Odblokuj hasłem głównym i włącz odcisk ponownie.", e)
             }
