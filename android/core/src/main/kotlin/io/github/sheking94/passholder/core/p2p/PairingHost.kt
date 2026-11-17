@@ -9,7 +9,7 @@ import kotlinx.serialization.json.put
 import java.security.GeneralSecurityException
 
 /** How long a pairing code shown on the phone stays valid. */
-const val PAIRING_CODE_TTL_MS = 120_000L
+const val PAIRING_CODE_TTL_MS = 2 * 60_000L
 
 /** How long the pairing key from /pair/start waits for /pair/finish. */
 const val PAIRING_FINISH_TTL_MS = 30_000L

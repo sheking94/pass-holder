@@ -42,15 +42,17 @@ object Pairing {
     const val MAX_ADDRESSES = 16
     const val MAX_ADDRESS_LENGTH = 256
 
+    const val CODE_LENGTH = 8
+
     private val PAIR_KEY_INFO = Encoding.utf8("passholder/v2/pair-key")
 
-    /** 8 decimal digits. Bytes >= 250 are rejected so every digit is equally likely (no `% 10` bias). */
+    /** [CODE_LENGTH] decimal digits. Bytes >= 250 are rejected so every digit is equally likely (no `% 10` bias). */
     fun generateCode(): String {
         val code = StringBuilder()
-        while (code.length < 8) {
+        while (code.length < CODE_LENGTH) {
             for (b in Encoding.randomBytes(16)) {
                 val v = b.toInt() and 0xff
-                if (v < 250 && code.length < 8) code.append(v % 10)
+                if (v < 250 && code.length < CODE_LENGTH) code.append(v % 10)
             }
         }
         return code.toString()
