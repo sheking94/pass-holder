@@ -1,4 +1,5 @@
-import type { FillMessage, FillResult } from "../autofill/fill-tab.ts";
+import type { FillMessage } from "../autofill/fill-tab.ts";
+import type { ActionResult } from "../result.ts";
 import { isInTab, pageMode } from "../page-mode.ts";
 
 /** The tab the popup was opened over; undefined in a PassHolder tab (it is its own active tab) or without id/url. */
@@ -10,7 +11,7 @@ export async function activeTab(): Promise<{ id: number; url: string } | undefin
 }
 
 /** Asks the service worker to fill the entry into the tab. */
-export async function requestFill(tabId: number, entryId: string): Promise<FillResult> {
+export async function requestFill(tabId: number, entryId: string): Promise<ActionResult> {
   const message: FillMessage = { target: "background", type: "fill", entryId, tabId };
-  return (await chrome.runtime.sendMessage(message)) as FillResult;
+  return (await chrome.runtime.sendMessage(message)) as ActionResult;
 }

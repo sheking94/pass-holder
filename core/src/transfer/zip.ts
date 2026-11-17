@@ -1,8 +1,7 @@
 // A small ZIP writer and reader for the PassHolder archive. Deflate is done by the platform
 // (CompressionStream / DecompressionStream "deflate-raw"). No ZIP64, encryption or multi-disk archives.
 
-export const ZIP_INVALID = "Archiwum ZIP jest uszkodzone albo nieobsługiwane";
-export const ZIP_ENTRY_TOO_LARGE = "Entry too large";
+import { hasErrorCode, PassHolderError } from "../errors.ts";
 
 /** Most entries a readable archive may hold. */
 const MAX_ZIP_ENTRIES = 5000;
@@ -53,9 +52,12 @@ export function isZip(bytes: Uint8Array): boolean {
   );
 }
 
-function invalid(): never {
-  throw new Error(ZIP_INVALID);
+/** Throws code ZIP_INVALID: the archive is damaged or uses a feature this reader does not support. */
+function invalid(cause?: unknown): never {
+  throw new PassHolderError("ZIP_INVALID", "ZIP archive is damaged or not supported", { cause });
 }
+
+const entryTooLarge = () => new PassHolderError("ZIP_ENTRY_TOO_LARGE", "ZIP entry too large");
 
 async function deflateRaw(bytes: Uint8Array): Promise<Uint8Array> {
   const stream = new CompressionStream("deflate-raw");
@@ -127,7 +129,7 @@ export class ZipWriter {
     const central: Uint8Array[] = [];
     // Values the reader takes for ZIP64 markers (0xFFFF, 0xFFFFFFFF) are never written.
     const tooLarge = (): never => {
-      throw new Error("ZIP too large");
+      throw new PassHolderError("ZIP_WRITE_TOO_LARGE", "ZIP too large");
     };
     if (this.#entries.length >= 0xffff) tooLarge();
     let offset = 0;
@@ -188,7 +190,7 @@ function findEnd(bytes: Uint8Array, v: DataView): number {
 
 /**
  * Reads the central directory, which holds the sizes and CRC even for entries written with a data descriptor.
- * Throws ZIP_INVALID for ZIP64, encryption, a method other than stored/deflate, several disks, a repeated name,
+ * Throws code ZIP_INVALID for ZIP64, encryption, a method other than stored/deflate, several disks, a repeated name,
  * more than 5000 entries or broken structure.
  */
 export function readZipIndex(bytes: Uint8Array): ZipEntry[] {
@@ -245,7 +247,7 @@ export function readZipIndex(bytes: Uint8Array): ZipEntry[] {
 }
 
 /**
- * The entry's bytes, checked against the central directory's size and CRC (ZIP_INVALID). Throws ZIP_ENTRY_TOO_LARGE
+ * The entry's bytes, checked against the central directory's size and CRC (code ZIP_INVALID). Throws code ZIP_ENTRY_TOO_LARGE
  * when the declared size or the inflated output passes `maxSize`; inflating stops as soon as it does.
  */
 export async function readZipEntry(
@@ -259,7 +261,7 @@ export async function readZipEntry(
     e.offset + 30 + v.getUint16(e.offset + 26, true) + v.getUint16(e.offset + 28, true);
   const dataEnd = dataStart + e.compressedSize;
   if (dataEnd > bytes.length) invalid();
-  if (e.size > maxSize) throw new Error(ZIP_ENTRY_TOO_LARGE);
+  if (e.size > maxSize) throw entryTooLarge();
   const data = bytes.subarray(dataStart, dataEnd);
   let out: Uint8Array;
   if (e.method === 0) {
@@ -292,14 +294,14 @@ async function inflateRaw(data: Uint8Array, maxSize: number): Promise<Uint8Array
       total += r.value.length;
       if (total > maxSize) {
         await reader.cancel().catch(() => {});
-        throw new Error(ZIP_ENTRY_TOO_LARGE);
+        throw entryTooLarge();
       }
       chunks.push(r.value);
     }
     await writing;
   } catch (error) {
-    if (error instanceof Error && error.message === ZIP_ENTRY_TOO_LARGE) throw error;
-    invalid();
+    if (hasErrorCode(error, "ZIP_ENTRY_TOO_LARGE")) throw error;
+    invalid(error);
   }
   return concat(chunks);
 }

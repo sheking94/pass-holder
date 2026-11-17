@@ -1,19 +1,12 @@
 import { p2p } from "@passholder/core";
+import { PHONE_UNREACHABLE } from "./error-messages.ts";
 
-export class ApiError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-  ) {
-    super(message);
-  }
+export { PHONE_UNREACHABLE } from "./error-messages.ts";
+
+/** The phone did not answer: a network failure, a timeout, or no address answered. The message is for the user. */
+export class PhoneUnreachableError extends Error {
+  override readonly name = "PhoneUnreachableError";
 }
-
-export const PHONE_UNREACHABLE = "Telefon nie odpowiada. Czy tryb Synchronizacja jest włączony?";
-export const PHONE_FORGOT_BROWSER =
-  "Telefon nie zna tej przeglądarki. Sparuj ją ponownie w „Adresy telefonu” → „Sparuj z innym telefonem / odtwórz telefon”.";
-export const PHONE_UPDATE_REQUIRED_PL = "Zaktualizuj aplikację na telefonie";
-export const PHONE_MALFORMED = "Telefon odpowiedział niepoprawnie.";
 
 /**
  * How long one request may take, answer body included, unless a shorter timeout is given (the probe).
@@ -22,33 +15,9 @@ export const PHONE_MALFORMED = "Telefon odpowiedział niepoprawnie.";
 export const POST_TIMEOUT_MS = 30_000;
 
 /**
- * The core's English errors from the phone, in Polish. Messages that are already Polish (pairing, addresses,
- * unreachable) pass through unchanged.
- */
-export function phoneErrorInPolish(error: unknown): unknown {
-  if (!(error instanceof Error) || error instanceof ApiError) return error;
-  const message = error.message;
-  if (message === p2p.PHONE_UPDATE_REQUIRED) return new Error(PHONE_UPDATE_REQUIRED_PL);
-  if (message === "P2P host returned 403: device not paired")
-    return new Error(PHONE_FORGOT_BROWSER);
-  // A bad shape, or a Noise message that does not open: either way the answer is not what a PassHolder phone sends.
-  if (message === "P2P host returned a malformed response" || message.startsWith("Noise:"))
-    return new Error(PHONE_MALFORMED);
-  const tooLarge = `${p2p.ENTRY_TOO_LARGE_TO_SYNC}: `;
-  if (message.startsWith(tooLarge)) {
-    return new Error(
-      `Wpis „${message.slice(tooLarge.length)}” jest za duży (ponad 64 KiB) i nie może zostać zsynchronizowany. Skróć go.`,
-    );
-  }
-  const status = /^P2P host returned (\d+): (.*)$/.exec(message);
-  if (status) return new Error(`Telefon odpowiedział błędem ${status[1]} (${status[2]}).`);
-  return error;
-}
-
-/**
  * HTTP client for the phone in sync mode (docs/SYNCHRONIZACJA.md). Every call is a JSON POST; `post` is the
  * FetchJson the pairing client and noiseTransport take. A network failure or a timeout (POST_TIMEOUT_MS) becomes
- * ApiError(0, PHONE_UNREACHABLE); an HTTP error status is returned as is, for callP2pHost to turn into a message.
+ * PhoneUnreachableError; an HTTP error status is returned as is, for callP2pHost to turn into an error.
  */
 export class PhoneClient {
   readonly baseUrl: string;
@@ -62,7 +31,7 @@ export class PhoneClient {
 
   readonly post: p2p.FetchJson = (url, body) => this.request(url, body, POST_TIMEOUT_MS);
 
-  /** Pings the phone. With timeoutMs, gives up (as unreachable, status 0) when it has not answered in time. */
+  /** Pings the phone. With timeoutMs, gives up (PhoneUnreachableError) when it has not answered in time. */
   status(timeoutMs = POST_TIMEOUT_MS): Promise<void> {
     return p2p.pingPhone(this.baseUrl, (url, body) => this.request(url, body, timeoutMs));
   }
@@ -78,7 +47,7 @@ export class PhoneClient {
     const timedOut = new Promise<never>((_, reject) => {
       timer = setTimeout(() => {
         controller.abort();
-        reject(new ApiError(0, PHONE_UNREACHABLE));
+        reject(new PhoneUnreachableError(PHONE_UNREACHABLE));
       }, timeoutMs);
     });
     const exchange = async () => {
@@ -88,7 +57,7 @@ export class PhoneClient {
         body: JSON.stringify(body),
         signal: controller.signal,
       }).catch(() => {
-        throw new ApiError(0, PHONE_UNREACHABLE);
+        throw new PhoneUnreachableError(PHONE_UNREACHABLE);
       });
       return { status: res.status, body: await res.json().catch(() => ({})) };
     };

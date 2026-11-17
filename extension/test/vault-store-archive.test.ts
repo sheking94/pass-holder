@@ -203,7 +203,7 @@ describe("VaultStore.importArchive", () => {
     const a = await pairedBrowser();
     const { bytes } = await sampleArchive();
     await expect(a.store.importArchive(bytes.subarray(0, bytes.length - 30))).rejects.toThrow(
-      transfer.ZIP_INVALID,
+      "Archiwum ZIP jest uszkodzone albo nieobsługiwane",
     );
     expect(a.store.allContents()).toEqual([]);
     expect(await a.files.ids()).toEqual([]);

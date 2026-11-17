@@ -1,3 +1,4 @@
+import { withCode } from "../error-code.ts";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
@@ -5,7 +6,6 @@ import type { Attachment } from "../../src/files/attachment.ts";
 import type { EntryContent } from "../../src/p2p/entry.ts";
 import {
   ARCHIVE_INDEX,
-  NOT_ARCHIVE,
   archivePath,
   exportPassHolderZip,
   openPassHolderZip,
@@ -153,13 +153,15 @@ describe("openPassHolderZip", () => {
   });
 
   it("refuses an archive without passholder.json", async () => {
-    await expect(openPassHolderZip(await zipOf([["notes.txt", "x"]]))).rejects.toThrow(NOT_ARCHIVE);
+    await expect(openPassHolderZip(await zipOf([["notes.txt", "x"]]))).rejects.toThrow(
+      withCode("ZIP_NOT_PASSHOLDER"),
+    );
   });
 
   it("refuses an archive whose passholder.json is not a PassHolder file", async () => {
     await expect(
       openPassHolderZip(await zipOf([[ARCHIVE_INDEX, '{"format":"other"}']])),
-    ).rejects.toThrow(NOT_ARCHIVE);
+    ).rejects.toThrow(withCode("ZIP_NOT_PASSHOLDER"));
   });
 
   it("explains a file it cannot give back", async () => {
@@ -176,8 +178,8 @@ describe("openPassHolderZip", () => {
     ]);
     const { parsed, readFile } = await openPassHolderZip(zip);
     const [missing, wrongSize] = parsed.entries[0]!.files;
-    await expect(readFile(missing!)).rejects.toThrow("brak w archiwum");
-    await expect(readFile(wrongSize!)).rejects.toThrow("inny rozmiar niż w opisie");
+    await expect(readFile(missing!)).rejects.toThrow(withCode("ARCHIVE_FILE_MISSING"));
+    await expect(readFile(wrongSize!)).rejects.toThrow(withCode("ARCHIVE_FILE_SIZE_MISMATCH"));
   });
 
   it("refuses a file that inflates past the size limit and one with a bad CRC", async () => {
@@ -199,8 +201,8 @@ describe("openPassHolderZip", () => {
     v.setUint32(crc! + 16, v.getUint32(crc! + 16, true) ^ 1, true);
     const { parsed, readFile } = await openPassHolderZip(zip);
     const [big, bad] = parsed.entries[0]!.files;
-    await expect(readFile(big!)).rejects.toThrow("za duży");
-    await expect(readFile(bad!)).rejects.toThrow("uszkodzony");
+    await expect(readFile(big!)).rejects.toThrow(withCode("ARCHIVE_FILE_TOO_LARGE"));
+    await expect(readFile(bad!)).rejects.toThrow(withCode("ARCHIVE_FILE_CORRUPTED"));
   });
 
   // archive-kotlin.passholder.zip is the same export written by the Android core (java.util.zip: deflated entries
@@ -299,6 +301,6 @@ describe("parseArchiveIndex", () => {
     expect(parseArchiveIndex(index([{ ...bare(note), name: " " }])).skipped).toEqual([
       { at: "wpis 1", reason: "brak nazwy" },
     ]);
-    expect(() => parseArchiveIndex("{")).toThrow("To nie jest plik PassHolder w wersji 3");
+    expect(() => parseArchiveIndex("{")).toThrow(withCode("IMPORT_NOT_PASSHOLDER"));
   });
 });

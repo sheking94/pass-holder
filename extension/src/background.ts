@@ -1,7 +1,7 @@
 import { AUTO_LOCK_ALARM, onAutoLockAlarm, scheduleAutoLock } from "./auto-lock.ts";
 import { CLEAR_AFTER_MINUTES, CLEAR_CLIPBOARD_ALARM, type ClipboardMessage } from "./clipboard.ts";
 import {
-  chromeTabApi,
+  chromeFillTabApi,
   fillTab,
   onFillCommand,
   type FillMessage,
@@ -41,7 +41,7 @@ function onPasswordCopied(
 ): void {
   if (!fromExtensionPage(sender)) return;
   void (async () => {
-    await chrome.storage.session.set({ copiedPasswordHash: message.hash });
+    await chrome.storage.session.set({ [STORAGE_KEYS.copiedPasswordHash]: message.hash });
     await chrome.alarms.create(CLEAR_CLIPBOARD_ALARM, { delayInMinutes: CLEAR_AFTER_MINUTES });
   })();
 }
@@ -57,7 +57,7 @@ function onFill(
 ): true | undefined {
   // Other extensions arrive at onMessageExternal; the sender URL also keeps out this extension's own content scripts.
   if (!fromExtensionPage(sender)) return undefined;
-  void fillTab(newStore(), chromeTabApi(), message.tabId, message.entryId)
+  void fillTab(newStore(), chromeFillTabApi(), message.tabId, message.entryId)
     .catch(() => ({ ok: false, error: UNSUPPORTED_PAGE }))
     .then(sendResponse);
   return true;
@@ -180,7 +180,7 @@ chrome.tabs.onRemoved.addListener((tabId) => void saveCandidates.onTabRemoved(ta
 
 chrome.commands.onCommand.addListener((command, tab) => {
   if (command !== "fill-login") return;
-  onFillCommand(newStore(), chromeTabApi(), tab, () => chrome.action.openPopup()).catch(
+  onFillCommand(newStore(), chromeFillTabApi(), tab, () => chrome.action.openPopup()).catch(
     (error: unknown) => console.warn("PassHolder: fill command failed", error),
   );
 });
@@ -200,9 +200,10 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 });
 
 async function clearClipboard() {
-  const { copiedPasswordHash } = await chrome.storage.session.get("copiedPasswordHash");
+  const key = STORAGE_KEYS.copiedPasswordHash;
+  const { [key]: copiedPasswordHash } = await chrome.storage.session.get(key);
   if (typeof copiedPasswordHash !== "string") return;
-  await chrome.storage.session.remove("copiedPasswordHash");
+  await chrome.storage.session.remove(key);
   // A service worker has no clipboard; an offscreen document is Chrome's way to reach it.
   if (!(await chrome.offscreen.hasDocument())) {
     await chrome.offscreen.createDocument({

@@ -1,4 +1,5 @@
 /** Small DOM helpers shared by all views of popup.html. */
+import { errorMessage } from "../error-messages.ts";
 import { LONG_PIN_MAX_LENGTH } from "../pin-lock.ts";
 import { copySecret, copyText } from "./copy.ts";
 import { setStatus } from "./status.ts";
@@ -44,7 +45,7 @@ export async function busy(status: HTMLElement, message: string, action: () => P
   try {
     await action();
   } catch (error) {
-    setStatus(status, (error as Error).message, true);
+    setStatus(status, errorMessage(error), true);
   } finally {
     buttons.forEach((b) => (b.disabled = false));
   }
@@ -85,8 +86,8 @@ export function secretField(
       title: `Kopiuj: ${what}`,
       onclick: () => {
         if (input.value === "") return setStatus(status, "Pole jest puste");
-        void (secret ? copySecret : copyText)(input.value, what, status).catch((error: Error) =>
-          setStatus(status, error.message, true),
+        void (secret ? copySecret : copyText)(input.value, what, status).catch((error: unknown) =>
+          setStatus(status, errorMessage(error), true),
         );
       },
     },

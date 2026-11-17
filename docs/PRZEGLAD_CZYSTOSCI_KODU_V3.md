@@ -557,7 +557,7 @@ Każda grupa to jeden wątek i jeden PR, w tej kolejności.
 | G1 | Formater i linter (D1: tak) — **zrobione** (Prettier, ESLint, ktlint, CI) | CN1 | wszystkie | mały, duży diff |
 | G2 | Martwy kod i kod tylko dla testów (D2: tak) — **zrobione** (stare API usunięte, magazyny w pamięci w `testFixtures`, host wzorcowy oznaczony, `authKey` usunięty) | CW3 | wszystkie | średni |
 | G3 | Nazwy (D3: tak) — **zrobione** (bez przyrostków V2/V3, nazwy z CS16, konwencje w `docs/ARCHITEKTURA.md`, reguła ktlint `filename`) | CW12, CS16, CN3, CN4 | wszystkie | średni |
-| G4 | Błędy z kodami: TypeScript | CW1, CS7, CS8, CS12, CS13 (część TS) | core, wtyczka | duży |
+| G4 | Błędy z kodami: TypeScript — **zrobione** (`PassHolderError` z kodem w rdzeniu, teksty w `extension/src/error-messages.ts`, `ActionResult`, `errorMessage`, nazwy z CS12) | CW1, CS7, CS8, CS12, CS13 (część TS) | core, wtyczka | duży |
 | G5 | Błędy z kodami: Kotlin | CW1, CS7, CS8 (część Kotlin) | android | duży |
 | G6 | Wspólne pomocniki | CW2, CS6 | core, android | średni |
 | G7 | Stałe, limity i teksty w jednym miejscu | CS1, CS2, CS3, CS4 | wszystkie | średni |

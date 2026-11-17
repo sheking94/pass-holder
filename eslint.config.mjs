@@ -27,8 +27,6 @@ export default tseslint.config(
         "error",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_", ignoreRestSiblings: true },
       ],
-      // Error messages and causes are reworked in groups G4 and G5; adding `cause` here would change behaviour.
-      "preserve-caught-error": "off",
     },
   },
   {

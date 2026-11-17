@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import type { ActionResult } from "../../src/result.ts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { promptView } from "../../src/save/prompt-view.ts";
 import type { SavePreviewResponse, SavePromptInfo } from "../../src/save/messages.ts";
@@ -17,9 +18,7 @@ const info = (over: Partial<SavePromptInfo> = {}): SavePromptInfo =>
 type Preview = (u: string, p: string) => Promise<SavePreviewResponse>;
 function setup(
   over: Partial<SavePromptInfo> = {},
-  answer = vi.fn(
-    async (_a: string, _d?: unknown) => ({ ok: true }) as { ok: boolean; error?: string },
-  ),
+  answer = vi.fn(async (_a: string, _d?: unknown): Promise<ActionResult> => ({ ok: true })),
   preview = vi.fn<Preview>(async () => ({ decision: "create" })),
 ) {
   const actions = { answer, preview, unlock: vi.fn(), done: vi.fn() };

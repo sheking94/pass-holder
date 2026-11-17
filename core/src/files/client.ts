@@ -1,18 +1,16 @@
+import { hasErrorCode, PassHolderError } from "../errors.ts";
 import { liveEntries, type LocalVault } from "../p2p/sync.ts";
 import {
+  malformedResponse,
   noiseRequest,
   P2pHostError,
   P2P_FILE_PATH,
-  PHONE_UPDATE_REQUIRED,
   type NoiseClientOptions,
 } from "../p2p/transport.ts";
 import type { Attachment } from "./attachment.ts";
-import { decryptFile, FILE_CORRUPTED, type EncryptedFile } from "./chunks.ts";
+import { decryptFile, type EncryptedFile } from "./chunks.ts";
 import type { P2pFileRequest, P2pFileStatus } from "./host-files.ts";
 
-/** Thrown when the phone answers with another epoch: the entries must be synced (epoch adopted) first. */
-export const FILE_SYNC_EPOCH_MISMATCH = "Epoch changed, sync again";
-const MALFORMED = "P2P host returned a malformed response";
 const MAX_STATUS_IDS = 500;
 
 /** Sends one file request; returns the decrypted 200 answer, or null for a `get` of a chunk the phone lacks. */
@@ -27,7 +25,9 @@ export function noiseFileTransport(o: NoiseClientOptions): P2pFileTransport {
       if (error instanceof P2pHostError && error.status === 404) {
         if (request.op === "get" && error.detail === "chunk not found") return null;
         // An older phone app does not know the path and answers 404 "not found".
-        throw new Error(PHONE_UPDATE_REQUIRED);
+        throw new PassHolderError("PHONE_UPDATE_REQUIRED", "Phone app needs an update", {
+          cause: error,
+        });
       }
       throw error;
     }
@@ -149,15 +149,19 @@ const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 const isIndex = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 0;
 
-/** Sends a request and returns its answer, throwing FILE_SYNC_EPOCH_MISMATCH when the phone names another epoch. */
+/**
+ * Sends a request and returns its answer. When the phone names another epoch it throws code
+ * FILE_SYNC_EPOCH_MISMATCH: the entries must be synced (epoch adopted) first.
+ */
 async function call(
   send: P2pFileTransport,
   request: P2pFileRequest,
 ): Promise<Record<string, unknown> | null> {
   const res = await send(request);
   if (res === null && request.op === "get") return null;
-  if (!isRecord(res)) throw new Error(MALFORMED);
-  if (typeof res.epoch === "string") throw new Error(FILE_SYNC_EPOCH_MISMATCH);
+  if (!isRecord(res)) throw malformedResponse();
+  if (typeof res.epoch === "string")
+    throw new PassHolderError("FILE_SYNC_EPOCH_MISMATCH", "Epoch changed, sync again");
   return res;
 }
 
@@ -170,7 +174,7 @@ async function phoneStatus(
   for (let i = 0; i < ids.length; i += MAX_STATUS_IDS) {
     const res = await call(send, { op: "status", epoch, ids: ids.slice(i, i + MAX_STATUS_IDS) });
     const list = res!.files;
-    if (!Array.isArray(list)) throw new Error(MALFORMED);
+    if (!Array.isArray(list)) throw malformedResponse();
     for (const f of list) {
       if (
         !isRecord(f) ||
@@ -180,7 +184,7 @@ async function phoneStatus(
         !f.have.every(isIndex) ||
         typeof f.complete !== "boolean"
       )
-        throw new Error(MALFORMED);
+        throw malformedResponse();
       status.set(f.id, f as unknown as P2pFileStatus);
     }
   }
@@ -235,7 +239,7 @@ async function download(
     if (have.has(index)) continue;
     const res = await call(send, { op: "get", epoch, id: a.id, index });
     if (res === null) return "pending";
-    if (typeof res.blob !== "string" || !isIndex(res.chunks)) throw new Error(MALFORMED);
+    if (typeof res.blob !== "string" || !isIndex(res.chunks)) throw malformedResponse();
     // The phone's file has another shape than the descriptor: it can never decrypt.
     if (res.chunks !== a.chunks) return corrupted();
     await files.putChunk(a.id, index, a.chunks, res.blob);
@@ -249,7 +253,7 @@ async function download(
   try {
     await decryptFile(a, blobs);
   } catch (error) {
-    if (!(error instanceof Error) || error.message !== FILE_CORRUPTED) throw error;
+    if (!hasErrorCode(error, "FILE_CORRUPTED")) throw error;
     return corrupted();
   }
   await files.markComplete(a.id);

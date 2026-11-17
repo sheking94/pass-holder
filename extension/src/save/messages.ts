@@ -66,4 +66,3 @@ export type SaveAnswerMessage = {
   /** Required for "save" from the panel; without it the candidate's own data is saved. */
   draft?: SaveDraft;
 };
-export type SaveAnswerResponse = { ok: true } | { ok: false; error: string };

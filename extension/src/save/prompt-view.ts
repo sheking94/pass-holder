@@ -1,7 +1,9 @@
+import type { ActionResult } from "../result.ts";
 /**
  * The save question shared by the panel page (save-prompt.html) and the popup. With the vault open it shows
  * editable fields; locked, it shows no password (the info carries none).
  */
+import { errorMessage } from "../error-messages.ts";
 import { h, secretField, statusLine } from "../ui/dom.ts";
 import { setStatus } from "../ui/status.ts";
 import type { SaveDraft, SavePreviewResponse, SavePromptInfo } from "./messages.ts";
@@ -9,7 +11,7 @@ import type { SaveDraft, SavePreviewResponse, SavePromptInfo } from "./messages.
 export type PromptAnswer = "save" | "later" | "never";
 
 export interface PromptActions {
-  answer(answer: PromptAnswer, draft?: SaveDraft): Promise<{ ok: boolean; error?: string }>;
+  answer(answer: PromptAnswer, draft?: SaveDraft): Promise<ActionResult>;
   preview(username: string, password: string): Promise<SavePreviewResponse>;
   unlock(): void;
   /** Called after a successful save, with the text shown to the user. */
@@ -75,14 +77,14 @@ export function promptView(info: SavePromptInfo, actions: PromptActions): HTMLEl
           ? { name: name.value, username: username.value, password: password.value }
           : undefined;
       const result = await actions.answer(answer, draft);
-      if (!result.ok) throw new Error(result.error ?? "Nie udało się zapisać.");
+      if (!result.ok) throw new Error(result.error);
       if (answer === "save") {
         setStatus(status, "Zapisano");
         actions.done("Zapisano");
       }
     } catch (error) {
       saving = false;
-      setStatus(status, (error as Error).message, true);
+      setStatus(status, errorMessage(error), true);
       buttons.forEach((b) => (b.disabled = false));
       if (!info.locked) refresh();
     }

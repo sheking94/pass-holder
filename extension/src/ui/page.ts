@@ -1,4 +1,4 @@
-import { chromeTabApi, openInTab } from "../open-in-tab.ts";
+import { chromeOpenTabApi, openInTab } from "../open-in-tab.ts";
 import type { p2p } from "@passholder/core";
 import { editQuery, isInTab, modeQuery, pageMode, type TabMode } from "../page-mode.ts";
 import { h } from "./dom.ts";
@@ -41,7 +41,7 @@ export function openInTabButton() {
         class: "small",
         title: "Karta nie zamyka się po kliknięciu na stronie, więc wpisane dane nie znikają",
         onclick: async () => {
-          await openInTab(chromeTabApi(), chrome.runtime.getURL(PAGE));
+          await openInTab(chromeOpenTabApi(), chrome.runtime.getURL(PAGE));
           window.close();
         },
       },

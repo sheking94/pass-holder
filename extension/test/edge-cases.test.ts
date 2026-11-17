@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { ApiError, PHONE_UNREACHABLE, PhoneClient, POST_TIMEOUT_MS } from "../src/phone-client.ts";
+import {
+  PHONE_UNREACHABLE,
+  PhoneClient,
+  PhoneUnreachableError,
+  POST_TIMEOUT_MS,
+} from "../src/phone-client.ts";
 import { STORAGE_KEYS, VaultStore, memoryStore } from "../src/vault-store.ts";
 import {
   CODE,
@@ -137,7 +142,7 @@ describe("PhoneClient", () => {
       throw new TypeError("fetch failed");
     });
     await expect(down.status()).rejects.toEqual(
-      new ApiError(0, "Telefon nie odpowiada. Czy tryb Synchronizacja jest włączony?"),
+      new PhoneUnreachableError("Telefon nie odpowiada. Czy tryb Synchronizacja jest włączony?"),
     );
     const html = new PhoneClient(
       "http://x",
@@ -168,7 +173,7 @@ describe("PhoneClient", () => {
         expect(result).toBeUndefined();
         await vi.advanceTimersByTimeAsync(1);
         await call;
-        expect(result).toEqual(new ApiError(0, PHONE_UNREACHABLE));
+        expect(result).toEqual(new PhoneUnreachableError(PHONE_UNREACHABLE));
       }
     } finally {
       vi.useRealTimers();

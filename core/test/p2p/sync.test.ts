@@ -1,3 +1,4 @@
+import { withCode } from "../error-code.ts";
 import { describe, expect, it } from "vitest";
 import { seal } from "../../src/cipher.ts";
 import { randomBytes, toBase64, utf8 } from "../../src/encoding.ts";
@@ -11,7 +12,6 @@ import {
   emptyLogin,
   emptyVault,
   encryptPayload,
-  ENTRY_TOO_LARGE_TO_SYNC,
   entryBlobLength,
   MAX_BLOB_BYTES_PER_ROUND,
   MAX_ENTRY_BLOB_LENGTH,
@@ -206,7 +206,7 @@ describe("p2p sync", () => {
       (n++ % 2 === 0 ? a : b).transport(n % 2 === 1 ? a.epoch : b.epoch)(r);
     const clock = new HlcClock("ext", () => 1);
     await expect(syncVault(emptyVault(), vaultKey, clock, flipping)).rejects.toThrow(
-      "Epoch changed twice during sync",
+      withCode("SYNC_EPOCH_CHANGED_TWICE"),
     );
   });
 
@@ -595,9 +595,9 @@ describe("p2p sync: v3 entries and byte budget", () => {
     upsertEntry(v, clock, "ok", entry("ok"));
     const before = structuredClone([...v.entries]);
     const note = { ...emptyLogin("big"), note: "a".repeat(70_000) };
-    expect(() => upsertEntry(v, clock, "big", note)).toThrow("Entry too large");
+    expect(() => upsertEntry(v, clock, "big", note)).toThrow(withCode("ENTRY_TOO_LARGE"));
     // Overwriting an existing entry must not change it either.
-    expect(() => upsertEntry(v, clock, "ok", note)).toThrow("Entry too large");
+    expect(() => upsertEntry(v, clock, "ok", note)).toThrow(withCode("ENTRY_TOO_LARGE"));
     expect([...v.entries]).toEqual(before);
     expect(entryBlobLength({ ...note, v: 3, hlc: { ms: 1, c: 0, d: "a" } })).toBeGreaterThan(
       MAX_ENTRY_BLOB_LENGTH,
@@ -624,7 +624,7 @@ describe("p2p sync: v3 entries and byte budget", () => {
         requests.push(r);
         return s.send(r);
       }),
-    ).rejects.toThrow(`${ENTRY_TOO_LARGE_TO_SYNC}: Huge`);
+    ).rejects.toThrow(withCode("ENTRY_TOO_LARGE_TO_SYNC", "Huge"));
     expect(requests).toHaveLength(0);
   });
 

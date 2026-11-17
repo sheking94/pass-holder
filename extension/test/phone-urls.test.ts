@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ApiError } from "../src/phone-client.ts";
+import { PhoneUnreachableError } from "../src/phone-client.ts";
 import {
   learnedPhoneUrls,
   normalizePhoneUrl,
@@ -20,9 +20,9 @@ const probe = (behaviour: "ok" | "fail" | "hang", calls: string[], url: string) 
   status: (timeoutMs?: number) => {
     calls.push(`${url}@${timeoutMs}`);
     if (behaviour === "ok") return Promise.resolve();
-    if (behaviour === "fail") return Promise.reject(new ApiError(0, "down"));
+    if (behaviour === "fail") return Promise.reject(new PhoneUnreachableError("down"));
     return new Promise<void>((_, reject) =>
-      setTimeout(() => reject(new ApiError(0, "timeout")), timeoutMs),
+      setTimeout(() => reject(new PhoneUnreachableError("timeout")), timeoutMs),
     );
   },
 });
@@ -106,10 +106,9 @@ describe("pickPhone", () => {
 
   it("says which addresses it tried when none answers", async () => {
     const error = await pickPhone(["a", "b"], (u) => probe("fail", [], u)).catch((e: unknown) => e);
-    expect(error).toBeInstanceOf(ApiError);
-    expect((error as ApiError).status).toBe(0);
-    expect((error as ApiError).message).toContain("a, b");
-    expect((error as ApiError).message).toContain("Synchronizacja");
+    expect(error).toBeInstanceOf(PhoneUnreachableError);
+    expect((error as PhoneUnreachableError).message).toContain("a, b");
+    expect((error as PhoneUnreachableError).message).toContain("Synchronizacja");
   });
 });
 

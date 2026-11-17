@@ -1,5 +1,6 @@
+import type { ActionResult } from "../result.ts";
 import { autofill, save } from "@passholder/core";
-import { LOCKED } from "../autofill/fill-tab.ts";
+import { UNLOCK_AND_RETRY } from "../error-messages.ts";
 import { STORAGE_KEYS, type KeyValueStore } from "../storage.ts";
 import type { VaultStore } from "../vault-store.ts";
 import type {
@@ -67,7 +68,6 @@ interface Candidate {
 
 type Candidates = Record<string, Candidate>;
 type SavedLogin = save.SavedLogin & { entryName: string };
-type Answer = { ok: true } | { ok: false; error: string };
 
 const GONE = "Pytanie o zapis wygasło";
 const EMPTY_PASSWORD = "Podaj hasło";
@@ -347,11 +347,11 @@ export class SaveCandidates {
     };
   }
 
-  onAnswer(m: SaveAnswerMessage, s: Sender): Promise<Answer> {
+  onAnswer(m: SaveAnswerMessage, s: Sender): Promise<ActionResult> {
     return this.serial(() => this.handleAnswer(m, s));
   }
 
-  private async handleAnswer(m: SaveAnswerMessage, s: Sender): Promise<Answer> {
+  private async handleAnswer(m: SaveAnswerMessage, s: Sender): Promise<ActionResult> {
     if (!this.fromExtensionPage(s)) return { ok: false, error: NOT_ALLOWED };
     const c = await this.byId(m.candidateId);
     // Nothing left to decline (expired or replaced; a newer candidate already has the window): the page closes itself.
@@ -373,7 +373,7 @@ export class SaveCandidates {
     if (draft.password === "") return { ok: false, error: EMPTY_PASSWORD };
     const store = this.deps.store();
     const decision = await this.decideFor(store, c, draft.username, draft.password, true);
-    if (decision === null) return { ok: false, error: LOCKED };
+    if (decision === null) return { ok: false, error: UNLOCK_AND_RETRY };
     // Remove first: whatever happens next, the candidate cannot be saved twice.
     await this.remove(c.tabId);
     if (decision.kind === "update") {

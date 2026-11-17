@@ -1,7 +1,7 @@
+import type { ActionResult } from "../result.ts";
 import { promptView } from "../save/prompt-view.ts";
 import type {
   SaveAnswerMessage,
-  SaveAnswerResponse,
   SavePreviewMessage,
   SavePreviewResponse,
   SavePromptInfo,
@@ -31,7 +31,7 @@ export function saveQuestionView(info: SavePromptInfo): void {
           answer,
           ...(draft && { draft }),
         };
-        const result = (await chrome.runtime.sendMessage(message)) as SaveAnswerResponse;
+        const result = (await chrome.runtime.sendMessage(message)) as ActionResult;
         if (result.ok && answer !== "save") listView();
         return result;
       },

@@ -1,25 +1,32 @@
 // PassHolder ZIP: passholder.json (a PassHolder JSON v3 index whose entries describe their files) followed by the
 // decrypted files under files/<n>-<name>. Paths from an archive are only used to look entries up in the ZIP.
+import { hasErrorCode, PassHolderError, type ErrorCode } from "../errors.ts";
 import { MAX_FILE_SIZE, type Attachment } from "../files/attachment.ts";
 import type { EntryContent } from "../p2p/entry.ts";
 import { sortForExport } from "./common.ts";
 import { parseArchiveIndex, type ArchivedFile, type ParsedArchive } from "./passholder-json.ts";
-import {
-  ZIP_ENTRY_TOO_LARGE,
-  ZIP_INVALID,
-  ZipWriter,
-  readZipEntry,
-  readZipIndex,
-  type ZipEntry,
-} from "./zip.ts";
+import { ZipWriter, readZipEntry, readZipIndex, type ZipEntry } from "./zip.ts";
 
 export const MAX_ZIP_BYTES = 268435456;
 export const ARCHIVE_INDEX = "passholder.json";
-export const NOT_ARCHIVE = "Archiwum nie jest eksportem PassHolder";
 
-const ZIP_TOO_LARGE = "Plik jest za duży (limit 256 MiB)";
+const notArchive = (cause?: unknown) =>
+  new PassHolderError("ZIP_NOT_PASSHOLDER", "The archive is not a PassHolder export", { cause });
+
+/** Why `readFile` of an opened archive could not give a described file. */
+export type ArchiveFileError = Extract<
+  ErrorCode,
+  | "ARCHIVE_FILE_MISSING"
+  | "ARCHIVE_FILE_SIZE_MISMATCH"
+  | "ARCHIVE_FILE_TOO_LARGE"
+  | "ARCHIVE_FILE_CORRUPTED"
+>;
 /** Largest passholder.json accepted, after inflating. */
 const MAX_INDEX_BYTES = 10485760;
+
+function archiveFileError(code: ArchiveFileError, cause?: unknown): PassHolderError {
+  return new PassHolderError(code, `Archived file: ${code}`, { cause });
+}
 
 /** Path of the n-th exported file (from 1); characters Windows refuses in file names become "_". */
 export function archivePath(n: number, name: string): string {
@@ -62,16 +69,17 @@ export async function exportPassHolderZip(
 }
 
 /**
- * Reads the index of a PassHolder ZIP held in memory. `readFile` gives a described file's bytes or throws an Error
- * with the Polish reason: "brak w archiwum", "inny rozmiar niż w opisie", "za duży" or "uszkodzony".
+ * Reads the index of a PassHolder ZIP held in memory: throws code ZIP_TOO_LARGE, ZIP_INVALID or ZIP_NOT_PASSHOLDER.
+ * `readFile` gives a described file's bytes or throws a PassHolderError with an ArchiveFileError code.
  */
 export async function openPassHolderZip(
   bytes: Uint8Array,
 ): Promise<{ parsed: ParsedArchive; readFile(f: ArchivedFile): Promise<Uint8Array> }> {
-  if (bytes.length > MAX_ZIP_BYTES) throw new Error(ZIP_TOO_LARGE);
+  if (bytes.length > MAX_ZIP_BYTES)
+    throw new PassHolderError("ZIP_TOO_LARGE", "The file is over MAX_ZIP_BYTES");
   const byPath = new Map<string, ZipEntry>(readZipIndex(bytes).map((e) => [e.path, e]));
   const indexEntry = byPath.get(ARCHIVE_INDEX);
-  if (indexEntry === undefined) throw new Error(NOT_ARCHIVE);
+  if (indexEntry === undefined) throw notArchive();
   let parsed: ParsedArchive;
   try {
     const text = new TextDecoder("utf-8", { fatal: true }).decode(
@@ -80,23 +88,23 @@ export async function openPassHolderZip(
     parsed = parseArchiveIndex(text);
   } catch (error) {
     // A damaged index means a damaged archive; anything else (too large, not UTF-8, not PassHolder JSON) is not ours.
-    throw new Error(
-      error instanceof Error && error.message === ZIP_INVALID ? ZIP_INVALID : NOT_ARCHIVE,
-    );
+    if (hasErrorCode(error, "ZIP_INVALID")) throw error;
+    throw notArchive(error);
   }
   return {
     parsed,
     async readFile(f: ArchivedFile): Promise<Uint8Array> {
       const e = byPath.get(f.path);
-      if (e === undefined) throw new Error("brak w archiwum");
-      if (e.size !== f.size) throw new Error("inny rozmiar niż w opisie");
+      if (e === undefined) throw archiveFileError("ARCHIVE_FILE_MISSING");
+      if (e.size !== f.size) throw archiveFileError("ARCHIVE_FILE_SIZE_MISMATCH");
       try {
         return await readZipEntry(bytes, e, MAX_FILE_SIZE);
       } catch (error) {
-        throw new Error(
-          error instanceof Error && error.message === ZIP_ENTRY_TOO_LARGE
-            ? "za duży"
-            : "uszkodzony",
+        throw archiveFileError(
+          hasErrorCode(error, "ZIP_ENTRY_TOO_LARGE")
+            ? "ARCHIVE_FILE_TOO_LARGE"
+            : "ARCHIVE_FILE_CORRUPTED",
+          error,
         );
       }
     },

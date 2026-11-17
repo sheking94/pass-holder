@@ -136,11 +136,11 @@ function validDate(value: string, original: string | undefined): boolean {
 /** Returns the first form error, or undefined. Only values changed against `original` are format-checked. */
 export function validateContent(content: Content, original?: Content): string | undefined {
   if (content.name.trim() === "") return "Podaj nazwę";
-  const before = original && original.type === content.type ? original : undefined;
+  const before = original?.type === content.type ? original : undefined;
   switch (content.type) {
     case "login": {
       if (content.fields.password === "") return "Podaj albo wygeneruj hasło";
-      const known = (before?.fields as p2p.LoginFields | undefined)?.androidApps ?? [];
+      const known = before?.type === "login" ? before.fields.androidApps : [];
       for (const app of content.fields.androidApps) {
         if (app !== "" && !known.includes(app) && !ANDROID_PACKAGE.test(app)) {
           return `Aplikacje Androida: zła nazwa pakietu ${app}`;
@@ -149,13 +149,13 @@ export function validateContent(content: Content, original?: Content): string | 
       return undefined;
     }
     case "contact": {
-      const o = before?.fields as p2p.ContactFields | undefined;
+      const o = before?.type === "contact" ? before.fields : undefined;
       if (!validDate(content.fields.birthDate, o?.birthDate))
         return "Data urodzenia: wpisz datę RRRR-MM-DD";
       return undefined;
     }
     case "document": {
-      const o = before?.fields as p2p.DocumentFields | undefined;
+      const o = before?.type === "document" ? before.fields : undefined;
       if (!validDate(content.fields.issueDate, o?.issueDate))
         return "Data wydania: wpisz datę RRRR-MM-DD";
       if (!validDate(content.fields.expiryDate, o?.expiryDate))
@@ -164,7 +164,7 @@ export function validateContent(content: Content, original?: Content): string | 
     }
     case "card": {
       const e = content.fields.expiry;
-      const o = (before?.fields as p2p.CardFields | undefined)?.expiry;
+      const o = before?.type === "card" ? before.fields.expiry : undefined;
       if (e !== "" && e !== o && !/^(0[1-9]|1[0-2])\/\d{2}$/.test(e)) return "Ważność: wpisz MM/RR";
       return undefined;
     }

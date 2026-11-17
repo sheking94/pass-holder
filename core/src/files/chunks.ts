@@ -1,5 +1,6 @@
 import { concat, fromBase64, randomBytes, toBase64, toHex } from "../encoding.ts";
 import { open, seal } from "../cipher.ts";
+import { PassHolderError } from "../errors.ts";
 import {
   FILE_CHUNK_SIZE,
   MAX_FILE_SIZE,
@@ -9,10 +10,9 @@ import {
   type Attachment,
 } from "./attachment.ts";
 
-export const FILE_TOO_LARGE = "File too large";
-export const EMPTY_FILE = "Empty file";
-export const INVALID_FILE_NAME = "Invalid file name";
-export const FILE_CORRUPTED = "File is corrupted";
+/** A file whose chunks do not match its descriptor (count, size, SHA-256 or AES-GCM). */
+const corrupted = (cause?: unknown) =>
+  new PassHolderError("FILE_CORRUPTED", "File is corrupted", { cause });
 
 export interface EncryptedFile {
   attachment: Attachment;
@@ -38,9 +38,10 @@ export async function encryptFile(
   meta: { name: string; mime: string },
   fixed?: { id: string; key: Uint8Array; nonces: Uint8Array[] },
 ): Promise<EncryptedFile> {
-  if (bytes.length === 0) throw new Error(EMPTY_FILE);
-  if (bytes.length > MAX_FILE_SIZE) throw new Error(FILE_TOO_LARGE);
-  if (!isAttachmentName(meta.name)) throw new Error(INVALID_FILE_NAME);
+  if (bytes.length === 0) throw new PassHolderError("FILE_EMPTY", "Empty file");
+  if (bytes.length > MAX_FILE_SIZE) throw new PassHolderError("FILE_TOO_LARGE", "File too large");
+  if (!isAttachmentName(meta.name))
+    throw new PassHolderError("FILE_INVALID_NAME", "Invalid file name");
   const id = fixed?.id ?? crypto.randomUUID();
   const key = fixed?.key ?? randomBytes(32);
   const chunks = chunkCount(bytes.length);
@@ -69,28 +70,28 @@ export async function decryptChunk(
   index: number,
   blob: string,
 ): Promise<Uint8Array> {
-  if (!Number.isInteger(index) || index < 0 || index >= a.chunks) throw new Error(FILE_CORRUPTED);
+  if (!Number.isInteger(index) || index < 0 || index >= a.chunks) throw corrupted();
   try {
     return await open(fromBase64(a.key), blob, fileChunkAad(a.id, index, a.chunks));
-  } catch {
-    throw new Error(FILE_CORRUPTED);
+  } catch (error) {
+    throw corrupted(error);
   }
 }
 
-/** Decrypts all chunks; any mismatch in count, size, SHA-256 or AES-GCM yields FILE_CORRUPTED. */
+/** Decrypts all chunks; any mismatch in count, size, SHA-256 or AES-GCM throws code FILE_CORRUPTED. */
 export async function decryptFile(a: Attachment, blobs: readonly string[]): Promise<Uint8Array> {
-  if (blobs.length !== a.chunks || a.chunks !== chunkCount(a.size)) throw new Error(FILE_CORRUPTED);
+  if (blobs.length !== a.chunks || a.chunks !== chunkCount(a.size)) throw corrupted();
   const parts: Uint8Array[] = [];
   let total = 0;
   for (let i = 0; i < blobs.length; i++) {
     const part = await decryptChunk(a, i, blobs[i]!);
     total += part.length;
     // Check the size before assembling so a bogus descriptor cannot force a huge allocation.
-    if (total > a.size) throw new Error(FILE_CORRUPTED);
+    if (total > a.size) throw corrupted();
     parts.push(part);
   }
-  if (total !== a.size) throw new Error(FILE_CORRUPTED);
+  if (total !== a.size) throw corrupted();
   const bytes = concat(...parts);
-  if ((await sha256Hex(bytes)) !== a.sha256) throw new Error(FILE_CORRUPTED);
+  if ((await sha256Hex(bytes)) !== a.sha256) throw corrupted();
   return bytes;
 }

@@ -3,7 +3,9 @@
  * stores it with the entry (plan W1); „Usuń” only takes it off the form. In the popup the file chooser would
  * close the window, so „+ Dodaj plik” offers to open the same form in a tab (plan W6).
  */
+import { PassHolderError } from "@passholder/core";
 import * as files from "@passholder/core/files";
+import { FILE_CORRUPTED } from "../../error-messages.ts";
 import { formatSize } from "../../files/format-size.ts";
 import { busy, confirmBox, h, setStatus } from "../../ui/dom.ts";
 import { downloadFile } from "../../ui/download.ts";
@@ -11,11 +13,7 @@ import { IN_TAB } from "../../ui/page.ts";
 import { store } from "../../ui/state.ts";
 
 const TOO_MANY = "Najwyżej 20 plików we wpisie";
-const EMPTY = "Plik jest pusty";
-const TOO_LARGE = "Plik jest za duży (limit 10 MB)";
-const BAD_NAME = "Nieprawidłowa nazwa pliku";
 const WAITING = "czeka na synchronizację";
-const CORRUPTED = "Plik jest uszkodzony";
 const NEW = "nowy – zapisz wpis";
 const DOWNLOAD_WARNING =
   "Pobierasz plik, który zostanie odszyfrowany i będzie dostępny na tym urządzeniu.";
@@ -38,7 +36,7 @@ async function savedItem(a: files.Attachment): Promise<Item> {
   } catch {
     return { attachment: a, ready: false, note: WAITING };
   }
-  if (state === "corrupted") return { attachment: a, ready: false, note: CORRUPTED };
+  if (state === "corrupted") return { attachment: a, ready: false, note: FILE_CORRUPTED };
   const uploaded = state === "ready" && (await store.fileUploaded(a).catch(() => false));
   return { attachment: a, ready: state === "ready", note: uploaded ? "" : WAITING };
 }
@@ -124,9 +122,10 @@ export async function attachmentsEditor(
     busy(status, "Szyfruję plik…", async () => {
       // Cheap checks first, so a huge file is refused before it is read.
       if (!files.canAddAttachment(items.length)) throw new Error(TOO_MANY);
-      if (file.size === 0) throw new Error(EMPTY);
-      if (file.size > files.MAX_FILE_SIZE) throw new Error(TOO_LARGE);
-      if (!files.isAttachmentName(file.name)) throw new Error(BAD_NAME);
+      // The same codes encryptFile would throw; busy() shows their text.
+      if (file.size === 0) throw new PassHolderError("FILE_EMPTY");
+      if (file.size > files.MAX_FILE_SIZE) throw new PassHolderError("FILE_TOO_LARGE");
+      if (!files.isAttachmentName(file.name)) throw new PassHolderError("FILE_INVALID_NAME");
       const plain = new Uint8Array(await file.arrayBuffer());
       let added: files.EncryptedFile;
       try {

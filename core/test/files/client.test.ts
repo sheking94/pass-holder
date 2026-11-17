@@ -1,10 +1,10 @@
+import { withCode } from "../error-code.ts";
 import { describe, expect, it } from "vitest";
 import { randomBytes, toBase64 } from "../../src/encoding.ts";
 import {
   decryptFile,
   encryptFile,
   FILE_CHUNK_SIZE,
-  FILE_SYNC_EPOCH_MISMATCH,
   MemoryFileStore,
   MemoryLocalFileStore,
   noiseFileTransport,
@@ -27,7 +27,6 @@ import {
   HlcClock,
   P2pHost,
   P2pHostError,
-  PHONE_UPDATE_REQUIRED,
   upsertEntry,
   type FetchJson,
   type LocalVault,
@@ -379,8 +378,7 @@ describe("syncFiles", () => {
     await storeEncryptedFile(files, f);
     await expect(
       syncFiles(vaultWith(newEpoch(), [f.attachment]), files, p.plugin("a").send),
-    ).rejects.toThrow(FILE_SYNC_EPOCH_MISMATCH);
-    expect(FILE_SYNC_EPOCH_MISMATCH).toBe("Epoch changed, sync again");
+    ).rejects.toThrow(withCode("FILE_SYNC_EPOCH_MISMATCH"));
     expect(p.files!.ids()).toEqual([]);
   });
 
@@ -391,7 +389,7 @@ describe("syncFiles", () => {
     await storeEncryptedFile(files, f);
     await expect(
       syncFiles(vaultWith(p.epoch, [f.attachment]), files, p.plugin("a").send),
-    ).rejects.toThrow(PHONE_UPDATE_REQUIRED);
+    ).rejects.toThrow(withCode("PHONE_UPDATE_REQUIRED"));
   });
 
   it("sends no request when no live entry has files", async () => {

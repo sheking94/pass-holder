@@ -1,6 +1,7 @@
 // Extension side of pairing with the phone over HTTP (/p2p/v1/pair/hello, start, finish).
 // The extension is the CPace initiator; its `ad` is the UTF-8 of its own deviceId.
 import { fromBase64, toBase64, utf8 } from "../encoding.ts";
+import { PassHolderError } from "../errors.ts";
 import { cpaceFinish, cpaceStart, PAIRING_CI } from "./cpace.ts";
 import {
   openPairingMessage,
@@ -9,22 +10,17 @@ import {
   type DeviceIdentity,
   type VaultInfo,
 } from "./pairing.ts";
-import { callP2pHost, type FetchJson } from "./transport.ts";
+import { callP2pHost, malformedResponse, type FetchJson } from "./transport.ts";
 
 /** "pair": the phone has a vault; "restore": the phone waits for the extension's vault ("Odtwórz z wtyczki"). */
 export type PhoneMode = "pair" | "restore";
 
-const NO_PAIRING = "Telefon nie czeka na parowanie albo kod wygasł.";
-const WRONG_CODE = "Zły kod parowania. Poproś telefon o nowy kod.";
-const RESTORE_EXPECTED = "Telefon czeka na odtworzenie sejfu z wtyczki";
-const BAD_CODE_FORMAT = "Kod parowania to 8 cyfr.";
-const MALFORMED = "P2P host returned a malformed response";
 const SID_LENGTH = 16;
 
 const base = (baseUrl: string): string => baseUrl.replace(/\/+$/, "");
 
 function str(v: unknown): string {
-  if (typeof v !== "string") throw new Error(MALFORMED);
+  if (typeof v !== "string") throw malformedResponse();
   return v;
 }
 
@@ -32,20 +28,20 @@ function base64(v: unknown, length?: number): Uint8Array {
   let bytes: Uint8Array;
   try {
     bytes = fromBase64(str(v));
-  } catch {
-    throw new Error(MALFORMED);
+  } catch (error) {
+    throw malformedResponse(error);
   }
-  if (length !== undefined && bytes.length !== length) throw new Error(MALFORMED);
+  if (length !== undefined && bytes.length !== length) throw malformedResponse();
   return bytes;
 }
 
 /** Checks the phone is reachable and answers as a PassHolder host. */
 export async function pingPhone(baseUrl: string, post: FetchJson): Promise<void> {
   const res = await callP2pHost(post, `${base(baseUrl)}/p2p/v1/ping`, {});
-  if (res.ok !== true) throw new Error(MALFORMED);
+  if (res.ok !== true) throw malformedResponse();
 }
 
-/** The phone's current pairing offer; 404 (no offer, or it expired) throws the "not waiting" message. */
+/** The phone's current pairing offer; 404 (no offer, or it expired) throws code PAIRING_NOT_WAITING. */
 export async function phoneHello(
   baseUrl: string,
   post: FetchJson,
@@ -54,11 +50,11 @@ export async function phoneHello(
     post,
     `${base(baseUrl)}/p2p/v1/pair/hello`,
     {},
-    { 404: NO_PAIRING },
+    { 404: "PAIRING_NOT_WAITING" },
   );
   const sid = str(res.sid);
   base64(sid, SID_LENGTH);
-  if (res.mode !== "pair" && res.mode !== "restore") throw new Error(MALFORMED);
+  if (res.mode !== "pair" && res.mode !== "restore") throw malformedResponse();
   return { sid, mode: res.mode };
 }
 
@@ -76,11 +72,13 @@ export async function pairWithPhone(o: {
   restore?: VaultInfo;
 }): Promise<{ mode: PhoneMode; phone: DeviceIdentity; vaultInfo: VaultInfo }> {
   const code = o.code.replace(/\s+/g, "");
-  if (!/^\d{8}$/.test(code)) throw new Error(BAD_CODE_FORMAT);
+  if (!/^\d{8}$/.test(code))
+    throw new PassHolderError("PAIRING_BAD_CODE_FORMAT", "The pairing code is 8 digits");
   const url = base(o.baseUrl);
 
   const { sid, mode } = await phoneHello(url, o.post);
-  if (mode === "restore" && o.restore === undefined) throw new Error(RESTORE_EXPECTED);
+  if (mode === "restore" && o.restore === undefined)
+    throw new PassHolderError("PAIRING_RESTORE_EXPECTED", "The phone waits for a vault to restore");
 
   const sidBytes = fromBase64(sid);
   const cpace = cpaceStart(utf8(code), PAIRING_CI, sidBytes, utf8(o.identity.deviceId));
@@ -88,14 +86,14 @@ export async function pairWithPhone(o: {
     o.post,
     `${url}/p2p/v1/pair/start`,
     { sid, message: toBase64(cpace.message) },
-    { 404: NO_PAIRING },
+    { 404: "PAIRING_NOT_WAITING" },
   );
   const peerMessage = base64(started.message);
   let key: Uint8Array;
   try {
     key = pairingKey(cpaceFinish(cpace.state, peerMessage, "initiator"));
-  } catch {
-    throw new Error(MALFORMED);
+  } catch (error) {
+    throw malformedResponse(error);
   }
 
   const request: Record<string, string> = {
@@ -110,8 +108,8 @@ export async function pairWithPhone(o: {
       o.restore as VaultInfo,
     );
   const finished = await callP2pHost(o.post, `${url}/p2p/v1/pair/finish`, request, {
-    403: WRONG_CODE,
-    404: NO_PAIRING,
+    403: "PAIRING_WRONG_CODE",
+    404: "PAIRING_NOT_WAITING",
   });
 
   let phone: DeviceIdentity;
@@ -129,8 +127,8 @@ export async function pairWithPhone(o: {
       "responder",
       str(finished.vaultInfo),
     )) as VaultInfo;
-  } catch {
-    throw new Error(MALFORMED);
+  } catch (error) {
+    throw malformedResponse(error);
   }
   return { mode, phone, vaultInfo };
 }

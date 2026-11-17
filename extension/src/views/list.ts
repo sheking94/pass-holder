@@ -1,3 +1,4 @@
+import { errorMessage } from "../error-messages.ts";
 import { autofill, type p2p } from "@passholder/core";
 import { ENTRY_TYPES, TYPE_INFO, entrySummary, matchesQuery } from "../entry-types.ts";
 import { UNSUPPORTED_PAGE } from "../autofill/fill-tab.ts";
@@ -97,8 +98,8 @@ function entryRow(
         {
           title: "Kopiuj login",
           onclick: () =>
-            copyText(fields.username, "login", status).catch((err: Error) =>
-              setStatus(status, err.message, true),
+            copyText(fields.username, "login", status).catch((error: unknown) =>
+              setStatus(status, errorMessage(error), true),
             ),
         },
         "Login",
@@ -110,8 +111,8 @@ function entryRow(
         {
           title: "Kopiuj hasło",
           onclick: () =>
-            copySecret(fields.password, "hasło", status).catch((err: Error) =>
-              setStatus(status, err.message, true),
+            copySecret(fields.password, "hasło", status).catch((error: unknown) =>
+              setStatus(status, errorMessage(error), true),
             ),
         },
         "Hasło",

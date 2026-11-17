@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { openInTab, type TabApi } from "../src/open-in-tab.ts";
+import { openInTab, type OpenTabApi } from "../src/open-in-tab.ts";
 import { editQuery, editTarget, isInTab, isMainTab, pageMode } from "../src/page-mode.ts";
 
 const PAGE = "chrome-extension://abc/popup.html";
 
 function fakeApi(tabs: { tabId: number; windowId: number; url: string }[]) {
   const calls: string[] = [];
-  const api: TabApi = {
+  const api: OpenTabApi = {
     openTabs: async () => tabs,
     focus: async (tabId, windowId) => void calls.push(`focus ${tabId} ${windowId}`),
     create: async (url) => void calls.push(`create ${url}`),

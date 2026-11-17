@@ -1,4 +1,4 @@
-import { ApiError } from "./phone-client.ts";
+import { PhoneUnreachableError } from "./phone-client.ts";
 
 /**
  * How long the quick ping of one address may take before the next address is tried.
@@ -93,8 +93,7 @@ export async function pickPhone<C extends Probe>(
       // Not reachable from here; try the next address.
     }
   }
-  throw new ApiError(
-    0,
+  throw new PhoneUnreachableError(
     `Telefon nie odpowiada pod żadnym adresem (${ordered.join(", ")}). Czy tryb Synchronizacja jest włączony? Spoza domu potrzebny jest też włączony Tailscale.`,
   );
 }

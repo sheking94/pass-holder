@@ -1,3 +1,4 @@
+export * from "./errors.ts";
 export * from "./encoding.ts";
 export * from "./kdf.ts";
 export * from "./cipher.ts";

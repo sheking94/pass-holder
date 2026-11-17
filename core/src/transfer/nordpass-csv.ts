@@ -1,3 +1,4 @@
+import { PassHolderError } from "../errors.ts";
 import type { CustomField, DocumentKind, EntryContent } from "../p2p/entry.ts";
 import { parseCsv, toCsv } from "./csv.ts";
 import {
@@ -44,9 +45,6 @@ const DOCUMENT_KIND_NAMES: Record<DocumentKind, string> = {
   other: "Inny",
 };
 
-const EMPTY_FILE = "Plik jest pusty";
-const NOT_NORDPASS =
-  "To nie wygląda na eksport z NordPass: brak kolumn name/url w pierwszym wierszu";
 const TYPES: Record<string, "login" | "note" | "card" | "contact"> = {
   password: "login",
   note: "note",
@@ -68,12 +66,13 @@ function nameFromUrl(url: string): string {
 const extra = (label: string, value: string): CustomField => ({ label, value, hidden: false });
 const filled = (v: string): boolean => v.trim() !== "";
 
-/** Throws a Polish message for an empty or unrecognised file; a row that cannot be taken is skipped as "wiersz N" (header is 1). */
+/** Throws code IMPORT_EMPTY_FILE or IMPORT_NOT_NORDPASS for an empty or unrecognised file; a row that cannot be taken is skipped as "wiersz N" (header is 1). */
 export function parseNordPassCsv(text: string): ParsedImport {
   const [header, ...rows] = parseCsv(text);
-  if (!header) throw new Error(EMPTY_FILE);
+  if (!header) throw new PassHolderError("IMPORT_EMPTY_FILE", "The file is empty");
   const index = new Map(header.fields.map((name, i) => [name.trim().toLowerCase(), i]));
-  if (!index.has("name") && !index.has("url")) throw new Error(NOT_NORDPASS);
+  if (!index.has("name") && !index.has("url"))
+    throw new PassHolderError("IMPORT_NOT_NORDPASS", "No name/url columns in the first row");
 
   const entries: EntryContent[] = [];
   const skipped: ImportSkip[] = [];

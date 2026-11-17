@@ -1,15 +1,8 @@
 import { deflateRawSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
+import { withCode } from "../error-code.ts";
 import { MAX_FILE_SIZE } from "../../src/files/attachment.ts";
-import {
-  ZIP_ENTRY_TOO_LARGE,
-  ZIP_INVALID,
-  ZipWriter,
-  crc32,
-  isZip,
-  readZipEntry,
-  readZipIndex,
-} from "../../src/transfer/zip.ts";
+import { ZipWriter, crc32, isZip, readZipEntry, readZipIndex } from "../../src/transfer/zip.ts";
 
 const utf8 = (s: string) => new TextEncoder().encode(s);
 
@@ -157,20 +150,20 @@ describe("readZipIndex rejects", () => {
   it("ZIP64 sizes", async () => {
     const zip = await sample();
     view(zip).setUint32(centralOffset(zip) + 24, 0xffffffff, true);
-    expect(() => readZipIndex(zip)).toThrow(ZIP_INVALID);
+    expect(() => readZipIndex(zip)).toThrow(withCode("ZIP_INVALID"));
   });
 
   it("an encrypted entry", async () => {
     const zip = await sample();
     const at = centralOffset(zip) + 8;
     view(zip).setUint16(at, view(zip).getUint16(at, true) | 1, true);
-    expect(() => readZipIndex(zip)).toThrow(ZIP_INVALID);
+    expect(() => readZipIndex(zip)).toThrow(withCode("ZIP_INVALID"));
   });
 
   it("compression method 12", async () => {
     const zip = await sample();
     view(zip).setUint16(centralOffset(zip) + 10, 12, true);
-    expect(() => readZipIndex(zip)).toThrow(ZIP_INVALID);
+    expect(() => readZipIndex(zip)).toThrow(withCode("ZIP_INVALID"));
   });
 
   it("a repeated name", async () => {
@@ -178,18 +171,18 @@ describe("readZipIndex rejects", () => {
       ["a.txt", utf8("1")],
       ["a.txt", utf8("2")],
     ]);
-    expect(() => readZipIndex(zip)).toThrow(ZIP_INVALID);
+    expect(() => readZipIndex(zip)).toThrow(withCode("ZIP_INVALID"));
   });
 
   it("several disks", async () => {
     const zip = await sample();
     view(zip).setUint16(zip.length - 22 + 4, 1, true);
-    expect(() => readZipIndex(zip)).toThrow(ZIP_INVALID);
+    expect(() => readZipIndex(zip)).toThrow(withCode("ZIP_INVALID"));
   });
 
   it("bytes that are not a ZIP", () => {
-    expect(() => readZipIndex(utf8('{"format":"passholder"}'))).toThrow(ZIP_INVALID);
-    expect(() => readZipIndex(new Uint8Array(0))).toThrow(ZIP_INVALID);
+    expect(() => readZipIndex(utf8('{"format":"passholder"}'))).toThrow(withCode("ZIP_INVALID"));
+    expect(() => readZipIndex(new Uint8Array(0))).toThrow(withCode("ZIP_INVALID"));
   });
 });
 
@@ -199,7 +192,7 @@ describe("readZipEntry", () => {
     const at = centralOffset(zip) + 16;
     view(zip).setUint32(at, view(zip).getUint32(at, true) ^ 1, true);
     const [entry] = readZipIndex(zip);
-    await expect(readZipEntry(zip, entry!, MAX_FILE_SIZE)).rejects.toThrow(ZIP_INVALID);
+    await expect(readZipEntry(zip, entry!, MAX_FILE_SIZE)).rejects.toThrow(withCode("ZIP_INVALID"));
   });
 
   it("stops inflating a file that declares 1000 B and holds 11 MB of zeros", async () => {
@@ -207,13 +200,15 @@ describe("readZipEntry", () => {
     view(zip).setUint32(centralOffset(zip) + 24, 1000, true);
     const [entry] = readZipIndex(zip);
     expect(entry!.size).toBe(1000);
-    await expect(readZipEntry(zip, entry!, MAX_FILE_SIZE)).rejects.toThrow(ZIP_ENTRY_TOO_LARGE);
+    await expect(readZipEntry(zip, entry!, MAX_FILE_SIZE)).rejects.toThrow(
+      withCode("ZIP_ENTRY_TOO_LARGE"),
+    );
   });
 
   it("refuses an entry whose declared size is over the limit", async () => {
     const zip = await build([["a.txt", utf8("hello")]]);
     const [entry] = readZipIndex(zip);
-    await expect(readZipEntry(zip, entry!, 4)).rejects.toThrow(ZIP_ENTRY_TOO_LARGE);
+    await expect(readZipEntry(zip, entry!, 4)).rejects.toThrow(withCode("ZIP_ENTRY_TOO_LARGE"));
   });
 });
 
