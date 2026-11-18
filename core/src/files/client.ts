@@ -138,10 +138,16 @@ export interface FileSyncResult {
    * that has not synced), or a chunk went missing (locally or on the phone).
    */
   pending: number;
-  /** Names of downloaded files that did not match their descriptor; their local chunks were removed. */
-  corrupted: string[];
-  /** Ids of those files, parallel to `corrupted` (same order), e.g. to skip them in later runs. */
-  corruptedIds: string[];
+  /**
+   * Downloaded files that did not match their descriptor; their local chunks were removed. The name is for the
+   * user, the id e.g. to skip them in later runs.
+   */
+  corrupted: CorruptedFile[];
+}
+
+export interface CorruptedFile {
+  id: string;
+  name: string;
 }
 
 const isIndex = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 0;
@@ -300,7 +306,6 @@ export async function syncFiles(
     downloaded: 0,
     pending: 0,
     corrupted: [],
-    corruptedIds: [],
   };
   // An unknown epoch is sent as "" and makes the phone answer with its own (FILE_SYNC_EPOCH_MISMATCH).
   const epoch = vault.epoch ?? "";
@@ -379,10 +384,7 @@ async function downloadAll(run: FileRun, downloads: Attachment[], done: number):
     const outcome = await download(run, a);
     if (outcome === "done") run.result.downloaded++;
     else if (outcome === "pending") run.result.pending++;
-    else {
-      run.result.corrupted.push(a.name);
-      run.result.corruptedIds.push(a.id);
-    }
+    else run.result.corrupted.push({ id: a.id, name: a.name });
     run.progress(++done);
   }
 }

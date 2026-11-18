@@ -296,12 +296,12 @@ export function newBrowser(
     session,
     makeClient,
     files: fileStore,
-    store: new VaultStore(local, session, makeClient, now, canReach, fileStore),
+    store: new VaultStore({ local, session, makeClient, now, canReach, fileStore }),
   };
 }
 
 /** The file phase of a sync that had no attachments to move. */
-export const NO_FILES = { uploaded: 0, downloaded: 0, pending: 0, corrupted: [], corruptedIds: [] };
+export const NO_FILES = { uploaded: 0, downloaded: 0, pending: 0, corrupted: [] };
 
 export const PHONE_URL = "http://192.168.1.5:8787";
 export const SECOND_URL = "http://100.64.0.7:8787";
@@ -312,7 +312,7 @@ export async function pairedBrowser(o: { now?: () => number; phoneAddresses?: st
   const network: Network = new Map([[PHONE_URL, phone]]);
   const browser = newBrowser(network, o.now);
   phone.offerPairing();
-  await browser.store.pairStart(PHONE_URL, CODE, "Chrome (Linux)");
+  await browser.store.pairStart([PHONE_URL], CODE, "Chrome (Linux)");
   await browser.store.pairFinish(PASSWORD);
   return { phone, network, ...browser };
 }

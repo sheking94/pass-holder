@@ -48,6 +48,23 @@ export function normalizePhoneUrls(urls: readonly string[]): string[] {
   return out;
 }
 
+/** normalizePhoneUrls, but at least one address is needed. */
+export function requirePhoneUrls(urls: readonly string[]): string[] {
+  const out = normalizePhoneUrls(urls);
+  if (out.length === 0) throw new Error("Podaj adres telefonu");
+  return out;
+}
+
+/** The address that answered, then the other typed ones in their order. */
+export function answeredFirst(answered: string, typed: readonly string[]): string[] {
+  return [answered, ...typed.filter((u) => u !== answered)];
+}
+
+/** urls followed by the usable addresses from learned that are not in it yet. */
+export function withLearned(urls: readonly string[], learned: readonly string[]): string[] {
+  return [...urls, ...learnedPhoneUrls(learned).filter((u) => !urls.includes(u))];
+}
+
 /** Addresses the phone reported, normalized; those the extension cannot use (e.g. IPv6 or names) are skipped. */
 export function learnedPhoneUrls(addresses: readonly string[]): string[] {
   const out: string[] = [];

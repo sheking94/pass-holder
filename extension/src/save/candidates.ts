@@ -6,6 +6,7 @@ import type { VaultStore } from "../vault-store.ts";
 import type {
   SaveAnswerMessage,
   SaveCandidateMessage,
+  SaveDraft,
   SaveInfoMessage,
   SavePendingMessage,
   SavePreviewMessage,
@@ -52,6 +53,12 @@ export interface SaveDeps {
   later(ms: number, fn: () => void): void;
 }
 
+/** The login form a candidate was captured from: the frame's origin and the form signature from the script. */
+interface FormKey {
+  origin: string;
+  signature: string;
+}
+
 interface Candidate {
   id: string;
   tabId: number;
@@ -60,14 +67,20 @@ interface Candidate {
   username: string;
   password: string;
   at: number;
-  /** origin + "|" + the form signature from the script */
-  formSignature: string;
+  form: FormKey;
   /** The user closed the question window: keep only the badge, do not open it again on the next page. */
   dismissed?: boolean;
 }
 
 type Candidates = Record<string, Candidate>;
 type SavedLogin = save.SavedLogin & { entryName: string };
+
+/** Saved logins for a candidate's address. Only `exact` (same host) may be updated (review V3-S2). */
+interface MatchingLogins {
+  exact: SavedLogin[];
+  /** Subdomain matches: they only tell that the login is saved already. */
+  related: SavedLogin[];
+}
 
 const GONE = "Pytanie o zapis wygasło";
 const EMPTY_PASSWORD = "Podaj hasło";
@@ -98,8 +111,30 @@ function webUrl(raw: string | undefined): URL | undefined {
   return url && (url.protocol === "http:" || url.protocol === "https:") ? url : undefined;
 }
 
-/** The origin a candidate was captured on (the signature is `origin|...`; an origin has no "|"). */
-const candidateOrigin = (c: Candidate) => c.formSignature.split("|")[0]!;
+const sameForm = (a: FormKey, b: FormKey) => a.origin === b.origin && a.signature === b.signature;
+
+/** What to do with this login and password, given the saved logins for its address. */
+function decideFor(logins: MatchingLogins, username: string, password: string): save.SaveDecision {
+  return save.decideSave(username, password, logins.exact, logins.related);
+}
+
+/**
+ * The preview while the user edits the panel. Without a password only the login counts (like the phone's review):
+ * update the first entry with it, else create.
+ */
+function previewDecision(
+  logins: MatchingLogins,
+  username: string,
+  password: string,
+): save.SaveDecision {
+  if (password !== "") return decideFor(logins, username, password);
+  const wanted = username.trim().toLowerCase();
+  const sameLogin = logins.exact.find((l) => l.username.trim().toLowerCase() === wanted);
+  return sameLogin ? { kind: "update", id: sameLogin.id } : { kind: "create" };
+}
+
+const entryNameOf = (logins: MatchingLogins, id: string) =>
+  logins.exact.find((l) => l.id === id)?.entryName;
 
 const alarmName = (tabId: number) => `${SAVE_ALARM_PREFIX}${tabId}`;
 
@@ -145,13 +180,13 @@ export class SaveCandidates {
 
   /** The tab's live candidate; an expired one is removed and treated as absent. */
   private async forTab(tabId: number): Promise<Candidate | undefined> {
-    const c = (await this.all())[String(tabId)];
-    if (!c) return undefined;
-    if (this.deps.now() - c.at >= SAVE_TTL_MS) {
+    const candidate = (await this.all())[String(tabId)];
+    if (!candidate) return undefined;
+    if (this.deps.now() - candidate.at >= SAVE_TTL_MS) {
       await this.drop(tabId);
       return undefined;
     }
-    return c;
+    return candidate;
   }
 
   private async byId(id: string): Promise<Candidate | undefined> {
@@ -159,25 +194,22 @@ export class SaveCandidates {
     return found && (await this.forTab(found.tabId));
   }
 
-  /**
-   * Saved logins for the candidate's address; null when the vault is locked. Only `exact` (same host) may be updated
-   * (review V3-S2); `related` (subdomain matches) only tell that the login is saved already.
-   */
+  /** Saved logins for the candidate's address; null when the vault is locked. */
   private async matching(
     store: VaultStore,
-    c: Candidate,
+    candidate: Candidate,
     touch: boolean,
-  ): Promise<{ exact: SavedLogin[]; related: SavedLogin[] } | null> {
+  ): Promise<MatchingLogins | null> {
     if (!(await store.resume({ touch }))) return null;
     const entries = store.listEntries("login");
-    const candidate = (e: (typeof entries)[number]) => ({
+    const toMatch = (e: (typeof entries)[number]) => ({
       name: e.data.name,
       urls: e.data.type === "login" ? e.data.fields.urls : [],
     });
     const exactIds = new Set(
-      autofill.matchLogins(c.url, entries, candidate, { exactOnly: true }).map((e) => e.id),
+      autofill.matchLogins(candidate.url, entries, toMatch, { exactOnly: true }).map((e) => e.id),
     );
-    const all = autofill.matchLogins(c.url, entries, candidate).flatMap((e) =>
+    const all = autofill.matchLogins(candidate.url, entries, toMatch).flatMap((e) =>
       e.data.type === "login"
         ? [
             {
@@ -195,211 +227,205 @@ export class SaveCandidates {
     };
   }
 
-  /** What to do with the given login and password; null when the vault is locked. */
-  private async decideFor(
-    store: VaultStore,
-    c: Candidate,
-    username: string,
-    password: string,
-    touch: boolean,
-  ): Promise<save.SaveDecision | null> {
-    const logins = await this.matching(store, c, touch);
-    return logins && save.decideSave(username, password, logins.exact, logins.related);
+  /** What to do with the candidate's own login and password; null when the vault is locked. */
+  private async decide(candidate: Candidate): Promise<save.SaveDecision | null> {
+    const logins = await this.matching(this.deps.store(), candidate, false);
+    return logins && decideFor(logins, candidate.username, candidate.password);
   }
 
-  /** What to do with the candidate; null when the vault is locked. */
-  private decide(
-    store: VaultStore,
-    c: Candidate,
-    touch: boolean,
-  ): Promise<save.SaveDecision | null> {
-    return this.decideFor(store, c, c.username, c.password, touch);
+  private fromScript(sender: Sender): { tabId: number; frame: URL } | undefined {
+    const frame = webUrl(sender.url);
+    if (sender.id !== this.deps.selfId || sender.tab?.id === undefined || !frame) return undefined;
+    return { tabId: sender.tab.id, frame };
   }
 
-  private fromScript(s: Sender): { tabId: number; frame: URL } | undefined {
-    const frame = webUrl(s.url);
-    if (s.id !== this.deps.selfId || s.tab?.id === undefined || !frame) return undefined;
-    return { tabId: s.tab.id, frame };
+  private fromExtensionPage(sender: Sender): boolean {
+    return sender.id === this.deps.selfId && parseUrl(sender.url)?.protocol === "chrome-extension:";
   }
 
-  private fromExtensionPage(s: Sender): boolean {
-    return s.id === this.deps.selfId && parseUrl(s.url)?.protocol === "chrome-extension:";
+  onCandidate(message: SaveCandidateMessage, sender: Sender): Promise<void> {
+    return this.serial(() => this.handleCandidate(message, sender));
   }
 
-  onCandidate(m: SaveCandidateMessage, s: Sender): Promise<void> {
-    return this.serial(() => this.handleCandidate(m, s));
-  }
-
-  private async handleCandidate(m: SaveCandidateMessage, s: Sender): Promise<void> {
-    const from = this.fromScript(s);
+  private async handleCandidate(message: SaveCandidateMessage, sender: Sender): Promise<void> {
+    const from = this.fromScript(sender);
     if (!from) return;
-    const tab = webUrl(s.tab?.url);
+    const tab = webUrl(sender.tab?.url);
     if (!tab || tab.origin !== from.frame.origin) return;
     const url = save.saveUrl(from.frame.href);
-    if (url === null || m.password === "") return;
+    if (url === null || message.password === "") return;
     if ((await neverList(this.deps.local)).includes(save.saveName(url))) return;
 
     const now = this.deps.now();
-    const formSignature = `${from.frame.origin}|${m.formSignature}`;
+    const form: FormKey = { origin: from.frame.origin, signature: message.formSignature };
     // One submission fires several reports (click, Enter, submit): the same login keeps its id, so the panel
     // already on the page stays valid.
-    const prev = await this.forTab(from.tabId);
+    const previous = await this.forTab(from.tabId);
     const same =
-      prev?.username === m.username &&
-      prev.password === m.password &&
-      prev.formSignature === formSignature;
-    const c: Candidate = {
-      id: same ? prev.id : this.deps.newId(),
+      previous?.username === message.username &&
+      previous.password === message.password &&
+      sameForm(previous.form, form);
+    const candidate: Candidate = {
+      id: same ? previous.id : this.deps.newId(),
       tabId: from.tabId,
       url,
-      username: m.username,
-      password: m.password,
+      username: message.username,
+      password: message.password,
       at: now,
-      formSignature,
+      form,
     };
-    if ((await this.decide(this.deps.store(), c, false))?.kind === "none") return;
+    if ((await this.decide(candidate))?.kind === "none") return;
 
     const all = await this.all();
-    all[String(from.tabId)] = c;
+    all[String(from.tabId)] = candidate;
     await this.write(all);
     await this.deps.alarms.create(alarmName(from.tabId), { when: now + SAVE_TTL_MS });
-    await this.deps.prompt.show(from.tabId, c.id);
+    await this.deps.prompt.show(from.tabId, candidate.id);
   }
 
-  onPending(m: SavePendingMessage, s: Sender): Promise<{ candidateId?: string }> {
-    return this.serial(() => this.handlePending(m, s));
+  onPending(message: SavePendingMessage, sender: Sender): Promise<{ candidateId?: string }> {
+    return this.serial(() => this.handlePending(message, sender));
   }
 
-  private async handlePending(m: SavePendingMessage, s: Sender): Promise<{ candidateId?: string }> {
-    const from = this.fromScript(s);
-    if (!from || webUrl(s.tab?.url)?.origin !== from.frame.origin) return {};
-    const c = await this.forTab(from.tabId);
-    if (!c) return {};
+  private async handlePending(
+    message: SavePendingMessage,
+    sender: Sender,
+  ): Promise<{ candidateId?: string }> {
+    const from = this.fromScript(sender);
+    if (!from || webUrl(sender.tab?.url)?.origin !== from.frame.origin) return {};
+    const candidate = await this.forTab(from.tabId);
+    if (!candidate) return {};
     // The same login form again, empty: the login most likely failed, so do not ask about it on this page.
     if (
-      from.frame.origin === candidateOrigin(c) &&
-      m.emptyLoginForms.some((sig) => `${from.frame.origin}|${sig}` === c.formSignature)
+      from.frame.origin === candidate.form.origin &&
+      message.emptyLoginForms.includes(candidate.form.signature)
     ) {
       await this.deps.prompt.closeWindow(from.tabId);
       return {};
     }
-    if (c.dismissed) {
+    if (candidate.dismissed) {
       await this.deps.prompt.badge(from.tabId);
       return {};
     }
-    await this.deps.prompt.show(from.tabId, c.id);
-    return { candidateId: c.id };
+    await this.deps.prompt.show(from.tabId, candidate.id);
+    return { candidateId: candidate.id };
   }
 
-  onInfo(m: SaveInfoMessage, s: Sender): Promise<SavePromptInfo | undefined> {
-    return this.serial(() => this.handleInfo(m, s));
+  onInfo(message: SaveInfoMessage, sender: Sender): Promise<SavePromptInfo | undefined> {
+    return this.serial(() => this.handleInfo(message, sender));
   }
 
-  private async handleInfo(m: SaveInfoMessage, s: Sender): Promise<SavePromptInfo | undefined> {
-    if (!this.fromExtensionPage(s)) return undefined;
-    const c =
-      m.candidateId !== undefined
-        ? await this.byId(m.candidateId)
-        : m.tabId !== undefined
-          ? await this.forTab(m.tabId)
-          : undefined;
-    if (!c) return undefined;
-    const decision = await this.decide(this.deps.store(), c, false);
-    if (decision?.kind === "none") {
-      await this.drop(c.tabId);
+  /** The candidate a save-info message names, by id or else by tab. */
+  private async named(message: SaveInfoMessage): Promise<Candidate | undefined> {
+    if (message.candidateId !== undefined) return this.byId(message.candidateId);
+    if (message.tabId !== undefined) return this.forTab(message.tabId);
+    return undefined;
+  }
+
+  private async handleInfo(
+    message: SaveInfoMessage,
+    sender: Sender,
+  ): Promise<SavePromptInfo | undefined> {
+    if (!this.fromExtensionPage(sender)) return undefined;
+    const candidate = await this.named(message);
+    if (!candidate) return undefined;
+    const base = {
+      id: candidate.id,
+      host: save.saveName(candidate.url),
+      username: candidate.username,
+    };
+    const logins = await this.matching(this.deps.store(), candidate, false);
+    if (logins === null) return { ...base, password: "", decision: null, locked: true };
+    const decision = decideFor(logins, candidate.username, candidate.password);
+    if (decision.kind === "none") {
+      await this.drop(candidate.tabId);
       return undefined;
     }
-    const base = { id: c.id, host: save.saveName(c.url), username: c.username };
-    if (decision === null) return { ...base, password: "", decision: null, locked: true as const };
-    const info = { ...base, password: c.password, decision: decision.kind, locked: false as const };
-    if (decision.kind !== "update") return info;
-    return {
-      ...info,
-      entryName: (await this.matching(this.deps.store(), c, false))?.exact.find(
-        (l) => l.id === decision.id,
-      )?.entryName,
-    };
+    const info = { ...base, password: candidate.password, locked: false as const };
+    if (decision.kind === "create") return { ...info, decision: "create" };
+    return { ...info, decision: "update", entryName: entryNameOf(logins, decision.id) };
   }
 
-  onPreview(m: SavePreviewMessage, s: Sender): Promise<SavePreviewResponse> {
-    return this.serial(() => this.handlePreview(m, s));
+  onPreview(message: SavePreviewMessage, sender: Sender): Promise<SavePreviewResponse> {
+    return this.serial(() => this.handlePreview(message, sender));
   }
 
-  private async handlePreview(m: SavePreviewMessage, s: Sender): Promise<SavePreviewResponse> {
-    if (!this.fromExtensionPage(s)) return undefined;
-    const c = await this.byId(m.candidateId);
-    if (!c) return undefined;
-    const logins = await this.matching(this.deps.store(), c, false);
+  private async handlePreview(
+    message: SavePreviewMessage,
+    sender: Sender,
+  ): Promise<SavePreviewResponse> {
+    if (!this.fromExtensionPage(sender)) return undefined;
+    const candidate = await this.byId(message.candidateId);
+    if (!candidate) return undefined;
+    const logins = await this.matching(this.deps.store(), candidate, false);
     if (!logins) return undefined;
-    // Without a password only the login counts (like the phone's review): update the first entry with it, else create.
-    const wanted = m.username.trim().toLowerCase();
-    const sameLogin = logins.exact.find((l) => l.username.trim().toLowerCase() === wanted);
-    const decision =
-      m.password !== ""
-        ? save.decideSave(m.username, m.password, logins.exact, logins.related)
-        : sameLogin
-          ? { kind: "update" as const, id: sameLogin.id }
-          : { kind: "create" as const };
+    const decision = previewDecision(logins, message.username, message.password);
     if (decision.kind !== "update") return { decision: decision.kind };
-    return {
-      decision: "update",
-      entryName: logins.exact.find((l) => l.id === decision.id)?.entryName,
-    };
+    return { decision: "update", entryName: entryNameOf(logins, decision.id) };
   }
 
-  onAnswer(m: SaveAnswerMessage, s: Sender): Promise<ActionResult> {
-    return this.serial(() => this.handleAnswer(m, s));
+  onAnswer(message: SaveAnswerMessage, sender: Sender): Promise<ActionResult> {
+    return this.serial(() => this.handleAnswer(message, sender));
   }
 
-  private async handleAnswer(m: SaveAnswerMessage, s: Sender): Promise<ActionResult> {
-    if (!this.fromExtensionPage(s)) return { ok: false, error: NOT_ALLOWED };
-    const c = await this.byId(m.candidateId);
+  private async handleAnswer(message: SaveAnswerMessage, sender: Sender): Promise<ActionResult> {
+    if (!this.fromExtensionPage(sender)) return { ok: false, error: NOT_ALLOWED };
+    const candidate = await this.byId(message.candidateId);
     // Nothing left to decline (expired or replaced; a newer candidate already has the window): the page closes itself.
-    if (!c) return m.answer === "save" ? { ok: false, error: GONE } : { ok: true };
+    if (!candidate) return message.answer === "save" ? { ok: false, error: GONE } : { ok: true };
+    if (message.answer === "save") return this.answerSave(candidate, message.draft);
+    if (message.answer === "never") await this.addToNever(candidate);
+    await this.remove(candidate.tabId);
+    await this.hide(candidate.tabId);
+    return { ok: true };
+  }
 
-    if (m.answer === "later" || m.answer === "never") {
-      if (m.answer === "never") {
-        const never = await neverList(this.deps.local);
-        const host = save.saveName(c.url);
-        if (!never.includes(host))
-          await this.deps.local.set(STORAGE_KEYS.saveNever, [...never, host]);
-      }
-      await this.remove(c.tabId);
-      await this.hide(c.tabId);
-      return { ok: true };
-    }
+  /** "Nigdy dla tej strony": the candidate's host goes on the never list. */
+  private async addToNever(candidate: Candidate): Promise<void> {
+    const never = await neverList(this.deps.local);
+    const host = save.saveName(candidate.url);
+    if (!never.includes(host)) await this.deps.local.set(STORAGE_KEYS.saveNever, [...never, host]);
+  }
 
-    const draft = m.draft ?? { name: "", username: c.username, password: c.password };
-    if (draft.password === "") return { ok: false, error: EMPTY_PASSWORD };
+  /** "Zapisz": saves the draft (or the candidate's own data) as a new login or a new password of a saved one. */
+  private async answerSave(
+    candidate: Candidate,
+    draft: SaveDraft | undefined,
+  ): Promise<ActionResult> {
+    const toSave = draft ?? {
+      name: "",
+      username: candidate.username,
+      password: candidate.password,
+    };
+    if (toSave.password === "") return { ok: false, error: EMPTY_PASSWORD };
     const store = this.deps.store();
-    const decision = await this.decideFor(store, c, draft.username, draft.password, true);
-    if (decision === null) return { ok: false, error: UNLOCK_AND_RETRY };
+    const logins = await this.matching(store, candidate, true);
+    if (logins === null) return { ok: false, error: UNLOCK_AND_RETRY };
+    const decision = decideFor(logins, toSave.username, toSave.password);
     // Remove first: whatever happens next, the candidate cannot be saved twice.
-    await this.remove(c.tabId);
+    await this.remove(candidate.tabId);
+    if (decision.kind === "none") {
+      await this.hide(candidate.tabId);
+      // A draft can name a login saved meanwhile: tell the panel instead of pretending it saved.
+      return draft ? { ok: false, error: ALREADY_SAVED } : { ok: true };
+    }
     if (decision.kind === "update") {
       const entry = store.getEntry(decision.id);
       if (entry?.data.type !== "login") {
-        await this.hide(c.tabId);
+        await this.hide(candidate.tabId);
         return { ok: false, error: GONE };
       }
-      await store.putEntry(decision.id, save.withPassword(entry.data, draft.password));
-    } else if (decision.kind === "create") {
-      const name = draft.name.trim() || save.saveName(c.url);
-      await store.putEntry(this.deps.newId(), {
-        ...save.newLogin(c.url, draft.username, draft.password),
-        name,
-      });
-    }
-    if (decision.kind !== "none") {
-      // The window shows "Zapisano" by itself; it is closed a moment later.
-      this.deps.later(SAVED_HIDE_MS, () => {
-        void this.hide(c.tabId).catch(() => undefined);
-      });
+      await store.putEntry(decision.id, save.withPassword(entry.data, toSave.password));
     } else {
-      await this.hide(c.tabId);
-      // A draft can name a login saved meanwhile: tell the panel instead of pretending it saved.
-      if (m.draft) return { ok: false, error: ALREADY_SAVED };
+      await store.putEntry(this.deps.newId(), {
+        ...save.newLogin(candidate.url, toSave.username, toSave.password),
+        name: toSave.name.trim() || save.saveName(candidate.url),
+      });
     }
+    // The window shows "Zapisano" by itself; it is closed a moment later.
+    this.deps.later(SAVED_HIDE_MS, () => {
+      void this.hide(candidate.tabId).catch(() => undefined);
+    });
     return { ok: true };
   }
 
@@ -424,17 +450,17 @@ export class SaveCandidates {
   onWindowClosed(tabId: number): Promise<void> {
     return this.serial(async () => {
       const all = await this.all();
-      const c = all[String(tabId)];
-      if (!c) return;
-      all[String(tabId)] = { ...c, dismissed: true };
+      const candidate = all[String(tabId)];
+      if (!candidate) return;
+      all[String(tabId)] = { ...candidate, dismissed: true };
       await this.write(all);
     });
   }
 
   /** The tab of the candidate the question window asks to unlock for; undefined for a foreign sender or none. */
-  onUnlockRequest(m: SaveUnlockMessage, s: Sender): Promise<number | undefined> {
+  onUnlockRequest(message: SaveUnlockMessage, sender: Sender): Promise<number | undefined> {
     return this.serial(async () =>
-      this.fromExtensionPage(s) ? (await this.byId(m.candidateId))?.tabId : undefined,
+      this.fromExtensionPage(sender) ? (await this.byId(message.candidateId))?.tabId : undefined,
     );
   }
 }

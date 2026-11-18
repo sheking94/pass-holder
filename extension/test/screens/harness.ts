@@ -219,13 +219,13 @@ async function setup() {
   const network: Network = new Map([[PHONE_URL, phone]]);
   const fetchFn = networkFetch(network);
   globalThis.fetch = fetchFn;
-  const pairing = new VaultStore(
-    chromeStore(local),
-    chromeStore(session),
-    (url) => new PhoneClient(url, fetchFn),
-  );
+  const pairing = new VaultStore({
+    local: chromeStore(local),
+    session: chromeStore(session),
+    makeClient: (url) => new PhoneClient(url, fetchFn),
+  });
   phone.offerPairing();
-  await pairing.pairStart(PHONE_URL, CODE, "Chrome (Linux)");
+  await pairing.pairStart([PHONE_URL], CODE, "Chrome (Linux)");
   await pairing.pairFinish(PASSWORD);
   for (const { id, content } of SAMPLES) await pairing.putEntry(id, content);
   await pairing.sync(); // so the rows carry no „•” of unsynced changes

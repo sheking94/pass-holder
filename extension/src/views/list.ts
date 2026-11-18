@@ -31,7 +31,8 @@ export function filesNote(f: FilesOutcome): { text: string; error: boolean } {
     text += ` Pliki: wysłano ${f.uploaded}, pobrano ${f.downloaded}.`;
   if (f.pending > 0) text += ` Nie wszystkie pliki zsynchronizowane (${f.pending} czeka).`;
   if (f.error) text += ` Nie wszystkie pliki zsynchronizowane: ${f.error}.`;
-  if (f.corrupted.length > 0) text += ` Uszkodzone pliki: ${f.corrupted.join(", ")}.`;
+  if (f.corrupted.length > 0)
+    text += ` Uszkodzone pliki: ${f.corrupted.map((c) => c.name).join(", ")}.`;
   return { text, error: Boolean(f.error) || f.corrupted.length > 0 };
 }
 

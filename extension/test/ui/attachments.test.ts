@@ -361,7 +361,7 @@ describe("list and sync", () => {
 });
 
 describe("filesNote", () => {
-  const none = { uploaded: 0, downloaded: 0, pending: 0, corrupted: [], corruptedIds: [] };
+  const none = { uploaded: 0, downloaded: 0, pending: 0, corrupted: [] };
   it("says nothing when no file moved; adds counts, waiting files, an error and corrupted files; the last two are errors", async () => {
     await setupPopup();
     const { filesNote } = await import("../../src/views/list.ts");
@@ -382,8 +382,10 @@ describe("filesNote", () => {
       filesNote({
         ...none,
         downloaded: 1,
-        corrupted: ["a.pdf", "b.jpg"],
-        corruptedIds: ["1", "2"],
+        corrupted: [
+          { id: "1", name: "a.pdf" },
+          { id: "2", name: "b.jpg" },
+        ],
       }),
     ).toEqual({
       text: " Pliki: wysłano 0, pobrano 1. Uszkodzone pliki: a.pdf, b.jpg.",
