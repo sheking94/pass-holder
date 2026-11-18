@@ -18,7 +18,7 @@ class EditContactScreenTest : ScreenTestBase() {
     @Test
     fun `a new contact saves its phones, e-mails and address and drops an empty phone`() {
         createVault()
-        viewModel().selectTab(EntryType.CONTACT)
+        viewModel().navigation.selectTab(EntryType.CONTACT)
         compose.waitForIdle()
         click("+ Dodaj")
         waitFor("Nowy kontakt")
@@ -81,7 +81,7 @@ class EditContactForeignDateTest : ScreenTestBase() {
     fun `a contact with another date format saves without changing the date`() {
         createVault()
         val id = putEntry(foreignDateContact)
-        viewModel().selectTab(EntryType.CONTACT)
+        viewModel().navigation.selectTab(EntryType.CONTACT)
         waitFor("Ola")
         click("Ola")
         waitFor("Edytuj kontakt")
@@ -100,7 +100,7 @@ class EditContactBadDateTest : ScreenTestBase() {
     fun `a changed impossible birth date shows the error`() {
         createVault()
         putEntry(foreignDateContact)
-        viewModel().selectTab(EntryType.CONTACT)
+        viewModel().navigation.selectTab(EntryType.CONTACT)
         waitFor("Ola")
         click("Ola")
         waitFor("Edytuj kontakt")

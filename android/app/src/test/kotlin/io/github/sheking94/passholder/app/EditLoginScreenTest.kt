@@ -123,7 +123,7 @@ class EditLoginKeepsFieldsTest : ScreenTestBase() {
 
         // A save under this id with another type is refused (the vault keeps the login).
         val vm = viewModel()
-        compose.runOnIdle { vm.save(id, emptyContent(EntryType.NOTE).copy(name = "x"), null) }
+        compose.runOnIdle { vm.entries.save(id, emptyContent(EntryType.NOTE).copy(name = "x"), null) }
         waitFor("Ten wpis ma inny typ")
         assertEquals(EntryType.LOGIN, EntryType.of(store.entry(id)!!.content.fields))
     }

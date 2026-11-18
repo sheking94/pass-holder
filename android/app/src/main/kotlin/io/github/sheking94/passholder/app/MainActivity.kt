@@ -24,7 +24,7 @@ class MainActivity : FragmentActivity() {
         setContent { PassHolderUi(viewModel) }
         // The screen stays on while sync mode runs, so the phone does not leave the app (which stops it).
         lifecycleScope.launch {
-            viewModel.syncState.map { it.running }.distinctUntilChanged().collect { running ->
+            viewModel.sync.state.map { it.running }.distinctUntilChanged().collect { running ->
                 if (running) {
                     window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 } else {

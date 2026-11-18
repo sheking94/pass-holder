@@ -126,17 +126,23 @@ class Settings(context: Context) {
     private val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
 
     var generatorOptions: GeneratorOptions
-        get() = prefs.getString("generator", null)?.let { runCatching { Json.decodeFromString<GeneratorOptions>(it) }.getOrNull() }
+        get() = prefs.getString(GENERATOR, null)?.let { runCatching { Json.decodeFromString<GeneratorOptions>(it) }.getOrNull() }
             ?: GeneratorOptions()
-        set(value) = prefs.edit { putString("generator", Json.encodeToString(value)) }
+        set(value) = prefs.edit { putString(GENERATOR, Json.encodeToString(value)) }
 
     /** Leaving the app locks the vault after 60 s instead of at once. On by default. */
     var lockDelay: Boolean
-        get() = prefs.getBoolean("lockDelay", true)
-        set(value) = prefs.edit { putBoolean("lockDelay", value) }
+        get() = prefs.getBoolean(LOCK_DELAY, true)
+        set(value) = prefs.edit { putBoolean(LOCK_DELAY, value) }
 
     /** After a login in another app, PassHolder offers to save it. On by default. */
     var askToSave: Boolean
-        get() = prefs.getBoolean("askToSave", true)
-        set(value) = prefs.edit { putBoolean("askToSave", value) }
+        get() = prefs.getBoolean(ASK_TO_SAVE, true)
+        set(value) = prefs.edit { putBoolean(ASK_TO_SAVE, value) }
+
+    private companion object {
+        const val GENERATOR = "generator"
+        const val LOCK_DELAY = "lockDelay"
+        const val ASK_TO_SAVE = "askToSave"
+    }
 }

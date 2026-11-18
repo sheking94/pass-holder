@@ -10,33 +10,32 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import io.github.sheking94.passholder.app.AppViewModel
 import io.github.sheking94.passholder.app.MasterPasswordRules
 import io.github.sheking94.passholder.app.UiState
 
 /** "Zmień hasło główne" (from Ustawienia): the current password, the new one twice. "Anuluj" and back go to Ustawienia. */
 @Composable
-fun ChangePasswordScreen(state: UiState, vm: AppViewModel) {
-    BackHandler(onBack = vm::openSettings)
+fun ChangePasswordScreen(state: UiState, navigation: Navigation, vault: VaultActions, status: StatusActions) {
+    BackHandler(onBack = navigation::openSettings)
     // remember, not rememberSaveable: passwords must not end up in the saved instance state.
     var current by remember { mutableStateOf("") }
     var new by remember { mutableStateOf("") }
     var repeat by remember { mutableStateOf("") }
-    val change = { if (!state.busy) vm.changeMasterPassword(current, new, repeat) }
+    val change = { if (!state.busy) vault.changeMasterPassword(current, new, repeat) }
 
     FormColumn {
         Text("Zmień hasło główne", style = MaterialTheme.typography.headlineSmall)
         PasswordField(current, {
             current = it
-            vm.clearError()
+            status.clearError()
         }, "Obecne hasło główne")
         PasswordField(new, {
             new = it
-            vm.clearError()
+            status.clearError()
         }, "Nowe hasło główne")
         PasswordField(repeat, {
             repeat = it
-            vm.clearError()
+            status.clearError()
         }, "Powtórz nowe hasło", onDone = change)
         Text(
             "${MasterPasswordRules.HINT}. Wpisy zostają bez zmian.",
@@ -49,7 +48,7 @@ fun ChangePasswordScreen(state: UiState, vm: AppViewModel) {
             style = MaterialTheme.typography.bodyMedium,
         )
         Button(onClick = change, enabled = !state.busy) { Text("Zmień hasło") }
-        OutlinedButton(onClick = vm::openSettings, enabled = !state.busy) { Text("Anuluj") }
+        OutlinedButton(onClick = navigation::openSettings, enabled = !state.busy) { Text("Anuluj") }
         StatusLine(state.status, state.busy)
     }
 }

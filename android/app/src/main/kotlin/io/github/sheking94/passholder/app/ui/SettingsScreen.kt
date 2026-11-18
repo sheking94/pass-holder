@@ -23,35 +23,33 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import io.github.sheking94.passholder.app.AppViewModel
 import io.github.sheking94.passholder.app.BiometricAvailability
 import io.github.sheking94.passholder.app.LeaveLock
-import io.github.sheking94.passholder.app.PassHolderApp
 import io.github.sheking94.passholder.app.UiState
 import android.provider.Settings as AndroidSettings
 
 /** "Ustawienia": fingerprint unlock, the lock delay, autofill, the save prompt and "Zmień hasło główne". "Wróć" and the system back go to the list. */
 @Composable
-fun SettingsScreen(state: UiState, vm: AppViewModel) {
-    BackHandler(onBack = vm::backToList)
+fun SettingsScreen(state: UiState, navigation: Navigation, fingerprint: FingerprintActions, settings: SettingsActions) {
+    BackHandler(onBack = navigation::backToList)
     FormColumn {
         Text("Ustawienia", style = MaterialTheme.typography.headlineSmall)
-        FingerprintSetting(state, vm)
-        LockDelaySetting(state, vm)
-        AutofillSetting()
-        AskToSaveSetting(state, vm)
-        OutlinedButton(onClick = vm::openChangePassword, enabled = !state.busy) { Text("Zmień hasło główne") }
-        OutlinedButton(onClick = vm::backToList) { Text("Wróć") }
+        FingerprintSetting(state, fingerprint)
+        LockDelaySetting(state, settings)
+        AutofillSetting(settings)
+        AskToSaveSetting(state, settings)
+        OutlinedButton(onClick = navigation::openChangePassword, enabled = !state.busy) { Text("Zmień hasło główne") }
+        OutlinedButton(onClick = navigation::backToList) { Text("Wróć") }
         StatusLine(state.status, state.busy)
     }
 }
 
 /** The switch that turns fingerprint unlock on and off. Hidden on phones without a strong fingerprint reader. */
 @Composable
-private fun FingerprintSetting(state: UiState, vm: AppViewModel) {
-    val availability = remember { vm.biometricAvailability() }
-    val enabled by vm.biometricEnabled.collectAsStateWithLifecycle()
-    val fingerprint = rememberFingerprintDialog(vm)
+private fun FingerprintSetting(state: UiState, fingerprint: FingerprintActions) {
+    val availability = remember { fingerprint.availability() }
+    val enabled by fingerprint.enabled.collectAsStateWithLifecycle()
+    val dialog = rememberFingerprintDialog(fingerprint)
     if (availability == BiometricAvailability.Unsupported && !enabled) return
 
     val canToggle = !state.busy && (enabled || availability == BiometricAvailability.Ready)
@@ -59,9 +57,9 @@ private fun FingerprintSetting(state: UiState, vm: AppViewModel) {
     Row(
         Modifier.fillMaxWidth().toggleable(value = enabled, enabled = canToggle, role = Role.Switch) { on ->
             if (on) {
-                fingerprint.show("Włącz odblokowanie odciskiem palca", vm::cipherToEnableBiometric, vm::onBiometricEnableAuthorized)
+                dialog.show("Włącz odblokowanie odciskiem palca", fingerprint::cipherToEnable, fingerprint::onEnableAuthorized)
             } else {
-                vm.disableBiometric()
+                fingerprint.disable()
             }
         },
         verticalAlignment = Alignment.CenterVertically,
@@ -78,10 +76,10 @@ private fun FingerprintSetting(state: UiState, vm: AppViewModel) {
 
 /** Leaving the app locks the vault after 60 s (on, default) or at once (off). */
 @Composable
-private fun LockDelaySetting(state: UiState, vm: AppViewModel) {
-    val on by vm.lockDelay.collectAsStateWithLifecycle()
+private fun LockDelaySetting(state: UiState, settings: SettingsActions) {
+    val on by settings.lockDelay.collectAsStateWithLifecycle()
     Row(
-        Modifier.fillMaxWidth().toggleable(value = on, enabled = !state.busy, role = Role.Switch) { vm.setLockDelay(it) },
+        Modifier.fillMaxWidth().toggleable(value = on, enabled = !state.busy, role = Role.Switch) { settings.setLockDelay(it) },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
@@ -97,10 +95,10 @@ private fun LockDelaySetting(state: UiState, vm: AppViewModel) {
 
 /** Whether PassHolder offers to save a login typed into another app. */
 @Composable
-private fun AskToSaveSetting(state: UiState, vm: AppViewModel) {
-    val on by vm.askToSave.collectAsStateWithLifecycle()
+private fun AskToSaveSetting(state: UiState, settings: SettingsActions) {
+    val on by settings.askToSave.collectAsStateWithLifecycle()
     Row(
-        Modifier.fillMaxWidth().toggleable(value = on, enabled = !state.busy, role = Role.Switch) { vm.setAskToSave(it) },
+        Modifier.fillMaxWidth().toggleable(value = on, enabled = !state.busy, role = Role.Switch) { settings.setAskToSave(it) },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
@@ -119,12 +117,11 @@ private fun AskToSaveSetting(state: UiState, vm: AppViewModel) {
  * the state is read again each time the screen resumes, so it is right after coming back from the system settings.
  */
 @Composable
-private fun AutofillSetting() {
+private fun AutofillSetting(settings: SettingsActions) {
     val context = LocalContext.current
-    val status = remember { (context.applicationContext as PassHolderApp).autofillStatus }
-    var enabled by remember { mutableStateOf(status.isEnabled()) }
-    LifecycleResumeEffect(status) {
-        enabled = status.isEnabled()
+    var enabled by remember { mutableStateOf(settings.autofillEnabled()) }
+    LifecycleResumeEffect(settings) {
+        enabled = settings.autofillEnabled()
         onPauseOrDispose {}
     }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

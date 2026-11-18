@@ -248,7 +248,7 @@ sortowania co we wtyczce; pliki przez systemowy wybór pliku (bez uprawnień do 
   „wiersze”); nowe wpisy są lokalne do następnej synchronizacji. Import jest atomowy (jeden zapis `putAll`).
 - **Eksport:** wybór formatu, ostrzeżenie, „Rozumiem…”, pole **Hasło główne**, **Zapisz plik** (nieaktywny do
   zaznaczenia zgody) → sprawdzenie hasła (przegląd V3-N6, także gdy sejf odblokowano odciskiem palca:
-  `AppViewModel.confirmExport` → `PhoneVaultStore.confirmMasterPassword`) → wybór miejsca. Zgoda jest
+  `TransferModel.confirmExport` → `PhoneVaultStore.confirmMasterPassword`) → wybór miejsca. Zgoda jest
   jednorazowa (`exportApproved`): następny powrót z okna zapisu ją zużywa, a eksport bez niej kończy się
   „Wpisz hasło główne, żeby zapisać plik.”; nazwa `passholder-RRRR-MM-DD.json` (NordPass `.csv`). Po zapisie: „Zapisano plik. Usuń go zaraz
   po użyciu, zawiera hasła jawnym tekstem.”
@@ -380,7 +380,7 @@ Tylko na telefonie: **Ustawienia → „Zmień hasło główne”** (przegląd b
   Ograniczenie wariantu: klucz sejfu się nie zmienia, więc stare hasło razem ze starą kopią pliku nadal go odsłania
   ([SPEC.md](SPEC.md) §2).
 
-Kod: `android/core/.../p2p/PhoneVaultStore.kt` (`changeMasterPassword`), `android/app/.../AppViewModel.kt`
+Kod: `android/core/.../p2p/PhoneVaultStore.kt` (`changeMasterPassword`), `android/app/.../VaultModel.kt`
 (`changeMasterPassword`), `ui/ChangePasswordScreen.kt`, `ui/SettingsScreen.kt`; wtyczka `extension/src/vault-store.ts`
 (`repair`, `opensStaticKey`). Zrzuty: `android/app/screenshots/64-zmiana-hasla.png`, `65-haslo-zmienione.png`.
 

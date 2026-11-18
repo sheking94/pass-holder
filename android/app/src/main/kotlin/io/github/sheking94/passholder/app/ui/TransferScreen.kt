@@ -31,7 +31,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import io.github.sheking94.passholder.app.AppViewModel
 import io.github.sheking94.passholder.app.TransferFiles
 import io.github.sheking94.passholder.app.UiState
 import io.github.sheking94.passholder.app.skippedFilesPhrase
@@ -42,10 +41,10 @@ import io.github.sheking94.passholder.core.transfer.countAttachments
 private val IMPORT_TYPES =
     arrayOf("application/json", "text/*", "text/comma-separated-values", "application/zip", "application/octet-stream")
 
-/** [zip]: PassHolder ZIP, written with the files by [AppViewModel.exportArchiveTo] ([format] is then not used). */
 internal const val CSV_WARNING =
     "Nie otwieraj pliku CSV w Excelu ani LibreOffice: pole zaczynające się od „=”, „+”, „-” lub „@” arkusz wykona jako formułę."
 
+/** [zip]: PassHolder ZIP, written with the files by [TransferActions.exportArchiveTo] ([format] is then not used). */
 private class ExportChoice(val format: TransferFormat, val label: String, val hint: Boolean, val zip: Boolean = false)
 
 /** The same choices, order and labels as the extension. */
@@ -64,13 +63,13 @@ private const val ZIP_WARNING =
         "(inny program, kopia zapasowa, folder w chmurze), pozna je wszystkie. Usuń je zaraz po użyciu."
 
 /**
- * "Import i eksport": files go through the system file picker (another app, so [AppViewModel.beginFilePick]
+ * "Import i eksport": files go through the system file picker (another app, so [TransferActions.beginFilePick]
  * comes first). Export is plain text (a PassHolder ZIP also holds the decrypted files): the button waits for the user
- * to confirm they understand that, and the save dialog opens only after the master password ([AppViewModel.confirmExport]).
+ * to confirm they understand that, and the save dialog opens only after the master password ([TransferActions.confirmExport]).
  */
 @Composable
-fun TransferScreen(state: UiState, vm: AppViewModel) {
-    BackHandler(onBack = vm::backToList)
+fun TransferScreen(state: UiState, navigation: Navigation, transfer: TransferActions) {
+    BackHandler(onBack = navigation::backToList)
     // An index into EXPORT_CHOICES: two choices share TransferFormat.PASSHOLDER.
     var chosen by rememberSaveable { mutableIntStateOf(0) }
     val choice = EXPORT_CHOICES[chosen]
@@ -79,19 +78,21 @@ fun TransferScreen(state: UiState, vm: AppViewModel) {
     // Security review V3-N6. remember, not rememberSaveable: the password must not end up in the saved instance state.
     var password by remember { mutableStateOf("") }
 
-    val openFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { vm.importFrom(it) }
+    val openFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { transfer.importFrom(it) }
     // The save dialog's type is fixed per launcher.
-    val saveJson = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { vm.exportTo(format, it) }
-    val saveCsv = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { vm.exportTo(format, it) }
-    val saveZip = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { vm.exportArchiveTo(it) }
+    val saveJson =
+        rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { transfer.exportTo(format, it) }
+    val saveCsv = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { transfer.exportTo(format, it) }
+    val saveZip =
+        rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { transfer.exportArchiveTo(it) }
 
     fun pick(launch: () -> Unit) {
-        vm.beginFilePick()
+        transfer.beginFilePick()
         try {
             launch()
         } catch (_: ActivityNotFoundException) {
-            vm.endFilePick()
-            vm.fail("Na telefonie nie ma aplikacji do wyboru plików.")
+            transfer.endFilePick()
+            transfer.fail("Na telefonie nie ma aplikacji do wyboru plików.")
         }
     }
 
@@ -149,14 +150,14 @@ fun TransferScreen(state: UiState, vm: AppViewModel) {
         }
         PasswordField(password, {
             password = it
-            vm.clearError()
+            transfer.clearError()
         }, "Hasło główne")
         Button(
             onClick = {
                 val name = TransferFiles.defaultFileName(format, zip = choice.zip)
                 val typed = password
                 password = ""
-                vm.confirmExport(typed) {
+                transfer.confirmExport(typed) {
                     pick {
                         when {
                             choice.zip -> saveZip.launch(name)
@@ -174,7 +175,7 @@ fun TransferScreen(state: UiState, vm: AppViewModel) {
         ) { Text("Zapisz plik") }
 
         HorizontalDivider()
-        OutlinedButton(onClick = vm::backToList) { Text("Wróć do listy") }
+        OutlinedButton(onClick = navigation::backToList) { Text("Wróć do listy") }
         StatusLine(state.status, state.busy)
     }
 }

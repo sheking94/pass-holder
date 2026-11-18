@@ -474,6 +474,15 @@ z hasłem, import). (4) **Blokada:** Zablokuj → odblokuj hasłem i PIN-em. (5)
 okienku po odblokowaniu (Zapisz, Nie teraz, Nigdy). (6) **Parowanie** (jeśli robisz od nowa): kod, hasło, „Anuluj
 parowanie”. Zapisz wynik i wersję Chrome.
 
+**T32. Przegląd czystości V3, G13 (podział `AppViewModel`, Android).** Wygląd i działanie mają być jak przed zmianą.
+(1) **Lista:** zakładki, wyszukiwanie, „+ Dodaj”, Login/Hasło (kopiowanie), ⋮ (Urządzenia, Ustawienia, Import i
+eksport, Zablokuj). (2) **Formularz loginu:** generator (opcje zapamiętane po ponownym otwarciu), „+ Wybierz
+aplikację”, zapisz, anuluj, usuń; dodaj i pobierz załącznik. (3) **Ustawienia:** odcisk palca (włącz, wyłącz),
+przełączniki 60 s i zapisu, „Włącz” przy autouzupełnianiu, „Zmień hasło główne” (Anuluj). (4) **Blokada:** odblokuj
+hasłem i odciskiem; okno odcisku otwiera się samo po powrocie do aplikacji. (5) **Synchronizacja:** „Dodaj wtyczkę”
+(kod z odliczaniem), sync z wtyczką, „Zakończ”; Urządzenia → „Usuń”. (6) **Import i eksport:** eksport z hasłem
+głównym, import pliku. Zapisz wynik i wersję Androida.
+
 ## Formatowanie i lint (przegląd czystości V3, CN1)
 
 CI (`.github/workflows/ci.yml`) odrzuca zmianę, gdy któreś z tych sprawdzeń nie przechodzi.
