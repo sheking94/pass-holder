@@ -235,7 +235,7 @@ class NoiseKK private constructor(
                 ss.mixKey(dh(s, rs)) // ss
             } else {
                 // <- e, ee, se
-                ss.mixKey(dh(eph, re!!)) // ee
+                ss.mixKey(dh(eph, checkNotNull(re) { "READ1 sets re" })) // ee
                 ss.mixKey(dh(eph, rs)) // se: responder computes DH(e, rs)
             }
             eph.publicKey + ss.encryptAndHash(payload)
@@ -254,7 +254,7 @@ class NoiseKK private constructor(
             ss.mixHash(remoteE)
             if (initiator) {
                 // <- e, ee, se
-                ss.mixKey(dh(e!!, remoteE)) // ee
+                ss.mixKey(dh(checkNotNull(e) { "WRITE1 sets e" }, remoteE)) // ee
                 ss.mixKey(dh(s, remoteE)) // se: initiator computes DH(s, re)
             } else {
                 // -> e, es, ss
