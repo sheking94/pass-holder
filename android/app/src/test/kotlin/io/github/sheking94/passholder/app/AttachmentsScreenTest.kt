@@ -305,7 +305,7 @@ class AttachmentsCorruptedScreenTest : AttachmentsScreenBase() {
         noteWith("Skany", a)
         val vm = viewModel()
         val target = File(out, "x.jpg")
-        compose.runOnIdle { vm.downloadFile(a, Uri.fromFile(target)) }
+        compose.runOnIdle { vm.attachments.downloadFile(a, Uri.fromFile(target)) }
         waitFor("Plik jest uszkodzony")
         assertFalse(target.exists() && target.length() > 0)
     }
@@ -369,7 +369,7 @@ class AttachmentsBackWhileBusyScreenTest : AttachmentsScreenBase() {
 
         // The system Back and the ViewModel itself are both guarded.
         scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
-        compose.runOnIdle { vm.backToList() }
+        compose.runOnIdle { vm.navigation.backToList() }
         assertTrue(vm.state.value.screen is Screen.Edit)
 
         release.countDown()

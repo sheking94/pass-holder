@@ -18,7 +18,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import io.github.sheking94.passholder.app.AppViewModel
 import io.github.sheking94.passholder.app.UiState
 import io.github.sheking94.passholder.core.p2p.StoredDevice
 import java.text.DateFormat
@@ -26,10 +25,10 @@ import java.util.Date
 
 /** "Urządzenia": the paired extensions, each with its pairing and last sync time, and "Usuń". */
 @Composable
-fun DevicesScreen(state: UiState, vm: AppViewModel) {
-    val sync by vm.syncState.collectAsStateWithLifecycle()
+fun DevicesScreen(state: UiState, navigation: Navigation, syncActions: SyncActions) {
+    val sync by syncActions.state.collectAsStateWithLifecycle()
     var toRemove by remember { mutableStateOf<StoredDevice?>(null) }
-    BackHandler(onBack = vm::backToList)
+    BackHandler(onBack = navigation::backToList)
 
     FormColumn {
         Text("Urządzenia", style = MaterialTheme.typography.headlineSmall)
@@ -50,7 +49,7 @@ fun DevicesScreen(state: UiState, vm: AppViewModel) {
             }
             HorizontalDivider()
         }
-        OutlinedButton(onClick = vm::backToList) { Text("Wróć") }
+        OutlinedButton(onClick = navigation::backToList) { Text("Wróć") }
         StatusLine(state.status, state.busy)
     }
 
@@ -61,7 +60,7 @@ fun DevicesScreen(state: UiState, vm: AppViewModel) {
             confirmButton = {
                 TextButton(onClick = {
                     toRemove = null
-                    vm.removeDevice(device.deviceId)
+                    syncActions.removeDevice(device.deviceId)
                 }) { Text("Usuń", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = { TextButton(onClick = { toRemove = null }) { Text("Anuluj") } },

@@ -21,8 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import io.github.sheking94.passholder.app.AppViewModel
-import io.github.sheking94.passholder.app.errorMessage
+import io.github.sheking94.passholder.app.ui.EntryActions
 import io.github.sheking94.passholder.core.CharacterGroup
 import io.github.sheking94.passholder.core.GeneratorOptions
 import io.github.sheking94.passholder.core.PasswordGenerator
@@ -38,8 +37,8 @@ private val GROUP_LABELS = mapOf(
 /** "Generator haseł": length and character groups (remembered in the settings once used), "Generuj". */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun GeneratorCard(vm: AppViewModel, onGenerated: (String) -> Unit) {
-    val saved = remember { vm.generatorOptions }
+fun GeneratorCard(entries: EntryActions, onGenerated: (String) -> Unit) {
+    val saved = remember { entries.generatorOptions() }
     var length by remember { mutableFloatStateOf(saved.length.toFloat()) }
     var groups by remember { mutableStateOf(saved.groups) }
 
@@ -65,13 +64,7 @@ fun GeneratorCard(vm: AppViewModel, onGenerated: (String) -> Unit) {
                 }
             }
             OutlinedButton(onClick = {
-                val options = GeneratorOptions(length.roundToInt(), groups)
-                runCatching { PasswordGenerator.generate(options) }
-                    .onSuccess {
-                        onGenerated(it)
-                        vm.generatorOptions = options
-                    }
-                    .onFailure { vm.fail(errorMessage(it)) }
+                entries.generatePassword(GeneratorOptions(length.roundToInt(), groups))?.let(onGenerated)
             }) { Text("Generuj") }
         }
     }

@@ -18,20 +18,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import io.github.sheking94.passholder.app.AppViewModel
 import io.github.sheking94.passholder.app.UiState
 
 /** The list's top bar: "Synchronizacja" at hand, the rarer actions under ⋮. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun VaultTopBar(state: UiState, vm: AppViewModel) {
+fun VaultTopBar(state: UiState, navigation: Navigation, vault: VaultActions) {
     var menuOpen by remember { mutableStateOf(false) }
     TopAppBar(
         title = { Text("PassHolder") },
         // PassHolderUi already keeps every screen out of the system bars.
         windowInsets = WindowInsets(0),
         actions = {
-            TextButton(onClick = vm::openSync, enabled = !state.busy) { Text("Synchronizacja") }
+            TextButton(onClick = navigation::openSync, enabled = !state.busy) { Text("Synchronizacja") }
             Box {
                 IconButton(
                     onClick = { menuOpen = true },
@@ -46,19 +45,19 @@ fun VaultTopBar(state: UiState, vm: AppViewModel) {
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     DropdownMenuItem(text = { Text("Urządzenia") }, enabled = !state.busy, onClick = {
                         menuOpen = false
-                        vm.openDevices()
+                        navigation.openDevices()
                     })
                     DropdownMenuItem(text = { Text("Ustawienia") }, enabled = !state.busy, onClick = {
                         menuOpen = false
-                        vm.openSettings()
+                        navigation.openSettings()
                     })
                     DropdownMenuItem(text = { Text("Import i eksport") }, enabled = !state.busy, onClick = {
                         menuOpen = false
-                        vm.openTransfer()
+                        navigation.openTransfer()
                     })
                     DropdownMenuItem(text = { Text("Zablokuj") }, enabled = !state.busy, onClick = {
                         menuOpen = false
-                        vm.lock()
+                        vault.lock()
                     })
                 }
             }

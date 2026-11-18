@@ -77,13 +77,13 @@ class TransferZipScreenTest : ScreenTestBase() {
 
         val target = File(dir, "passholder.zip").apply { writeText("old, longer content that must not survive the export".repeat(200)) }
         var confirmed = false
-        compose.runOnIdle { vm.confirmExport(masterPassword) { confirmed = true } }
+        compose.runOnIdle { vm.transfer.confirmExport(masterPassword) { confirmed = true } }
         // The check resumes on the main looper, which Robolectric runs only when told to.
         compose.waitUntil(60_000) {
             shadowOf(Looper.getMainLooper()).idle()
             confirmed
         }
-        compose.runOnIdle { vm.exportArchiveTo(Uri.fromFile(target)) }
+        compose.runOnIdle { vm.transfer.exportArchiveTo(Uri.fromFile(target)) }
         waitFor(
             "Wyeksportowano 1 wpis i 1 plik. Pominięto 1 plik, który czeka na synchronizację albo jest uszkodzony. " +
                 "Usuń archiwum, gdy nie będzie już potrzebne.",
@@ -127,7 +127,7 @@ class TransferZipImportTest : ScreenTestBase() {
         waitFor("Importuj plik")
         val zip = Uri.fromFile(File(dir, "archive.zip").apply { writeBytes(kotlinArchive()) })
 
-        compose.runOnIdle { vm.importFrom(zip) }
+        compose.runOnIdle { vm.transfer.importFrom(zip) }
         waitFor("Dodano 2 wpisy (zsynchronizuj, żeby trafiły do wtyczki). Dodano 2 pliki. Usuń plik z dysku, zawiera hasła jawnym tekstem.")
         val bank = app().phoneStore.allContents().single { it.name == "Bank" }
         assertEquals(listOf("Zażółć ?.txt", "a:b?.jpg"), bank.attachments.map { it.name })
@@ -137,7 +137,7 @@ class TransferZipImportTest : ScreenTestBase() {
         assertEquals(2, files.size)
 
         // The same archive again: nothing new, no orphaned files.
-        compose.runOnIdle { vm.importFrom(zip) }
+        compose.runOnIdle { vm.transfer.importFrom(zip) }
         waitFor(
             "Dodano 0 wpisów (zsynchronizuj, żeby trafiły do wtyczki). " +
                 "Pominięto 2 takich, które już są w sejfie lub powtarzają się w pliku. Usuń plik z dysku, zawiera hasła jawnym tekstem.",
@@ -150,7 +150,7 @@ class TransferZipImportTest : ScreenTestBase() {
             z.nextEntry
             z.readBytes()
         }
-        compose.runOnIdle { vm.importFrom(Uri.fromFile(File(dir, "passholder.json").apply { writeBytes(index) })) }
+        compose.runOnIdle { vm.transfer.importFrom(Uri.fromFile(File(dir, "passholder.json").apply { writeBytes(index) })) }
         waitFor(
             "Pominięto 2 pliki: wpis 2, Zażółć ?.txt: importuj całe archiwum ZIP; wpis 2, a:b?.jpg: importuj całe archiwum ZIP.",
             substring = true,
@@ -186,7 +186,7 @@ class TransferZipLockTest : ScreenTestBase() {
             },
         )
 
-        compose.runOnIdle { vm.importFrom(uri) }
+        compose.runOnIdle { vm.transfer.importFrom(uri) }
         waitFor("PassHolder jest zablokowany")
         // The first file had been stored when the vault locked: it is gone again.
         assertEquals(1, filesWhenLocked)

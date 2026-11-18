@@ -3,11 +3,8 @@ package io.github.sheking94.passholder.app.ui
 import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import androidx.compose.ui.platform.LocalContext
 import androidx.fragment.app.FragmentActivity
-import io.github.sheking94.passholder.app.AppViewModel
 import io.github.sheking94.passholder.app.FingerprintPrompt
-import io.github.sheking94.passholder.app.PassHolderApp
 import javax.crypto.Cipher
 
 /**
@@ -31,9 +28,8 @@ class FingerprintDialog(
 }
 
 @Composable
-fun rememberFingerprintDialog(vm: AppViewModel): FingerprintDialog {
+fun rememberFingerprintDialog(fingerprint: FingerprintActions): FingerprintDialog {
     val activity = LocalActivity.current as? FragmentActivity
-    // The prompt is replaced in tests (Robolectric has no fingerprint reader), so it is read from the app.
-    val prompt = (LocalContext.current.applicationContext as PassHolderApp).fingerprintPrompt
-    return remember(activity, prompt) { FingerprintDialog(activity, prompt, vm::fail) }
+    val prompt = fingerprint.prompt
+    return remember(activity, prompt) { FingerprintDialog(activity, prompt, fingerprint::fail) }
 }

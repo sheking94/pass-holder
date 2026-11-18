@@ -19,7 +19,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import io.github.sheking94.passholder.app.AppViewModel
 import io.github.sheking94.passholder.app.SyncUiState
 import io.github.sheking94.passholder.app.UiState
 import io.github.sheking94.passholder.core.p2p.PairingOffer
@@ -28,27 +27,27 @@ import kotlinx.coroutines.delay
 
 /** "Synchronizacja": the phone waits for the extension on the addresses shown; "Dodaj wtyczkę" gives a pairing code. */
 @Composable
-fun SyncScreen(state: UiState, vm: AppViewModel) {
-    val sync by vm.syncState.collectAsStateWithLifecycle()
-    BackHandler(onBack = vm::closeSync)
+fun SyncScreen(state: UiState, syncActions: SyncActions) {
+    val sync by syncActions.state.collectAsStateWithLifecycle()
+    BackHandler(onBack = syncActions::closeSync)
 
     FormColumn {
         Text("Synchronizacja", style = MaterialTheme.typography.headlineSmall)
         if (sync.running) {
             Text("Czekam na wtyczkę…", style = MaterialTheme.typography.titleMedium)
             Addresses(sync)
-            PairingCode(sync, vm, newCodeHint = "Kod wygasł lub został użyty. Dodaj wtyczkę ponownie, aby dostać nowy kod.")
-            Button(onClick = vm::addExtension, enabled = !state.busy) { Text("Dodaj wtyczkę") }
+            PairingCode(sync, syncActions, newCodeHint = "Kod wygasł lub został użyty. Dodaj wtyczkę ponownie, aby dostać nowy kod.")
+            Button(onClick = syncActions::addExtension, enabled = !state.busy) { Text("Dodaj wtyczkę") }
             Text(
                 "Ekran nie zgaśnie, dopóki działa tryb synchronizacji. Wyłączy się sam po ${PhoneSync.SYNC_IDLE_MS / 60_000} min bez synchronizacji i po wyjściu z aplikacji. Działa tylko w Wi-Fi i Tailscale.",
                 style = MaterialTheme.typography.bodySmall,
             )
         } else {
             sync.stoppedReason?.let { Text(it, style = MaterialTheme.typography.titleMedium) }
-            OutlinedButton(onClick = vm::startSync, enabled = !state.busy) { Text("Włącz ponownie") }
+            OutlinedButton(onClick = syncActions::startSync, enabled = !state.busy) { Text("Włącz ponownie") }
         }
         sync.lastEvent?.let { Text(it, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold) }
-        Button(onClick = vm::closeSync) { Text("Zakończ") }
+        Button(onClick = syncActions::closeSync) { Text("Zakończ") }
         StatusLine(state.status, state.busy)
     }
 }
@@ -76,13 +75,13 @@ fun Addresses(sync: SyncUiState) {
 
 /** The code on screen in large digits ("1234 5678") with a mm:ss countdown, or [newCodeHint] once it is gone. */
 @Composable
-fun PairingCode(sync: SyncUiState, vm: AppViewModel, newCodeHint: String) {
+fun PairingCode(sync: SyncUiState, syncActions: SyncActions, newCodeHint: String) {
     val offer = sync.offer
     if (offer != null) {
-        var remaining by remember(offer.sid) { mutableLongStateOf(vm.pairingCodeRemainingMs(offer)) }
+        var remaining by remember(offer.sid) { mutableLongStateOf(syncActions.pairingCodeRemainingMs(offer)) }
         LaunchedEffect(offer.sid) {
             while (true) {
-                remaining = vm.pairingCodeRemainingMs(offer)
+                remaining = syncActions.pairingCodeRemainingMs(offer)
                 delay(1_000)
             }
         }

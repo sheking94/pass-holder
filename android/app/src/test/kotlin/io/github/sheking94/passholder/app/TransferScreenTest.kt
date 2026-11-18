@@ -44,37 +44,39 @@ class TransferScreenTest : ScreenTestBase() {
         compose.onNodeWithText("Zapisz plik").performScrollTo().assertIsEnabled()
 
         // Cancelled picker: no message.
-        compose.runOnIdle { vm.importFrom(null) }
+        compose.runOnIdle { vm.transfer.importFrom(null) }
         compose.waitForIdle()
         assertNull(vm.state.value.status)
 
-        compose.runOnIdle { vm.importFrom(file("big.json", ByteArray(TransferFiles.MAX_BYTES + 1) { ' '.code.toByte() })) }
+        compose.runOnIdle { vm.transfer.importFrom(file("big.json", ByteArray(TransferFiles.MAX_BYTES + 1) { ' '.code.toByte() })) }
         waitFor("Plik jest za duży (limit 10 MiB)")
-        compose.runOnIdle { vm.importFrom(file("cp1250.csv", "name,url\nZażółć,https://x.pl\n".toByteArray(charset("windows-1250")))) }
+        compose.runOnIdle {
+            vm.transfer.importFrom(file("cp1250.csv", "name,url\nZażółć,https://x.pl\n".toByteArray(charset("windows-1250"))))
+        }
         waitFor("Plik nie jest zapisany w UTF-8")
 
         // Security review V3-N6: no export without the master password, and a wrong one opens no save dialog.
         val exported = file("passholder.json", ByteArray(0))
-        compose.runOnIdle { vm.exportTo(TransferFormat.PASSHOLDER, exported) }
+        compose.runOnIdle { vm.transfer.exportTo(TransferFormat.PASSHOLDER, exported) }
         waitFor("Wpisz hasło główne, żeby zapisać plik.")
         assertEquals(0L, File(dir, "passholder.json").length())
         var dialogs = 0
-        compose.runOnIdle { vm.confirmExport("nie to hasło") { dialogs++ } }
+        compose.runOnIdle { vm.transfer.confirmExport("nie to hasło") { dialogs++ } }
         waitFor("Złe hasło główne")
         assertEquals(0, dialogs)
 
         // Export, then import the same file: nothing new, the duplicate is reported.
-        compose.runOnIdle { vm.confirmExport(masterPassword) { dialogs++ } }
+        compose.runOnIdle { vm.transfer.confirmExport(masterPassword) { dialogs++ } }
         // The check resumes on the main looper, which Robolectric runs only when told to.
         compose.waitUntil(60_000) {
             shadowOf(Looper.getMainLooper()).idle()
             dialogs == 1
         }
-        compose.runOnIdle { vm.exportTo(TransferFormat.PASSHOLDER, exported) }
+        compose.runOnIdle { vm.transfer.exportTo(TransferFormat.PASSHOLDER, exported) }
         waitFor("Zapisano plik. Usuń go zaraz po użyciu, zawiera hasła jawnym tekstem.")
         val text = File(dir, "passholder.json").readText()
         assertTrue(text.contains("bank.pl") && text.contains("s3cret-haslo"))
-        compose.runOnIdle { vm.importFrom(exported) }
+        compose.runOnIdle { vm.transfer.importFrom(exported) }
         waitFor("Dodano 0 wpisów", substring = true)
         assertTrue(vm.state.value.status!!.text.contains("Pominięto 1 takich"))
 
@@ -82,7 +84,7 @@ class TransferScreenTest : ScreenTestBase() {
         val bitwarden =
             """{"encrypted":false,"items":[{"type":1,"name":"poczta.pl",""" +
                 """"login":{"username":"jan@poczta.pl","password":"pw"}}]}"""
-        compose.runOnIdle { vm.importFrom(file("bitwarden.json", bitwarden.toByteArray())) }
+        compose.runOnIdle { vm.transfer.importFrom(file("bitwarden.json", bitwarden.toByteArray())) }
         waitFor("Dodano 1 wpis (zsynchronizuj, żeby trafiły do wtyczki).", substring = true)
         assertEquals(2, app.phoneStore.entries().size)
         compose.waitUntil(5_000) { vm.state.value.entries.size == 2 }
@@ -111,12 +113,12 @@ class FilePickerLockTest : ScreenTestBase() {
         waitFor("Importuj plik")
 
         // The picker is another app: the activity stops. Back within 60 s, the vault is still open.
-        compose.runOnIdle { vm.beginFilePick() }
+        compose.runOnIdle { vm.transfer.beginFilePick() }
         scenario.moveToState(Lifecycle.State.CREATED)
         passTime(30)
         assertTrue(app.phoneStore.isUnlocked)
         scenario.moveToState(Lifecycle.State.RESUMED)
-        compose.runOnIdle { vm.importFrom(null) }
+        compose.runOnIdle { vm.transfer.importFrom(null) }
         waitFor("Importuj plik")
         assertTrue(app.phoneStore.isUnlocked)
         assertNull(vm.state.value.status)
@@ -133,12 +135,12 @@ class FilePickerLockTest : ScreenTestBase() {
         // The picker stays open for over a minute: locked, and the locked screen says why.
         menu("Import i eksport")
         waitFor("Importuj plik")
-        compose.runOnIdle { vm.beginFilePick() }
+        compose.runOnIdle { vm.transfer.beginFilePick() }
         scenario.moveToState(Lifecycle.State.CREATED)
         passTime(61)
         compose.waitUntil(5_000) { !app.phoneStore.isUnlocked }
         scenario.moveToState(Lifecycle.State.RESUMED)
-        compose.runOnIdle { vm.importFrom(null) }
+        compose.runOnIdle { vm.transfer.importFrom(null) }
         waitFor("Zablokowano: wybór pliku trwał ponad 60 s")
         waitFor("PassHolder jest zablokowany")
         assertFalse(app.phoneStore.isUnlocked)

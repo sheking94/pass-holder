@@ -26,10 +26,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import io.github.sheking94.passholder.app.AppViewModel
 import io.github.sheking94.passholder.app.AttachmentFiles
 import io.github.sheking94.passholder.app.CreateDocumentOf
 import io.github.sheking94.passholder.app.formatSize
+import io.github.sheking94.passholder.app.ui.AttachmentActions
 import io.github.sheking94.passholder.core.files.Attachment
 
 /**
@@ -38,8 +38,8 @@ import io.github.sheking94.passholder.core.files.Attachment
  * is not complete on the phone yet waits for the sync. Both cannot be downloaded.
  */
 @Composable
-fun AttachmentsEditor(attachments: List<Attachment>, onChange: (List<Attachment>) -> Unit, vm: AppViewModel, busy: Boolean) {
-    // Ids added in this form: the form's own copy, the ViewModel keeps its own to discard them.
+fun AttachmentsEditor(attachments: List<Attachment>, onChange: (List<Attachment>) -> Unit, files: AttachmentActions, busy: Boolean) {
+    // Ids added in this form: the form's own copy, the model keeps its own to discard them.
     var added by remember { mutableStateOf(emptySet<String>()) }
     // Null until the first check is done: no note and no download then.
     var ready by remember { mutableStateOf<Set<String>?>(null) }
@@ -48,10 +48,10 @@ fun AttachmentsEditor(attachments: List<Attachment>, onChange: (List<Attachment>
     var savingId by rememberSaveable { mutableStateOf<String?>(null) }
     val current by rememberUpdatedState(attachments)
 
-    LaunchedEffect(attachments) { ready = vm.fileReady(attachments) }
+    LaunchedEffect(attachments) { ready = files.fileReady(attachments) }
 
     val openFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        vm.attachFile(uri, current.size) { a ->
+        files.attachFile(uri, current.size) { a ->
             added = added + a.id
             onChange(current + a)
         }
@@ -59,17 +59,17 @@ fun AttachmentsEditor(attachments: List<Attachment>, onChange: (List<Attachment>
     val saveFile = rememberLauncherForActivityResult(CreateDocumentOf()) { uri ->
         val target = current.firstOrNull { it.id == savingId }
         savingId = null
-        if (target == null) vm.endFilePick() else vm.downloadFile(target, uri)
+        if (target == null) files.endFilePick() else files.downloadFile(target, uri)
     }
 
     fun pick(launch: () -> Unit) {
-        vm.beginFilePick()
+        files.beginFilePick()
         try {
             launch()
         } catch (_: ActivityNotFoundException) {
             savingId = null
-            vm.endFilePick()
-            vm.fail("Na telefonie nie ma aplikacji do wyboru plików.")
+            files.endFilePick()
+            files.fail("Na telefonie nie ma aplikacji do wyboru plików.")
         }
     }
 

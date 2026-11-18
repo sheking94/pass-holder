@@ -138,7 +138,7 @@ Dwa moduły Gradle: `core` (czysta JVM, testy bez emulatora) i `app` (Jetpack Co
 |---|---|
 | `PassHolderApp.kt` | obiekt procesu: jeden `PhoneVaultStore`, `LeaveLock`, ustawienia (m.in. `askToSave`), `pendingSave`, odcisk, haki testowe autouzupełniania |
 | `MainActivity.kt` | `onStart` / `onStop` (powrót i wyjście z aplikacji), ekran nie gaśnie w trybie Synchronizacja, blokada zrzutów ekranu |
-| `AppViewModel.kt` | stan ekranów (`UiState`, `askToSave`) i operacje na sejfie w tle (`launchVaultOperation`) |
+| `AppViewModel.kt`, `UiState.kt`, `UiStateHolder.kt`, `*Model.kt` | model ekranów złożony z części (zob. [Podział `AppViewModel`](#podział-appviewmodel)): stan `UiState`, operacje na sejfie w tle (`launchOperation`), nawigacja, sejf, odcisk, synchronizacja, ustawienia, wpisy, załączniki, import i eksport |
 | `SyncController.kt` | tryb Synchronizacja: start i stop serwera, kod parowania, zdarzenia, zatrzymanie po 5 min bez synchronizacji |
 | `SyncNetworks.kt` | adresy, na których odpowiada tryb Synchronizacja: Wi-Fi, Ethernet i Tailscale, bez sieci komórkowej (`ConnectivityManager`) |
 | `KeystoreSecretWrapper.kt` | zawija klucz tożsamości telefonu kluczem z Android Keystore |
@@ -163,7 +163,7 @@ Dwa moduły Gradle: `core` (czysta JVM, testy bez emulatora) i `app` (Jetpack Co
 | `autofill/AutofillAuthActivity.kt`, `AutofillSaveActivity.kt` | wspólna baza (odblokowanie tylko gdy sejf zablokowany: hasło / odcisk; haki `afterUnlock`, `UnlockedContent`, `onLockedWhileOpen`, `unlockAgain`; Wstecz i Anuluj = `RESULT_CANCELED`, blokada D1 także po wyjściu w tło, anulowanie starego terminu 60 s) i ekran zapisu: odblokowanie, potem podgląd (`exported="false"`, `FLAG_SECURE`) |
 | `autofill/SaveReview.kt`, `ui/SaveReviewScreen.kt` | `SaveReview` (wpisy sejfu odszyfrowane raz, `decision`/`title`/`initialDraft` z `SaveDraft`), `saveReviewed` (ponowny odczyt sejfu, `decideSave` od nowa, `upsertContent`; wynik `SaveOutcome`), `SaveReviewModel` (ViewModel: kandydat, szkic, blokada w trakcie podglądu; bez stanu instancji) i ekran Compose „Zapisz w PassHolder” (Nazwa, Login, Hasło, adres/aplikacja tylko do odczytu) |
 | `AutofillStatus.kt` | czy PassHolder jest usługą autouzupełniania (`hasEnabledAutofillServices`), wiersz w `SettingsScreen` |
-| `ui/*.kt` | ekrany Compose: `StartScreen`, `LockedScreen`, `ListScreen` (dolny pasek zakładek), `EditScreen` (powłoka formularza), `SettingsScreen`, `TransferScreen` (import i eksport; okno wyboru pliku 60 s w `LockController.expectFilePicker`), `VaultTopBar`, `SyncScreen`, `DevicesScreen`, `RestoreScreen`, `FingerprintDialog`, `Common` (m.in. `SecretField`), `PassHolderUi` (wybór ekranu) |
+| `ui/*.kt` | ekrany Compose: `StartScreen`, `LockedScreen`, `ListScreen` (dolny pasek zakładek), `EditScreen` (powłoka formularza), `SettingsScreen`, `TransferScreen` (import i eksport; okno wyboru pliku 60 s w `LockController.expectFilePicker`), `VaultTopBar`, `SyncScreen`, `DevicesScreen`, `RestoreScreen`, `FingerprintDialog`, `Common` (m.in. `SecretField`), `PassHolderUi` (wybór ekranu i przekazanie grup akcji), `ScreenActions` (interfejsy akcji dla ekranów) |
 | `ui/forms/*.kt` | `LoginForm`, `ContactForm`, `CardForm`, `DocumentForm` (notatka używa samej powłoki), `ListEditor`, `AttachmentsEditor` (sekcja „Załączniki”), `CustomFieldsEditor`, `GeneratorCard`, `AppPickerDialog` |
 
 ## Konwencje nazw i kodu
@@ -229,7 +229,7 @@ Ustalone w grupie G5, te same zasady co w TypeScripcie.
 - **Rozpoznawanie tylko po kodzie:** `catch (e: PassHolderException) { if (e.code != ErrorCode.X) throw e … }`
   albo `e.hasErrorCode(…)`, nigdy po `message` ani po ogólnym typie. Przykłady: `P2pHost` (nieudane Noise → 400),
   `ArchiveReader.readIndex` (`IMPORT_NOT_PASSHOLDER` → `ZIP_NOT_PASSHOLDER`), `TransferFiles.writeArchive`
-  (`VAULT_LOCKED` → „Nie udało się zapisać pliku…”), `AppViewModel.readForExport` (`FILE_CORRUPTED` → plik
+  (`VAULT_LOCKED` → „Nie udało się zapisać pliku…”), `TransferModel.readForExport` (`FILE_CORRUPTED` → plik
   pominięty), `BiometricController.unlock` (`WRONG_UNLOCK_KEYS` → odcisk wyłączony).
 - **Teksty:** `errorMessage(error)` w `app/ErrorMessages.kt`; `when` bez `else`, więc nowy kod nie skompiluje
   się bez tekstu. Ekrany i `launchVaultOperation` pokazują każdy błąd przez `errorMessage`. Własne błędy
@@ -429,6 +429,46 @@ sejfu, zegar, `onError`). Każda metoda fasady to jedno wywołanie części.
   używał). Kolejność: blokada sejfu → `PairingHost` → blokada stanu → magazyn rekordów / plików.
 - **Zaczepy testowe**: `openedRecordsForTest()` i `builtHostForTest()` (`internal`) zamiast odczytu pól prywatnych
   przez refleksję w `PhoneVaultStoreTest`.
+
+## Podział `AppViewModel`
+
+Ustalone w grupie G13 przeglądu czystości kodu V3 (CK3, CW5, CW9, CS15). Zachowanie i wygląd ekranów bez zmian.
+
+`AppViewModel` (`android/app/.../app/`) tylko składa części i obsługuje cykl życia aktywności (`onLeftApp`,
+`onReturn`, `checkAutoLock` co 15 s, `touch`, `onCleared`). Ekrany nie dostają już całego modelu, tylko stan
+(`UiState`) i grupy akcji, których używają. Grupy to interfejsy w `ui/ScreenActions.kt`; implementują je części
+modelu. `PassHolderUi` rozdaje je ekranom (`vm.navigation`, `vm.vault`…).
+
+| Część | Plik | Interfejs dla ekranów | Za co odpowiada |
+|---|---|---|---|
+| `UiStateHolder` | `UiStateHolder.kt` | `StatusActions` | `UiState` (`update`, `replace`), wiersz stanu (`fail`, `clearError`, `showStatus`), lista (`showList`, `refresh` z `Mutex`, `refreshInBackground`); `launchOperation(postęp, onSuccess) { }` (operacja na sejfie, jedna naraz, `busy`) i `launchCatching { }` (krótka praca, tylko błąd na wierszu stanu) |
+| `NavigationModel` | `NavigationModel.kt` | `Navigation` | przejścia między ekranami, `openEntry` (wpis czytany od nowa), zakładki; wyjście z formularza usuwa niezapisane pliki |
+| `VaultModel` | `VaultModel.kt` | `VaultActions` | nowy sejf, odtwarzanie z wtyczki, odblokowanie, blokada, usunięcie z telefonu, zmiana hasła głównego |
+| `FingerprintModel` | `FingerprintModel.kt` | `FingerprintActions` | włączanie i wyłączanie odcisku, odblokowanie odciskiem, okno odcisku na ekranie blokady (`BiometricController` robi klucze) |
+| `SyncModel` | `SyncModel.kt` | `SyncActions` | start trybu Synchronizacja (bilet startu), „Zakończ”, kod parowania, usuwanie urządzeń (`SyncController` prowadzi serwer) |
+| `SettingsModel` | `SettingsModel.kt` | `SettingsActions` | przełączniki „Blokuj dopiero po 60 s” i „Pytaj o zapis haseł”, stan autouzupełniania |
+| `EntriesModel` | `EntriesModel.kt` | `EntryActions` | zapis i usuwanie wpisu, kopiowanie pola, generator haseł (tworzy hasło i zapamiętuje opcje), aplikacje do wyboru i zapamiętanie certyfikatu wybranej (V3-S3) |
+| `AttachmentsModel` | `AttachmentsModel.kt` | `AttachmentActions` | dodanie pliku, czy plik jest gotowy, „Pobierz”; pliki dodane w formularzu i jeszcze niezapisane (`discardAdded`) |
+| `TransferModel` | `TransferModel.kt` | `TransferActions` | import (ZIP lub tekst), hasło główne przed eksportem (`confirmExport`), eksport tekstu i ZIP (wspólny początek `approvedTarget`) |
+
+Okno wyboru pliku (60 s przed blokadą) to `FilePicks` (`beginFilePick`, `endFilePick`), część `AttachmentActions`
+i `TransferActions`; obie przekazują je do `LockController`.
+
+- **Jedna obsługa błędów** (CW5): wzór „uruchom, przepuść `CancellationException`, resztę pokaż jako błąd” jest
+  tylko w `UiStateHolder.launchOperation` i `launchCatching` (było 4 razy). `confirmExport` używa
+  `launchOperation` z `onSuccess` zamiast własnej obsługi `busy`.
+- **Bez globalnego dostępu z ekranów** (CS15): `LoginForm` (aplikacje, certyfikat wybranej), `GeneratorCard`,
+  `SettingsScreen` (autouzupełnianie) i `FingerprintDialog` (okno odcisku) nie sięgają po `PassHolderApp` przez
+  `LocalContext`. Części dostają zależności przez konstruktor; to, co testy podmieniają w `PassHolderApp`
+  (`fingerprintPrompt`, `installedApps`, `autofillStatus`, `appTrust`), części czytają przy każdym użyciu.
+  Pola `var` w `PassHolderApp` zostają: to punkty podmiany w testach Robolectric.
+- **Klucze ustawień** w `Settings` są stałymi (`GENERATOR`, `LOCK_DELAY`, `ASK_TO_SAVE`), bez powtórzeń.
+- **Kolejność tworzenia** w `AppViewModel`: `UiStateHolder` → `SyncController` → `SyncModel` → `LockController` →
+  pozostałe części. Odwołania wstecz (`locks.onOperationFinished`, `navigation.backToList`) są w lambdach, więc
+  działają po zakończeniu konstrukcji.
+- **Testy** wołają akcje przez grupy (`vm.transfer.importFrom(…)`, `vm.navigation.selectTab(…)`); treść testów
+  bez zmian. Zostało `vm.reloadEntries()` dla testów, które zmieniają sejf poza ekranami.
+- Zostawione na G14: długie ekrany i powtórzone okna dialogowe (CK7, CS14), flaga `sensitive` w `copy` (CW10).
 
 ## Widoki wtyczki
 

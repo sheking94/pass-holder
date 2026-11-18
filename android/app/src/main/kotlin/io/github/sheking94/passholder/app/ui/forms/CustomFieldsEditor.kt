@@ -15,14 +15,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import io.github.sheking94.passholder.app.AppViewModel
+import io.github.sheking94.passholder.app.ui.EntryActions
 import io.github.sheking94.passholder.app.ui.PlainField
 import io.github.sheking94.passholder.app.ui.SecretField
 import io.github.sheking94.passholder.core.p2p.CustomField
 
 /** "Własne pola": label, value and "ukryte"; a hidden value is masked and copied as a secret. */
 @Composable
-fun CustomFieldsEditor(items: List<CustomField>, onChange: (List<CustomField>) -> Unit, vm: AppViewModel) {
+fun CustomFieldsEditor(items: List<CustomField>, onChange: (List<CustomField>) -> Unit, entries: EntryActions) {
     ListEditor(
         title = "Własne pola",
         items = items,
@@ -40,14 +40,14 @@ fun CustomFieldsEditor(items: List<CustomField>, onChange: (List<CustomField>) -
                     field.value,
                     { update(field.copy(value = it)) },
                     "Wartość",
-                    onCopy = { vm.copy(copyLabel, field.value, sensitive = true) },
+                    onCopy = { entries.copy(copyLabel, field.value, sensitive = true) },
                     revealed = revealed,
                     onRevealedChange = { revealed = it },
                 )
             } else {
                 PlainField(field.value, {
                     update(field.copy(value = it))
-                }, "Wartość", onCopy = { vm.copy(copyLabel, field.value, sensitive = false) })
+                }, "Wartość", onCopy = { entries.copy(copyLabel, field.value, sensitive = false) })
             }
             Row(
                 Modifier.toggleable(field.hidden, role = Role.Checkbox) { hidden ->

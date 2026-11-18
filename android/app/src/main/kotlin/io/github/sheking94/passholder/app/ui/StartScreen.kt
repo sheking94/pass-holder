@@ -16,19 +16,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import io.github.sheking94.passholder.app.AppViewModel
 import io.github.sheking94.passholder.app.MasterPasswordRules
 import io.github.sheking94.passholder.app.UiState
 
 /** No vault on the phone yet: a new one, or the one the extension still has after the old phone was lost. */
 @Composable
-fun StartScreen(state: UiState, vm: AppViewModel) {
-    if (state.corruptVault) return CorruptVault(state, vm)
+fun StartScreen(state: UiState, vault: VaultActions) {
+    if (state.corruptVault) return CorruptVault(state, vault)
     var restore by rememberSaveable { mutableStateOf(false) }
     // remember, not rememberSaveable: the master password must not end up in the saved instance state.
     var password by remember { mutableStateOf("") }
     var repeat by remember { mutableStateOf("") }
-    val create = { if (!state.busy) vm.createVault(password, repeat) }
+    val create = { if (!state.busy) vault.createVault(password, repeat) }
 
     FormColumn {
         Text("PassHolder", style = MaterialTheme.typography.headlineSmall)
@@ -61,7 +60,7 @@ fun StartScreen(state: UiState, vm: AppViewModel) {
                     "4. Pozostałe wtyczki sparuj z nowym telefonem; ich zmiany też do niego trafią.",
                 style = MaterialTheme.typography.bodyMedium,
             )
-            Button(onClick = vm::startRestore, enabled = !state.busy) { Text("Rozpocznij odtwarzanie") }
+            Button(onClick = vault::startRestore, enabled = !state.busy) { Text("Rozpocznij odtwarzanie") }
         }
         StatusLine(state.status, state.busy)
     }
@@ -69,7 +68,7 @@ fun StartScreen(state: UiState, vm: AppViewModel) {
 
 /** host.json is damaged: the only way on is to remove what is left and then create or restore the vault. */
 @Composable
-private fun CorruptVault(state: UiState, vm: AppViewModel) {
+private fun CorruptVault(state: UiState, vault: VaultActions) {
     var askDisconnect by remember { mutableStateOf(false) }
     FormColumn {
         Text("PassHolder", style = MaterialTheme.typography.headlineSmall)
@@ -88,7 +87,7 @@ private fun CorruptVault(state: UiState, vm: AppViewModel) {
             confirmButton = {
                 TextButton(onClick = {
                     askDisconnect = false
-                    vm.disconnect()
+                    vault.disconnect()
                 }) { Text("Usuń", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = { TextButton(onClick = { askDisconnect = false }) { Text("Anuluj") } },

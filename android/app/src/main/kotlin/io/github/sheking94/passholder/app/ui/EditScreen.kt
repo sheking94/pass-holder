@@ -15,7 +15,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.dp
-import io.github.sheking94.passholder.app.AppViewModel
 import io.github.sheking94.passholder.app.UiState
 import io.github.sheking94.passholder.app.entries.EntryType
 import io.github.sheking94.passholder.app.entries.emptyContent
@@ -37,8 +36,15 @@ import io.github.sheking94.passholder.core.p2p.NoteFields
  * Zapisz/Anuluj/Usuń. The form edits a copy of the whole content, so what it does not show is saved as it was.
  */
 @Composable
-fun EditScreen(id: String?, type: EntryType, state: UiState, vm: AppViewModel) {
-    // Read from the store when the entry was opened (AppViewModel.openEntry), not from the list on screen.
+fun EditScreen(
+    id: String?,
+    type: EntryType,
+    state: UiState,
+    navigation: Navigation,
+    entries: EntryActions,
+    attachments: AttachmentActions,
+) {
+    // Read from the store when the entry was opened (Navigation.openEntry), not from the list on screen.
     val original = remember(id, type) { state.editing?.takeIf { it.id == id }?.content }
     // remember, not rememberSaveable: entry secrets stay out of the saved instance state.
     var content by remember(id, type) { mutableStateOf(original ?: emptyContent(type)) }
@@ -46,25 +52,25 @@ fun EditScreen(id: String?, type: EntryType, state: UiState, vm: AppViewModel) {
     // Any edit drops an error status (e.g. "Ważność: wpisz MM/RR") left by an earlier save attempt.
     fun edit(updated: EntryContent) {
         content = updated
-        vm.clearError()
+        entries.clearError()
     }
     var askDelete by remember { mutableStateOf(false) }
 
     // Stays enabled while busy (backToList ignores it then): a disabled handler would let Back close the app mid-operation.
-    BackHandler(onBack = vm::backToList)
+    BackHandler(onBack = navigation::backToList)
 
     FormColumn {
         Text(if (original != null) type.editTitle else type.newTitle, style = MaterialTheme.typography.headlineSmall)
         PlainField(content.name, { edit(content.copy(name = it)) }, "Nazwa")
 
         when (val fields = content.fields) {
-            is LoginFields -> LoginForm(fields, { edit(content.copy(fields = it)) }, vm)
+            is LoginFields -> LoginForm(fields, { edit(content.copy(fields = it)) }, entries)
 
-            is ContactFields -> ContactForm(fields, { edit(content.copy(fields = it)) }, vm)
+            is ContactFields -> ContactForm(fields, { edit(content.copy(fields = it)) })
 
-            is CardFields -> CardForm(fields, { edit(content.copy(fields = it)) }, vm)
+            is CardFields -> CardForm(fields, { edit(content.copy(fields = it)) }, entries)
 
-            is DocumentFields -> DocumentForm(fields, { edit(content.copy(fields = it)) }, vm)
+            is DocumentFields -> DocumentForm(fields, { edit(content.copy(fields = it)) })
 
             // A note has no fields of its own: its text is "Treść" below.
             NoteFields -> {}
@@ -76,12 +82,12 @@ fun EditScreen(id: String?, type: EntryType, state: UiState, vm: AppViewModel) {
             if (type == EntryType.NOTE) "Treść" else "Notatka",
             minLines = if (type == EntryType.NOTE) 8 else 3,
         )
-        CustomFieldsEditor(content.custom, { edit(content.copy(custom = it)) }, vm)
-        AttachmentsEditor(content.attachments, { edit(content.copy(attachments = it)) }, vm, state.busy)
+        CustomFieldsEditor(content.custom, { edit(content.copy(custom = it)) }, entries)
+        AttachmentsEditor(content.attachments, { edit(content.copy(attachments = it)) }, attachments, state.busy)
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { vm.save(id, content, original) }, enabled = !state.busy) { Text("Zapisz") }
-            OutlinedButton(onClick = vm::backToList, enabled = !state.busy) { Text("Anuluj") }
+            Button(onClick = { entries.save(id, content, original) }, enabled = !state.busy) { Text("Zapisz") }
+            OutlinedButton(onClick = navigation::backToList, enabled = !state.busy) { Text("Anuluj") }
             if (original != null) {
                 TextButton(onClick = { askDelete = true }, enabled = !state.busy) { Text("Usuń", color = MaterialTheme.colorScheme.error) }
             }
@@ -97,7 +103,7 @@ fun EditScreen(id: String?, type: EntryType, state: UiState, vm: AppViewModel) {
             confirmButton = {
                 TextButton(onClick = {
                     askDelete = false
-                    vm.delete(id)
+                    entries.delete(id)
                 }) { Text("Usuń", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = { TextButton(onClick = { askDelete = false }) { Text("Anuluj") } },

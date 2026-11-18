@@ -19,7 +19,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import io.github.sheking94.passholder.app.AppViewModel
 import io.github.sheking94.passholder.app.UiState
 import io.github.sheking94.passholder.app.UiTexts
 import kotlinx.coroutines.flow.first
@@ -29,23 +28,23 @@ import kotlinx.coroutines.flow.first
  * With fingerprint unlock on, the system dialog opens by itself; the master password always works too.
  */
 @Composable
-fun LockedScreen(state: UiState, vm: AppViewModel) {
+fun LockedScreen(state: UiState, vault: VaultActions, fingerprint: FingerprintActions) {
     // remember, not rememberSaveable: the master password must not end up in the saved instance state.
     var password by remember { mutableStateOf("") }
     var askDisconnect by remember { mutableStateOf(false) }
-    val unlock = { if (!state.busy) vm.unlock(password) }
-    val biometricEnabled by vm.biometricEnabled.collectAsStateWithLifecycle()
+    val unlock = { if (!state.busy) vault.unlock(password) }
+    val biometricEnabled by fingerprint.enabled.collectAsStateWithLifecycle()
     val activity = LocalActivity.current
-    val fingerprint = rememberFingerprintDialog(vm)
-    val unlockWithFinger = { fingerprint.show(UiTexts.UNLOCK_TITLE, vm::cipherToUnlockBiometric, vm::onBiometricUnlockAuthorized) }
+    val dialog = rememberFingerprintDialog(fingerprint)
+    val unlockWithFinger = { dialog.show(UiTexts.UNLOCK_TITLE, fingerprint::cipherToUnlock, fingerprint::onUnlockAuthorized) }
 
-    val timesLeftApp by vm.timesLeftApp.collectAsStateWithLifecycle()
+    val timesLeftApp by fingerprint.timesLeftApp.collectAsStateWithLifecycle()
 
     // On app start and on every return to the app. Waits until the activity is in front: the system dialog
     // cannot be shown by an activity that is still in the background.
     LaunchedEffect(timesLeftApp) {
         (activity as? LifecycleOwner)?.lifecycle?.currentStateFlow?.first { it.isAtLeast(Lifecycle.State.RESUMED) }
-        if (vm.takeFingerprintOnLockedScreen()) unlockWithFinger()
+        if (fingerprint.takeOfferOnLockedScreen()) unlockWithFinger()
     }
 
     FormColumn {
@@ -68,7 +67,7 @@ fun LockedScreen(state: UiState, vm: AppViewModel) {
             confirmButton = {
                 TextButton(onClick = {
                     askDisconnect = false
-                    vm.disconnect()
+                    vault.disconnect()
                 }) { Text("Usuń", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = { TextButton(onClick = { askDisconnect = false }) { Text("Anuluj") } },

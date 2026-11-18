@@ -14,7 +14,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import io.github.sheking94.passholder.app.AppViewModel
 import io.github.sheking94.passholder.app.ui.PlainField
 import io.github.sheking94.passholder.core.p2p.DocumentFields
 import io.github.sheking94.passholder.core.transfer.DOCUMENT_KIND_NAMES
@@ -22,7 +21,7 @@ import io.github.sheking94.passholder.core.transfer.DOCUMENT_KIND_NAMES
 /** Document section: kind (dropdown), number, full name, issue and expiry dates, issuer. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DocumentForm(fields: DocumentFields, onChange: (DocumentFields) -> Unit, vm: AppViewModel) {
+fun DocumentForm(fields: DocumentFields, onChange: (DocumentFields) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(expanded, { expanded = it }) {
         OutlinedTextField(

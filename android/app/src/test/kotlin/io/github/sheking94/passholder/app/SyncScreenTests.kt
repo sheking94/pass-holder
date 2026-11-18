@@ -190,7 +190,7 @@ class LeaveAppStopsSyncTest : SyncScreenTestBase() {
         waitFor("Czekam na wtyczkę…")
         assertEquals(200, ping())
 
-        viewModel().lock()
+        viewModel().vault.lock()
         waitFor("PassHolder jest zablokowany")
         assertNotListening(port)
     }
@@ -269,17 +269,17 @@ class StartStopRaceTest : SyncScreenTestBase() {
         val vm = viewModel()
         // Both on the main thread; each start runs on Dispatchers.IO.
         scenario.onActivity {
-            vm.openSync()
+            vm.navigation.openSync()
             vm.onLeftApp()
         }
         scenario.onActivity {
-            vm.openSync()
-            vm.closeSync()
+            vm.navigation.openSync()
+            vm.sync.closeSync()
         }
         compose.waitForIdle()
         Thread.sleep(1_000)
         compose.waitForIdle()
-        assertFalse(vm.syncState.value.running)
+        assertFalse(vm.sync.state.value.running)
         // The second start leaves for Dispatchers.IO right away and may bind before closeSync runs; then closeSync
         // stops it. Either way nothing may be listening afterwards (it failed in CI when only "never bound" was allowed).
         if (port != -1) assertNotListening(port)

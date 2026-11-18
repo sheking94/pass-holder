@@ -43,20 +43,20 @@ class SettingsScreenTest : ScreenTestBase() {
         // Settings locks like every vault screen.
         menu("Ustawienia")
         waitFor("Blokuj dopiero po 60 s poza aplikacją")
-        compose.runOnIdle { vm.lock() }
+        compose.runOnIdle { vm.vault.lock() }
         waitFor("PassHolder jest zablokowany")
         assertTrue(gone("Blokuj dopiero po 60 s"))
         unlock()
         waitFor("Brak wpisów. Dodaj pierwszy.")
 
         // A half-filled form on another tab, then the vault locks.
-        compose.runOnIdle { vm.selectTab(EntryType.CARD) }
+        compose.runOnIdle { vm.navigation.selectTab(EntryType.CARD) }
         assertEquals(EntryType.CARD, vm.state.value.tab)
         click("+ Dodaj")
         waitFor("Nowa karta")
         type("Nazwa", "Visa firmowa")
         waitFor("Visa firmowa")
-        compose.runOnIdle { vm.lock() }
+        compose.runOnIdle { vm.vault.lock() }
         waitFor("PassHolder jest zablokowany")
         assertTrue(gone("Nowa karta") && gone("Visa firmowa"))
         unlock()
@@ -75,7 +75,7 @@ class SettingsScreenTest : ScreenTestBase() {
         waitFor("Nowy login")
         assertEquals("", editable("Nazwa"))
         click("Anuluj")
-        compose.runOnIdle { vm.selectTab(EntryType.CARD) }
+        compose.runOnIdle { vm.navigation.selectTab(EntryType.CARD) }
         click("+ Dodaj")
         waitFor("Nowa karta")
         assertEquals("", editable("Nazwa"))

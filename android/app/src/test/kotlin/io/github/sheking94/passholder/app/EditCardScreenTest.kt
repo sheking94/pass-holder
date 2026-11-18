@@ -19,7 +19,7 @@ class EditCardScreenTest : ScreenTestBase() {
     @Test
     fun `a new card keeps its secrets masked, copies the CVC and validates the expiry`() {
         createVault()
-        viewModel().selectTab(EntryType.CARD)
+        viewModel().navigation.selectTab(EntryType.CARD)
         compose.waitForIdle()
         click("+ Dodaj")
         waitFor("Nowa karta")

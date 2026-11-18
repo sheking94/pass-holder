@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import io.github.sheking94.passholder.app.AppViewModel
 import io.github.sheking94.passholder.app.ui.PlainField
 import io.github.sheking94.passholder.core.p2p.ContactFields
 import io.github.sheking94.passholder.core.p2p.LabeledValue
@@ -13,7 +12,7 @@ import io.github.sheking94.passholder.core.p2p.PostalAddress
 
 /** Contact section: name, birth date, phones, e-mails and postal addresses. */
 @Composable
-fun ContactForm(fields: ContactFields, onChange: (ContactFields) -> Unit, vm: AppViewModel) {
+fun ContactForm(fields: ContactFields, onChange: (ContactFields) -> Unit) {
     PlainField(fields.firstName, { onChange(fields.copy(firstName = it)) }, "Imię")
     PlainField(fields.lastName, { onChange(fields.copy(lastName = it)) }, "Nazwisko")
     PlainField(fields.birthDate, { onChange(fields.copy(birthDate = it)) }, "Data urodzenia", placeholder = "RRRR-MM-DD")

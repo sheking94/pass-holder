@@ -26,7 +26,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import io.github.sheking94.passholder.app.AppViewModel
 import io.github.sheking94.passholder.app.UiState
 import io.github.sheking94.passholder.app.entries.EntryType
 import io.github.sheking94.passholder.app.entries.entrySummary
@@ -34,21 +33,21 @@ import io.github.sheking94.passholder.app.entries.matchesQuery
 import io.github.sheking94.passholder.core.p2p.LoginFields
 
 @Composable
-fun ListScreen(state: UiState, vm: AppViewModel) {
+fun ListScreen(state: UiState, navigation: Navigation, vault: VaultActions, entries: EntryActions) {
     // The phrase belongs to the tab: changing tabs starts a fresh search.
     var query by rememberSaveable(state.tab) { mutableStateOf("") }
     val rows = state.entries.filter { EntryType.of(it.content.fields) == state.tab }
         .filter { query.isBlank() || matchesQuery(it.content, query) }
 
     Scaffold(
-        topBar = { VaultTopBar(state, vm) },
+        topBar = { VaultTopBar(state, navigation, vault) },
         bottomBar = {
             // PassHolderUi already keeps every screen out of the system bars.
             NavigationBar(windowInsets = WindowInsets(0)) {
                 EntryType.entries.forEach { type ->
                     NavigationBarItem(
                         selected = type == state.tab,
-                        onClick = { vm.selectTab(type) },
+                        onClick = { navigation.selectTab(type) },
                         icon = { Text(type.icon) },
                         label = { Text(type.tab, maxLines = 1) },
                     )
@@ -62,7 +61,7 @@ fun ListScreen(state: UiState, vm: AppViewModel) {
                 OutlinedTextField(query, {
                     query = it
                 }, placeholder = { Text("Szukaj…") }, singleLine = true, modifier = Modifier.weight(1f))
-                Button(onClick = { vm.newEntry(state.tab) }, enabled = !state.busy) { Text("+ Dodaj") }
+                Button(onClick = { navigation.newEntry(state.tab) }, enabled = !state.busy) { Text("+ Dodaj") }
             }
             if (state.unreadable > 0) {
                 Text(
@@ -80,7 +79,7 @@ fun ListScreen(state: UiState, vm: AppViewModel) {
                 items(rows, key = { it.id }) { entry ->
                     val login = entry.content.fields as? LoginFields
                     Row(
-                        Modifier.clickable(enabled = !state.busy) { vm.openEntry(entry.id) }.padding(vertical = 8.dp),
+                        Modifier.clickable(enabled = !state.busy) { navigation.openEntry(entry.id) }.padding(vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
@@ -101,8 +100,8 @@ fun ListScreen(state: UiState, vm: AppViewModel) {
                             )
                         }
                         if (login != null) {
-                            TextButton(onClick = { vm.copy("login", login.username, false) }) { Text("Login") }
-                            TextButton(onClick = { vm.copy("hasło", login.password, true) }) { Text("Hasło") }
+                            TextButton(onClick = { entries.copy("login", login.username, false) }) { Text("Login") }
+                            TextButton(onClick = { entries.copy("hasło", login.password, true) }) { Text("Hasło") }
                         }
                     }
                     HorizontalDivider()

@@ -7,51 +7,45 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
-import io.github.sheking94.passholder.app.AppViewModel
 import io.github.sheking94.passholder.app.InstalledApp
-import io.github.sheking94.passholder.app.PassHolderApp
+import io.github.sheking94.passholder.app.ui.EntryActions
 import io.github.sheking94.passholder.app.ui.PlainField
 import io.github.sheking94.passholder.app.ui.SecretField
 import io.github.sheking94.passholder.core.p2p.LoginFields
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** Login section: login, password with the generator, TOTP, web addresses and Android apps. */
 @Composable
-fun LoginForm(fields: LoginFields, onChange: (LoginFields) -> Unit, vm: AppViewModel) {
+fun LoginForm(fields: LoginFields, onChange: (LoginFields) -> Unit, entries: EntryActions) {
     var passwordShown by remember { mutableStateOf(false) }
     PlainField(fields.username, {
         onChange(fields.copy(username = it))
-    }, "Login", onCopy = { vm.copy("login", fields.username, sensitive = false) })
+    }, "Login", onCopy = { entries.copy("login", fields.username, sensitive = false) })
     SecretField(
         fields.password,
         { onChange(fields.copy(password = it)) },
         "Hasło",
-        onCopy = { vm.copy("hasło", fields.password, sensitive = true) },
+        onCopy = { entries.copy("hasło", fields.password, sensitive = true) },
         monospace = true,
         revealed = passwordShown,
         onRevealedChange = { passwordShown = it },
     )
-    GeneratorCard(vm) {
+    GeneratorCard(entries) {
         onChange(fields.copy(password = it))
         passwordShown = true
     }
     SecretField(fields.totp, {
         onChange(fields.copy(totp = it))
-    }, "TOTP", onCopy = { vm.copy("kod TOTP", fields.totp, sensitive = true) }, monospace = true)
+    }, "TOTP", onCopy = { entries.copy("kod TOTP", fields.totp, sensitive = true) }, monospace = true)
     ListEditor("Adresy stron", fields.urls, { onChange(fields.copy(urls = it)) }, "Dodaj adres", { "" }) { url, update ->
         PlainField(url, update, "Adres strony", keyboardType = KeyboardType.Uri, placeholder = "https://")
     }
-    val apps = rememberInstalledApps()
+    val apps = rememberInstalledApps(entries)
     val labels = apps.orEmpty().associate { it.packageName to it.label }
     var picking by remember { mutableStateOf(false) }
-    val phApp = LocalContext.current.applicationContext as PassHolderApp
-    val scope = rememberCoroutineScope()
     ListEditor(
         "Aplikacje Androida",
         fields.androidApps,
@@ -70,7 +64,7 @@ fun LoginForm(fields: LoginFields, onChange: (LoginFields) -> Unit, vm: AppViewM
             apps.orEmpty(),
             onPick = { pkg ->
                 // The picked installed app is the one tied to the login: remember its certificate (V3-S3).
-                scope.launch(Dispatchers.IO) { runCatching { phApp.appTrust.remember(pkg) } }
+                entries.trustPickedApp(pkg)
                 if (pkg !in fields.androidApps) onChange(fields.copy(androidApps = fields.androidApps + pkg))
                 picking = false
             },
@@ -82,10 +76,9 @@ fun LoginForm(fields: LoginFields, onChange: (LoginFields) -> Unit, vm: AppViewM
 
 /** The installed launcher apps, read off the main thread; null until loaded. */
 @Composable
-private fun rememberInstalledApps(): List<InstalledApp>? {
-    val app = LocalContext.current.applicationContext as PassHolderApp
+private fun rememberInstalledApps(entries: EntryActions): List<InstalledApp>? {
     var apps by remember { mutableStateOf<List<InstalledApp>?>(null) }
     // A failing PackageManager must not leave the picker on "Ładuję…".
-    LaunchedEffect(Unit) { apps = withContext(Dispatchers.IO) { runCatching { app.installedApps.list() }.getOrDefault(emptyList()) } }
+    LaunchedEffect(Unit) { apps = withContext(Dispatchers.IO) { runCatching { entries.installedApps() }.getOrDefault(emptyList()) } }
     return apps
 }

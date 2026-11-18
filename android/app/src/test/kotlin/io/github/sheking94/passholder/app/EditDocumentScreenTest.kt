@@ -17,7 +17,7 @@ class EditDocumentScreenTest : ScreenTestBase() {
     @Test
     fun `a new document saves the picked kind and refuses a bad expiry date`() {
         createVault()
-        viewModel().selectTab(EntryType.DOCUMENT)
+        viewModel().navigation.selectTab(EntryType.DOCUMENT)
         compose.waitForIdle()
         click("+ Dodaj")
         waitFor("Nowy dokument")
