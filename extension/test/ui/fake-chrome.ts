@@ -139,13 +139,13 @@ export async function setupPopup(
   const fetchFn = networkFetch(network);
   // The views' store builds its PhoneClients with the global fetch.
   vi.stubGlobal("fetch", fetchFn);
-  const pairing = new VaultStore(
-    chromeStore(local),
-    chromeStore(session),
-    (url) => new PhoneClient(url, fetchFn),
-  );
+  const pairing = new VaultStore({
+    local: chromeStore(local),
+    session: chromeStore(session),
+    makeClient: (url) => new PhoneClient(url, fetchFn),
+  });
   phone.offerPairing();
-  await pairing.pairStart(PHONE_URL, CODE, "Chrome (Linux)");
+  await pairing.pairStart([PHONE_URL], CODE, "Chrome (Linux)");
   await pairing.pairFinish(PASSWORD);
   for (const { id, content } of entries) await pairing.putEntry(id, content);
 

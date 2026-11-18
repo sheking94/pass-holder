@@ -78,7 +78,7 @@ describe("VaultStore auto-lock while a page is open (S1)", () => {
   it("a page adopts a deadline moved by another page, and locks when another page locked", async () => {
     const clock = { now: 1_000_000 };
     const { local, session, store: tab } = await unlockedBrowser(clock);
-    const popup = new VaultStore(local, session, undefined, () => clock.now);
+    const popup = new VaultStore({ local, session, now: () => clock.now });
 
     clock.now += AUTO_LOCK_MS - 1000;
     expect(await popup.resume()).toBe(true); // the popup opened: the deadline moves for everyone

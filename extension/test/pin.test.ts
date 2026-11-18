@@ -71,7 +71,7 @@ describe("Unlocking with a PIN", () => {
 
   it("counts parallel wrong PINs from several popup tabs one by one (V3-N4)", async () => {
     const { local, session, store } = await lockedBrowserWithPin();
-    const tabs = [store, new VaultStore(local, session), new VaultStore(local, session)];
+    const tabs = [store, new VaultStore({ local, session }), new VaultStore({ local, session })];
     const results = await Promise.allSettled(tabs.map((tab) => tab.unlockWithPin("0000")));
     expect(results.every((r) => r.status === "rejected")).toBe(true);
     expect((await store.pinStatus())?.attemptsLeft).toBe(MAX_PIN_ATTEMPTS - 3);
@@ -97,12 +97,20 @@ describe("Unlocking with a PIN", () => {
   it("forgets a session PIN when the browser restarts, keeps a remembered one", async () => {
     const memoryOnly = await lockedBrowserWithPin(false);
     expect(await memoryOnly.local.get(STORAGE_KEYS.pinLock)).toBeUndefined();
-    const restarted = new VaultStore(memoryOnly.local, memoryStore(), memoryOnly.makeClient); // session storage is empty after a restart
+    const restarted = new VaultStore({
+      local: memoryOnly.local,
+      session: memoryStore(),
+      makeClient: memoryOnly.makeClient,
+    }); // session storage is empty after a restart
     expect(await restarted.pinStatus()).toBeUndefined();
 
     const remembered = await lockedBrowserWithPin(true);
     expect(await remembered.session.get(STORAGE_KEYS.pinLock)).toBeUndefined();
-    const restarted2 = new VaultStore(remembered.local, memoryStore(), remembered.makeClient);
+    const restarted2 = new VaultStore({
+      local: remembered.local,
+      session: memoryStore(),
+      makeClient: remembered.makeClient,
+    });
     expect(await restarted2.pinStatus()).toEqual({
       rememberedAfterRestart: true,
       attemptsLeft: MAX_PIN_ATTEMPTS,

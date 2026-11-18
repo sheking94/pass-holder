@@ -31,7 +31,7 @@ describe("pending pairing as the connect screen sees it", () => {
     const { store, session } = newBrowser(new Map([[PHONE_URL, phone]]));
     expect(await store.hasPendingPairing()).toBe(false);
     phone.offerPairing();
-    await store.pairStart(PHONE_URL, CODE, "Chrome (Linux)");
+    await store.pairStart([PHONE_URL], CODE, "Chrome (Linux)");
 
     expect(await store.hasPendingPairing()).toBe(true);
     expect(await store.pendingPairing()).toEqual({
@@ -55,13 +55,13 @@ describe("pending pairing as the connect screen sees it", () => {
       () => clock,
     );
     phone.offerPairing();
-    await store.pairStart(PHONE_URL, CODE, "Chrome");
+    await store.pairStart([PHONE_URL], CODE, "Chrome");
     expect(PAIRING_PENDING_MS).toBe(10 * 60_000);
 
     clock += PAIRING_PENDING_MS - 1;
     expect(await store.hasPendingPairing()).toBe(true);
     clock += 1;
-    const reopened = new VaultStore(local, session, makeClient, () => clock);
+    const reopened = new VaultStore({ local, session, makeClient, now: () => clock });
     expect(await reopened.hasPendingPairing()).toBe(false);
     expect(await session.get(STORAGE_KEYS.pendingPairing)).toBeUndefined();
     await expect(reopened.pairFinish(PASSWORD)).rejects.toThrow("Najpierw sparuj");
@@ -72,7 +72,7 @@ describe("pending pairing as the connect screen sees it", () => {
     const phone = await FakePhone.withVault(PASSWORD, [PHONE_URL]);
     const { store, session } = newBrowser(new Map([[PHONE_URL, phone]]), () => clock);
     phone.offerPairing();
-    await store.pairStart(PHONE_URL, CODE, "Chrome (Linux)");
+    await store.pairStart([PHONE_URL], CODE, "Chrome (Linux)");
     clock += PAIRING_PENDING_MS;
     await expect(store.pairFinish(PASSWORD)).rejects.toThrow(
       "Parowanie wygasło. Poproś telefon o nowy kod. Na telefonie usuń „Chrome (Linux)” z „Urządzenia”.",
@@ -85,7 +85,7 @@ describe("pending pairing as the connect screen sees it", () => {
     const phone = await FakePhone.withVault(PASSWORD, [PHONE_URL]);
     const { store, session } = newBrowser(new Map([[PHONE_URL, phone]]), () => clock);
     phone.offerPairing();
-    await store.pairStart(PHONE_URL, CODE, "Chrome");
+    await store.pairStart([PHONE_URL], CODE, "Chrome");
     clock -= 1;
     expect(await store.hasPendingPairing()).toBe(false);
     expect(await session.get(STORAGE_KEYS.pendingPairing)).toBeUndefined();
@@ -113,7 +113,7 @@ describe("first sync after pairing", () => {
     const network = new Map([[PHONE_URL, phone]]);
     const { store, session } = newBrowser(network);
     phone.offerPairing();
-    await store.pairStart(PHONE_URL, CODE, "Chrome");
+    await store.pairStart([PHONE_URL], CODE, "Chrome");
     network.clear(); // sync mode went off between the code and the password
 
     const error = await store.pairFinish(PASSWORD).catch((e: unknown) => e);
@@ -136,7 +136,7 @@ describe("first sync after pairing", () => {
       if (path === "/p2p/v1/pair/finish") network.clear();
       return reply;
     };
-    const error = await store.repair(PHONE_URL, CODE, PASSWORD).catch((e: unknown) => e);
+    const error = await store.repair([PHONE_URL], CODE, PASSWORD).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(PairedButSyncFailed);
     expect((error as PairedButSyncFailed).mode).toBe("paired");
     expect((error as Error).message).toContain("pierwsza synchronizacja się nie udała");
@@ -156,7 +156,7 @@ describe("host permissions", () => {
       async (u) => allowed.has(u) || u === PHONE_URL,
     );
     phone.offerPairing();
-    await store.pairStart(PHONE_URL, CODE, "Chrome");
+    await store.pairStart([PHONE_URL], CODE, "Chrome");
     await store.pairFinish(PASSWORD);
     allowed.clear();
     phone.addresses = [PHONE_URL, SECOND_URL];
@@ -172,7 +172,7 @@ describe("host permissions", () => {
     const phone = await FakePhone.withVault(PASSWORD, [PHONE_URL]);
     const { store } = newBrowser(new Map([[PHONE_URL, phone]]), Date.now, async () => allow);
     phone.offerPairing();
-    await store.pairStart(PHONE_URL, CODE, "Chrome");
+    await store.pairStart([PHONE_URL], CODE, "Chrome");
     await store.pairFinish(PASSWORD);
     allow = false;
     const calls = phone.calls.length;

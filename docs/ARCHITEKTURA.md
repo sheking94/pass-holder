@@ -77,13 +77,14 @@ osobno przez `fake-indexeddb`). Treść jawna nigdy nie jest zapisywana: odszyfr
 | Plik | Co robi |
 |---|---|
 | `src/popup.ts` | `start()`: wybiera pierwszy widok i włącza automatyczną blokadę strony |
-| `src/vault-store.ts` | `VaultStore`: konto, lokalny sejf, parowanie (`pairStart`, `pairFinish`, `repair`: też nowym hasłem z telefonu po zmianie hasła głównego), `sync`, adresy, PIN, import, `exportArchive` / `importArchive` (ZIP: plik po pliku, odszyfrowanie na czas jednego pliku; błąd archiwum albo blokada sejfu usuwa dodane pliki); serce wtyczki. Wpisy każdego typu: `listEntries(typ)`, `getEntry`, `putEntry` (odmowa zapisu pod `id` innego typu); import przez `importContents` (wszystkie typy, jeden zapis), eksport przez `allContents`; starą treść v2 czyta jako login |
+| `src/vault-store.ts` | `VaultStore`: cienka fasada nad częściami z `src/vault/` (opis w „Podział `VaultStore`”); sama robi tylko odblokowanie (hasło, PIN), ustawienia PIN-u i odłączenie. Tworzona jednym obiektem opcji `{ local, session, makeClient?, now?, canReach?, fileStore? }`; publiczne API bez zmian. Re-eksportuje typy i teksty z `src/vault/` |
+| `src/vault/*.ts` | części sejfu wtyczki: `session.ts` (stan odblokowania i blokada po 15 min), `account.ts` (konto, hasło główne, klucz statyczny), `local-vault.ts` (zapis sejfu na dysku), `entries.ts`, `files.ts`, `transfer.ts` (import i eksport), `sync.ts`, `pairing.ts` (`pairStart`, `pairFinish`, `repair`: też nowym hasłem z telefonu po zmianie hasła głównego), `messages.ts` (teksty i błędy `UnsyncedChanges`, `PairedButSyncFailed`) |
 | `src/entry-types.ts` | typy wpisów w kolejności zakładek (`ENTRY_TYPES`, `TYPE_INFO`), rodzaje dokumentu, pusty wpis, opis wiersza (`entrySummary`), wyszukiwanie, sprzątanie przed zapisem (`tidyContent`) i sprawdzanie formatów (`validateContent`) |
 | `src/storage.ts` | klucze `chrome.storage` (`STORAGE_KEYS`), `chromeStore`, `memoryStore` do testów |
 | `src/phone-client.ts` | `PhoneClient`: JSON `POST` do telefonu z limitem 30 s; brak odpowiedzi → `PhoneUnreachableError` |
 | `src/error-messages.ts` | jedyne miejsce, gdzie kody błędów rdzenia stają się polskim tekstem: `errorMessage(error: unknown)` (tekst dla użytkownika z dowolnej wartości), `toUserError` (błąd z tekstem dla ekranu, oryginał w `cause`), wspólne teksty (`PHONE_UNREACHABLE`, `UNLOCK_AND_RETRY`…) |
 | `src/result.ts` | `ActionResult` (`{ ok: true }` albo `{ ok: false; error }`): wynik akcji przesyłany między tłem a stronami (wypełnianie, odpowiedź na pytanie o zapis) |
-| `src/phone-urls.ts` | adresy telefonu: `normalizePhoneUrl` (tylko IPv4), `learnedPhoneUrls`, `pickPhone` (wybór działającego adresu, ping 4 s) |
+| `src/phone-urls.ts` | adresy telefonu: `normalizePhoneUrl` (tylko IPv4), `requirePhoneUrls` (co najmniej jeden), `learnedPhoneUrls`, `withLearned`, `answeredFirst`, `pickPhone` (wybór działającego adresu, ping 4 s) |
 | `src/auto-lock.ts` | blokada po 15 minutach: `watchIdle` na stronie i alarm w service workerze |
 | `src/pin-lock.ts`, `src/pin-store.ts` | PIN: kryptografia (`createPinLock`, `openPinLock`) i przechowywanie z licznikiem prób |
 | `src/import-summary.ts`, `src/plural.ts` | polskie podsumowanie importu (dodano, duplikaty, pominięte) i odmiana „wpis/wpisy/wpisów” oraz zdanie o pominiętych plikach (`skippedFilesPhrase`) |
@@ -333,8 +334,9 @@ Ustalone w grupie G8 przeglądu czystości kodu V3. Zachowanie i wektory testowe
   `responderWithEphemeral`, `_cpaceInternals.startWithScalar`; Kotlin przeciążenia `internal` (`Aead.seal(…, nonce)`,
   `Pairing.sealIdentity(…, nonce)`, `Cpace.start(…, ya)`, `NoiseKK.initiator(…, e)`, `FileChunks.encryptFixed`).
   Wektory pary i wpisów w TS sprawdza `sealWithNonce` na tym samym tekście JSON, który pieczętuje kod produkcyjny.
-- **Poza G8:** `VaultStore.repair`, `decideFor` i konstruktor `VaultStore` (G10), `ResponseBuilder` i
-  `BiometricUnlock.authenticate` (G14), bo te grupy i tak zmieniają te pliki.
+- **Poza G8:** `VaultStore.repair`, `decideFor` i konstruktor `VaultStore` (zrobione w G10, zob. „Podział
+  `VaultStore` i pytania o zapis”), `ResponseBuilder` i `BiometricUnlock.authenticate` (G14), bo te grupy i tak
+  zmieniają te pliki.
 
 ## Import, eksport i format wpisu
 
@@ -352,7 +354,7 @@ Ustalone w grupie G9 przeglądu czystości kodu V3 (CK4, CW6, CW8, CS5). Wektory
   `orNull`, `filledCustom`, `filledFields`.
 - **Eksport ZIP** (Kotlin `PassHolderZip.export`): `plan` (pierwsze przejście: które pliki da się odczytać, numery
   ścieżek), `indexJson` (passholder.json), `writeZip` (indeks, potem pliki; `missing` z obu przejść).
-- **Import archiwum**: wtyczka `VaultStore.importArchive` → `storeArchivedFiles` (pliki jednego wpisu) i
+- **Import archiwum**: wtyczka `VaultStore.importArchive` (od G10 w `VaultTransfer`) → `storeArchivedFiles` (pliki jednego wpisu) i
   `readArchivedFile` (rozmiar jak w opisie); typ `OpenedArchive` z `openPassHolderZip`. Telefon
   `PhoneVaultStore.importArchive` → `prepareArchive` → `storeArchivedFiles`; wynik to `ImportedArchive(parsed,
   result)` zamiast zagnieżdżonych par.
@@ -366,6 +368,37 @@ Ustalone w grupie G9 przeglądu czystości kodu V3 (CK4, CW6, CW8, CS5). Wektory
   host `www.` nie ma hosta. Jedyna zmiana zachowania w G9: autouzupełnianie (`matchUrl`), które wcześniej z `www.`
   robiło `www`, też go odrzuca. Przy okazji Kotlin wyrównał się do wtyczki: nazwa wiersza NordPass z hostem IDN jest
   w punycode, a `saveUrl` bez `://` zwraca null (telefon zawsze podaje schemat).
+
+## Podział `VaultStore` i pytania o zapis
+
+Ustalone w grupie G10 przeglądu czystości kodu V3 (CK1, CW14, CS19, z G8: `repair`, `decideFor`). Zachowanie bez
+zmian; zmieniły się tylko wywołania w kodzie (opcje konstruktora, adresy zawsze jako tablica).
+
+`VaultStore` (fasada) tworzy części i podaje im wspólne zależności:
+
+| Część | Plik | Za co odpowiada |
+|---|---|---|
+| `VaultSession` | `vault/session.ts` | sejf, klucz i zegar w pamięci strony; `require*` rzuca „Sejf jest zablokowany” po 15 min; `start`, `save` (sejf na dysk + przesunięcie terminu), `loadVault`, `resume`, `lockIfIdle`, `noteActivity`, `lock`; `isCurrent(vault)` = ta sama sesja |
+| `AccountStore` | `vault/account.ts` | konto w `chrome.storage.local` (`get`, `require`, `save`, `setPhoneUrls`); funkcje `unwrapWithPassword`, `sealStaticKey`/`openStaticKey`/`opensStaticKey`, `identityOf` |
+| `VaultEntries` | `vault/entries.ts` | `list`, `get`, `put` (pliki przed wpisem, przy odmowie usuwane), `delete`, `pendingCount`, `allContents` |
+| `VaultFiles` | `vault/files.ts` | stan i odczyt pliku, `add`, `discard`, `prune` (pliki bez wpisu), `removeAll`, faza plików synchronizacji (`syncPhase`, lista uszkodzonych) |
+| `VaultTransfer` | `vault/transfer.ts` | `importContents`, `exportArchive`, `importArchive` → `withStoredFiles` → `storeArchivedFiles` |
+| `VaultSync` | `vault/sync.ts` | `sync`: adresy z zgodą Chrome (`splitByPermission`), wpisy, pliki, potem `learnAddresses` |
+| `VaultPairing` | `vault/pairing.ts` | `start`, `finish`, `cancel`, `pendingInfo`, `repair` |
+
+- **`repair`** składa kroki: `localCopy` (sejf tej przeglądarki, jeśli hasło go otwiera), sprawdzenie trybu telefonu
+  (`phoneMode`), `pairWithPhone` (z `restoreInfo`, gdy jest lokalna kopia), w trybie „pair” `adoptPhoneVault`
+  (klucz z kopii telefonu musi być kluczem tego sejfu), zapis konta i pierwsza synchronizacja. Kolejność sprawdzeń
+  hasła i zużycia kodu jak wcześniej.
+- **Adresy**: `pairStart` i `repair` przyjmują tylko tablicę (`readonly string[]`); `pairStart` nic nie zwraca.
+  „Adres, który odpowiedział, potem reszta” to `answeredFirst`.
+- **Uszkodzone pliki** (`FileSyncResult.corrupted`): jedna lista `{ id, name }` zamiast dwóch równoległych.
+- **`save/candidates.ts`**: kandydat trzyma formularz jako `form: { origin, signature }` (było sklejone
+  `origin|podpis` i rozcinane `split`). Loginy dla adresu są dopasowywane raz (`matching`), decyzję liczy
+  `decideFor(logins, login, hasło)`, podgląd `previewDecision`. `handleAnswer` tylko rozdziela: `answerSave`
+  („Zapisz”), `addToNever` i usunięcie kandydata („Później”, „Nigdy”). Pełne nazwy (`message`, `sender`, `candidate`).
+  Kandydaci żyją w `chrome.storage.session`, którą Chrome czyści przy aktualizacji wtyczki, więc stary format
+  nie wymaga migracji.
 
 ## Przepływ autouzupełniania (Chrome)
 

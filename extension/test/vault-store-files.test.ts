@@ -33,7 +33,7 @@ async function secondBrowser(network: Network) {
   if (!phone || phone === "hang") throw new Error("no phone");
   const b = newBrowser(network);
   phone.offerPairing();
-  await b.store.pairStart(PHONE_URL, CODE, "Chrome B");
+  await b.store.pairStart([PHONE_URL], CODE, "Chrome B");
   await b.store.pairFinish(PASSWORD);
   return b;
 }
@@ -57,7 +57,6 @@ describe("attachments in the vault store", () => {
       downloaded: 0,
       pending: 0,
       corrupted: [],
-      corruptedIds: [],
     });
     expect(await a.store.fileUploaded(ef.attachment)).toBe(true);
     expect(a.phone.files.have(ef.attachment.id)).toEqual([0, 1, 2]);
@@ -96,7 +95,6 @@ describe("attachments in the vault store", () => {
       downloaded: 0,
       pending: 0,
       corrupted: [],
-      corruptedIds: [],
     });
     // status plus the two chunks the phone lacked.
     expect(fileCalls(a.phone.calls) - before).toBe(3);
@@ -207,7 +205,7 @@ describe("attachments in the vault store", () => {
     await a.phone.addContent("e1", loginWith("bank.pl", [ef.attachment]));
 
     const first = await a.store.sync();
-    expect(first.files.corrupted).toEqual(["skan.pdf"]);
+    expect(first.files.corrupted).toEqual([{ id: ef.attachment.id, name: "skan.pdf" }]);
     expect(first.files.error).toBeUndefined();
     expect(await a.store.fileStatus(ef.attachment)).toBe("corrupted");
     expect(await a.local.get(STORAGE_KEYS.corruptFiles)).toEqual([ef.attachment.id]);
@@ -219,7 +217,6 @@ describe("attachments in the vault store", () => {
       downloaded: 0,
       pending: 0,
       corrupted: [],
-      corruptedIds: [],
     });
     expect(fileCalls(a.phone.calls)).toBe(before);
     expect(await a.store.fileStatus(ef.attachment)).toBe("corrupted");

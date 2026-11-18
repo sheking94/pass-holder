@@ -55,14 +55,14 @@ describe("VaultStore edge cases", () => {
   }, 30_000);
 
   it("refuses to use the vault while locked", async () => {
-    const browser = new VaultStore(memoryStore(), memoryStore());
+    const browser = new VaultStore({ local: memoryStore(), session: memoryStore() });
     expect(() => browser.listEntries("login")).toThrow("zablokowany");
     await expect(
       browser.putEntry("1", newLogin({ name: "a.pl", username: "u", password: "p" })),
     ).rejects.toThrow("zablokowany");
     await expect(browser.sync()).rejects.toThrow("zablokowany");
     await expect(browser.unlock(PASSWORD)).rejects.toThrow("nie jest sparowana");
-    await expect(browser.repair(PHONE_URL, CODE, PASSWORD)).rejects.toThrow("nie jest sparowana");
+    await expect(browser.repair([PHONE_URL], CODE, PASSWORD)).rejects.toThrow("nie jest sparowana");
   });
 
   it("refuses a phone that sends weak KDF parameters", async () => {
@@ -70,7 +70,7 @@ describe("VaultStore edge cases", () => {
     phone.kdf = { ...phone.kdf!, memoryKiB: 8, iterations: 1, parallelism: 1 };
     const { store, session } = newBrowser(new Map([[PHONE_URL, phone]]));
     phone.offerPairing();
-    await expect(store.pairStart(PHONE_URL, CODE, "Chrome")).rejects.toThrow(
+    await expect(store.pairStart([PHONE_URL], CODE, "Chrome")).rejects.toThrow(
       "Telefon odpowiedział niepoprawnie.",
     );
     expect(await session.get(STORAGE_KEYS.pendingPairing)).toBeUndefined();
@@ -80,7 +80,7 @@ describe("VaultStore edge cases", () => {
     const phone = await FakePhone.withVault(PASSWORD, [PHONE_URL]);
     const { store, session } = newBrowser(new Map([[PHONE_URL, phone]]));
     phone.offerPairing();
-    await expect(store.pairStart(PHONE_URL, "87654321", "Chrome")).rejects.toThrow(
+    await expect(store.pairStart([PHONE_URL], "87654321", "Chrome")).rejects.toThrow(
       "Zły kod parowania",
     );
     expect(await session.get(STORAGE_KEYS.pendingPairing)).toBeUndefined();
@@ -89,14 +89,14 @@ describe("VaultStore edge cases", () => {
 
   it("refuses an empty or too long device name", async () => {
     const { store } = newBrowser(new Map());
-    await expect(store.pairStart(PHONE_URL, CODE, "  ")).rejects.toThrow("nazwę");
-    await expect(store.pairStart(PHONE_URL, CODE, "x".repeat(65))).rejects.toThrow("nazwę");
+    await expect(store.pairStart([PHONE_URL], CODE, "  ")).rejects.toThrow("nazwę");
+    await expect(store.pairStart([PHONE_URL], CODE, "x".repeat(65))).rejects.toThrow("nazwę");
   });
 
   it("refuses to pair a browser that is already paired as a new account", async () => {
     const { store, phone } = await pairedBrowser();
     phone.offerPairing();
-    await expect(store.pairStart(PHONE_URL, CODE, "Chrome")).rejects.toThrow("już sparowana");
+    await expect(store.pairStart([PHONE_URL], CODE, "Chrome")).rejects.toThrow("już sparowana");
   }, 30_000);
 
   it("a phone that forgot this browser is reported by sync", async () => {
@@ -192,7 +192,11 @@ describe("phone that only speaks v1", () => {
           : await phone.handle(path, JSON.parse(String(init?.body ?? "{}")));
       return Response.json(reply.body, { status: reply.status });
     }) as typeof fetch;
-    const reopened = new VaultStore(local, session, (url) => new PhoneClient(url, oldPhone));
+    const reopened = new VaultStore({
+      local,
+      session,
+      makeClient: (url) => new PhoneClient(url, oldPhone),
+    });
     await reopened.unlock(PASSWORD);
     await expect(reopened.sync()).rejects.toThrow("Zaktualizuj aplikację na telefonie");
   }, 30_000);

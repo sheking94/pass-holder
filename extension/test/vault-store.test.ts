@@ -8,6 +8,7 @@ import {
   VaultStore,
   type Account,
 } from "../src/vault-store.ts";
+import { openVault } from "../src/vault/local-vault.ts";
 import {
   CODE,
   FakePhone,
@@ -34,9 +35,7 @@ describe("pairing a new browser with the phone", () => {
     const { store, session, local } = newBrowser(new Map([[PHONE_URL, phone]]));
     phone.offerPairing();
 
-    expect(await store.pairStart(PHONE_URL, CODE, "Chrome (Linux)")).toEqual({
-      needsPassword: true,
-    });
+    await store.pairStart([PHONE_URL], CODE, "Chrome (Linux)");
     expect(await session.get(STORAGE_KEYS.pendingPairing)).toBeDefined();
     expect(await store.getAccount()).toBeUndefined();
     expect(phone.devices.map((d) => d.name)).toEqual(["Chrome (Linux)"]);
@@ -73,14 +72,14 @@ describe("pairing a new browser with the phone", () => {
     await phone.addEntry("1", "bank.pl");
     const { store, local, session, makeClient } = newBrowser(new Map([[PHONE_URL, phone]]));
     phone.offerPairing();
-    await store.pairStart(PHONE_URL, CODE, "Chrome");
+    await store.pairStart([PHONE_URL], CODE, "Chrome");
 
     await expect(store.pairFinish("wrong password")).rejects.toThrow("Złe hasło główne");
     expect(await store.getAccount()).toBeUndefined();
     expect(await session.get(STORAGE_KEYS.pendingPairing)).toBeDefined();
 
     // The popup was closed in between: a new VaultStore on the same storage finishes the pairing.
-    const reopened = new VaultStore(local, session, makeClient);
+    const reopened = new VaultStore({ local, session, makeClient });
     await reopened.pairFinish(PASSWORD);
     expect(names(reopened)).toEqual(["bank.pl"]);
     expect(phone.calls.filter((c) => c === "/p2p/v1/pair/start")).toHaveLength(1);
@@ -95,7 +94,7 @@ describe("pairing a new browser with the phone", () => {
     const phone = FakePhone.waitingForRestore([PHONE_URL]);
     const { store, session } = newBrowser(new Map([[PHONE_URL, phone]]));
     phone.offerPairing();
-    await expect(store.pairStart(PHONE_URL, CODE, "Chrome")).rejects.toThrow(
+    await expect(store.pairStart([PHONE_URL], CODE, "Chrome")).rejects.toThrow(
       "Telefon czeka na odtworzenie sejfu z wtyczki",
     );
     expect(phone.calls).not.toContain("/p2p/v1/pair/start");
@@ -110,7 +109,7 @@ describe("pairing a new browser with the phone", () => {
       "http://[::1]:8787",
       "192.168.1.300",
     ]) {
-      await expect(store.pairStart(bad, CODE, "Chrome")).rejects.toThrow(
+      await expect(store.pairStart([bad], CODE, "Chrome")).rejects.toThrow(
         "Nieprawidłowy adres telefonu",
       );
     }
@@ -126,12 +125,16 @@ describe("pairing an existing browser again (repair)", () => {
     // Another phone with its own vault, even under the same master password.
     const other = await FakePhone.withVault(PASSWORD, [SECOND_URL]);
     const browser = newBrowser(new Map([[SECOND_URL, other]]));
-    const sameStore = new VaultStore(local, browser.session, browser.makeClient);
+    const sameStore = new VaultStore({
+      local,
+      session: browser.session,
+      makeClient: browser.makeClient,
+    });
     await sameStore.unlock(PASSWORD); // saves the vault again (new nonce), so compare from here
     const accountBefore = await local.get(STORAGE_KEYS.account);
     const vaultBefore = await local.get(STORAGE_KEYS.vault);
     other.offerPairing();
-    await expect(sameStore.repair(SECOND_URL, CODE, PASSWORD)).rejects.toThrow(
+    await expect(sameStore.repair([SECOND_URL], CODE, PASSWORD)).rejects.toThrow(
       "To inny sejf. Wtyczka zostaje połączona z poprzednim telefonem. Na nowym telefonie usuń „Chrome (Linux)” z „Urządzenia”.",
     );
     expect(await local.get(STORAGE_KEYS.account)).toEqual(accountBefore);
@@ -143,7 +146,7 @@ describe("pairing an existing browser again (repair)", () => {
     const { store, phone, local, session, makeClient } = await pairedBrowser();
     const before = (await store.getAccount())!;
     phone.offerPairing();
-    expect(await store.repair(PHONE_URL, CODE, PASSWORD)).toEqual({
+    expect(await store.repair([PHONE_URL], CODE, PASSWORD)).toEqual({
       mode: "paired",
       skipped: [],
       files: NO_FILES,
@@ -152,7 +155,7 @@ describe("pairing an existing browser again (repair)", () => {
     expect(after.deviceId).toBe(before.deviceId);
     expect(after.staticPublicKey).toBe(before.staticPublicKey);
     expect(phone.devices).toHaveLength(1);
-    await new VaultStore(local, session, makeClient).unlock(PASSWORD);
+    await new VaultStore({ local, session, makeClient }).unlock(PASSWORD);
   }, 60_000);
 
   it("restores a phone from the extension: the phone gets every entry from baseRevision 0", async () => {
@@ -169,9 +172,9 @@ describe("pairing an existing browser again (repair)", () => {
     // The phone was lost; a new one waits for "Odtwórz z wtyczki" at another address.
     const fresh = FakePhone.waitingForRestore([SECOND_URL]);
     const browser = newBrowser(new Map([[SECOND_URL, fresh]]));
-    const sameStore = new VaultStore(local, session, browser.makeClient);
+    const sameStore = new VaultStore({ local, session, makeClient: browser.makeClient });
     fresh.offerPairing();
-    expect(await sameStore.repair(SECOND_URL, CODE, PASSWORD)).toEqual({
+    expect(await sameStore.repair([SECOND_URL], CODE, PASSWORD)).toEqual({
       mode: "restored",
       skipped: [],
       files: NO_FILES,
@@ -201,10 +204,10 @@ describe("pairing an existing browser again (repair)", () => {
       async (u) => u === PHONE_URL,
     );
     phone.offerPairing();
-    await store.pairStart(PHONE_URL, CODE, "Chrome");
+    await store.pairStart([PHONE_URL], CODE, "Chrome");
     await store.pairFinish(PASSWORD);
     phone.offerPairing();
-    expect(await store.repair(PHONE_URL, CODE, PASSWORD)).toEqual({
+    expect(await store.repair([PHONE_URL], CODE, PASSWORD)).toEqual({
       mode: "paired",
       skipped: [SECOND_URL],
       files: NO_FILES,
@@ -215,7 +218,7 @@ describe("pairing an existing browser again (repair)", () => {
     const { store, phone, local } = await pairedBrowser();
     const accountBefore = await local.get(STORAGE_KEYS.account);
     phone.offerPairing();
-    await expect(store.repair(PHONE_URL, CODE, "wrong password")).rejects.toThrow(
+    await expect(store.repair([PHONE_URL], CODE, "wrong password")).rejects.toThrow(
       "Złe hasło główne",
     );
     expect(await local.get(STORAGE_KEYS.account)).toEqual(accountBefore);
@@ -225,9 +228,9 @@ describe("pairing an existing browser again (repair)", () => {
     const { local, session } = await pairedBrowser();
     const fresh = FakePhone.waitingForRestore([SECOND_URL]);
     const browser = newBrowser(new Map([[SECOND_URL, fresh]]));
-    const sameStore = new VaultStore(local, session, browser.makeClient);
+    const sameStore = new VaultStore({ local, session, makeClient: browser.makeClient });
     fresh.offerPairing();
-    await expect(sameStore.repair(SECOND_URL, CODE, "wrong password")).rejects.toThrow(
+    await expect(sameStore.repair([SECOND_URL], CODE, "wrong password")).rejects.toThrow(
       "Złe hasło główne",
     );
     expect(fresh.calls).not.toContain("/p2p/v1/pair/start");
@@ -250,7 +253,7 @@ describe("after the master password changed on the phone", () => {
     await expect(store.sync()).rejects.toThrow("Telefon nie zna tej przeglądarki");
 
     phone.offerPairing();
-    expect(await store.repair(PHONE_URL, CODE, NEW_PASSWORD)).toEqual({
+    expect(await store.repair([PHONE_URL], CODE, NEW_PASSWORD)).toEqual({
       mode: "paired",
       skipped: [],
       files: NO_FILES,
@@ -266,7 +269,7 @@ describe("after the master password changed on the phone", () => {
     expect(names(store)).toEqual(["moje.pl"]);
     expect(phone.devices).toHaveLength(1);
 
-    const reopened = new VaultStore(local, session, makeClient);
+    const reopened = new VaultStore({ local, session, makeClient });
     await expect(reopened.unlock(PASSWORD)).rejects.toThrow("Złe hasło główne");
     await reopened.unlock(NEW_PASSWORD);
     expect(names(reopened)).toEqual(["moje.pl"]);
@@ -277,7 +280,7 @@ describe("after the master password changed on the phone", () => {
     await phone.changePassword(NEW_PASSWORD);
     const accountBefore = await local.get(STORAGE_KEYS.account);
     phone.offerPairing();
-    await expect(store.repair(PHONE_URL, CODE, PASSWORD)).rejects.toThrow("nowe hasło");
+    await expect(store.repair([PHONE_URL], CODE, PASSWORD)).rejects.toThrow("nowe hasło");
     expect(await local.get(STORAGE_KEYS.account)).toEqual(accountBefore);
   }, 60_000);
 
@@ -285,10 +288,12 @@ describe("after the master password changed on the phone", () => {
     const { local, session } = await pairedBrowser();
     const other = await FakePhone.withVault(NEW_PASSWORD, [SECOND_URL]);
     const browser = newBrowser(new Map([[SECOND_URL, other]]));
-    const sameStore = new VaultStore(local, session, browser.makeClient);
+    const sameStore = new VaultStore({ local, session, makeClient: browser.makeClient });
     const accountBefore = await local.get(STORAGE_KEYS.account);
     other.offerPairing();
-    await expect(sameStore.repair(SECOND_URL, CODE, NEW_PASSWORD)).rejects.toThrow("To inny sejf");
+    await expect(sameStore.repair([SECOND_URL], CODE, NEW_PASSWORD)).rejects.toThrow(
+      "To inny sejf",
+    );
     expect(await local.get(STORAGE_KEYS.account)).toEqual(accountBefore);
   }, 60_000);
 });
@@ -352,7 +357,7 @@ describe("syncing with the phone", () => {
       return true;
     });
     phone.offerPairing();
-    await browser.store.pairStart(PHONE_URL, CODE, "Chrome");
+    await browser.store.pairStart([PHONE_URL], CODE, "Chrome");
     await browser.store.pairFinish(PASSWORD);
     const account = (await browser.store.getAccount())!;
     duringSync = () =>
@@ -380,7 +385,7 @@ describe("syncing with the phone", () => {
       return true;
     });
     phone.offerPairing();
-    await browser.store.pairStart(PHONE_URL, CODE, "Chrome");
+    await browser.store.pairStart([PHONE_URL], CODE, "Chrome");
     await browser.store.pairFinish(PASSWORD);
     const account = (await browser.store.getAccount())!;
     const repaired: Account = {
@@ -428,16 +433,21 @@ describe("VaultStore offline", () => {
     let clock = 1_000_000;
     const browser = await pairedBrowser({ now: () => clock });
 
-    const reopened = new VaultStore(
-      browser.local,
-      browser.session,
-      browser.makeClient,
-      () => clock,
-    );
+    const reopened = new VaultStore({
+      local: browser.local,
+      session: browser.session,
+      makeClient: browser.makeClient,
+      now: () => clock,
+    });
     expect(await reopened.resume()).toBe(true);
 
     clock += AUTO_LOCK_MS + 1;
-    const later = new VaultStore(browser.local, browser.session, browser.makeClient, () => clock);
+    const later = new VaultStore({
+      local: browser.local,
+      session: browser.session,
+      makeClient: browser.makeClient,
+      now: () => clock,
+    });
     expect(await later.resume()).toBe(false);
     expect(await browser.session.get(STORAGE_KEYS.sessionKeys)).toBeUndefined();
   }, 30_000);
@@ -576,7 +586,9 @@ describe("v3 entries", () => {
     expect(store.pendingCount()).toBe(1);
     expect(store.getEntry("1")).toMatchObject({ dirty: true });
     expect(store.getEntry("2")).toBeUndefined();
-    const tombstone = (store as unknown as { vault: p2p.LocalVault }).vault.entries.get("2");
+    // unlock() saved the vault again: the tombstone is kept in the new format too.
+    const saved = await openVault(vaultKey, (await local.get<string>(STORAGE_KEYS.vault))!);
+    const tombstone = saved.entries.get("2");
     expect(tombstone).toMatchObject({ revision: 3, deleted: true, dirty: false });
     expect(store.listEntries("login").map(loginFields)).toEqual([
       { name: "stary.pl", username: "jan", password: "tajne" },

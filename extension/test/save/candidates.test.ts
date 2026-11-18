@@ -31,7 +31,7 @@ describe("SaveCandidates", () => {
     );
     const c = (await s.stored())["7"]!;
     expect(c.url).toBe("shop.pl");
-    expect(c.formSignature).toBe("https://shop.pl|u|p");
+    expect(c.form).toEqual({ origin: "https://shop.pl", signature: "u|p" });
   }, 30_000);
 
   it("ignores messages without a tab or from another extension", async () => {

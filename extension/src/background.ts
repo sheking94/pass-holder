@@ -48,7 +48,10 @@ function onPasswordCopied(
 
 // Autofill: a fresh store per event, because the service worker may have been stopped in between.
 const newStore = () =>
-  new VaultStore(chromeStore(chrome.storage.local), chromeStore(chrome.storage.session));
+  new VaultStore({
+    local: chromeStore(chrome.storage.local),
+    session: chromeStore(chrome.storage.session),
+  });
 
 function onFill(
   message: FillMessage,

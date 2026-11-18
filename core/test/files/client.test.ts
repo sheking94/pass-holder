@@ -190,7 +190,6 @@ describe("syncFiles", () => {
       downloaded: 0,
       pending: 0,
       corrupted: [],
-      corruptedIds: [],
     });
     expect(p.files!.have(f.attachment.id)).toEqual([0, 1, 2]);
     expect(p.files!.get(f.attachment.id, 2)).toBe(f.blobs[2]);
@@ -202,7 +201,6 @@ describe("syncFiles", () => {
       downloaded: 0,
       pending: 0,
       corrupted: [],
-      corruptedIds: [],
     });
     expect(a.count("put")).toBe(3);
   });
@@ -226,7 +224,6 @@ describe("syncFiles", () => {
       downloaded: 1,
       pending: 0,
       corrupted: [],
-      corruptedIds: [],
     });
     expect(progress).toEqual([
       [0, 1],
@@ -242,7 +239,6 @@ describe("syncFiles", () => {
       downloaded: 0,
       pending: 0,
       corrupted: [],
-      corruptedIds: [],
     });
     expect(b.count("get")).toBe(2);
     expect(b.count("put")).toBe(0);
@@ -309,7 +305,6 @@ describe("syncFiles", () => {
       downloaded: 0,
       pending: 1,
       corrupted: [],
-      corruptedIds: [],
     });
     expect(b.count("get")).toBe(0);
     expect(progress).toEqual([]);
@@ -328,8 +323,7 @@ describe("syncFiles", () => {
       uploaded: 0,
       downloaded: 0,
       pending: 0,
-      corrupted: ["scan.pdf"],
-      corruptedIds: [f.attachment.id],
+      corrupted: [{ id: f.attachment.id, name: "scan.pdf" }],
     });
     expect(await files.state(f.attachment.id)).toBeUndefined();
     expect(await files.getChunk(f.attachment.id, 0)).toBeUndefined();
@@ -354,7 +348,6 @@ describe("syncFiles", () => {
       downloaded: 0,
       pending: 0,
       corrupted: [],
-      corruptedIds: [],
     });
     expect(b.ops).toEqual([]);
   });
@@ -402,7 +395,6 @@ describe("syncFiles", () => {
       downloaded: 0,
       pending: 0,
       corrupted: [],
-      corruptedIds: [],
     });
     expect(a.ops).toEqual([]);
   });
@@ -419,7 +411,6 @@ describe("syncFiles: what gets asked", () => {
       downloaded: 0,
       pending: 0,
       corrupted: [],
-      corruptedIds: [],
     });
     expect(a.ops).toEqual([]);
 
@@ -433,7 +424,6 @@ describe("syncFiles: what gets asked", () => {
       downloaded: 0,
       pending: 0,
       corrupted: [],
-      corruptedIds: [],
     });
     expect(b.ops.length).toBe(sent);
   });
@@ -488,7 +478,6 @@ describe("syncFiles: files the phone refuses", () => {
       downloaded: 0,
       pending: 2,
       corrupted: [],
-      corruptedIds: [],
     });
     expect(p.files!.have(good.attachment.id)).toEqual([0]);
     expect((await files.state(good.attachment.id))!.uploadedEpoch).toBe(p.epoch);
@@ -536,7 +525,6 @@ describe("syncFiles: damaged files", () => {
       downloaded: 0,
       pending: 1,
       corrupted: [],
-      corruptedIds: [],
     });
     expect(progress).toEqual([
       [0, 2],
@@ -562,8 +550,7 @@ describe("syncFiles: damaged files", () => {
       uploaded: 0,
       downloaded: 0,
       pending: 0,
-      corrupted: ["odd.bin"],
-      corruptedIds: [f.attachment.id],
+      corrupted: [{ id: f.attachment.id, name: "odd.bin" }],
     });
     expect(b.count("get")).toBe(1);
     expect(await files.state(f.attachment.id)).toBeUndefined();

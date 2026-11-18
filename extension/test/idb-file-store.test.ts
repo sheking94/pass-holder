@@ -182,7 +182,6 @@ describe("IdbFileStore", () => {
       downloaded: 0,
       pending: 0,
       corrupted: [],
-      corruptedIds: [],
     });
     expect(phoneFiles.have(f.attachment.id)).toEqual([0, 1, 2]);
     expect((await a.state(f.attachment.id))!.uploadedEpoch).toBe(epoch);
@@ -196,7 +195,6 @@ describe("IdbFileStore", () => {
       downloaded: 1,
       pending: 0,
       corrupted: [],
-      corruptedIds: [],
     });
     expect(progress).toEqual([
       [0, 1],

@@ -80,7 +80,7 @@ katalogu pakietu.
 | `attachment.test.ts` | opis załącznika: kolejność kluczy, odrzucane opisy, 40 opisów, `upsertEntry` bez pustej listy, eksport bez plików |
 | `chunks.test.ts` | `encryptFile`/`decryptFile`: granice kawałków, AAD (zamiana, ucięcie, przestawienie), `size`, `sha256`, typ MIME |
 | `host-files.test.ts` | `processP2pFile`: `status`/`put`/`get`, 409, 400, 404, 507, inna epoka, sprzątanie 24 h, ścieżka w `P2pHost` |
-| `client.test.ts` | `syncFiles`: wysyłanie i pobieranie, wznowienie po przerwie, zgubiony kawałek, zły `sha256`, `uploadedEpoch`, stary telefon, lista `skip` i `corruptedIds` |
+| `client.test.ts` | `syncFiles`: wysyłanie i pobieranie, wznowienie po przerwie, zgubiony kawałek, zły `sha256`, `uploadedEpoch`, stary telefon, lista `skip` i uszkodzone pliki (`corrupted`: `{ id, name }`) |
 | `merge.test.ts` | `mergeAttachments`: kolejność, brak listy, ten sam `id` |
 | `vectors.test.ts` | wektory `files/files.json` odtworzone z kodu |
 

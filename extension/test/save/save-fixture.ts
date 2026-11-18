@@ -64,7 +64,13 @@ export async function setup(
   let n = 0;
   const sc = new SaveCandidates({
     // A new VaultStore per call, like background.ts: nothing may rely on state from an earlier call.
-    store: () => new VaultStore(b.local, b.session, b.makeClient, () => t),
+    store: () =>
+      new VaultStore({
+        local: b.local,
+        session: b.session,
+        makeClient: b.makeClient,
+        now: () => t,
+      }),
     session: b.session,
     local: b.local,
     selfId: EXT,
@@ -91,10 +97,18 @@ export async function setup(
   });
   const stored = async () =>
     (await b.session.get<
-      Record<string, { id: string; url: string; password: string; formSignature: string }>
+      Record<
+        string,
+        { id: string; url: string; password: string; form: { origin: string; signature: string } }
+      >
     >(STORAGE_KEYS.saveCandidates)) ?? {};
   const fresh = async () => {
-    const store = new VaultStore(b.local, b.session, b.makeClient, () => t);
+    const store = new VaultStore({
+      local: b.local,
+      session: b.session,
+      makeClient: b.makeClient,
+      now: () => t,
+    });
     await store.resume({ touch: false });
     return store;
   };
