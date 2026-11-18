@@ -17,17 +17,12 @@ import type { SaveInfoMessage, SavePromptInfo } from "../save/messages.ts";
 import { activeTab } from "../ui/active-tab.ts";
 import { MODE, openInTabButton } from "../ui/page.ts";
 import { store } from "../ui/state.ts";
-import { showConnect } from "./connect.ts";
-import { editView } from "./edit.ts";
-import { listView } from "./list.ts";
-import { saveQuestionView } from "./save-question.ts";
-import { transferView } from "./transfer.ts";
+import { views } from "./router.ts";
 import { LOCKED_TITLE, MASTER_PASSWORD_LABEL } from "../ui/texts.ts";
 
 const SHORT_PIN_MOVED =
   "Krótki PIN nie jest już zapisywany na dysku: działa do zamknięcia przeglądarki. Aby pamiętać PIN po restarcie, ustaw dłuższy (przycisk PIN).";
 
-/** The PIN screen when the PIN is on, otherwise the master password screen. */
 export async function showLocked(message = "") {
   const pin = await store.pinStatus();
   if (pin) pinLockedView(pin, message);
@@ -39,18 +34,18 @@ export async function showLocked(message = "") {
  * entry's form (a new one when the entry is gone), everything else shows the list.
  */
 export async function showUnlocked(message = "") {
-  if (MODE === "transfer") return transferView();
+  if (MODE === "transfer") return views().transfer();
   if (MODE === "edit") {
     const target = editTarget(location.search);
     if (target) {
       const exists =
         target.id !== undefined && store.getEntry(target.id)?.data.type === target.type;
-      return editView(target.type, exists ? target.id : undefined);
+      return views().edit(target.type, exists ? target.id : undefined);
     }
   }
   const info = await pendingSaveInfo();
-  if (info) saveQuestionView(info);
-  else listView(message);
+  if (info) views().saveQuestion(info);
+  else views().list({ message });
 }
 
 /** The save question for the tab the popup is open over, if the service worker holds a candidate for it. */
@@ -67,7 +62,7 @@ async function pendingSaveInfo(): Promise<SavePromptInfo | undefined> {
 
 function pinLockedView(pinStatus: PinStatus, message = "") {
   // A remembered PIN is a long one; a short one from before that rule still opens it (see PinStore.unlock).
-  const pin = pinInput("off", pinStatus.rememberedAfterRestart);
+  const pin = pinInput({ long: pinStatus.rememberedAfterRestart });
   const status = statusLine();
   setStatus(status, message);
   if (pinStatus.attemptsLeft < MAX_PIN_ATTEMPTS)
@@ -129,7 +124,7 @@ function lockedView(message = "") {
     () =>
       void busy(status, "Odłączam…", async () => {
         await store.disconnect();
-        await showConnect();
+        await views().connect();
       }),
     "Niezsynchronizowane zmiany mogą przepaść. Kliknij ponownie",
   );

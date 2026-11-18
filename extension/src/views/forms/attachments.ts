@@ -41,87 +41,83 @@ async function savedItem(a: files.Attachment): Promise<Item> {
   return { attachment: a, ready: state === "ready", note: uploaded ? "" : WAITING };
 }
 
-export async function attachmentsEditor(
-  initial: files.Attachment[],
-  status: HTMLElement,
-  openInTab: () => void,
-): Promise<{
-  node: HTMLElement;
-  read(): { attachments: files.Attachment[]; added: files.EncryptedFile[] };
-}> {
-  const items: Item[] = await Promise.all(initial.map(savedItem));
-  const list = h("ul", { class: "attachments" });
-  // Holds the one open question box (download warning or the W6 warning).
-  const dialog = h("div", {});
-  // The row whose download question is open, if one is.
-  let asking: Item | undefined;
+/** The form's files, the question box under them, and what the buttons do. */
+class AttachmentsForm {
+  readonly list = h("ul", { class: "attachments" });
+  /** Holds the one open question box (download warning or the W6 warning). */
+  readonly dialog = h("div", {});
+  /** The row whose download question is open, if one is. */
+  private asking: Item | undefined;
 
-  const download = (item: Item) => {
+  constructor(
+    private readonly items: Item[],
+    private readonly status: HTMLElement,
+  ) {}
+
+  render(): void {
+    this.list.replaceChildren(...this.items.map((item) => this.row(item)));
+  }
+
+  private row(item: Item): HTMLElement {
     const a = item.attachment;
-    asking = item;
-    dialog.replaceChildren(
-      confirmBox(
-        DOWNLOAD_WARNING,
+    return h(
+      "li",
+      { class: "attachment" },
+      h(
+        "span",
+        { class: "grow" },
+        h("span", { class: "name", title: a.name }, a.name),
+        h("span", { class: "user" }, formatSize(a.size), item.note && ` · ${item.note}`),
+      ),
+      h(
+        "button",
+        {
+          type: "button",
+          title: `Pobierz: ${a.name}`,
+          disabled: !item.ready,
+          onclick: () => this.askDownload(item),
+        },
         "Pobierz",
-        () =>
-          void busy(status, "Odszyfrowuję plik…", async () => {
-            const bytes = await store.readFile(a);
-            downloadFile(a.name, bytes as BlobPart, a.mime || "application/octet-stream");
-            // The Blob holds its own copy: the decrypted bytes are not kept anywhere else.
-            bytes.fill(0);
-            setStatus(status, "");
-          }),
+      ),
+      h(
+        "button",
+        { type: "button", title: `Usuń: ${a.name}`, onclick: () => this.remove(item) },
+        "Usuń",
       ),
     );
-  };
+  }
 
-  const render = () =>
-    list.replaceChildren(
-      ...items.map((item) => {
-        const a = item.attachment;
-        return h(
-          "li",
-          { class: "attachment" },
-          h(
-            "span",
-            { class: "grow" },
-            h("span", { class: "name", title: a.name }, a.name),
-            h("span", { class: "user" }, formatSize(a.size), item.note && ` · ${item.note}`),
-          ),
-          h(
-            "button",
-            {
-              type: "button",
-              title: `Pobierz: ${a.name}`,
-              disabled: !item.ready,
-              onclick: () => download(item),
-            },
-            "Pobierz",
-          ),
-          h(
-            "button",
-            {
-              type: "button",
-              title: `Usuń: ${a.name}`,
-              onclick: () => {
-                items.splice(items.indexOf(item), 1);
-                if (asking === item) {
-                  asking = undefined;
-                  dialog.replaceChildren();
-                }
-                render();
-              },
-            },
-            "Usuń",
-          ),
-        );
-      }),
+  private askDownload(item: Item): void {
+    this.asking = item;
+    this.dialog.replaceChildren(
+      confirmBox(DOWNLOAD_WARNING, "Pobierz", () => void this.download(item.attachment)),
     );
+  }
 
-  const add = (file: File) =>
-    busy(status, "Szyfruję plik…", async () => {
+  private download(a: files.Attachment) {
+    return busy(this.status, "Odszyfrowuję plik…", async () => {
+      const bytes = await store.readFile(a);
+      downloadFile(a.name, bytes as BlobPart, a.mime || "application/octet-stream");
+      // The Blob holds its own copy: the decrypted bytes are not kept anywhere else.
+      bytes.fill(0);
+      setStatus(this.status, "");
+    });
+  }
+
+  /** Takes the file off the form only; „Zapisz” then saves the entry without it. */
+  private remove(item: Item): void {
+    this.items.splice(this.items.indexOf(item), 1);
+    if (this.asking === item) {
+      this.asking = undefined;
+      this.dialog.replaceChildren();
+    }
+    this.render();
+  }
+
+  add(file: File) {
+    return busy(this.status, "Szyfruję plik…", async () => {
       // Cheap checks first, so a huge file is refused before it is read.
-      if (!files.canAddAttachment(items.length)) throw new Error(TOO_MANY);
+      if (!files.canAddAttachment(this.items.length)) throw new Error(TOO_MANY);
       // The same codes encryptFile would throw; busy() shows their text.
       if (file.size === 0) throw new PassHolderError("FILE_EMPTY");
       if (file.size > files.MAX_FILE_SIZE) throw new PassHolderError("FILE_TOO_LARGE");
@@ -134,47 +130,61 @@ export async function attachmentsEditor(
         // Only the encrypted chunks are kept.
         plain.fill(0);
       }
-      items.push({ attachment: added.attachment, added, ready: false, note: NEW });
-      render();
-      setStatus(status, "");
+      this.items.push({ attachment: added.attachment, added, ready: false, note: NEW });
+      this.render();
+      setStatus(this.status, "");
     });
+  }
 
-  let chooser: HTMLElement[];
-  if (IN_TAB) {
+  /** In a tab the file chooser itself; in the popup a button that offers to open the form in a tab. */
+  chooser(openInTab: () => void): HTMLElement[] {
+    if (!IN_TAB) {
+      const offerTab = () => {
+        this.asking = undefined;
+        this.dialog.replaceChildren(confirmBox(TAB_WARNING, "Otwórz w karcie", openInTab));
+      };
+      return [h("button", { type: "button", class: "small", onclick: offerTab }, "+ Dodaj plik")];
+    }
     const input = h("input", { type: "file", hidden: true });
     input.addEventListener("change", () => {
       const file = input.files?.[0];
       // Cleared, so choosing the same file again fires "change" again (a second, independent attachment).
       input.value = "";
-      if (file) void add(file);
+      if (file) void this.add(file);
     });
-    chooser = [
+    return [
       input,
       h("button", { type: "button", class: "small", onclick: () => input.click() }, "+ Dodaj plik"),
     ];
-  } else {
-    chooser = [
-      h(
-        "button",
-        {
-          type: "button",
-          class: "small",
-          onclick: () => {
-            asking = undefined;
-            dialog.replaceChildren(confirmBox(TAB_WARNING, "Otwórz w karcie", openInTab));
-          },
-        },
-        "+ Dodaj plik",
-      ),
-    ];
   }
 
-  render();
+  read(): { attachments: files.Attachment[]; added: files.EncryptedFile[] } {
+    return {
+      attachments: this.items.map((i) => i.attachment),
+      added: this.items.flatMap((i) => (i.added ? [i.added] : [])),
+    };
+  }
+}
+
+export async function attachmentsEditor(
+  initial: files.Attachment[],
+  status: HTMLElement,
+  openInTab: () => void,
+): Promise<{
+  node: HTMLElement;
+  read(): { attachments: files.Attachment[]; added: files.EncryptedFile[] };
+}> {
+  const form = new AttachmentsForm(await Promise.all(initial.map(savedItem)), status);
+  form.render();
   return {
-    node: h("fieldset", {}, h("legend", {}, "Załączniki"), list, ...chooser, dialog),
-    read: () => ({
-      attachments: items.map((i) => i.attachment),
-      added: items.flatMap((i) => (i.added ? [i.added] : [])),
-    }),
+    node: h(
+      "fieldset",
+      {},
+      h("legend", {}, "Załączniki"),
+      form.list,
+      ...form.chooser(openInTab),
+      form.dialog,
+    ),
+    read: () => form.read(),
   };
 }

@@ -1,6 +1,8 @@
 import { UNLOCK_AND_RETRY } from "../error-messages.ts";
 import type { ActionResult } from "../result.ts";
-import { matchLogins, planFor, type FillPlan } from "@passholder/core/autofill";
+import { planFor, type FillPlan } from "@passholder/core/autofill";
+import { webUrl } from "../web-url.ts";
+import { matchSavedLogins } from "./saved-logins.ts";
 import type { VaultStore } from "../vault-store.ts";
 
 export const NOT_MATCHING = "Ta strona nie pasuje do loginu";
@@ -47,16 +49,6 @@ export function chromeFillTabApi(): FillTabApi {
 
 const fail = (error: string): ActionResult => ({ ok: false, error });
 
-function pageUrl(raw: string | undefined): URL | undefined {
-  if (!raw) return undefined;
-  try {
-    const url = new URL(raw);
-    return url.protocol === "http:" || url.protocol === "https:" ? url : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 /** Fills the tab with one entry, re-checking in here (not trusting the popup) that the page is allowed. */
 export async function fillTab(
   store: VaultStore,
@@ -70,13 +62,11 @@ export async function fillTab(
   if (!entry || !plan) return fail(CANNOT_FILL_ENTRY);
 
   const tab = await tabs.get(tabId);
-  const url = pageUrl(tab.url);
+  const url = webUrl(tab.url);
   if (!url) return fail(UNSUPPORTED_PAGE);
 
   if (entry.data.type === "login") {
-    const { urls } = entry.data.fields;
-    if (matchLogins(url.href, [entry], () => ({ name: entry.data.name, urls })).length === 0)
-      return fail(NOT_MATCHING);
+    if (matchSavedLogins(url.href, [entry]).length === 0) return fail(NOT_MATCHING);
   } else if (plan.kind === "card" && url.protocol !== "https:" && url.hostname !== "localhost") {
     return fail(CARD_NEEDS_HTTPS);
   }
@@ -101,12 +91,7 @@ export async function onFillCommand(
   openPopup: () => Promise<void>,
 ): Promise<void> {
   if (tab?.id === undefined || !tab.url || !(await store.resume())) return openPopup();
-  const matches = matchLogins(
-    tab.url,
-    store.listEntries("login"),
-    (e) => ({ name: e.data.name, urls: e.data.type === "login" ? e.data.fields.urls : [] }),
-    { exactOnly: true },
-  );
+  const matches = matchSavedLogins(tab.url, store.listEntries("login"), { exactOnly: true });
   if (matches.length !== 1) return openPopup();
   const result = await fillTab(store, tabs, tab.id, matches[0]!.id);
   if (!result.ok) await openPopup();

@@ -1,3 +1,4 @@
+import { frameRole } from "../page-frame.ts";
 import { loginScope, emptyLoginForms, readLogin } from "./read-form.ts";
 import type { SaveCandidateMessage, SavePendingMessage } from "./messages.ts";
 
@@ -9,21 +10,6 @@ export interface WatchRuntime {
    * because every event dispatched there is untrusted.
    */
   trusted?(e: Event): boolean;
-}
-
-type FrameRole = "top" | "subframe";
-
-/** "top" for the top frame, "subframe" when same-origin with top, undefined when top is cross-origin. */
-function frameRole(doc: Document): FrameRole | undefined {
-  const win = doc.defaultView;
-  if (!win) return undefined;
-  try {
-    const top = win.top;
-    if (top === win) return "top";
-    return top?.location.origin === win.location.origin ? "subframe" : undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 const CLICKABLE = "button, input[type=submit], [role=button]";

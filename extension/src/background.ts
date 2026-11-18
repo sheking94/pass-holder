@@ -20,17 +20,11 @@ import type {
 import { chromeWindowApi, PromptWindows } from "./save/prompt-window.ts";
 import { chromeStore, STORAGE_KEYS } from "./storage.ts";
 import { VaultStore } from "./vault-store.ts";
+import { fromExtensionPage } from "./web-url.ts";
 
-/**
- * A page of this extension (popup, tab, question window), not its content script running inside a web page
- * (review V3-I4): only those may ask to fill a tab or to clear the clipboard.
- */
-function fromExtensionPage(sender: chrome.runtime.MessageSender): boolean {
-  return (
-    sender.id === chrome.runtime.id &&
-    (sender.url ?? "").startsWith(`chrome-extension://${chrome.runtime.id}/`)
-  );
-}
+/** Only the extension's own pages may ask to fill a tab or to clear the clipboard (review V3-I4). */
+const fromOwnPage = (sender: chrome.runtime.MessageSender) =>
+  fromExtensionPage(sender, chrome.runtime.id);
 
 // The popup closes as soon as it loses focus, so the one-minute timer lives here, in an alarm that
 // survives the service worker being stopped.
@@ -39,7 +33,7 @@ function onPasswordCopied(
   message: ClipboardMessage & { type: "password-copied" },
   sender: chrome.runtime.MessageSender,
 ): void {
-  if (!fromExtensionPage(sender)) return;
+  if (!fromOwnPage(sender)) return;
   void (async () => {
     await chrome.storage.session.set({ [STORAGE_KEYS.copiedPasswordHash]: message.hash });
     await chrome.alarms.create(CLEAR_CLIPBOARD_ALARM, { delayInMinutes: CLEAR_AFTER_MINUTES });
@@ -58,8 +52,7 @@ function onFill(
   sender: chrome.runtime.MessageSender,
   sendResponse: (response: unknown) => void,
 ): true | undefined {
-  // Other extensions arrive at onMessageExternal; the sender URL also keeps out this extension's own content scripts.
-  if (!fromExtensionPage(sender)) return undefined;
+  if (!fromOwnPage(sender)) return undefined;
   void fillTab(newStore(), chromeFillTabApi(), message.tabId, message.entryId)
     .catch(() => ({ ok: false, error: UNSUPPORTED_PAGE }))
     .then(sendResponse);

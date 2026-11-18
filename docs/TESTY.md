@@ -465,6 +465,15 @@ hasłem: okno mówi „Nowy login”, wpis `example.com` zostaje bez zmian. (3) 
 nie pasuje do `https://<ktoś>.github.io`. (4) **Android (N5):** tylko na Androidzie 8.0–8.1: na stronie w Chrome
 login z adresem bez schematu nie jest podpowiadany, z adresem `http://` tak. Zapisz wynik i wersję Chrome/Androida.
 
+**T31. Przegląd czystości V3, G11 (widoki wtyczki).** Wygląd i działanie mają być jak przed zmianą. (1) **Lista:**
+zakładki, wyszukiwanie, „+ Dodaj”, Login/Hasło (kopiowanie), na stronie z zapisanym loginem „Pasujące do tej
+strony” z **Wypełnij**; karta w okienku ma **Wypełnij**. (2) **Formularz:** zapisz, anuluj i usuń wpis: wraca na
+zakładkę jego typu; dodaj i pobierz załącznik (w karcie). (3) **Przyciski pod listą:** PIN (włącz, wyłącz, „Wróć”),
+Zapis (przełącznik, usuń stronę z „Nigdy”, „Wróć”), Adresy telefonu (zapisz adresy, „Wróć do listy”), Plik (eksport
+z hasłem, import). (4) **Blokada:** Zablokuj → odblokuj hasłem i PIN-em. (5) **Pytanie o zapis:** w oknie i w
+okienku po odblokowaniu (Zapisz, Nie teraz, Nigdy). (6) **Parowanie** (jeśli robisz od nowa): kod, hasło, „Anuluj
+parowanie”. Zapisz wynik i wersję Chrome.
+
 ## Formatowanie i lint (przegląd czystości V3, CN1)
 
 CI (`.github/workflows/ci.yml`) odrzuca zmianę, gdy któreś z tych sprawdzeń nie przechodzi.

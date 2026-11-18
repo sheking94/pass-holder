@@ -232,6 +232,7 @@ async function setup() {
 
   // The views read chrome.* when their modules load, so they are imported only now.
   const { store } = await import("../../src/ui/state.ts");
+  await import("../../src/views/index.ts");
   if (!(await store.resume())) throw new Error("harness: the store did not resume");
   const { listView } = await import("../../src/views/list.ts");
   const { editView } = await import("../../src/views/edit.ts");
@@ -341,7 +342,7 @@ async function setup() {
       }
     },
     /** The list on the tab of this type. */
-    show: (type: p2p.EntryType) => listView("", false, type),
+    show: (type: p2p.EntryType) => listView({ type }),
     /** The form of the first sample entry of this type. */
     openForm: (type: p2p.EntryType) => editView(type, firstOf(type)),
     /** The save panel of save-prompt.html (360 × 340 on a page) for a made-up candidate. */

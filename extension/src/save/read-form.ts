@@ -1,8 +1,7 @@
 // Subpath import: the @passholder/core root pulls crypto libraries into the page bundle.
 import * as autofill from "@passholder/core/autofill";
 import { describeField, isVisible } from "../autofill/fill-page.ts";
-
-type FieldElement = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
+import type { FieldElement } from "../page-frame.ts";
 
 export interface ReadLogin {
   username: string;

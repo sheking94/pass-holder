@@ -5,7 +5,7 @@ import { busy, h, passwordField, setStatus, show, statusLine } from "../ui/dom.t
 import { downloadFile } from "../ui/download.ts";
 import { showInTab } from "../ui/page.ts";
 import { store } from "../ui/state.ts";
-import { listView } from "./list.ts";
+import { backToListButton } from "./router.ts";
 import { MASTER_PASSWORD_LABEL } from "../ui/texts.ts";
 
 /** Chrome closes the toolbar popup when the file chooser opens, so choosing a file to import only works in a tab. */
@@ -69,24 +69,51 @@ async function exportZip(status: HTMLElement, day: string) {
   setStatus(status, parts.filter(Boolean).join(" "));
 }
 
-function exportSection(status: HTMLElement) {
-  const understood = h("input", { type: "checkbox" });
+type FormatInfo = (typeof FORMATS)[number];
+
+/** The radio buttons of the export formats, their hints, and the warning that follows the choice. */
+function formatChoices() {
   const radios = FORMATS.map((f, i) =>
     h("input", { type: "radio", name: "format", value: f.format, checked: i === 0 }),
   );
-  const choices = FORMATS.flatMap((f, i) => [
+  const nodes = FORMATS.flatMap((f, i) => [
     h("label", { class: "check" }, radios[i]!, f.label),
     f.hint && h("p", { class: "hint" }, "Część pól trafi do notatki lub własnych pól."),
     // Security review N2: the values stay as they are (import must restore them exactly), so warn instead.
     f.format === "nordpass" && h("p", { class: "hint" }, CSV_WARNING),
   ]);
-  const chosen = () => FORMATS.find((_, i) => radios[i]!.checked)!;
+  const chosen = (): FormatInfo => FORMATS.find((_, i) => radios[i]!.checked)!;
   const warning = h("p", { class: "warning" }, PLAIN_WARNING);
   for (const radio of radios) {
     radio.addEventListener("change", () => {
       warning.textContent = chosen().format === "passholder-zip" ? ZIP_WARNING : PLAIN_WARNING;
     });
   }
+  return { nodes, warning, chosen };
+}
+
+/** Writes the export file of this format (after the master password was checked). */
+async function exportAs(format: FormatInfo, status: HTMLElement): Promise<void> {
+  const day = new Date().toISOString().slice(0, 10);
+  if (format.format === "passholder-zip") {
+    setStatus(status, "Przygotowuję archiwum…");
+    return exportZip(status, day);
+  }
+  const entries = store.allContents();
+  downloadFile(
+    `${format.format}-${day}.${format.ext}`,
+    transfer.exportFile(format.format, entries),
+    format.mime,
+  );
+  setStatus(
+    status,
+    `Wyeksportowano ${entriesNoun(entries.length)}. Usuń plik, gdy nie będzie już potrzebny.`,
+  );
+}
+
+function exportSection(status: HTMLElement) {
+  const understood = h("input", { type: "checkbox" });
+  const formats = formatChoices();
   // Security review V3-N6: the master password again, so a moment at an unlocked browser is not enough.
   const password = h("input", { type: "password", autocomplete: "current-password" });
   const exportButton = h("button", { type: "button", class: "danger" }, "Pobierz plik");
@@ -95,26 +122,12 @@ function exportSection(status: HTMLElement) {
       return setStatus(status, "Najpierw zaznacz, że rozumiesz ryzyko.", true);
     if (password.value === "")
       return setStatus(status, "Wpisz hasło główne, żeby pobrać plik.", true);
-    const format = chosen();
+    const format = formats.chosen();
     const typed = password.value;
     password.value = "";
     void busy(status, "Sprawdzam hasło główne…", async () => {
       await store.confirmMasterPassword(typed);
-      const day = new Date().toISOString().slice(0, 10);
-      if (format.format === "passholder-zip") {
-        setStatus(status, "Przygotowuję archiwum…");
-        return exportZip(status, day);
-      }
-      const entries = store.allContents();
-      downloadFile(
-        `${format.format}-${day}.${format.ext}`,
-        transfer.exportFile(format.format, entries),
-        format.mime,
-      );
-      setStatus(
-        status,
-        `Wyeksportowano ${entriesNoun(entries.length)}. Usuń plik, gdy nie będzie już potrzebny.`,
-      );
+      await exportAs(format, status);
     });
   });
 
@@ -123,14 +136,14 @@ function exportSection(status: HTMLElement) {
     "fieldset",
     {},
     h("legend", {}, "Eksport"),
-    ...choices,
+    ...formats.nodes,
     skipped > 0 &&
       h(
         "p",
         { class: "hint" },
         `${skippedFilesPhrase(skipped)} w formatach JSON i CSV. Wybierz PassHolder ZIP, żeby je zabrać.`,
       ),
-    warning,
+    formats.warning,
     h(
       "label",
       { class: "check" },
@@ -140,6 +153,27 @@ function exportSection(status: HTMLElement) {
     h("label", {}, MASTER_PASSWORD_LABEL),
     passwordField(password).row,
     h("div", { class: "actions" }, exportButton),
+  );
+}
+
+/** Imports a PassHolder ZIP or any text format transfer.parseImportFile recognizes, and says what came in. */
+async function importFile(chosen: File, status: HTMLElement): Promise<void> {
+  // Refused before reading: the largest file anything here accepts is a 256 MiB archive.
+  if (chosen.size > transfer.MAX_ZIP_BYTES) throw new PassHolderError("ZIP_TOO_LARGE");
+  const bytes = new Uint8Array(await chosen.arrayBuffer());
+  if (transfer.isZip(bytes)) {
+    const { parsed, result, filesAdded, fileSkips } = await store.importArchive(bytes);
+    setStatus(
+      status,
+      importSummary(parsed, result, "passholder", { added: filesAdded, skipped: fileSkips }),
+    );
+    return;
+  }
+  const { format, parsed } = transfer.parseImportFile(new TextDecoder().decode(bytes));
+  const result = await store.importContents(parsed.entries);
+  setStatus(
+    status,
+    importSummary(parsed, result, format, parsed.files && { added: 0, skipped: parsed.files }),
   );
 }
 
@@ -153,28 +187,7 @@ function importSection(status: HTMLElement) {
     const chosen = file.files?.[0];
     if (!chosen) return setStatus(status, "Wybierz plik JSON, CSV lub ZIP.", true);
     void busy(status, "Importuję…", async () => {
-      // Refused before reading: the largest file anything here accepts is a 256 MiB archive.
-      if (chosen.size > transfer.MAX_ZIP_BYTES) throw new PassHolderError("ZIP_TOO_LARGE");
-      const bytes = new Uint8Array(await chosen.arrayBuffer());
-      if (transfer.isZip(bytes)) {
-        const { parsed, result, filesAdded, fileSkips } = await store.importArchive(bytes);
-        setStatus(
-          status,
-          importSummary(parsed, result, "passholder", { added: filesAdded, skipped: fileSkips }),
-        );
-      } else {
-        const { format, parsed } = transfer.parseImportFile(new TextDecoder().decode(bytes));
-        const result = await store.importContents(parsed.entries);
-        setStatus(
-          status,
-          importSummary(
-            parsed,
-            result,
-            format,
-            parsed.files && { added: 0, skipped: parsed.files },
-          ),
-        );
-      }
+      await importFile(chosen, status);
       file.value = "";
     });
   });
@@ -200,11 +213,7 @@ export function transferView() {
     ),
     exportSection(status),
     importSection(status),
-    h(
-      "div",
-      { class: "actions" },
-      h("button", { type: "button", onclick: () => listView() }, "Wróć do listy"),
-    ),
+    h("div", { class: "actions" }, backToListButton("Wróć do listy")),
     status,
   );
 }

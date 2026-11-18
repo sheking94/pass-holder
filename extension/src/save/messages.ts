@@ -66,3 +66,26 @@ export type SaveAnswerMessage = {
   /** Required for "save" from the panel; without it the candidate's own data is saved. */
   draft?: SaveDraft;
 };
+
+/** The preview and answer messages of one candidate, built the same way by the question window and the popup. */
+export function savePreviewMessage(
+  candidateId: string,
+  username: string,
+  password: string,
+): SavePreviewMessage {
+  return { target: "background", type: "save-preview", candidateId, username, password };
+}
+
+export function saveAnswerMessage(
+  candidateId: string,
+  answer: SaveAnswerMessage["answer"],
+  draft?: SaveDraft,
+): SaveAnswerMessage {
+  return {
+    target: "background",
+    type: "save-answer",
+    candidateId,
+    answer,
+    ...(draft && { draft }),
+  };
+}

@@ -17,17 +17,13 @@ import {
   statusLine,
 } from "../ui/dom.ts";
 import { store } from "../ui/state.ts";
-import { listView } from "./list.ts";
+import { backToListButton, views } from "./router.ts";
 
 /** "PIN" on the list: how the PIN is set up now, or the form that turns it on. */
 export async function pinSettingsView() {
   const current = await store.pinStatus();
   if (current) pinEnabledView(current);
   else pinSetupView();
-}
-
-function backButton() {
-  return h("button", { type: "button", onclick: () => listView() }, "Wróć");
 }
 
 function pinEnabledView(current: PinStatus) {
@@ -50,20 +46,22 @@ function pinEnabledView(current: PinStatus) {
           class: "danger",
           onclick: async () => {
             await store.disablePin();
-            listView("PIN wyłączony. Do odblokowania potrzebne będzie hasło główne.");
+            views().list({
+              message: "PIN wyłączony. Do odblokowania potrzebne będzie hasło główne.",
+            });
           },
         },
         "Wyłącz PIN",
       ),
-      backButton(),
+      backToListButton(),
     ),
     statusLine(),
   );
 }
 
 function pinSetupView() {
-  const pin = pinInput("new-password");
-  const repeat = pinInput("new-password");
+  const pin = pinInput({ autocomplete: "new-password" });
+  const repeat = pinInput({ autocomplete: "new-password" });
   const label = h("label", {});
   const status = statusLine();
   // On disk the PIN must be long (S4 of the security review), so the inputs change with the checkbox.
@@ -81,8 +79,8 @@ function pinSetupView() {
       return setStatus(status, invalidPinMessage(remember.checked), true);
     if (pin.value !== repeat.value) return setStatus(status, "PIN-y się różnią", true);
     void busy(status, "Liczę klucz z PIN-u…", async () => {
-      await store.enablePin(pin.value, remember.checked);
-      listView("PIN włączony. Użyjesz go po zablokowaniu sejfu.");
+      await store.enablePin(pin.value, { rememberAfterRestart: remember.checked });
+      views().list({ message: "PIN włączony. Użyjesz go po zablokowaniu sejfu." });
     });
   };
 
@@ -109,7 +107,7 @@ function pinSetupView() {
         "div",
         { class: "actions" },
         h("button", { type: "submit", class: "primary" }, "Włącz PIN"),
-        backButton(),
+        backToListButton(),
       ),
     ),
     status,

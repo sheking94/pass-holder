@@ -1,6 +1,6 @@
 import { errorMessage } from "../error-messages.ts";
 import { normalizePhoneUrls, PHONE_PORT } from "../phone-urls.ts";
-import { h, setStatus } from "./dom.ts";
+import { busy, h, setStatus } from "./dom.ts";
 
 const URL_EXAMPLE = `http://192.168.1.5:${PHONE_PORT}`;
 const SECOND_URL_EXAMPLE = `http://100.64.0.7:${PHONE_PORT}`;
@@ -75,6 +75,24 @@ export function requestHostPermission(
   chrome.permissions.request({ origins }, (granted) => {
     if (!granted) return setStatus(status, NO_PERMISSION, true);
     onGranted();
+  });
+}
+
+/**
+ * The submit of a form with phone addresses: reads them (a mistake goes to the status line), asks Chrome for
+ * access, then runs action on the addresses with the buttons disabled. Call it directly in the submit handler,
+ * as requestHostPermission.
+ */
+export function submitPhoneUrls(
+  fields: ReturnType<typeof phoneUrlFields>,
+  status: HTMLElement,
+  busyMessage: string,
+  action: (urls: string[]) => Promise<void>,
+): void {
+  const typed = fields.read();
+  if (typeof typed === "string") return setStatus(status, typed, true);
+  requestHostPermission(typed.origins, status, () => {
+    void busy(status, busyMessage, () => action(typed.urls));
   });
 }
 

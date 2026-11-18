@@ -244,7 +244,7 @@ describe("after the master password changed on the phone", () => {
     const { store, phone, local, session, makeClient } = await pairedBrowser();
     await store.putEntry("1", newLogin({ name: "moje.pl", username: "u", password: "p" }));
     await store.sync();
-    await store.enablePin("2468", false);
+    await store.enablePin("2468", { rememberAfterRestart: false });
     expect(await store.pinStatus()).toBeDefined();
     const before = (await store.getAccount())!;
 
