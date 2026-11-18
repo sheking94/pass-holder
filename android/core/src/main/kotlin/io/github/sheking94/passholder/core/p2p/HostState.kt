@@ -25,9 +25,27 @@ data class StoredDevice(
     val lastSyncAt: Long? = null,
 )
 
+/** The vault key wrapped with the master password, and the KDF parameters that unwrap it. */
+data class WrappedVault(val kdf: KdfParams, val wrappedVaultKey: String)
+
+/** What a [HostState] holds, read from its nullable fields ([HostState.phase]). */
+sealed interface HostPhase {
+    /** createVault or a finished restore: everything needed to unlock. */
+    data class Ready(val vault: WrappedVault, val keyCheck: String) : HostPhase
+
+    /**
+     * startRestore ran and finishRestore has not succeeded yet. [sent] is the extension's KDF and wrapped key once
+     * it paired in restore mode, null before; the master password has not been checked against it.
+     */
+    data class Restoring(val sent: WrappedVault?) : HostPhase
+
+    /** A key check without a KDF or wrapped key: never written by this app; treated as no vault. */
+    data object Inconsistent : HostPhase
+}
+
 /**
- * Persistent state of the phone host (host.json).
- * kdf == null means a restore from the extension is in progress.
+ * Persistent state of the phone host (host.json). The file format is the nullable fields below; code reads them
+ * through [phase]. keyCheck == null means a restore from the extension is in progress ([HostPhase.Restoring]).
  * keyCheck is Base64 HMAC-SHA256(vaultKey, "passholder/v2/key-check"), set at createVault and finishRestore.
  */
 @Serializable
@@ -39,7 +57,21 @@ data class HostState(
     val wrappedVaultKey: String? = null,
     val keyCheck: String? = null,
     val devices: List<StoredDevice> = emptyList(),
-)
+) {
+    /** KDF and wrapped key when both are set (a vault, or a restore the extension already sent). */
+    val wrappedVault: WrappedVault? get() = if (kdf != null && wrappedVaultKey != null) WrappedVault(kdf, wrappedVaultKey) else null
+
+    val phase: HostPhase get() {
+        val vault = wrappedVault
+        return when {
+            keyCheck == null -> HostPhase.Restoring(vault)
+            vault != null -> HostPhase.Ready(vault, keyCheck)
+            else -> HostPhase.Inconsistent
+        }
+    }
+
+    fun withVault(vault: WrappedVault): HostState = copy(kdf = vault.kdf, wrappedVaultKey = vault.wrappedVaultKey)
+}
 
 fun StoredDevice.toPairedDevice(): PairedDevice = PairedDevice(deviceId, name, Encoding.fromBase64(staticPublicKey))
 

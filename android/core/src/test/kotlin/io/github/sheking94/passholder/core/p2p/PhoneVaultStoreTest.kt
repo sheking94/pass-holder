@@ -568,14 +568,11 @@ class PhoneVaultStoreTest {
     fun resetStoreRejectsPutAll() {
         val store = newStore()
         store.createVault("pw")
-        val field = PhoneVaultStore::class.java.getDeclaredField("records").apply { isAccessible = true }
-        val old = field.get(store)
+        val old = store.openedRecordsForTest()!!
         store.disconnect()
-        val putAll = old.javaClass.getMethod("putAll", List::class.java)
-        val e = assertThrows<java.lang.reflect.InvocationTargetException> {
-            putAll.invoke(old, listOf(io.github.sheking94.passholder.core.RemoteRecord("a", 1, false, "x")))
+        assertThrows<IllegalStateException> {
+            old.putAll(listOf(io.github.sheking94.passholder.core.RemoteRecord("a", 1, false, "x")))
         }
-        assertTrue(e.cause is IllegalStateException)
     }
 
     // ---- Files ----
@@ -759,7 +756,7 @@ class PhoneVaultStoreTest {
         assertEquals(200, client.file(putBody(oldEpoch, first.attachment.id, 0, 1, first.blobs[0])).status)
         assertEquals(setOf(first.attachment.id), storedIds())
         // A request in flight on the old host: its session was opened before the reset.
-        val oldHost = PhoneVaultStore::class.java.getDeclaredField("host").apply { isAccessible = true }.get(store) as P2pHost
+        val oldHost = store.builtHostForTest()!!
         val oldClient = TestP2pClient(extIdentity.deviceId, extKey, Encoding.fromBase64(pair.phoneIdentity!!.staticPublicKey), oldHost)
         val (session, ciphers) = oldClient.handshake()
 

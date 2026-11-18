@@ -1,55 +1,43 @@
 package io.github.sheking94.passholder.core.p2p
 
-import io.github.sheking94.passholder.core.Encoding
 import io.github.sheking94.passholder.core.ErrorCode
-import io.github.sheking94.passholder.core.Kdf
-import io.github.sheking94.passholder.core.KdfParams
-import io.github.sheking94.passholder.core.PassHolderException
-import io.github.sheking94.passholder.core.RemoteRecord
-import io.github.sheking94.passholder.core.VaultCrypto
-import io.github.sheking94.passholder.core.checkCode
 import io.github.sheking94.passholder.core.files.Attachment
 import io.github.sheking94.passholder.core.files.DiskFileStore
-import io.github.sheking94.passholder.core.files.FileChunk
 import io.github.sheking94.passholder.core.files.FileChunks
-import io.github.sheking94.passholder.core.files.FileHost
-import io.github.sheking94.passholder.core.files.FileStore
-import io.github.sheking94.passholder.core.requireCode
-import io.github.sheking94.passholder.core.transfer.ArchiveImportResult
-import io.github.sheking94.passholder.core.transfer.ArchiveReader
-import io.github.sheking94.passholder.core.transfer.ArchivedFile
-import io.github.sheking94.passholder.core.transfer.ImportSkip
 import io.github.sheking94.passholder.core.transfer.ImportedArchive
-import io.github.sheking94.passholder.core.transfer.ParsedArchive
 import io.github.sheking94.passholder.core.transfer.contentKey
 import java.io.File
-import java.io.IOException
 import java.io.InputStream
-import java.nio.file.Files
-import java.security.MessageDigest
-import java.util.concurrent.atomic.AtomicLong
-import javax.crypto.Mac
-import javax.crypto.spec.SecretKeySpec
 
 /**
- * Everything the app does with the phone's vault when the phone is the sync host (plan 3).
+ * Everything the app does with the phone's vault when the phone is the sync host (plan 3). A facade: the work is
+ * done by its parts, which share the locks and clock below.
+ *
+ * | Part | Does |
+ * |---|---|
+ * | [HostStorage] | `host.json`, `records.jsonl`, `files/` and the state lock |
+ * | [VaultLifecycle] | creating, restoring, unlocking, forgetting; master password ([VaultKeys]) |
+ * | [PhoneSession] | the vault key in memory and auto-lock |
+ * | [PhoneEntries], [PhoneFiles], [PhoneArchiveImport] | entries, files, ZIP import |
+ * | [PhoneSyncMode] | paired devices, pairing codes, the router of sync mode |
  *
  * On disk, in `dir/p2p/`: `host.json` ([HostStateStore]: identity, epoch, KDF, wrapped vault key, paired devices)
  * `records.jsonl` ([FileSyncStore]: the encrypted entries, the same store the extension syncs with) and `files/`
  * ([DiskFileStore]: encrypted file chunks, served on `/p2p/v2/file`; emptied whenever the epoch changes).
  * In memory, only while unlocked: the vault key. It locks on [lock] and after [autoLockMs] without activity ([touch]).
  *
- * States: no vault ([hasVault] and [restoreInProgress] false), unreadable host state ([corruptState]: only
- * [disconnect] gets out of it), a restore from the extension in progress
- * (host state without a key check: the extension may already have sent its KDF, wrapped key and entries,
- * but the master password has not been checked yet), and a vault ([hasVault]).
+ * States ([HostPhase]): no vault ([hasVault] and [restoreInProgress] false), unreadable host state ([corruptState]:
+ * only [disconnect] gets out of it), a restore from the extension in progress ([HostPhase.Restoring]: the extension
+ * may already have sent its KDF, wrapped key and entries, but the master password has not been checked yet), and a
+ * vault ([HostPhase.Ready], [hasVault]).
  *
  * Methods are blocking (Argon2id, disk): call them off the main thread.
  *
- * Locking: methods that use the vault key are synchronized on this object. The host state and the sync store
- * are guarded by [stateLock], which HTTP threads also take (pairing, device list, last sync time), so a running
- * Argon2id never blocks the server. Lock order: this → pairing host → [stateLock] → sync store / file store; code
- * holding [stateLock] never takes the others' monitors except the stores'. The two stores are never locked together.
+ * Locking: methods that use the vault key take the vault lock (one private object shared by the parts). The host
+ * state and the sync store are guarded by the state lock of [HostStorage], which HTTP threads also take (pairing,
+ * device list, last sync time), so a running Argon2id never blocks the server. Lock order: vault lock → pairing
+ * host → state lock → sync store / file store; code holding the state lock never takes the others' monitors except
+ * the stores'. The two stores are never locked together.
  *
  * Files: [pruneFiles] deletes stored files no live entry uses once they are older than a day; it runs after
  * unlocking and after every entry write, and never while some record cannot be read (it might use any file).
@@ -57,187 +45,56 @@ import javax.crypto.spec.SecretKeySpec
 class PhoneVaultStore(
     dir: File,
     wrapper: SecretWrapper,
-    private val now: () -> Long = System::currentTimeMillis,
-    private val autoLockMs: Long = AUTO_LOCK_MS,
+    now: () -> Long = System::currentTimeMillis,
+    /** Auto-lock after this long without [touch]. */
+    autoLockMs: Long = AUTO_LOCK_MS,
     /** The name the extension shows for this phone. */
-    private val deviceName: String = DEFAULT_DEVICE_NAME,
+    deviceName: String = DEFAULT_DEVICE_NAME,
     /** Gets the cause of every 500 answer of sync mode (the extension only sees "internal error"); e.g. to log it. */
-    private val onError: (Throwable) -> Unit = {},
+    onError: (Throwable) -> Unit = {},
 ) {
     companion object {
         const val AUTO_LOCK_MS = 15 * 60_000L
         const val DEFAULT_DEVICE_NAME = "Telefon"
-        private const val KEY_LENGTH = 32
-        private val KEY_CHECK_INFO = Encoding.utf8("passholder/v2/key-check")
-
-        /** Base64 HMAC-SHA256(vaultKey, "passholder/v2/key-check"): checks a vault key without any entry. */
-        internal fun keyCheck(vaultKey: ByteArray): String {
-            val mac = Mac.getInstance("HmacSHA256").apply { init(SecretKeySpec(vaultKey, "HmacSHA256")) }
-            return Encoding.toBase64(mac.doFinal(KEY_CHECK_INFO))
-        }
     }
 
-    private class Session(val vaultKey: ByteArray, val vault: PhoneVault)
-
-    /**
-     * The sync store, closed for writes when a reset replaces it, so a request still running on the old host
-     * cannot append to (and so recreate) a file that was just deleted.
-     */
-    private class ResettableStore(val inner: FileSyncStore) : SyncStore by inner {
-        var closed = false
-
-        override fun put(record: RemoteRecord) {
-            check(!closed) { "Sync store was reset" }
-            inner.put(record)
-        }
-
-        override fun putAll(records: List<RemoteRecord>) {
-            check(!closed) { "Sync store was reset" }
-            inner.putAll(records)
-        }
-    }
-
-    /**
-     * The file store, closed when a reset deletes it, so a request still running on the old host cannot
-     * recreate the directory ([DiskFileStore.put] creates it). Like any [FileStore], used under its own monitor.
-     */
-    private class ResettableFileStore(val inner: DiskFileStore) : FileStore by inner {
-        var closed = false
-
-        override fun put(chunk: FileChunk, now: Long) {
-            check(!closed) { "File store was reset" }
-            inner.put(chunk, now)
-        }
-
-        override fun delete(id: String) {
-            check(!closed) { "File store was reset" }
-            inner.delete(id)
-        }
-
-        override fun clear() {
-            check(!closed) { "File store was reset" }
-            inner.clear()
-        }
-    }
-
-    private val p2pDir = File(dir, "p2p")
-    private val filesDir = File(p2pDir, "files")
-    private val stateStore = HostStateStore(File(p2pDir, "host.json"), wrapper)
-    private val recordsFile = File(p2pDir, "records.jsonl")
-
-    private val stateLock = Any()
-
-    // Guarded by stateLock.
-    private var state: HostState? = null
-
-    /** host.json is there but cannot be read; guarded by [stateLock]. Never thrown from the constructor. */
-    private var corrupt = false
-
-    init {
-        synchronized(stateLock) { state = loadState() }
-    }
-    private var records: ResettableStore? = null
-    private var files: ResettableFileStore? = null
-    private var host: P2pHost? = null
-    private var addresses: () -> List<String> = { emptyList() }
-
-    /** (deviceId, Base64 static public key) of the current identity, so pairing does not unwrap the private key each time. */
-    private var publicKeyCache: Pair<String, String>? = null
-
-    private val pairing = PairingHost(::identity, ::vaultInfo, ::onPaired, now, onError)
-
-    @Volatile
-    private var session: Session? = null
-
-    /** Outside the lock on purpose: the UI calls [touch] on every tap and must never wait for a running Argon2id. */
-    private val lastActivity = AtomicLong(0)
+    private val vaultLock = Any()
+    private val storage = HostStorage(dir, wrapper, onError)
+    private val session = PhoneSession(now, autoLockMs)
+    private val files = PhoneFiles(vaultLock, session, storage, now, onError)
+    private val entries = PhoneEntries(vaultLock, session, files)
+    private val archiveImport = PhoneArchiveImport(vaultLock, entries, files, onError)
+    private val syncMode = PhoneSyncMode(storage, deviceName, now, onError)
+    private val lifecycle = VaultLifecycle(vaultLock, storage, session, files, syncMode, now)
 
     /** There is a vault: created here, or restored from the extension and checked with the master password. */
-    val hasVault: Boolean get() = synchronized(stateLock) { state?.let { it.kdf != null && it.keyCheck != null } == true }
+    val hasVault: Boolean get() = lifecycle.hasVault
 
     /** [startRestore] ran and [finishRestore] has not succeeded yet. */
-    val restoreInProgress: Boolean get() = synchronized(stateLock) { state?.let { it.keyCheck == null } == true }
+    val restoreInProgress: Boolean get() = lifecycle.restoreInProgress
 
-    val isUnlocked: Boolean get() = session != null
+    val isUnlocked: Boolean get() = session.isUnlocked
 
     /**
      * host.json exists but is not a host state (damaged file): no vault, no restore, nothing to serve.
      * Only [disconnect] clears it; creating or restoring refuses until then, so nothing overwrites it silently.
      */
-    val corruptState: Boolean get() = synchronized(stateLock) { corrupt }
+    val corruptState: Boolean get() = storage.isCorrupt
 
     // ---- Creating ----
 
     /** A new, empty vault with a new identity; unlocks it. */
-    @Synchronized
-    fun createVault(masterPassword: String) {
-        checkCode(!hasVault, ErrorCode.VAULT_EXISTS)
-        checkNotCorrupt()
-        lock()
-        val kdf = Kdf.newParams()
-        val keys = Kdf.deriveKeys(masterPassword, kdf)
-        val vaultKey = VaultCrypto.newVaultKey()
-        val wrapped = try {
-            VaultCrypto.wrapVaultKey(keys.encKey, vaultKey)
-        } finally {
-            keys.encKey.fill(0)
-        }
-        try {
-            val fresh = stateStore.newState(kdf, wrapped).copy(keyCheck = keyCheck(vaultKey))
-            pairing.cancel()
-            synchronized(stateLock) {
-                resetRecords()
-                saveState(fresh)
-            }
-            start(vaultKey)
-        } catch (e: Throwable) {
-            vaultKey.fill(0)
-            throw e
-        }
-    }
+    fun createVault(masterPassword: String) = lifecycle.create(masterPassword)
 
     /** Starts "restore from the extension": a new identity without a vault; earlier records are deleted. */
-    @Synchronized
-    fun startRestore() {
-        checkCode(!hasVault, ErrorCode.VAULT_EXISTS)
-        checkNotCorrupt()
-        lock()
-        pairing.cancel()
-        synchronized(stateLock) {
-            resetRecords()
-            saveState(stateStore.newState(null, null))
-        }
-    }
+    fun startRestore() = lifecycle.startRestore()
 
     /**
      * Ends a restore: checks [masterPassword] against the wrapped vault key the extension sent and unlocks.
      * [ErrorCode.RESTORE_NOT_SENT] while the extension has not paired and synced yet; [ErrorCode.WRONG_MASTER_PASSWORD]
      * for a wrong password (nothing changes then).
      */
-    @Synchronized
-    fun finishRestore(masterPassword: String) {
-        val hostState = synchronized(stateLock) { state }
-        if (hostState == null || hostState.keyCheck != null) throw PassHolderException(ErrorCode.RESTORE_NOT_RUNNING)
-        val kdf = hostState.kdf ?: throw PassHolderException(ErrorCode.RESTORE_NOT_SENT)
-        val wrapped = hostState.wrappedVaultKey ?: throw PassHolderException(ErrorCode.RESTORE_NOT_SENT)
-        checkCode(hostState.devices.isNotEmpty(), ErrorCode.RESTORE_NOT_SENT)
-        val store = synchronized(stateLock) { openRecords() }
-        checkCode(synchronized(store) { store.currentRevision() > 0 }, ErrorCode.RESTORE_NOT_SENT)
-        val vaultKey = unwrap(masterPassword, kdf, wrapped)
-        try {
-            synchronized(stateLock) {
-                val current = state
-                if (current == null || current.epoch != hostState.epoch || current.wrappedVaultKey != wrapped) {
-                    throw PassHolderException(ErrorCode.RESTORE_CHANGED)
-                }
-                saveState(current.copy(keyCheck = keyCheck(vaultKey)))
-            }
-            start(vaultKey)
-        } catch (e: Throwable) {
-            vaultKey.fill(0)
-            throw e
-        }
-    }
+    fun finishRestore(masterPassword: String) = lifecycle.finishRestore(masterPassword)
 
     // ---- Changing the master password ----
 
@@ -248,168 +105,58 @@ class PhoneVaultStore(
      * Needs an unlocked vault; [oldPassword] is checked again ([ErrorCode.WRONG_MASTER_PASSWORD]).
      * The caller checks [newPassword] against its strength rules first.
      */
-    @Synchronized
-    fun changeMasterPassword(oldPassword: String, newPassword: String) {
-        val current = requireSession()
-        val hostState = requireVault()
-        requireCode(oldPassword != newPassword, ErrorCode.PASSWORD_UNCHANGED)
-        val checked = unwrap(oldPassword, hostState.kdf!!, hostState.wrappedVaultKey!!)
-        try {
-            if (!MessageDigest.isEqual(checked, current.vaultKey)) throw PassHolderException(ErrorCode.WRONG_MASTER_PASSWORD)
-        } finally {
-            checked.fill(0)
-        }
-        val kdf = Kdf.newParams()
-        val keys = Kdf.deriveKeys(newPassword, kdf)
-        val wrapped = try {
-            VaultCrypto.wrapVaultKey(keys.encKey, current.vaultKey)
-        } finally {
-            keys.encKey.fill(0)
-        }
-        pairing.cancel()
-        synchronized(stateLock) {
-            val latest = state
-            if (latest == null || latest.epoch != hostState.epoch || latest.keyCheck != hostState.keyCheck) {
-                throw PassHolderException(ErrorCode.VAULT_CHANGED)
-            }
-            saveState(latest.copy(kdf = kdf, wrappedVaultKey = wrapped, devices = emptyList()))
-        }
-        touch()
-    }
+    fun changeMasterPassword(oldPassword: String, newPassword: String) = lifecycle.changeMasterPassword(oldPassword, newPassword)
 
     /**
      * Checks [masterPassword] again while unlocked, before a plain-text export (security review V3-N6): someone with
      * the unlocked phone in hand cannot take the whole vault in one file without knowing it.
      * [ErrorCode.WRONG_MASTER_PASSWORD] for a password that does not open this vault; [ErrorCode.VAULT_LOCKED] while locked.
      */
-    @Synchronized
-    fun confirmMasterPassword(masterPassword: String) {
-        val current = requireSession()
-        val hostState = requireVault()
-        val checked = unwrap(masterPassword, hostState.kdf!!, hostState.wrappedVaultKey!!)
-        try {
-            if (!MessageDigest.isEqual(checked, current.vaultKey)) throw PassHolderException(ErrorCode.WRONG_MASTER_PASSWORD)
-        } finally {
-            checked.fill(0)
-        }
-    }
+    fun confirmMasterPassword(masterPassword: String) = lifecycle.confirmMasterPassword(masterPassword)
 
     // ---- Locking ----
 
     /** Works offline: everything is on disk. */
-    @Synchronized
-    fun unlock(masterPassword: String) {
-        val hostState = requireVault()
-        val vaultKey = unwrap(masterPassword, hostState.kdf!!, hostState.wrappedVaultKey!!)
-        try {
-            if (!MessageDigest.isEqual(Encoding.utf8(keyCheck(vaultKey)), Encoding.utf8(hostState.keyCheck!!))) {
-                throw PassHolderException(ErrorCode.WRONG_MASTER_PASSWORD)
-            }
-            start(vaultKey)
-        } catch (e: Throwable) {
-            vaultKey.fill(0)
-            throw e
-        }
-    }
+    fun unlock(masterPassword: String) = lifecycle.unlock(masterPassword)
 
     /** The vault key (32 bytes) for the fingerprint unlock. Returns a copy; the caller should zero it once encrypted. */
-    @Synchronized
-    fun exportVaultKey(): ByteArray = requireSession().vaultKey.copyOf()
+    fun exportVaultKey(): ByteArray = lifecycle.exportVaultKey()
 
     /** Unlocks with the key from [exportVaultKey], checked against the stored key check in constant time. */
-    @Synchronized
-    fun unlockWithVaultKey(key: ByteArray) {
-        requireCode(key.size == KEY_LENGTH, ErrorCode.WRONG_UNLOCK_KEYS)
-        val hostState = requireVault()
-        if (!MessageDigest.isEqual(Encoding.utf8(keyCheck(key)), Encoding.utf8(hostState.keyCheck!!))) {
-            throw PassHolderException(ErrorCode.WRONG_UNLOCK_KEYS)
-        }
-        val vaultKey = key.copyOf()
-        try {
-            start(vaultKey)
-        } catch (e: Throwable) {
-            vaultKey.fill(0)
-            throw e
-        }
-    }
+    fun unlockWithVaultKey(key: ByteArray) = lifecycle.unlockWithVaultKey(key)
 
     /** Forgets the vault key (zeroed). */
-    @Synchronized
-    fun lock() {
-        session?.vaultKey?.fill(0)
-        session = null
-    }
+    fun lock() = synchronized(vaultLock) { session.lock() }
 
     /** Marks user activity; auto-lock counts from the last one. Cheap and never blocks. */
-    fun touch() {
-        lastActivity.set(now())
-    }
+    fun touch() = session.touch()
 
-    /** Locks if there was no activity for [autoLockMs]. Returns true if the vault is (now) locked. */
-    @Synchronized
-    fun lockIfIdle(): Boolean {
-        if (session == null) return true
-        if (now() - lastActivity.get() >= autoLockMs) lock()
-        return session == null
-    }
+    /** Locks if there was no activity for the auto-lock time. Returns true if the vault is (now) locked. */
+    fun lockIfIdle(): Boolean = synchronized(vaultLock) { session.lockIfIdle() }
 
     /** Forgets this phone's vault, identity and paired devices: deletes `dir/p2p/`. */
-    @Synchronized
-    fun disconnect() {
-        lock()
-        pairing.cancel()
-        synchronized(stateLock) {
-            resetRecords()
-            state = null
-            corrupt = false
-            stateStore.delete()
-            if (p2pDir.exists() && !p2pDir.deleteRecursively()) throw IOException("Cannot delete $p2pDir")
-        }
-    }
+    fun disconnect() = lifecycle.disconnect()
 
     // ---- Entries ----
 
     /** Live entries of every type sorted by name. */
-    @Synchronized
-    fun entries(): List<PhoneEntry> = requireSession().vault.entries()
+    fun entries(): List<PhoneEntry> = entries.list()
 
-    @Synchronized
-    fun entry(id: String): PhoneEntry? = entries().firstOrNull { it.id == id }
+    fun entry(id: String): PhoneEntry? = entries.get(id)
 
     /** Writes any entry content; [ErrorCode.ENTRY_TYPE_MISMATCH] for another live type, [ErrorCode.ENTRY_TOO_LARGE] leaves the store as it was. */
-    @Synchronized
-    fun upsertContent(id: String, content: EntryContent) {
-        requireSession().vault.upsertContent(id, content)
-        touch()
-        pruneQuietly()
-    }
+    fun upsertContent(id: String, content: EntryContent) = entries.upsert(id, content)
 
     /** Imports [entries] all or nothing; see [PhoneVault.importContents]. */
-    @Synchronized
-    fun importContents(entries: List<EntryContent>): ImportResult {
-        val result = requireSession().vault.importContents(entries)
-        touch()
-        return result
-    }
+    fun importContents(entries: List<EntryContent>): ImportResult = this.entries.import(entries)
 
     /** Content of every live readable entry (for export). */
-    @Synchronized
-    fun allContents(): List<EntryContent> {
-        val result = requireSession().vault.entries().map { it.content }
-        touch()
-        return result
-    }
+    fun allContents(): List<EntryContent> = entries.allContents()
 
-    @Synchronized
-    fun delete(id: String) {
-        requireSession().vault.delete(id)
-        touch()
-        pruneQuietly()
-    }
+    fun delete(id: String) = entries.delete(id)
 
     /** Records the vault key cannot open (e.g. sent by an extension of another vault). */
-    @Synchronized
-    fun unreadableIds(): List<String> = requireSession().vault.unreadableIds()
+    fun unreadableIds(): List<String> = entries.unreadableIds()
 
     // ---- Files ----
 
@@ -417,62 +164,19 @@ class PhoneVaultStore(
      * Encrypts [bytes] and stores the complete file; returns its descriptor for the entry the UI saves next
      * (until then the file is kept for a day, see [pruneFiles]). Errors of [FileChunks.encrypt] as there.
      */
-    @Synchronized
-    fun addFile(bytes: ByteArray, name: String, mime: String): Attachment {
-        requireSession()
-        val encrypted = FileChunks.encrypt(bytes, name, mime)
-        val attachment = encrypted.attachment
-        val store = openFiles()
-        synchronized(store) {
-            checkCode(store.canStore(encrypted.blobs.sumOf { it.length.toLong() }), ErrorCode.NO_SPACE)
-            val at = now()
-            encrypted.blobs.forEachIndexed { i, blob -> store.put(FileChunk(attachment.id, i, attachment.chunks, blob), at) }
-        }
-        touch()
-        return attachment
-    }
+    fun addFile(bytes: ByteArray, name: String, mime: String): Attachment = files.add(bytes, name, mime)
 
     /** Every chunk of the file is on the phone (sent by the extension or added here). */
-    @Synchronized
-    fun isFileComplete(a: Attachment): Boolean {
-        requireSession()
-        val store = openFiles()
-        return synchronized(store) { store.chunks(a.id) == a.chunks && store.have(a.id).size == a.chunks }
-    }
+    fun isFileComplete(a: Attachment): Boolean = files.isComplete(a)
 
     /** The file's contents; [ErrorCode.FILE_CORRUPTED] when a chunk is missing or does not match. */
-    @Synchronized
-    fun readFile(a: Attachment): ByteArray {
-        requireSession()
-        val store = openFiles()
-        val blobs = synchronized(store) {
-            if (store.chunks(a.id) != a.chunks) throw PassHolderException(ErrorCode.FILE_CORRUPTED)
-            (0 until a.chunks).map { store.get(a.id, it) ?: throw PassHolderException(ErrorCode.FILE_CORRUPTED) }
-        }
-        touch()
-        return FileChunks.decrypt(a, blobs)
-    }
+    fun readFile(a: Attachment): ByteArray = files.read(a)
 
     /**
      * Deletes stored files that no live entry uses and that are older than [io.github.sheking94.passholder.core.files.Attachments.ORPHAN_FILE_AGE_MS];
      * returns how many. Does nothing (0) while some record cannot be read: it might use any file.
      */
-    fun pruneFiles(): Int {
-        val (used, store) = synchronized(this) {
-            val vault = requireSession().vault
-            val fileStore = openFiles()
-            if (synchronized(fileStore) { fileStore.ids().isEmpty() }) return 0
-            if (vault.unreadableIds().isNotEmpty()) return 0
-            vault.entries().flatMap { e -> e.content.attachments.map { it.id } }.toSet() to openFiles()
-        }
-        return synchronized(store) {
-            // A reset since the entries were listed: the old files are gone already.
-            if (store.closed) return 0
-            val orphans = FileHost.orphanIds(store, used, now())
-            orphans.forEach(store::delete)
-            orphans.size
-        }
-    }
+    fun pruneFiles(): Int = files.prune()
 
     /**
      * Deletes the files with the given [ids] at once (the UI uses it for files added to an entry that was not
@@ -480,22 +184,7 @@ class PhoneVaultStore(
      * just added and never saved in an entry; returns how many were deleted. Does nothing (0) while some record
      * cannot be read: it might use any file.
      */
-    fun discardFiles(ids: Collection<String>): Int {
-        val (used, store) = synchronized(this) {
-            val vault = requireSession().vault
-            val fileStore = openFiles()
-            if (vault.unreadableIds().isNotEmpty()) return 0
-            vault.entries().flatMap { e -> e.content.attachments.map { it.id } }.toSet() to fileStore
-        }
-        return synchronized(store) {
-            // A reset since the entries were listed: the old files are gone already.
-            if (store.closed) return 0
-            val present = store.ids()
-            val doomed = ids.toSet().filter { it !in used && it in present }
-            doomed.forEach(store::delete)
-            doomed.size
-        }
-    }
+    fun discardFiles(ids: Collection<String>): Int = files.discard(ids)
 
     /**
      * Imports a PassHolder ZIP read from [input] (closed at the end): the index, then the files of the entries that
@@ -505,114 +194,14 @@ class PhoneVaultStore(
      * ("wpis N, nazwa"). Any exception (damaged archive, no space, vault locked) imports nothing: the files added so
      * far are deleted and the exception is passed on. Files added for entries that were not imported are deleted.
      */
-    fun importArchive(input: InputStream): ImportedArchive {
-        val added = ArrayList<String>()
-        try {
-            val prepared = ArchiveReader(input).use { reader -> prepareArchive(reader, added) }
-            return synchronized(this) {
-                val result = importContents(prepared.contents)
-                // Entries are written now: from here on a failure must not delete files they may use.
-                val mine = added.toList()
-                added.clear()
-                val used = allContents().flatMapTo(HashSet()) { e -> e.attachments.map { it.id } }
-                val filesAdded = mine.count { it in used }
-                try {
-                    discardFiles(mine)
-                } catch (e: Exception) {
-                    // Left for pruneFiles, which deletes unused files after a day.
-                    reportError(onError, e)
-                }
-                ImportedArchive(prepared.parsed, ArchiveImportResult(result, filesAdded, prepared.fileSkips))
-            }
-        } catch (e: Throwable) {
-            dropNewFiles(added)
-            throw e
-        }
-    }
-
-    /** An archive read for [importArchive]: the entries to import, with the files that could be stored. */
-    private class PreparedArchive(val parsed: ParsedArchive, val contents: List<EntryContent>, val fileSkips: List<ImportSkip>)
-
-    /** Files of an archive stored with [addFile], by archive path, and why the others were not. */
-    private class StoredFiles(val attachments: Map<String, Attachment>, val reasons: Map<String, String>)
-
-    /** The index, then the files of the entries not already in the vault, stored (their ids go to [added] at once). */
-    private fun prepareArchive(reader: ArchiveReader, added: MutableList<String>): PreparedArchive {
-        val parsed = reader.readIndex()
-        // Only against the vault: importContents drops repeats within the archive itself, and it may refuse the first
-        // copy as too large, so a later copy must still bring its files (unused ones are discarded).
-        val known = allContents().mapTo(HashSet(), ::contentKey)
-        val fresh = parsed.entries.filter { contentKey(it.content) !in known }
-        val stored = storeArchivedFiles(reader, fresh.flatMap { it.files }, added)
-        val freshPositions = fresh.mapTo(HashSet()) { it.position }
-        val skips = ArrayList<ImportSkip>()
-        val contents = parsed.entries.map { e ->
-            if (e.position !in freshPositions) return@map e.content
-            val files = e.files.mapNotNull { f ->
-                val attachment = stored.attachments[f.path]
-                if (attachment == null) {
-                    skips.add(ImportSkip("wpis ${e.position}, ${f.name}", stored.reasons[f.path] ?: "brak w archiwum"))
-                }
-                attachment
-            }
-            e.content.copy(attachments = files)
-        }
-        return PreparedArchive(parsed, contents, skips)
-    }
-
-    /** Reads the [wanted] files from the rest of the archive and stores each one of the described size. */
-    private fun storeArchivedFiles(reader: ArchiveReader, wanted: List<ArchivedFile>, added: MutableList<String>): StoredFiles {
-        val byPath = wanted.associateBy { it.path }
-        val attachments = HashMap<String, Attachment>()
-        val reasons = HashMap<String, String>()
-        reader.forEachFile(byPath.keys, { path, reason -> reasons[path] = reason }) { path, bytes ->
-            val f = byPath.getValue(path)
-            if (bytes.size != f.size) {
-                reasons[path] = "inny rozmiar niż w opisie"
-            } else {
-                val attachment = addFile(bytes, f.name, f.mime)
-                added.add(attachment.id)
-                attachments[path] = attachment
-            }
-        }
-        return StoredFiles(attachments, reasons)
-    }
-
-    /**
-     * Deletes files [importArchive] just added, while no entry was written with them; works while locked (the
-     * vault may have locked mid-import). The ids are fresh random UUIDs nothing else refers to.
-     */
-    private fun dropNewFiles(ids: List<String>) {
-        if (ids.isEmpty()) return
-        try {
-            val store = openFiles()
-            synchronized(store) {
-                if (!store.closed) ids.forEach(store::delete)
-            }
-        } catch (e: Exception) {
-            reportError(onError, e)
-        }
-    }
-
-    /** [pruneFiles] after unlocking or an entry write: a failure must not fail that, it only goes to [onError]. */
-    private fun pruneQuietly() {
-        try {
-            pruneFiles()
-        } catch (e: Exception) {
-            reportError(onError, e)
-        }
-    }
+    fun importArchive(input: InputStream): ImportedArchive = archiveImport.import(input)
 
     // ---- Devices ----
 
-    fun devices(): List<StoredDevice> = synchronized(stateLock) { state?.devices.orEmpty() }
+    fun devices(): List<StoredDevice> = syncMode.devices()
 
     /** The device can no longer handshake (its next request gets 403). */
-    fun removeDevice(deviceId: String) = synchronized(stateLock) {
-        val hostState = state ?: return@synchronized
-        if (hostState.devices.none { it.deviceId == deviceId }) return@synchronized
-        saveState(hostState.copy(devices = hostState.devices.filter { it.deviceId != deviceId }))
-    }
+    fun removeDevice(deviceId: String) = syncMode.removeDevice(deviceId)
 
     // ---- Sync mode ----
 
@@ -622,217 +211,21 @@ class PhoneVaultStore(
      * phone's current addresses, sent to the extension in pairing and sync answers.
      * A pairing code from an earlier start is dropped: each start of sync mode asks for its own.
      */
-    fun router(onActivity: () -> Unit, addresses: () -> List<String>): PhoneRouter {
-        pairing.cancel()
-        synchronized(stateLock) {
-            this.addresses = addresses
-            state = loadState()
-            host = null
-        }
-        return PhoneRouter(pairing, ::currentHost, onActivity, onError)
-    }
+    fun router(onActivity: () -> Unit, addresses: () -> List<String>): PhoneRouter = syncMode.router(onActivity, addresses)
 
     /** A new pairing code; in restore mode while a restore is in progress. */
-    fun offerPairing(): PairingOffer {
-        val mode = synchronized(stateLock) {
-            val hostState = state ?: throw PassHolderException(ErrorCode.NO_VAULT)
-            if (hostState.keyCheck == null) PairingMode.RESTORE else PairingMode.PAIR
-        }
-        return pairing.offer(mode)
-    }
+    fun offerPairing(): PairingOffer = syncMode.offerPairing()
 
-    fun cancelPairing() = pairing.cancel()
+    fun cancelPairing() = syncMode.cancelPairing()
 
     /** The offered code while it can still be used: null once it expired, was spent by /pair/start or cancelled. */
-    fun currentOffer(): PairingOffer? = pairing.current()
+    fun currentOffer(): PairingOffer? = syncMode.currentOffer()
 
-    // ---- Internals ----
+    // ---- Test hooks ----
 
-    /** Null before the first createVault/startRestore. Works while locked: the host only moves opaque blobs. */
-    private fun currentHost(): P2pHost? = synchronized(stateLock) {
-        val hostState = state ?: return@synchronized null
-        host ?: P2pHost(
-            staticKey = stateStore.staticKey(hostState),
-            devices = ::pairedDevices,
-            store = openRecords(),
-            epoch = hostState.epoch,
-            addresses = { currentAddresses() },
-            now = now,
-            onSynced = ::onSynced,
-            onError = onError,
-            files = openFiles(),
-        ).also { host = it }
-    }
+    /** The sync store now open, if any: a reset must close it for writes. */
+    internal fun openedRecordsForTest(): SyncStore? = storage.openedRecords()
 
-    private fun currentAddresses(): List<String> = synchronized(stateLock) { addresses }()
-
-    private fun pairedDevices(): List<PairedDevice> = devices().map { it.toPairedDevice() }
-
-    private fun onSynced(deviceId: String) = synchronized(stateLock) {
-        val hostState = state ?: return@synchronized
-        if (hostState.devices.none { it.deviceId == deviceId }) return@synchronized
-        val at = now()
-        saveState(hostState.copy(devices = hostState.devices.map { if (it.deviceId == deviceId) it.copy(lastSyncAt = at) else it }))
-    }
-
-    private fun identity(): DeviceIdentity = synchronized(stateLock) {
-        val hostState = state ?: throw IllegalStateException("No host state")
-        val cached = publicKeyCache?.takeIf { it.first == hostState.deviceId }?.second
-        val publicKey = cached ?: run {
-            val pair = stateStore.staticKey(hostState)
-            pair.privateKey.fill(0)
-            Encoding.toBase64(pair.publicKey).also { publicKeyCache = hostState.deviceId to it }
-        }
-        DeviceIdentity(hostState.deviceId, deviceName, publicKey)
-    }
-
-    private fun vaultInfo(@Suppress("UNUSED_PARAMETER") restored: VaultInfo?): VaultInfo {
-        val list = currentAddresses().take(Pairing.MAX_ADDRESSES)
-        return synchronized(stateLock) {
-            val hostState = state ?: throw IllegalStateException("No host state")
-            VaultInfo(
-                hostState.epoch,
-                hostState.kdf ?: throw IllegalStateException("No vault"),
-                hostState.wrappedVaultKey ?: throw IllegalStateException("No vault"),
-                list,
-            )
-        }
-    }
-
-    /** The same deviceId replaces the earlier entry; in restore mode also keeps the extension's KDF and wrapped key. */
-    private fun onPaired(device: StoredDevice, restored: VaultInfo?) = synchronized(stateLock) {
-        val hostState = state ?: throw IllegalStateException("No host state")
-        val restoring = hostState.keyCheck == null
-        // The offer's mode was fixed when it was made; refuse if the phone's state changed since.
-        check(restoring == (restored != null)) { "Pairing mode no longer matches the vault" }
-        // Once an extension sent its vault for the restore, only that extension may pair again (and resend it).
-        if (restored != null && hostState.kdf != null) {
-            check(hostState.devices.any { it.deviceId == device.deviceId }) { "Restore already started by another device" }
-        }
-        val devices = hostState.devices.filter { it.deviceId != device.deviceId } + device
-        saveState(
-            if (restored == null) {
-                hostState.copy(devices = devices)
-            } else {
-                hostState.copy(devices = devices, kdf = restored.kdf, wrappedVaultKey = restored.wrappedVaultKey)
-            },
-        )
-    }
-
-    /** Caller holds [stateLock]. */
-    private fun saveState(s: HostState) {
-        p2pDir.mkdirs()
-        stateStore.save(s)
-        state = s
-        corrupt = false
-    }
-
-    /** Caller holds [stateLock]. The state on disk; null (and [corrupt] set) when host.json cannot be read. */
-    private fun loadState(): HostState? = try {
-        stateStore.load().also { corrupt = false }
-    } catch (e: IllegalStateException) {
-        markCorrupt(e)
-    } catch (e: IOException) {
-        markCorrupt(e)
-    }
-
-    /** Caller holds [stateLock]. */
-    private fun markCorrupt(e: Exception): HostState? {
-        reportError(onError, e)
-        corrupt = true
-        return null
-    }
-
-    private fun checkNotCorrupt() = checkCode(!corruptState, ErrorCode.VAULT_UNREADABLE)
-
-    /** Caller holds [stateLock]. Opens the file store too. */
-    private fun openRecords(): ResettableStore {
-        openFilesLocked()
-        return records ?: ResettableStore(FileSyncStore(recordsFile)).also { records = it }
-    }
-
-    /** Caller holds [stateLock]. */
-    private fun openFilesLocked(): ResettableFileStore = files ?: run {
-        p2pDir.mkdirs()
-        ResettableFileStore(DiskFileStore(filesDir)).also { files = it }
-    }
-
-    private fun openFiles(): ResettableFileStore = synchronized(stateLock) { openFilesLocked() }
-
-    /** Caller holds [stateLock]. Deletes the records file and the stored files, and drops the host built on them. */
-    private fun resetRecords() {
-        resetFiles()
-        val old = records
-        if (old != null) {
-            synchronized(old) {
-                old.closed = true
-                deleteRecordsFiles()
-            }
-        } else {
-            deleteRecordsFiles()
-        }
-        records = null
-        host = null
-    }
-
-    /** Caller holds [stateLock]. */
-    private fun resetFiles() {
-        val old = files
-        try {
-            if (old != null) {
-                synchronized(old) {
-                    old.closed = true
-                    deleteFilesDir()
-                }
-            } else {
-                deleteFilesDir()
-            }
-        } finally {
-            // Never leave a closed store behind; the next DiskFileStore open cleans a half-deleted directory.
-            files = null
-        }
-    }
-
-    private fun deleteFilesDir() {
-        if (filesDir.exists() && !filesDir.deleteRecursively()) throw IOException("Cannot delete $filesDir")
-    }
-
-    private fun deleteRecordsFiles() {
-        Files.deleteIfExists(File(recordsFile.path + ".tmp").toPath())
-        Files.deleteIfExists(recordsFile.toPath())
-    }
-
-    private fun unwrap(masterPassword: String, kdf: KdfParams, wrapped: String): ByteArray {
-        // Security review V3-I5: host.json is read from disk, so its KDF gets the same bounds as one from the network.
-        Kdf.assertAcceptable(kdf)
-        val keys = Kdf.deriveKeys(masterPassword, kdf)
-        return try {
-            VaultCrypto.unwrapVaultKey(keys.encKey, wrapped)
-        } catch (e: Exception) {
-            throw PassHolderException(ErrorCode.WRONG_MASTER_PASSWORD, cause = e)
-        } finally {
-            keys.encKey.fill(0)
-        }
-    }
-
-    private fun requireVault(): HostState {
-        val hostState = synchronized(stateLock) { state }
-        if (hostState == null || hostState.kdf == null || hostState.wrappedVaultKey == null || hostState.keyCheck == null) {
-            throw PassHolderException(ErrorCode.NO_VAULT)
-        }
-        return hostState
-    }
-
-    private fun requireSession(): Session = session ?: throw PassHolderException(ErrorCode.VAULT_LOCKED)
-
-    /** Caller holds this object's lock. */
-    private fun start(vaultKey: ByteArray) {
-        lock()
-        val (store, deviceId) = synchronized(stateLock) {
-            openRecords() to (state ?: throw IllegalStateException("No host state")).deviceId
-        }
-        session = Session(vaultKey, PhoneVault(store, vaultKey, deviceId, now))
-        touch()
-        pruneQuietly()
-    }
+    /** The host sync mode built, if any: a request in flight may still use it after a reset. */
+    internal fun builtHostForTest(): P2pHost? = storage.builtHost()
 }

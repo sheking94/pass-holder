@@ -128,7 +128,7 @@ Dwa moduły Gradle: `core` (czysta JVM, testy bez emulatora) i `app` (Jetpack Co
 | `p2p/SyncHttpServer.kt`, `PhoneRouter.kt`, `LocalAddresses.kt` | serwer HTTP na porcie 8787 z limitami, trasy `/p2p/v1/pair/*`, `/p2p/v1/ping` i `/p2p/v2/*` (stare `/p2p/v1/handshake` i `/sync` przekazane do hosta, który odpowiada 410), adresy telefonu |
 | `transfer/Common.kt`, `Csv.kt`, `JsonText.kt`, `PassHolderJson.kt`, `BitwardenJson.kt`, `NordPassCsv.kt`, `Transfer.kt`, `PassHolderZip.kt`, `ArchiveReader.kt` | pakiet `core.transfer`: ZIP bez `ZipInputStream` (własny strumieniowy parser: CRC i pomijanie pliku bez rozpakowania, budżet rozpakowywania; zapis `java.util.zip`); port `core/src/transfer/` (`contentKey`, `sortForExport` na `RuleBasedCollator` zgodnym z wektorem `sort.json`, CSV RFC 4180, serializacja JSON jak `JSON.stringify`, `Transfer.parseImportFile` i `exportFile`); te same pliki przykładowe z `core/test-vectors/transfer/` |
 | `files/Attachment.kt`, `FileChunks.kt`, `FileHost.kt`, `DiskFileStore.kt` | pliki w sejfie (port `core/src/files/` bez klienta): opis załącznika (stałe, ścisły parser), szyfrowanie kawałkami (`FileSecrets`), host `/p2p/v2/file` (`FileHost`: `parse` do `FileRequest`, funkcja na operację; `FileStore.put(FileChunk, now)`) i magazyn na dysku telefonu (`p2p/files/`, zapis przez `AtomicFiles.write`); `P2pHost` dostaje magazyn jako ostatni parametr |
-| `p2p/PhoneVaultStore.kt`, `PhoneVault.kt`, `FileSyncStore.kt`, `HostState.kt` | sejf telefonu: tworzenie, odtwarzanie, blokada (15 min), wpisy (`entries()` zwraca wszystkie typy, `upsertContent` zapisuje dokładnie podaną treść i odmawia nadpisania wpisu innego typu), urządzenia; pliki `records.jsonl` i `host.json`; import: `importContents` (duplikaty po `contentKey`, jeden zapis) i `allContents`; pliki: `addFile`, `isFileComplete`, `readFile`, `pruneFiles`, `discardFiles` (kasuje podane pliki poza używanymi przez żywy wpis), kasowanie przy zmianie epoki |
+| `p2p/PhoneVaultStore.kt` (fasada) i jego części `HostStorage.kt`, `VaultLifecycle.kt`, `VaultKeys.kt`, `PhoneSession.kt`, `PhoneEntries.kt`, `PhoneFiles.kt`, `PhoneArchiveImport.kt`, `PhoneSyncMode.kt` (patrz „Podział `PhoneVaultStore`” niżej); `PhoneVault.kt`, `FileSyncStore.kt`, `HostState.kt` (`HostPhase`) | sejf telefonu: tworzenie, odtwarzanie, blokada (15 min), wpisy (`entries()` zwraca wszystkie typy, `upsertContent` zapisuje dokładnie podaną treść i odmawia nadpisania wpisu innego typu), urządzenia; pliki `records.jsonl` i `host.json`; import: `importContents` (duplikaty po `contentKey`, jeden zapis) i `allContents`; pliki: `addFile`, `isFileComplete`, `readFile`, `pruneFiles`, `discardFiles` (kasuje podane pliki poza używanymi przez żywy wpis), kasowanie przy zmianie epoki |
 | `autofill/Keywords.kt`, `Fields.kt`, `Values.kt`, `Match.kt`, `PublicSuffix.kt` | port `core/src/autofill/` 1:1 (`classifyField`, `planFor`, `fillValue`, `matchUrl` na `parseWebAddress`, `matchLogins`, `publicSuffix`/`registrableDomain` z zasobu `public_suffix_rules.txt`) na tych samych wektorach `{match,psl,fields,values}.json`; `matchApp`: przeglądarka zweryfikowana podpisem (`AppRequest.browserVerified`; 13 pakietów z certyfikatami SHA-256 w `TRUSTED_BROWSERS`) z `webDomain` → `matchLogins` (brak `webScheme` = `http`, `pageScheme`), inaczej loginy z pakietem w `androidApps`, po nazwie, tylko przy `appVerified`; `verifyApp` ustawia obie flagi z certyfikatów pakietu i zapamiętanych (V3-S3); wektory `test-vectors/autofill/app.json` (tylko Kotlin) |
 | `autofill/Planner.kt` | `planRequest`: grupa formularza (login, karta, kontakt) i jej pola; `planDatasets`: pasujące wpisy → wartości pól (`ListIndex` dla list), bez wpisów bez wartości, najwyżej 10; generyczne po typie id pola, więc testowane bez Androida |
 | `save/SaveUrl.kt`, `Decide.kt`, `SaveFields.kt` | port `core/src/save/` (`saveUrl`, `saveName`, `decideSave`; te same wektory `core/test-vectors/save/{url,decide}.json`) plus `saveFields` (pole hasła: pierwsze nowe hasło, inaczej hasło; login: pole loginu, inaczej ostatni e-mail przed hasłem), `saveTargetFor` (zaufana przeglądarka z domeną → `Web`, inaczej `App` z pakietem), `newLogin`, `withPassword` |
@@ -236,7 +236,7 @@ Ustalone w grupie G5, te same zasady co w TypeScripcie.
   aplikacji (`TransferFiles`, `AttachmentFiles`, `SyncController`, `BiometricController`) są polskie od razu.
 - **Zostają zwykłymi wyjątkami:** błędy programisty (`require`/`check` bez kodu), stan wewnętrzny (`"No host
   state"`, uszkodzony `host.json` / `records.jsonl` jako `IllegalStateException` łapany tylko w
-  `PhoneVaultStore.loadState`) i walidacja danych z sieci po stronie hosta (CPace, `Pairing`, Base64, HLC,
+  `HostStorage.reload`) i walidacja danych z sieci po stronie hosta (CPace, `Pairing`, Base64, HLC,
   `Frames` poza `NOISE_FAILED`): ta zamienia się na kod HTTP w jednym miejscu i nie trafia do użytkownika.
 - **Porażka bez wyjątku:** `PassHolderJson` zwraca `null` dla złego wpisu indeksu (zamiast pustego
   `IllegalArgumentException` jako „pomiń”), `forgetFingerprint()` zwraca `Result<Unit>`. Powody pominięcia
@@ -356,7 +356,7 @@ Ustalone w grupie G9 przeglądu czystości kodu V3 (CK4, CW6, CW8, CS5). Wektory
   ścieżek), `indexJson` (passholder.json), `writeZip` (indeks, potem pliki; `missing` z obu przejść).
 - **Import archiwum**: wtyczka `VaultStore.importArchive` (od G10 w `VaultTransfer`) → `storeArchivedFiles` (pliki jednego wpisu) i
   `readArchivedFile` (rozmiar jak w opisie); typ `OpenedArchive` z `openPassHolderZip`. Telefon
-  `PhoneVaultStore.importArchive` → `prepareArchive` → `storeArchivedFiles`; wynik to `ImportedArchive(parsed,
+  `PhoneVaultStore.importArchive` (od G12 w `PhoneArchiveImport`) → `prepare` → `storeFiles`; wynik to `ImportedArchive(parsed,
   result)` zamiast zagnieżdżonych par.
 - **Format wpisu** (Kotlin `EntryCodec`): pola każdego typu opisane raz, w `FieldsSpec` (`write`: obiekt JSON w
   kolejności serializacji, `read`: budowa pól przez `FieldReader`). `FieldReader` notuje odczytane klucze, więc
@@ -399,6 +399,36 @@ zmian; zmieniły się tylko wywołania w kodzie (opcje konstruktora, adresy zaws
   („Zapisz”), `addToNever` i usunięcie kandydata („Później”, „Nigdy”). Pełne nazwy (`message`, `sender`, `candidate`).
   Kandydaci żyją w `chrome.storage.session`, którą Chrome czyści przy aktualizacji wtyczki, więc stary format
   nie wymaga migracji.
+
+## Podział `PhoneVaultStore`
+
+Ustalone w grupie G12 przeglądu czystości kodu V3 (CK2, CW4, CS10, CS13 część Kotlin). Zachowanie, publiczne API,
+format `host.json` i kolejność blokad bez zmian.
+
+`PhoneVaultStore` (fasada, `android/core/.../core/p2p/`) tworzy części i podaje im wspólne zależności (blokadę
+sejfu, zegar, `onError`). Każda metoda fasady to jedno wywołanie części.
+
+| Część | Plik | Za co odpowiada |
+|---|---|---|
+| `HostStorage` | `HostStorage.kt` | `host.json`, `records.jsonl`, `files/`; blokada stanu (każda metoda bierze ją sama, `locked { }` łączy kroki); `reload`, `save`, `update`, `reset`, `deleteAll`, `requireVault`; zamykane magazyny `ResettableStore`/`ResettableFileStore`; zbudowany `P2pHost` (`host(build)`) |
+| `VaultKeys` | `VaultKeys.kt` | `keyCheck`, `matchesKeyCheck` (stały czas), `wrapWithPassword` (nowy salt), `unwrap` (granice KDF, V3-I5), `verifyPassword`, `wipeOnFailure` (zeruje klucz, gdy blok rzuci) |
+| `VaultLifecycle` | `VaultLifecycle.kt` | `create`, `startRestore`, `finishRestore`, `changeMasterPassword`, `confirmMasterPassword`, `unlock`, `unlockWithVaultKey`, `exportVaultKey`, `disconnect`; `hasVault`, `restoreInProgress` |
+| `PhoneSession` | `PhoneSession.kt` | klucz sejfu w pamięci, `require` (`VAULT_LOCKED`), `open`, `lock`, `touch`, `lockIfIdle` |
+| `PhoneEntries` | `PhoneEntries.kt` | lista, odczyt, zapis, import, eksport (`allContents`), usuwanie, nieczytelne rekordy |
+| `PhoneFiles` | `PhoneFiles.kt` | `add`, `isComplete`, `read`, `prune`, `discard`, `dropNew`, `usedIds` (pliki używane przez żywe wpisy, było 3 razy) |
+| `PhoneArchiveImport` | `PhoneArchiveImport.kt` | import ZIP: `import` → `prepare` → `storeFiles` |
+| `PhoneSyncMode` | `PhoneSyncMode.kt` | urządzenia, kody parowania (`PairingHost`), `router`, budowa `P2pHost`; odwołania parowania `identity`, `vaultInfo`, `onPaired` |
+
+- **Stan hosta jako typ** (`HostState.phase`): `HostPhase.Ready(vault, keyCheck)`, `HostPhase.Restoring(sent)`
+  (`sent` = KDF i klucz od wtyczki albo `null`), `HostPhase.Inconsistent` (sprawdzenie klucza bez KDF; tego stanu
+  aplikacja nie zapisuje, traktowany jak brak sejfu). Plik `host.json` ma nadal pola nullowalne; kod czyta je tylko
+  przez `phase` i `wrappedVault`. Poprawiony komentarz: odtwarzanie trwa, gdy `keyCheck == null` (nie `kdf`).
+- **Bez `!!`**: `requireVault()` zwraca `HostPhase.Ready` z polami bez nulli. W kodzie produkcyjnym Androida nie ma
+  już żadnego `!!`.
+- **Blokady**: blokada sejfu to prywatny obiekt fasady (wcześniej monitor samej fasady; nikt z zewnątrz go nie
+  używał). Kolejność: blokada sejfu → `PairingHost` → blokada stanu → magazyn rekordów / plików.
+- **Zaczepy testowe**: `openedRecordsForTest()` i `builtHostForTest()` (`internal`) zamiast odczytu pól prywatnych
+  przez refleksję w `PhoneVaultStoreTest`.
 
 ## Widoki wtyczki
 
