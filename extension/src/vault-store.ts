@@ -314,6 +314,19 @@ async function unwrapWithPassword(
  * so the extension works offline and only talks to the phone when you sync.
  * Every change (upsert, delete, sync) is saved to disk before the method returns.
  */
+/** A described file of an archive, checked to have the described size (the archive reader checks it too). */
+async function readArchivedFile(
+  archive: transfer.OpenedArchive,
+  f: transfer.ArchivedFile,
+): Promise<Uint8Array> {
+  const plain = await archive.readFile(f);
+  if (plain.length !== f.size) {
+    plain.fill(0);
+    throw new PassHolderError("ARCHIVE_FILE_SIZE_MISMATCH");
+  }
+  return plain;
+}
+
 export class VaultStore {
   private vault: p2p.LocalVault | undefined;
   private keys: SessionKeys | undefined;
@@ -550,36 +563,7 @@ export class VaultStore {
           contents.push(e.content);
           continue;
         }
-        const attachments: files.Attachment[] = [];
-        for (const f of e.files) {
-          let plain: Uint8Array;
-          try {
-            plain = await archive.readFile(f);
-            if (plain.length !== f.size) {
-              plain.fill(0);
-              throw new PassHolderError("ARCHIVE_FILE_SIZE_MISMATCH");
-            }
-          } catch (error) {
-            fileSkips.push({
-              at: `wpis ${e.position}, ${f.name}`,
-              reason: errorMessage(error),
-            });
-            continue;
-          }
-          let encrypted: files.EncryptedFile;
-          try {
-            encrypted = await files.encryptFile(plain, { name: f.name, mime: f.mime });
-          } finally {
-            // Only the encrypted chunks are kept.
-            plain.fill(0);
-          }
-          // Noted before storing, so a half-stored file is removed too.
-          added.push(encrypted.attachment.id);
-          await files.storeEncryptedFile(this.fileStore, encrypted);
-          // Storing takes a while: stop as soon as the vault locks.
-          this.requireKeys();
-          attachments.push(encrypted.attachment);
-        }
+        const attachments = await this.storeArchivedFiles(archive, e, added, fileSkips);
         contents.push(attachments.length > 0 ? { ...e.content, attachments } : e.content);
       }
       this.requireKeys();
@@ -597,6 +581,41 @@ export class VaultStore {
     for (const id of added)
       if (!used.has(id)) await this.fileStore.delete(id).catch(() => undefined);
     return { parsed, result, filesAdded, fileSkips };
+  }
+
+  /**
+   * The files of one archived entry, each read, encrypted and stored under a new id (pushed to `added` before it is
+   * stored, so a half-stored file is removed too). A file that cannot be read goes to `fileSkips` ("wpis N, nazwa").
+   */
+  private async storeArchivedFiles(
+    archive: transfer.OpenedArchive,
+    entry: transfer.ArchiveEntry,
+    added: string[],
+    fileSkips: transfer.ImportSkip[],
+  ): Promise<files.Attachment[]> {
+    const attachments: files.Attachment[] = [];
+    for (const f of entry.files) {
+      let plain: Uint8Array;
+      try {
+        plain = await readArchivedFile(archive, f);
+      } catch (error) {
+        fileSkips.push({ at: `wpis ${entry.position}, ${f.name}`, reason: errorMessage(error) });
+        continue;
+      }
+      let encrypted: files.EncryptedFile;
+      try {
+        encrypted = await files.encryptFile(plain, { name: f.name, mime: f.mime });
+      } finally {
+        // Only the encrypted chunks are kept.
+        plain.fill(0);
+      }
+      added.push(encrypted.attachment.id);
+      await files.storeEncryptedFile(this.fileStore, encrypted);
+      // Storing takes a while: stop as soon as the vault locks.
+      this.requireKeys();
+      attachments.push(encrypted.attachment);
+    }
+    return attachments;
   }
 
   async delete(id: string): Promise<void> {

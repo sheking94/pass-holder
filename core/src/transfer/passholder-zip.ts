@@ -74,13 +74,18 @@ export async function exportPassHolderZip(
   return { parts: zip.finish(), files, missing };
 }
 
+/** An archive opened by openPassHolderZip. */
+export interface OpenedArchive {
+  parsed: ParsedArchive;
+  /** A described file's bytes; throws a PassHolderError with an ArchiveFileError code. */
+  readFile(f: ArchivedFile): Promise<Uint8Array>;
+}
+
 /**
  * Reads the index of a PassHolder ZIP held in memory: throws code ZIP_TOO_LARGE, ZIP_INVALID or ZIP_NOT_PASSHOLDER.
  * `readFile` gives a described file's bytes or throws a PassHolderError with an ArchiveFileError code.
  */
-export async function openPassHolderZip(
-  bytes: Uint8Array,
-): Promise<{ parsed: ParsedArchive; readFile(f: ArchivedFile): Promise<Uint8Array> }> {
+export async function openPassHolderZip(bytes: Uint8Array): Promise<OpenedArchive> {
   if (bytes.length > MAX_ZIP_BYTES)
     throw new PassHolderError("ZIP_TOO_LARGE", "The file is over MAX_ZIP_BYTES");
   const byPath = new Map<string, ZipEntry>(readZipIndex(bytes).map((e) => [e.path, e]));

@@ -34,6 +34,7 @@ Formatowanie i lint dla całego repo: `.editorconfig`, `.prettierrc.json`, `.pre
 |---|---|
 | `src/errors.ts` | `PassHolderError` (pole `code: ErrorCode`, `detail`, `cause`) i `hasErrorCode`: błędy, które aplikacja rozpoznaje albo pokazuje użytkownikowi (patrz „Błędy” niżej) |
 | `src/encoding.ts` | UTF-8 z normalizacją NFC, Base64, hex, `randomBytes`, `concat` / `concatAll`, `sameBytes` (porównanie w stałym czasie) |
+| `src/web-address.ts` | jedna normalizacja adresu: `normalizeHost`, `parseWebAddress` (autouzupełnianie i zapis), `hostOf` (nazwa wiersza NordPass); patrz „Import, eksport i format wpisu” niżej |
 | `src/strict-json.ts` | pomocniki ścisłego JSON: `isRecord`, `hasExactKeys`, `requireString` (patrz „Wspólne pomocniki” niżej) |
 | `src/kdf.ts` | Argon2id, HKDF (`encKey`), granice `MIN_KDF` / `MAX_KDF` |
 | `src/cipher.ts` | AES-256-GCM w formacie `0x01 ‖ nonce ‖ szyfrogram ‖ tag` (`seal`, `open`; `sealWithNonce` dla wektorów) |
@@ -116,6 +117,7 @@ Dwa moduły Gradle: `core` (czysta JVM, testy bez emulatora) i `app` (Jetpack Co
 | Plik (`android/core/.../core/`) | Co robi |
 |---|---|
 | `Encoding.kt`, `Kdf.kt`, `Aead.kt`, `VaultCrypto.kt`, `Generator.kt` | odpowiedniki plików z `core/src/` (`VaultCrypto`: klucz sejfu; `Encoding.fromUtf8OrNull`: ścisłe UTF-8 bez wyjątku) |
+| `WebAddress.kt` | port `core/src/web-address.ts` (`normalizeHost`, `parseWebAddress`, `hostOf`) z własnym parserem adresu (IDN jak WHATWG) |
 | `StrictJson.kt`, `AtomicFiles.kt` | pomocniki ścisłego JSON (`string`, `boolean`, `appendQuoted`) i zapis atomowy pliku (patrz „Wspólne pomocniki” niżej) |
 | `Errors.kt` | `PassHolderException` (pole `code: ErrorCode`, `detail`, `cause`), `hasErrorCode`, `requireCode`/`checkCode`: odpowiednik `core/src/errors.ts` (patrz „Błędy” niżej) |
 | `Protocol.kt` | `RemoteRecord`, `ChangeRequest`, `Accepted`, `SyncResponse` |
@@ -126,7 +128,7 @@ Dwa moduły Gradle: `core` (czysta JVM, testy bez emulatora) i `app` (Jetpack Co
 | `transfer/Common.kt`, `Csv.kt`, `JsonText.kt`, `PassHolderJson.kt`, `BitwardenJson.kt`, `NordPassCsv.kt`, `Transfer.kt`, `PassHolderZip.kt`, `ArchiveReader.kt` | pakiet `core.transfer`: ZIP bez `ZipInputStream` (własny strumieniowy parser: CRC i pomijanie pliku bez rozpakowania, budżet rozpakowywania; zapis `java.util.zip`); port `core/src/transfer/` (`contentKey`, `sortForExport` na `RuleBasedCollator` zgodnym z wektorem `sort.json`, CSV RFC 4180, serializacja JSON jak `JSON.stringify`, `Transfer.parseImportFile` i `exportFile`); te same pliki przykładowe z `core/test-vectors/transfer/` |
 | `files/Attachment.kt`, `FileChunks.kt`, `FileHost.kt`, `DiskFileStore.kt` | pliki w sejfie (port `core/src/files/` bez klienta): opis załącznika (stałe, ścisły parser), szyfrowanie kawałkami (`FileSecrets`), host `/p2p/v2/file` (`FileHost`: `parse` do `FileRequest`, funkcja na operację; `FileStore.put(FileChunk, now)`) i magazyn na dysku telefonu (`p2p/files/`, zapis przez `AtomicFiles.write`); `P2pHost` dostaje magazyn jako ostatni parametr |
 | `p2p/PhoneVaultStore.kt`, `PhoneVault.kt`, `FileSyncStore.kt`, `HostState.kt` | sejf telefonu: tworzenie, odtwarzanie, blokada (15 min), wpisy (`entries()` zwraca wszystkie typy, `upsertContent` zapisuje dokładnie podaną treść i odmawia nadpisania wpisu innego typu), urządzenia; pliki `records.jsonl` i `host.json`; import: `importContents` (duplikaty po `contentKey`, jeden zapis) i `allContents`; pliki: `addFile`, `isFileComplete`, `readFile`, `pruneFiles`, `discardFiles` (kasuje podane pliki poza używanymi przez żywy wpis), kasowanie przy zmianie epoki |
-| `autofill/Keywords.kt`, `Fields.kt`, `Values.kt`, `Match.kt`, `PublicSuffix.kt` | port `core/src/autofill/` 1:1 (`classifyField`, `planFor`, `fillValue`, `matchUrl` z własnym parserem adresu, `matchLogins`, `publicSuffix`/`registrableDomain` z zasobu `public_suffix_rules.txt`) na tych samych wektorach `{match,psl,fields,values}.json`; `matchApp`: przeglądarka zweryfikowana podpisem (`AppRequest.browserVerified`; 13 pakietów z certyfikatami SHA-256 w `TRUSTED_BROWSERS`) z `webDomain` → `matchLogins` (brak `webScheme` = `http`, `pageScheme`), inaczej loginy z pakietem w `androidApps`, po nazwie, tylko przy `appVerified`; `verifyApp` ustawia obie flagi z certyfikatów pakietu i zapamiętanych (V3-S3); wektory `test-vectors/autofill/app.json` (tylko Kotlin) |
+| `autofill/Keywords.kt`, `Fields.kt`, `Values.kt`, `Match.kt`, `PublicSuffix.kt` | port `core/src/autofill/` 1:1 (`classifyField`, `planFor`, `fillValue`, `matchUrl` na `parseWebAddress`, `matchLogins`, `publicSuffix`/`registrableDomain` z zasobu `public_suffix_rules.txt`) na tych samych wektorach `{match,psl,fields,values}.json`; `matchApp`: przeglądarka zweryfikowana podpisem (`AppRequest.browserVerified`; 13 pakietów z certyfikatami SHA-256 w `TRUSTED_BROWSERS`) z `webDomain` → `matchLogins` (brak `webScheme` = `http`, `pageScheme`), inaczej loginy z pakietem w `androidApps`, po nazwie, tylko przy `appVerified`; `verifyApp` ustawia obie flagi z certyfikatów pakietu i zapamiętanych (V3-S3); wektory `test-vectors/autofill/app.json` (tylko Kotlin) |
 | `autofill/Planner.kt` | `planRequest`: grupa formularza (login, karta, kontakt) i jej pola; `planDatasets`: pasujące wpisy → wartości pól (`ListIndex` dla list), bez wpisów bez wartości, najwyżej 10; generyczne po typie id pola, więc testowane bez Androida |
 | `save/SaveUrl.kt`, `Decide.kt`, `SaveFields.kt` | port `core/src/save/` (`saveUrl`, `saveName`, `decideSave`; te same wektory `core/test-vectors/save/{url,decide}.json`) plus `saveFields` (pole hasła: pierwsze nowe hasło, inaczej hasło; login: pole loginu, inaczej ostatni e-mail przed hasłem), `saveTargetFor` (zaufana przeglądarka z domeną → `Web`, inaczej `App` z pakietem), `newLogin`, `withPassword` |
 | `SyncStore.putAll` (w `p2p/HostSync.kt`), `p2p/FileSyncStore.kt` | `putAll`: wiele rekordów jednym dopisem i `fsync` (import atomowy); domyślnie pętla `put` |
@@ -333,6 +335,37 @@ Ustalone w grupie G8 przeglądu czystości kodu V3. Zachowanie i wektory testowe
   Wektory pary i wpisów w TS sprawdza `sealWithNonce` na tym samym tekście JSON, który pieczętuje kod produkcyjny.
 - **Poza G8:** `VaultStore.repair`, `decideFor` i konstruktor `VaultStore` (G10), `ResponseBuilder` i
   `BiometricUnlock.authenticate` (G14), bo te grupy i tak zmieniają te pliki.
+
+## Import, eksport i format wpisu
+
+Ustalone w grupie G9 przeglądu czystości kodu V3 (CK4, CW6, CW8, CS5). Wektory testowe się nie zmieniły.
+
+- **NordPass CSV** (`nordpass-csv.ts`, `NordPassCsv.kt`): pętla wierszy tylko składa kroki. `guessKind` daje typ
+  wiersza (kolumna `type` albo zgadywanie po wypełnionych kolumnach) albo powód pominięcia, `rowToEntry` buduje wpis
+  danego typu (kontakt: `contactFields`). Wiersz to funkcja `Row` (TS) / klasa `Row` (Kotlin): tekst kolumny albo `""`.
+- **Bitwarden JSON** (`bitwarden-json.ts`, `BitwardenJson.kt`): wynik pozycji to typ `{ entry } | { skip }` /
+  `ItemResult.Imported | Skipped` (bez napisu w roli błędu i `Any`). Typy pozycji i pól mają nazwy (`ItemType`,
+  `FieldType`), etykiety pól własnych są w `LABELS` / `Labels`. Import: funkcja na typ (`importLogin`, `importCard`,
+  `importContact`, `importDocument`; tożsamość wybiera między kontaktem a dokumentem), wspólne `ItemBase` (nazwa,
+  notatka, pola własne). Eksport: `itemParts` → `exportLogin`/`exportCard`/`exportContact`/`exportDocument` zwracają
+  typ, treść i dodatkowe pola (`ItemParts`), `exportItem` składa pozycję. Pomocniki mają pełne nazwy: `text`,
+  `orNull`, `filledCustom`, `filledFields`.
+- **Eksport ZIP** (Kotlin `PassHolderZip.export`): `plan` (pierwsze przejście: które pliki da się odczytać, numery
+  ścieżek), `indexJson` (passholder.json), `writeZip` (indeks, potem pliki; `missing` z obu przejść).
+- **Import archiwum**: wtyczka `VaultStore.importArchive` → `storeArchivedFiles` (pliki jednego wpisu) i
+  `readArchivedFile` (rozmiar jak w opisie); typ `OpenedArchive` z `openPassHolderZip`. Telefon
+  `PhoneVaultStore.importArchive` → `prepareArchive` → `storeArchivedFiles`; wynik to `ImportedArchive(parsed,
+  result)` zamiast zagnieżdżonych par.
+- **Format wpisu** (Kotlin `EntryCodec`): pola każdego typu opisane raz, w `FieldsSpec` (`write`: obiekt JSON w
+  kolejności serializacji, `read`: budowa pól przez `FieldReader`). `FieldReader` notuje odczytane klucze, więc
+  brakujący, nadmiarowy albo źle typowany klucz daje ten sam błąd „Invalid entry payload” co wcześniej.
+  `serialize` i `contentJson` piszą to samo drzewo (`appendJson`: zwarty JSON jak `JSON.stringify`).
+- **Normalizacja adresu** (`web-address.ts`, `WebAddress.kt`): `normalizeHost` (małe litery, bez `www.` na początku,
+  potem bez jednej kropki na końcu), `parseWebAddress(tekst, assumeHttps)` (http/https, port `""` = domyślny),
+  `hostOf` (host z dowolnym schematem). Kolejność kroków ustala wektor zapisu „empty host after www removal”:
+  host `www.` nie ma hosta. Jedyna zmiana zachowania w G9: autouzupełnianie (`matchUrl`), które wcześniej z `www.`
+  robiło `www`, też go odrzuca. Przy okazji Kotlin wyrównał się do wtyczki: nazwa wiersza NordPass z hostem IDN jest
+  w punycode, a `saveUrl` bez `://` zwraca null (telefon zawsze podaje schemat).
 
 ## Przepływ autouzupełniania (Chrome)
 

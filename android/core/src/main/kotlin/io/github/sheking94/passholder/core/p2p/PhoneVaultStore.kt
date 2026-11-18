@@ -17,7 +17,9 @@ import io.github.sheking94.passholder.core.files.FileStore
 import io.github.sheking94.passholder.core.requireCode
 import io.github.sheking94.passholder.core.transfer.ArchiveImportResult
 import io.github.sheking94.passholder.core.transfer.ArchiveReader
+import io.github.sheking94.passholder.core.transfer.ArchivedFile
 import io.github.sheking94.passholder.core.transfer.ImportSkip
+import io.github.sheking94.passholder.core.transfer.ImportedArchive
 import io.github.sheking94.passholder.core.transfer.ParsedArchive
 import io.github.sheking94.passholder.core.transfer.contentKey
 import java.io.File
@@ -503,44 +505,12 @@ class PhoneVaultStore(
      * ("wpis N, nazwa"). Any exception (damaged archive, no space, vault locked) imports nothing: the files added so
      * far are deleted and the exception is passed on. Files added for entries that were not imported are deleted.
      */
-    fun importArchive(input: InputStream): Pair<ParsedArchive, ArchiveImportResult> {
+    fun importArchive(input: InputStream): ImportedArchive {
         val added = ArrayList<String>()
         try {
-            val (parsed, prepared) = ArchiveReader(input).use { reader ->
-                val parsed = reader.readIndex()
-                // Only against the vault: importContents drops repeats within the archive itself, and it may refuse
-                // the first copy as too large, so a later copy must still bring its files (unused ones are discarded).
-                val known = allContents().mapTo(HashSet(), ::contentKey)
-                val fresh = parsed.entries.filter { contentKey(it.content) !in known }
-                val wanted = fresh.flatMap { it.files }.associateBy { it.path }
-                val stored = HashMap<String, Attachment>()
-                val reasons = HashMap<String, String>()
-                reader.forEachFile(wanted.keys, { path, reason -> reasons[path] = reason }) { path, bytes ->
-                    val f = wanted.getValue(path)
-                    if (bytes.size != f.size) {
-                        reasons[path] = "inny rozmiar niż w opisie"
-                    } else {
-                        val attachment = addFile(bytes, f.name, f.mime)
-                        added.add(attachment.id)
-                        stored[path] = attachment
-                    }
-                }
-                val skips = ArrayList<ImportSkip>()
-                val freshPositions = fresh.mapTo(HashSet()) { it.position }
-                val contents = parsed.entries.map { e ->
-                    if (e.position !in freshPositions) return@map e.content
-                    val files = e.files.mapNotNull { f ->
-                        val attachment = stored[f.path]
-                        if (attachment == null) skips.add(ImportSkip("wpis ${e.position}, ${f.name}", reasons[f.path] ?: "brak w archiwum"))
-                        attachment
-                    }
-                    e.content.copy(attachments = files)
-                }
-                parsed to (contents to skips)
-            }
-            val (contents, skips) = prepared
+            val prepared = ArchiveReader(input).use { reader -> prepareArchive(reader, added) }
             return synchronized(this) {
-                val result = importContents(contents)
+                val result = importContents(prepared.contents)
                 // Entries are written now: from here on a failure must not delete files they may use.
                 val mine = added.toList()
                 added.clear()
@@ -552,12 +522,60 @@ class PhoneVaultStore(
                     // Left for pruneFiles, which deletes unused files after a day.
                     reportError(onError, e)
                 }
-                parsed to ArchiveImportResult(result, filesAdded, skips)
+                ImportedArchive(prepared.parsed, ArchiveImportResult(result, filesAdded, prepared.fileSkips))
             }
         } catch (e: Throwable) {
             dropNewFiles(added)
             throw e
         }
+    }
+
+    /** An archive read for [importArchive]: the entries to import, with the files that could be stored. */
+    private class PreparedArchive(val parsed: ParsedArchive, val contents: List<EntryContent>, val fileSkips: List<ImportSkip>)
+
+    /** Files of an archive stored with [addFile], by archive path, and why the others were not. */
+    private class StoredFiles(val attachments: Map<String, Attachment>, val reasons: Map<String, String>)
+
+    /** The index, then the files of the entries not already in the vault, stored (their ids go to [added] at once). */
+    private fun prepareArchive(reader: ArchiveReader, added: MutableList<String>): PreparedArchive {
+        val parsed = reader.readIndex()
+        // Only against the vault: importContents drops repeats within the archive itself, and it may refuse the first
+        // copy as too large, so a later copy must still bring its files (unused ones are discarded).
+        val known = allContents().mapTo(HashSet(), ::contentKey)
+        val fresh = parsed.entries.filter { contentKey(it.content) !in known }
+        val stored = storeArchivedFiles(reader, fresh.flatMap { it.files }, added)
+        val freshPositions = fresh.mapTo(HashSet()) { it.position }
+        val skips = ArrayList<ImportSkip>()
+        val contents = parsed.entries.map { e ->
+            if (e.position !in freshPositions) return@map e.content
+            val files = e.files.mapNotNull { f ->
+                val attachment = stored.attachments[f.path]
+                if (attachment == null) {
+                    skips.add(ImportSkip("wpis ${e.position}, ${f.name}", stored.reasons[f.path] ?: "brak w archiwum"))
+                }
+                attachment
+            }
+            e.content.copy(attachments = files)
+        }
+        return PreparedArchive(parsed, contents, skips)
+    }
+
+    /** Reads the [wanted] files from the rest of the archive and stores each one of the described size. */
+    private fun storeArchivedFiles(reader: ArchiveReader, wanted: List<ArchivedFile>, added: MutableList<String>): StoredFiles {
+        val byPath = wanted.associateBy { it.path }
+        val attachments = HashMap<String, Attachment>()
+        val reasons = HashMap<String, String>()
+        reader.forEachFile(byPath.keys, { path, reason -> reasons[path] = reason }) { path, bytes ->
+            val f = byPath.getValue(path)
+            if (bytes.size != f.size) {
+                reasons[path] = "inny rozmiar niż w opisie"
+            } else {
+                val attachment = addFile(bytes, f.name, f.mime)
+                added.add(attachment.id)
+                attachments[path] = attachment
+            }
+        }
+        return StoredFiles(attachments, reasons)
     }
 
     /**

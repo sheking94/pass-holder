@@ -562,7 +562,7 @@ Każda grupa to jeden wątek i jeden PR, w tej kolejności.
 | G6 | Wspólne pomocniki | CW2, CS6 | core, android | średni |
 | G7 | Stałe, limity i teksty w jednym miejscu — **zrobione** (`sizes.ts`/`Sizes.kt`, `field-formats.ts`/`FieldFormats`, teksty limitów ze stałych, etykiety eksportu w `transfer/common`, opis w `docs/ARCHITEKTURA.md` „Stałe, limity i teksty”) | CS1, CS2, CS3, CS4 | wszystkie | średni |
 | G8 | Protokół synchronizacji i plików — **zrobione** (żądanie parsowane raz, `markAccepted`/`resolveRemote`, plan/wysyłka/pobranie plików, `pageRecords`, funkcja na operację plików, typowane parowanie, `FileChunk`/`FileSecrets`, zaczepy testowe jako osobne funkcje, opis w `docs/ARCHITEKTURA.md` „Protokół synchronizacji i plików”; `VaultStore.repair` i `decideFor` → G10, `ResponseBuilder`/`authenticate` → G14) | CK5, CW7, CW15, CK8 (logika), CN2 | core, android | duży |
-| G9 | Import, eksport i format wpisu | CK4, CW6, CW8, CS5 | core, wtyczka, android | duży |
+| G9 | Import, eksport i format wpisu — **zrobione** (`guessKind`/`rowToEntry`, Bitwarden: funkcja na typ, `ItemType`/`FieldType`, wynik `Imported | Skipped`; plan/indeks/zapis ZIP, `ImportedArchive`, `FieldsSpec` w `EntryCodec`, `web-address.ts`/`WebAddress.kt`; opis w `docs/ARCHITEKTURA.md` „Import, eksport i format wpisu”) | CK4, CW6, CW8, CS5 | core, wtyczka, android | duży |
 | G10 | Podział `VaultStore` i `save/candidates.ts` | CK1, CW14, CS19 | wtyczka | duży |
 | G11 | Widoki wtyczki | CK6, CW10, CW13, CS11, CS14 (część wtyczki) | wtyczka | duży |
 | G12 | Podział `PhoneVaultStore` | CK2, CW4, CS10, CS13 (część Kotlin) | android | duży |
