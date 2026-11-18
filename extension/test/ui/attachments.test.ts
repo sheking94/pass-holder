@@ -331,7 +331,7 @@ describe("list and sync", () => {
       const { listView } = await import("../../src/views/list.ts");
       return { ...ctx, listView };
     })();
-    listView("", false, "document");
+    listView({ type: "document" });
     const names = [...app.querySelectorAll("ul.entries .name")].map((n) => n.textContent);
     expect(names.find((n) => n!.startsWith("Z plikiem"))).toContain("📎 1");
     expect(names.find((n) => n!.startsWith("Bez pliku"))).not.toContain("📎");
@@ -343,7 +343,7 @@ describe("list and sync", () => {
     await addFile(app, photo());
     await save(app);
     const { listView } = await import("../../src/views/list.ts");
-    listView("", false, "document");
+    listView({ type: "document" });
     const seen: string[] = [];
     const statusEl = app.querySelector(".status")!;
     new MutationObserver(() => seen.push(statusEl.textContent ?? "")).observe(statusEl, {

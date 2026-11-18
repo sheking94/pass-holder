@@ -13,6 +13,11 @@ import {
 import { STORAGE_KEYS, type KeyValueStore } from "./storage.ts";
 
 /** Whether unlocking with a PIN is on, and how. */
+/** How enable() keeps the PIN: rememberAfterRestart puts it on disk, which allows only a long PIN. */
+export interface PinOptions {
+  rememberAfterRestart: boolean;
+}
+
 export interface PinStatus {
   /** True if the PIN is kept on disk and works after a browser restart. */
   rememberedAfterRestart: boolean;
@@ -75,7 +80,7 @@ export class PinStore {
    * only, so after a browser restart the master password is needed. With rememberAfterRestart it goes to
    * local storage, on disk, where a copy can be guessed offline: that needs a long PIN (isLongPin).
    */
-  async enable(pin: string, keys: UnlockKeys, rememberAfterRestart: boolean): Promise<void> {
+  async enable(pin: string, keys: UnlockKeys, { rememberAfterRestart }: PinOptions): Promise<void> {
     if (!isValidPin(pin, rememberAfterRestart))
       throw new Error(invalidPinMessage(rememberAfterRestart));
     const lock = await createPinLock(pin, keys);

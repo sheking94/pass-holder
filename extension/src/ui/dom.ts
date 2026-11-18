@@ -51,25 +51,34 @@ export async function busy(status: HTMLElement, message: string, action: () => P
   }
 }
 
-/** A password input with a button that shows or hides what was typed. */
-export function passwordField(input: HTMLInputElement) {
-  const toggle = h("button", { type: "button", title: "Pokaż lub ukryj hasło" });
+/** An input that fills the row, followed by its buttons. */
+function fieldRow(input: HTMLInputElement, ...buttons: HTMLElement[]): HTMLElement {
+  return h("div", { class: "row" }, h("div", { class: "grow" }, input), ...buttons);
+}
+
+/** „Pokaż/Ukryj” for an input; while isSecret() is false the input stays plain text. */
+function visibilityToggle(input: HTMLInputElement, title: string, isSecret: () => boolean) {
+  const toggle = h("button", { type: "button", title });
   const setVisible = (visible: boolean) => {
-    input.type = visible ? "text" : "password";
+    input.type = visible || !isSecret() ? "text" : "password";
     toggle.textContent = visible ? "Ukryj" : "Pokaż";
     toggle.setAttribute("aria-pressed", String(visible));
   };
   toggle.addEventListener("click", () => setVisible(input.type === "password"));
+  return { toggle, setVisible };
+}
+
+/** A password input with a button that shows or hides what was typed. */
+export function passwordField(input: HTMLInputElement) {
+  const { toggle, setVisible } = visibilityToggle(input, "Pokaż lub ukryj hasło", () => true);
   setVisible(false);
-  return {
-    row: h("div", { class: "row" }, h("div", { class: "grow" }, input), toggle),
-    setVisible,
-  };
+  return { row: fieldRow(input, toggle), setVisible };
 }
 
 /**
- * A field with „Kopiuj” (unless options.copy is false) and, while secret, hidden behind „Pokaż/Ukryj”; copying a secret clears the
- * clipboard after a minute. setSecret(false) makes it a plain field (e.g. a custom field not marked hidden).
+ * A field with „Kopiuj” (unless options.copy is false) and, while secret, hidden behind „Pokaż/Ukryj”; copying a
+ * secret clears the clipboard after a minute. setSecret(false) makes it a plain field (e.g. a custom field not
+ * marked hidden).
  */
 export function secretField(
   input: HTMLInputElement,
@@ -78,7 +87,7 @@ export function secretField(
   options: { copy?: boolean } = {},
 ) {
   let secret = true;
-  const toggle = h("button", { type: "button", title: `Pokaż lub ukryj: ${what}` });
+  const { toggle, setVisible } = visibilityToggle(input, `Pokaż lub ukryj: ${what}`, () => secret);
   const copy = h(
     "button",
     {
@@ -93,35 +102,27 @@ export function secretField(
     },
     "Kopiuj",
   );
-  const setVisible = (visible: boolean) => {
-    input.type = visible || !secret ? "text" : "password";
-    toggle.textContent = visible ? "Ukryj" : "Pokaż";
-    toggle.setAttribute("aria-pressed", String(visible));
-  };
   const setSecret = (value: boolean) => {
     secret = value;
     toggle.hidden = !value;
     setVisible(false);
   };
-  toggle.addEventListener("click", () => setVisible(input.type === "password"));
   setSecret(true);
   return {
-    row: h(
-      "div",
-      { class: "row" },
-      h("div", { class: "grow" }, input),
-      toggle,
-      ...(options.copy === false ? [] : [copy]),
-    ),
+    row: options.copy === false ? fieldRow(input, toggle) : fieldRow(input, toggle, copy),
     setVisible,
     setSecret,
   };
 }
 
-/** A PIN input: 4-6 digits, or with long=true a long PIN (letters too, see pin-lock.ts). */
-export function pinInput(autocomplete = "off", long = false) {
-  const input = h("input", { type: "password", autocomplete, class: "mono" });
-  setPinShape(input, long);
+/** A PIN input: 4-6 digits, or with long a long PIN (letters too, see pin-lock.ts). */
+export function pinInput(options: { autocomplete?: string; long?: boolean } = {}) {
+  const input = h("input", {
+    type: "password",
+    autocomplete: options.autocomplete ?? "off",
+    class: "mono",
+  });
+  setPinShape(input, options.long ?? false);
   return input;
 }
 

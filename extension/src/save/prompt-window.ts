@@ -2,7 +2,7 @@
  * The save question in its own small window (chrome.windows, type "popup") plus a badge on the toolbar icon of
  * the tab. Not a frame in the page: the page can neither see, cover nor click it (review V3-S1).
  */
-import { STORAGE_KEYS, type KeyValueStore } from "../storage.ts";
+import { setOrRemove, STORAGE_KEYS, type KeyValueStore } from "../storage.ts";
 
 export const PROMPT_WIDTH = 380;
 export const PROMPT_HEIGHT = 420;
@@ -58,8 +58,7 @@ export class PromptWindows {
   }
 
   private async write(all: Open): Promise<void> {
-    if (Object.keys(all).length > 0) await this.session.set(STORAGE_KEYS.savePromptWindows, all);
-    else await this.session.remove(STORAGE_KEYS.savePromptWindows);
+    await setOrRemove(this.session, STORAGE_KEYS.savePromptWindows, all);
   }
 
   /** Shows the candidate's question: opens the window, or points the open one at a newer candidate. */

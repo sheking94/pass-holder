@@ -1,7 +1,9 @@
 import type { ActionResult } from "../result.ts";
-import { autofill, save } from "@passholder/core";
+import { save } from "@passholder/core";
+import { matchSavedLogins } from "../autofill/saved-logins.ts";
+import { fromExtensionPage, webUrl } from "../web-url.ts";
 import { UNLOCK_AND_RETRY } from "../error-messages.ts";
-import { STORAGE_KEYS, type KeyValueStore } from "../storage.ts";
+import { setOrRemove, STORAGE_KEYS, type KeyValueStore } from "../storage.ts";
 import type { VaultStore } from "../vault-store.ts";
 import type {
   SaveAnswerMessage,
@@ -93,22 +95,7 @@ export async function neverList(local: KeyValueStore): Promise<string[]> {
 
 export async function removeFromNever(local: KeyValueStore, host: string): Promise<void> {
   const rest = (await neverList(local)).filter((h) => h !== host);
-  if (rest.length > 0) await local.set(STORAGE_KEYS.saveNever, rest);
-  else await local.remove(STORAGE_KEYS.saveNever);
-}
-
-function parseUrl(raw: string | undefined): URL | undefined {
-  if (!raw) return undefined;
-  try {
-    return new URL(raw);
-  } catch {
-    return undefined;
-  }
-}
-
-function webUrl(raw: string | undefined): URL | undefined {
-  const url = parseUrl(raw);
-  return url && (url.protocol === "http:" || url.protocol === "https:") ? url : undefined;
+  await setOrRemove(local, STORAGE_KEYS.saveNever, rest);
 }
 
 const sameForm = (a: FormKey, b: FormKey) => a.origin === b.origin && a.signature === b.signature;
@@ -155,8 +142,7 @@ export class SaveCandidates {
   }
 
   private async write(all: Candidates): Promise<void> {
-    if (Object.keys(all).length > 0) await this.deps.session.set(STORAGE_KEYS.saveCandidates, all);
-    else await this.deps.session.remove(STORAGE_KEYS.saveCandidates);
+    await setOrRemove(this.deps.session, STORAGE_KEYS.saveCandidates, all);
   }
 
   /** Removes the tab's candidate; true when there was one. */
@@ -202,14 +188,10 @@ export class SaveCandidates {
   ): Promise<MatchingLogins | null> {
     if (!(await store.resume({ touch }))) return null;
     const entries = store.listEntries("login");
-    const toMatch = (e: (typeof entries)[number]) => ({
-      name: e.data.name,
-      urls: e.data.type === "login" ? e.data.fields.urls : [],
-    });
     const exactIds = new Set(
-      autofill.matchLogins(candidate.url, entries, toMatch, { exactOnly: true }).map((e) => e.id),
+      matchSavedLogins(candidate.url, entries, { exactOnly: true }).map((e) => e.id),
     );
-    const all = autofill.matchLogins(candidate.url, entries, toMatch).flatMap((e) =>
+    const all = matchSavedLogins(candidate.url, entries).flatMap((e) =>
       e.data.type === "login"
         ? [
             {
@@ -237,10 +219,6 @@ export class SaveCandidates {
     const frame = webUrl(sender.url);
     if (sender.id !== this.deps.selfId || sender.tab?.id === undefined || !frame) return undefined;
     return { tabId: sender.tab.id, frame };
-  }
-
-  private fromExtensionPage(sender: Sender): boolean {
-    return sender.id === this.deps.selfId && parseUrl(sender.url)?.protocol === "chrome-extension:";
   }
 
   onCandidate(message: SaveCandidateMessage, sender: Sender): Promise<void> {
@@ -326,7 +304,7 @@ export class SaveCandidates {
     message: SaveInfoMessage,
     sender: Sender,
   ): Promise<SavePromptInfo | undefined> {
-    if (!this.fromExtensionPage(sender)) return undefined;
+    if (!fromExtensionPage(sender, this.deps.selfId)) return undefined;
     const candidate = await this.named(message);
     if (!candidate) return undefined;
     const base = {
@@ -354,7 +332,7 @@ export class SaveCandidates {
     message: SavePreviewMessage,
     sender: Sender,
   ): Promise<SavePreviewResponse> {
-    if (!this.fromExtensionPage(sender)) return undefined;
+    if (!fromExtensionPage(sender, this.deps.selfId)) return undefined;
     const candidate = await this.byId(message.candidateId);
     if (!candidate) return undefined;
     const logins = await this.matching(this.deps.store(), candidate, false);
@@ -369,7 +347,7 @@ export class SaveCandidates {
   }
 
   private async handleAnswer(message: SaveAnswerMessage, sender: Sender): Promise<ActionResult> {
-    if (!this.fromExtensionPage(sender)) return { ok: false, error: NOT_ALLOWED };
+    if (!fromExtensionPage(sender, this.deps.selfId)) return { ok: false, error: NOT_ALLOWED };
     const candidate = await this.byId(message.candidateId);
     // Nothing left to decline (expired or replaced; a newer candidate already has the window): the page closes itself.
     if (!candidate) return message.answer === "save" ? { ok: false, error: GONE } : { ok: true };
@@ -460,7 +438,9 @@ export class SaveCandidates {
   /** The tab of the candidate the question window asks to unlock for; undefined for a foreign sender or none. */
   onUnlockRequest(message: SaveUnlockMessage, sender: Sender): Promise<number | undefined> {
     return this.serial(async () =>
-      this.fromExtensionPage(sender) ? (await this.byId(message.candidateId))?.tabId : undefined,
+      fromExtensionPage(sender, this.deps.selfId)
+        ? (await this.byId(message.candidateId))?.tabId
+        : undefined,
     );
   }
 }

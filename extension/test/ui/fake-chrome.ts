@@ -151,6 +151,8 @@ export async function setupPopup(
 
   vi.resetModules();
   const { store } = await import("../../src/ui/state.ts");
+  // Registers the views in the router, as popup.ts does.
+  await import("../../src/views/index.ts");
   if (!(await store.resume())) throw new Error("setupPopup: the views' store did not resume");
   return { app, store, clipboard, messages, phone, close, permissions, createdTabs, local };
 }

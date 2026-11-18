@@ -11,7 +11,7 @@ import { documentForm } from "./forms/document.ts";
 import { loginForm } from "./forms/login.ts";
 import { noteForm } from "./forms/note.ts";
 import type { FieldsForm, FieldsOf } from "./forms/types.ts";
-import { listView } from "./list.ts";
+import { views } from "./router.ts";
 
 const SAVED = "Zapisano lokalnie. Zsynchronizuj, gdy telefon będzie w trybie Synchronizacja.";
 const DELETED = "Usunięto lokalnie. Zsynchronizuj, żeby usunąć też na innych urządzeniach.";
@@ -38,6 +38,36 @@ function leaveEditTarget(): void {
   if (MODE === "edit") history.replaceState(null, "", "?tab");
 }
 
+/** Back to the list on the tab of this type, once the form is saved or left. */
+function leaveForm(type: p2p.EntryType, message = ""): void {
+  leaveEditTarget();
+  views().list({ message, type });
+}
+
+/** The parts of the form below „Nazwa”, read on „Zapisz”. */
+interface FormParts {
+  name: HTMLInputElement;
+  note: HTMLTextAreaElement;
+  section: FieldsForm<p2p.EntryType>;
+  files: Awaited<ReturnType<typeof attachmentsEditor>>;
+  custom: ReturnType<typeof customFieldsEditor>;
+}
+
+/** The entry as typed into the form; the attachments come from the files editor. */
+function formContent(base: p2p.EntryContent, parts: FormParts) {
+  const { attachments: _, ...rest } = base;
+  const { attachments, added } = parts.files.read();
+  const content = tidyContent({
+    ...rest,
+    name: parts.name.value,
+    note: parts.note.value,
+    custom: parts.custom.read(),
+    fields: parts.section.read(),
+    ...(attachments.length > 0 ? { attachments } : {}),
+  } as p2p.EntryContent);
+  return { content, added };
+}
+
 /**
  * Edits the entry of this type with this id, or a new one without it. Fields of an unknown shape are kept as
  * they were; an id of an entry of another type opens (and saves) a new entry instead.
@@ -50,43 +80,35 @@ export async function editView(type: p2p.EntryType, id?: string): Promise<void> 
   const base = original ?? emptyContent(type);
   const status = statusLine();
 
-  const name = h("input", { type: "text", value: base.name });
   const note = h("textarea", { rows: type === "note" ? 8 : 3 });
   note.value = base.note;
-  const section = await (SECTIONS[type] as Section<p2p.EntryType>)(base.fields, status);
-  const files = await attachmentsEditor(
-    base.attachments ?? [],
-    status,
-    () => void openEditTab(type, editedId),
-  );
-  const custom = customFieldsEditor(base.custom, status);
+  const parts: FormParts = {
+    name: h("input", { type: "text", value: base.name }),
+    note,
+    section: await (SECTIONS[type] as Section<p2p.EntryType>)(base.fields, status),
+    files: await attachmentsEditor(
+      base.attachments ?? [],
+      status,
+      () => void openEditTab(type, editedId),
+    ),
+    custom: customFieldsEditor(base.custom, status),
+  };
 
   const save = () =>
     busy(status, "Zapisuję…", async () => {
-      const { attachments: _, ...rest } = base;
-      const { attachments, added } = files.read();
-      const content = tidyContent({
-        ...rest,
-        name: name.value,
-        note: note.value,
-        custom: custom.read(),
-        fields: section.read(),
-        ...(attachments.length > 0 ? { attachments } : {}),
-      } as p2p.EntryContent);
+      const { content, added } = formContent(base, parts);
       const error = validateContent(content, original);
       if (error) throw new Error(error);
       // An id of another type is not this entry: the form saves a new one and leaves that one alone.
       await store.putEntry(editedId ?? crypto.randomUUID(), content, added);
-      leaveEditTarget();
-      listView(SAVED, false, type);
+      leaveForm(type, SAVED);
     });
 
   const remove = confirmButton("Usuń", { class: "danger" }, () => {
     void busy(status, "Usuwam…", async () => {
       if (editedId === undefined) return;
       await store.delete(editedId);
-      leaveEditTarget();
-      listView(DELETED, false, type);
+      leaveForm(type, DELETED);
     });
   });
 
@@ -94,29 +116,20 @@ export async function editView(type: p2p.EntryType, id?: string): Promise<void> 
     openInTabButton(),
     h("h1", {}, original ? TYPE_INFO[type].editTitle : TYPE_INFO[type].newTitle),
     h("label", {}, "Nazwa"),
-    name,
-    ...section.nodes,
+    parts.name,
+    ...parts.section.nodes,
     h("label", {}, type === "note" ? "Treść" : "Notatka"),
     note,
-    files.node,
-    custom.node,
+    parts.files.node,
+    parts.custom.node,
     h(
       "div",
       { class: "actions" },
       h("button", { class: "primary", onclick: save }, "Zapisz"),
-      h(
-        "button",
-        {
-          onclick: () => {
-            leaveEditTarget();
-            listView("", false, type);
-          },
-        },
-        "Anuluj",
-      ),
+      h("button", { onclick: () => leaveForm(type) }, "Anuluj"),
       original && remove,
     ),
     status,
   );
-  name.focus();
+  parts.name.focus();
 }

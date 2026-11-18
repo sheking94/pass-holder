@@ -1,25 +1,16 @@
-import { errorMessage } from "../error-messages.ts";
-import { autofill, p2p } from "@passholder/core";
-import { TYPE_INFO, entrySummary, matchesQuery } from "../entry-types.ts";
+import { p2p } from "@passholder/core";
+import { matchSavedLogins } from "../autofill/saved-logins.ts";
 import { UNSUPPORTED_PAGE } from "../autofill/fill-tab.ts";
-import type { FilesOutcome, StoredEntry } from "../vault-store.ts";
+import { TYPE_INFO, entrySummary, matchesQuery } from "../entry-types.ts";
+import { errorMessage } from "../error-messages.ts";
+import { activeTab, requestFill } from "../ui/active-tab.ts";
 import { copySecret, copyText } from "../ui/copy.ts";
 import { busy, h, setStatus, show, statusLine } from "../ui/dom.ts";
-import { activeTab, requestFill } from "../ui/active-tab.ts";
 import { IN_TAB, openInTabButton } from "../ui/page.ts";
 import { store } from "../ui/state.ts";
-import { openAddresses } from "./addresses.ts";
-import { editView } from "./edit.ts";
-import { showLocked } from "./locked.ts";
-import { pinSettingsView } from "./pin-settings.ts";
-import { saveSettingsView } from "./save-settings.ts";
-import { openTransfer } from "./transfer.ts";
-
-/** One sentence about addresses a sync skipped because Chrome does not allow them yet; "" when none. */
-export function skippedNote(skipped: readonly string[]): string {
-  if (skipped.length === 0) return "";
-  return ` Pominięto adresy bez zgody Chrome: ${skipped.join(", ")}. Zgodę dasz w „Adresy telefonu” (Zapisz).`;
-}
+import type { FilesOutcome, StoredEntry } from "../vault-store.ts";
+import { skippedNote } from "./notes.ts";
+import { views, type ListOptions } from "./router.ts";
 
 /**
  * Sentences about the file phase of a sync ("" when nothing happened); error is true when it failed or found
@@ -36,7 +27,10 @@ export function filesNote(f: FilesOutcome): { text: string; error: boolean } {
   return { text, error: Boolean(f.error) || f.corrupted.length > 0 };
 }
 
-/** The tab the list shows when listView() is called without a type. */
+/**
+ * The tab the list shows when listView() is called without a type. Module state on purpose: the popup page
+ * lives as long as one visit, and every view that goes back to the list should land on the tab left.
+ */
 let currentType: p2p.EntryType = "login";
 
 /** Fills the entry into the active tab and closes the popup; a failure stays in the status line. */
@@ -58,21 +52,28 @@ function fillButton(e: StoredEntry, status: HTMLElement) {
   );
 }
 
-/** One row: the whole entry opens on click; a login also gets its copy buttons (unless copyable is false, as in the matches section), a card or contact „Wypełnij” (popup only). */
-function entryRow(
-  e: StoredEntry,
+/** A copy button of a login row; a failure goes to the status line. */
+function copyButton(
+  label: string,
+  title: string,
+  copy: () => Promise<void>,
   status: HTMLElement,
-  fillable = !IN_TAB && (e.data.type === "card" || e.data.type === "contact"),
-  copyable = true,
-) {
+): HTMLButtonElement {
+  const onclick = () =>
+    copy().catch((error: unknown) => setStatus(status, errorMessage(error), true));
+  return h("button", { title, onclick }, label);
+}
+
+/** The button that opens the whole entry: icon, name (📎 with attachments, • when not synced) and summary. */
+function openButton(e: StoredEntry) {
   const summary = entrySummary(e.data);
   const clips = e.data.attachments?.length ?? 0;
-  const open = h(
+  return h(
     "button",
     {
       class: "entry-open grow",
       title: `Otwórz: ${e.data.name}`,
-      onclick: () => editView(e.data.type, e.id),
+      onclick: () => views().edit(e.data.type, e.id),
     },
     h("span", { class: "icon", "aria-hidden": "true" }, TYPE_INFO[e.data.type].icon),
     h(
@@ -88,84 +89,145 @@ function entryRow(
       h("span", { class: "user", title: summary }, summary),
     ),
   );
-  const fields = copyable && e.data.type === "login" ? e.data.fields : undefined;
+}
+
+/**
+ * Where a row is shown. "list": a login gets its copy buttons, a card or contact „Wypełnij” (popup only).
+ * "matches" (logins for the page under the popup): only „Wypełnij”.
+ */
+type RowPlace = "list" | "matches";
+
+function entryRow(e: StoredEntry, status: HTMLElement, place: RowPlace) {
+  const fillable =
+    place === "matches" || (!IN_TAB && (e.data.type === "card" || e.data.type === "contact"));
+  const fields = place === "list" && e.data.type === "login" ? e.data.fields : undefined;
   return h(
     "li",
     {},
-    open,
+    openButton(e),
     fields &&
-      h(
-        "button",
-        {
-          title: "Kopiuj login",
-          onclick: () =>
-            copyText(fields.username, "login", status).catch((error: unknown) =>
-              setStatus(status, errorMessage(error), true),
-            ),
-        },
-        "Login",
-      ),
+      copyButton("Login", "Kopiuj login", () => copyText(fields.username, "login", status), status),
     fillable && fillButton(e, status),
     fields &&
-      h(
-        "button",
-        {
-          title: "Kopiuj hasło",
-          onclick: () =>
-            copySecret(fields.password, "hasło", status).catch((error: unknown) =>
-              setStatus(status, errorMessage(error), true),
-            ),
-        },
+      copyButton(
         "Hasło",
+        "Kopiuj hasło",
+        () => copySecret(fields.password, "hasło", status),
+        status,
       ),
   );
 }
 
-/** The list of one entry type; without type, the tab chosen last (Loginy at first). */
-export function listView(message = "", isError = false, type?: p2p.EntryType) {
-  if (type) currentType = type;
-  const search = h("input", { type: "search", placeholder: "Szukaj…" });
-  const list = h("ul", { class: "entries" });
-  const status = statusLine();
-  setStatus(status, message, isError);
-
-  const tabButtons = p2p.ENTRY_TYPES.map((t) =>
+/** The type tabs; markTab() shows which one is pressed. */
+function typeTabs(select: (t: p2p.EntryType) => void) {
+  const buttons = p2p.ENTRY_TYPES.map((t) =>
     h(
       "button",
-      { type: "button", title: TYPE_INFO[t].tab, onclick: () => selectTab(t) },
+      { type: "button", title: TYPE_INFO[t].tab, onclick: () => select(t) },
       h("span", { class: "icon", "aria-hidden": "true" }, TYPE_INFO[t].icon),
       h("span", {}, TYPE_INFO[t].tab),
     ),
   );
   const markTab = () =>
-    tabButtons.forEach((b, i) =>
+    buttons.forEach((b, i) =>
       b.setAttribute("aria-pressed", String(p2p.ENTRY_TYPES[i] === currentType)),
     );
+  return {
+    node: h("div", { class: "tabs", role: "group", "aria-label": "Typ wpisu" }, ...buttons),
+    markTab,
+  };
+}
 
-  // Logins matching the page the popup was opened over (Loginy tab only); filled in once the tab is known.
-  const matches = h("div", { class: "matches" });
-  matches.hidden = true;
+/** Logins matching the page the popup was opened over (Loginy tab only); filled in once the tab is known. */
+function matchesSection(status: HTMLElement) {
+  const node = h("div", { class: "matches" });
+  node.hidden = true;
   const tab = activeTab().catch(() => undefined);
-  const renderMatches = async () => {
+  const render = async () => {
     const page = currentType === "login" ? await tab : undefined;
-    const rows = page
-      ? autofill.matchLogins(page.url, store.listEntries("login"), (e) => ({
-          name: e.data.name,
-          urls: e.data.type === "login" ? e.data.fields.urls : [],
-        }))
-      : [];
+    const rows = page ? matchSavedLogins(page.url, store.listEntries("login")) : [];
     // The tab may have changed while the tab query was pending.
     const shown = currentType === "login" ? rows : [];
-    matches.hidden = shown.length === 0;
-    matches.replaceChildren(
+    node.hidden = shown.length === 0;
+    node.replaceChildren(
       ...(shown.length === 0
         ? []
         : [
             h("h2", {}, "Pasujące do tej strony"),
-            h("ul", { class: "entries" }, ...shown.map((e) => entryRow(e, status, true, false))),
+            h("ul", { class: "entries" }, ...shown.map((e) => entryRow(e, status, "matches"))),
           ]),
     );
   };
+  return { node, render };
+}
+
+/** Syncs with the phone and says what happened (entries, skipped addresses, files). */
+function sync(status: HTMLElement, refresh: () => void) {
+  return busy(status, "Synchronizuję…", async () => {
+    const result = await store.sync((done, total) =>
+      setStatus(status, `Pliki: ${done} z ${total}`),
+    );
+    refresh();
+    const note = filesNote(result.files);
+    setStatus(
+      status,
+      `Zsynchronizowano z telefonem ${new Date().toLocaleTimeString("pl")}.` +
+        skippedNote(result.skipped) +
+        note.text,
+      note.error,
+    );
+  });
+}
+
+/** The buttons under the list. */
+function listActions(status: HTMLElement, refresh: () => void) {
+  return h(
+    "div",
+    { class: "actions" },
+    h("button", { onclick: () => sync(status, refresh) }, "Synchronizuj"),
+    h("button", { title: "Logowanie PIN-em", onclick: () => void views().pinSettings() }, "PIN"),
+    h(
+      "button",
+      { title: "Pytanie o zapis haseł", onclick: () => void views().saveSettings() },
+      "Zapis",
+    ),
+    h(
+      "button",
+      {
+        onclick: async () => {
+          await store.lock();
+          await views().locked();
+        },
+      },
+      "Zablokuj",
+    ),
+    h(
+      "button",
+      {
+        title: "Adresy telefonu (np. w domu i przez Tailscale), parowanie z innym telefonem",
+        onclick: () => void views().addresses(),
+      },
+      "Adresy telefonu",
+    ),
+    h(
+      "button",
+      {
+        title: "Import i eksport (PassHolder JSON, Bitwarden JSON, NordPass CSV)",
+        onclick: () => void views().transfer(),
+      },
+      "Plik",
+    ),
+  );
+}
+
+/** The list of one entry type; without options.type, the tab chosen last (Loginy at first). */
+export function listView({ message = "", error = false, type }: ListOptions = {}) {
+  if (type) currentType = type;
+  const search = h("input", { type: "search", placeholder: "Szukaj…" });
+  const list = h("ul", { class: "entries" });
+  const status = statusLine();
+  setStatus(status, message, error);
+  const matches = matchesSection(status);
 
   const renderList = () => {
     const query = search.value.trim();
@@ -175,98 +237,42 @@ export function listView(message = "", isError = false, type?: p2p.EntryType) {
     list.replaceChildren(
       ...(rows.length === 0
         ? [h("li", { class: "empty" }, query ? "Nic nie pasuje." : "Brak wpisów. Dodaj pierwszy.")]
-        : rows.map((e) => entryRow(e, status))),
+        : rows.map((e) => entryRow(e, status, "list"))),
     );
+  };
+  const refresh = () => {
+    renderList();
+    void matches.render();
   };
 
   // A search phrase belongs to one tab: switching clears it.
-  const selectTab = (t: p2p.EntryType) => {
+  const tabs = typeTabs((t) => {
     currentType = t;
     search.value = "";
-    markTab();
-    renderList();
-    void renderMatches();
+    tabs.markTab();
+    refresh();
     search.focus();
-  };
-  markTab();
-
+  });
+  tabs.markTab();
   search.addEventListener("input", renderList);
 
   show(
     openInTabButton(),
-    h("div", { class: "tabs", role: "group", "aria-label": "Typ wpisu" }, ...tabButtons),
+    tabs.node,
     h(
       "div",
       { class: "row" },
       h("div", { class: "grow" }, search),
-      h("button", { class: "primary", onclick: () => editView(currentType) }, "+ Dodaj"),
+      h("button", { class: "primary", onclick: () => views().edit(currentType) }, "+ Dodaj"),
     ),
-    matches,
+    matches.node,
     list,
-    h(
-      "div",
-      { class: "actions" },
-      h(
-        "button",
-        {
-          onclick: () =>
-            busy(status, "Synchronizuję…", async () => {
-              const result = await store.sync((done, total) =>
-                setStatus(status, `Pliki: ${done} z ${total}`),
-              );
-              renderList();
-              void renderMatches();
-              const note = filesNote(result.files);
-              setStatus(
-                status,
-                `Zsynchronizowano z telefonem ${new Date().toLocaleTimeString("pl")}.` +
-                  skippedNote(result.skipped) +
-                  note.text,
-                note.error,
-              );
-            }),
-        },
-        "Synchronizuj",
-      ),
-      h("button", { title: "Logowanie PIN-em", onclick: () => void pinSettingsView() }, "PIN"),
-      h(
-        "button",
-        { title: "Pytanie o zapis haseł", onclick: () => void saveSettingsView() },
-        "Zapis",
-      ),
-      h(
-        "button",
-        {
-          onclick: async () => {
-            await store.lock();
-            await showLocked();
-          },
-        },
-        "Zablokuj",
-      ),
-      h(
-        "button",
-        {
-          title: "Adresy telefonu (np. w domu i przez Tailscale), parowanie z innym telefonem",
-          onclick: () => void openAddresses(),
-        },
-        "Adresy telefonu",
-      ),
-      h(
-        "button",
-        {
-          title: "Import i eksport (PassHolder JSON, Bitwarden JSON, NordPass CSV)",
-          onclick: () => void openTransfer(),
-        },
-        "Plik",
-      ),
-    ),
+    listActions(status, refresh),
     status,
   );
   const pending = store.pendingCount();
   if (!message && pending > 0)
     setStatus(status, `Niezsynchronizowane zmiany: ${pending} (oznaczone •).`);
-  renderList();
-  void renderMatches();
+  refresh();
   search.focus();
 }

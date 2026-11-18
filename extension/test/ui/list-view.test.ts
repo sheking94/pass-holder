@@ -105,7 +105,7 @@ describe("list view tabs", () => {
   it("listView(type) opens that tab and listView() remembers the last one", async () => {
     const { app } = await setupPopup(ENTRIES);
     const { listView } = await import("../../src/views/list.ts");
-    listView("", false, "card");
+    listView({ type: "card" });
     expect(names(app)).toEqual(["Master", "Visa"]);
     await click(tabs(app)[1]!);
     listView();

@@ -76,11 +76,11 @@ osobno przez `fake-indexeddb`). Treść jawna nigdy nie jest zapisywana: odszyfr
 
 | Plik | Co robi |
 |---|---|
-| `src/popup.ts` | `start()`: wybiera pierwszy widok i włącza automatyczną blokadę strony |
+| `src/popup.ts` | `start()`: ładuje `views/index.ts`, wybiera pierwszy widok (`views().connect/addresses/unlocked/locked`) i włącza automatyczną blokadę strony |
 | `src/vault-store.ts` | `VaultStore`: cienka fasada nad częściami z `src/vault/` (opis w „Podział `VaultStore`”); sama robi tylko odblokowanie (hasło, PIN), ustawienia PIN-u i odłączenie. Tworzona jednym obiektem opcji `{ local, session, makeClient?, now?, canReach?, fileStore? }`; publiczne API bez zmian. Re-eksportuje typy i teksty z `src/vault/` |
 | `src/vault/*.ts` | części sejfu wtyczki: `session.ts` (stan odblokowania i blokada po 15 min), `account.ts` (konto, hasło główne, klucz statyczny), `local-vault.ts` (zapis sejfu na dysku), `entries.ts`, `files.ts`, `transfer.ts` (import i eksport), `sync.ts`, `pairing.ts` (`pairStart`, `pairFinish`, `repair`: też nowym hasłem z telefonu po zmianie hasła głównego), `messages.ts` (teksty i błędy `UnsyncedChanges`, `PairedButSyncFailed`) |
 | `src/entry-types.ts` | typy wpisów w kolejności zakładek (`ENTRY_TYPES`, `TYPE_INFO`), rodzaje dokumentu, pusty wpis, opis wiersza (`entrySummary`), wyszukiwanie, sprzątanie przed zapisem (`tidyContent`) i sprawdzanie formatów (`validateContent`) |
-| `src/storage.ts` | klucze `chrome.storage` (`STORAGE_KEYS`), `chromeStore`, `memoryStore` do testów |
+| `src/storage.ts` | klucze `chrome.storage` (`STORAGE_KEYS`), `chromeStore`, `memoryStore` do testów, `setOrRemove` (zapis listy lub mapy, pusta usuwa klucz) |
 | `src/phone-client.ts` | `PhoneClient`: JSON `POST` do telefonu z limitem 30 s; brak odpowiedzi → `PhoneUnreachableError` |
 | `src/error-messages.ts` | jedyne miejsce, gdzie kody błędów rdzenia stają się polskim tekstem: `errorMessage(error: unknown)` (tekst dla użytkownika z dowolnej wartości), `toUserError` (błąd z tekstem dla ekranu, oryginał w `cause`), wspólne teksty (`PHONE_UNREACHABLE`, `UNLOCK_AND_RETRY`…) |
 | `src/result.ts` | `ActionResult` (`{ ok: true }` albo `{ ok: false; error }`): wynik akcji przesyłany między tłem a stronami (wypełnianie, odpowiedź na pytanie o zapis) |
@@ -89,25 +89,25 @@ osobno przez `fake-indexeddb`). Treść jawna nigdy nie jest zapisywana: odszyfr
 | `src/pin-lock.ts`, `src/pin-store.ts` | PIN: kryptografia (`createPinLock`, `openPinLock`) i przechowywanie z licznikiem prób |
 | `src/import-summary.ts`, `src/plural.ts` | polskie podsumowanie importu (dodano, duplikaty, pominięte) i odmiana „wpis/wpisy/wpisów” oraz zdanie o pominiętych plikach (`skippedFilesPhrase`) |
 | `src/clipboard.ts`, `src/background.ts`, `src/offscreen.ts` | czyszczenie schowka po minucie (alarm + dokument offscreen); `background.ts` ma jeden nasłuch `onMessage`, który rozdziela komunikaty po `type` (`password-copied`, `fill`, `save-*`), i obsługuje polecenie `fill-login` |
-| `src/autofill/fill-tab.ts` | `fillTab` (sprawdza sejf, wpis, adres karty, https, `matchLogins`; wstrzykuje skrypt), `onFillCommand` (skrót: tylko login dokładnego hosta), `chromeFillTabApi` (`FillTabApi`: `tabs.get`, `scripting.executeScript`, przypięty origin) |
-| `src/autofill/fill-page.ts`, `src/autofill-content.ts` | `fillPage` w stronie: pola, widoczność (`isVisible`, dla kontaktu i karty `strict`: `clip-path`/`clip`, min. 10 px, `overflow` rodzica, `elementFromPoint`), kontakt i karta tylko w formularzu pola z kursorem, ramki tego samego origin, wpisanie wartości; `autofill-content.ts` wystawia `globalThis.passholderFill` |
+| `src/autofill/fill-tab.ts` | `fillTab` (sprawdza sejf, wpis, adres karty, https, `matchSavedLogins`; wstrzykuje skrypt), `onFillCommand` (skrót: tylko login dokładnego hosta), `chromeFillTabApi` (`FillTabApi`: `tabs.get`, `scripting.executeScript`, przypięty origin) |
+| `src/autofill/fill-page.ts`, `src/autofill-content.ts` | `fillPage` w stronie: pola, widoczność (`isVisible(el, "basic" | "strict")`, dla kontaktu i karty `"strict"`: `clip-path`/`clip`, min. 10 px, `overflow` rodzica, `elementFromPoint`), kontakt i karta tylko w formularzu pola z kursorem, ramki tego samego origin, wpisanie wartości; `autofill-content.ts` wystawia `globalThis.passholderFill` |
 | `src/ui/active-tab.ts` | `activeTab` (karta pod okienkiem) i `requestFill` (komunikat `fill` do service workera) |
 | `src/save/read-form.ts`, `watch.ts`, `src/save-watch.ts` | skrypt w stronie: `readLogin` (hasło i login, `formSignature`), `loginScope`, `emptyLoginForms`; `startSaveWatch` (submit, Enter, klik tylko od użytkownika: `isTrusted`, przy submit też `navigator.userActivation`; ramka główna i ramki tego samego origin; nic nie dodaje do strony) |
 | `src/save/candidates.ts` | `SaveCandidates` w service workerze: kandydat w `chrome.storage.session` (`saveCandidates`), lista „Nigdy” w `chrome.storage.local`; `onCandidate` (ten sam login z tej samej karty zachowuje id), `onPending`, `onInfo`, `onPreview`, `onAnswer`, `onAlarm` (alarm 2 min `save-expire:<karta>`), `onTabRemoved`, `onWindowClosed` (okno zamknięte przez użytkownika: tylko odznaka), `onUnlockRequest`; publiczne `onX` kolejkują pracę (`serial`), prywatne `handleX` ją wykonują; okno i odznakę obsługuje przez `SavePrompt` (`PromptWindows`); każde usunięcie poza zapisem i zamknięciem karty zamyka okno i zdejmuje odznakę |
 | `src/save/registration.ts` | `syncSaveWatch`: rejestracja skryptu `save-watch` zgodna z uprawnieniem `https://*/*` (wywołania po kolei); `disableSavePrompt` |
 | `src/save/messages.ts`, `prompt-view.ts`, `prompt-page.ts`, `src/save-prompt.ts` | typy wiadomości (`save-candidate`, `save-pending`, `save-info`, `save-preview` (decyzja dla wpisanego loginu i hasła), `save-answer` (z `draft {name, username, password}`), `save-unlock`); `promptView`: podgląd z edycją (Nazwa, Login, Hasło; przy zmianie hasła uwaga o „Poprzednie hasło”), wspólny dla okna (`save-prompt.html`) i okienka; `startPromptPage`: strona okna (brak kandydata → zamyka okno, sejf zablokowany po załadowaniu → „Odblokuj i zapisz”) |
 | `src/save/prompt-window.ts` | `PromptWindows`: okno pytania (`chrome.windows.create`, `type: "popup"`, 380 × 420 przy prawym górnym rogu okna karty), odznaka „?” (`chrome.action.setBadgeText` dla karty), mapa karta → okno w `storage.session`, `show`/`hide`/`closeWindow`/`badge`/`closedByUser` |
-| `src/views/save-settings.ts`, `save-question.ts` | „Zapis haseł” (przełącznik, lista „Nigdy”) i pytanie w okienku po odblokowaniu (`showUnlocked` w `locked.ts` pyta tło o kandydata karty) |
+| `src/views/save-settings.ts`, `save-question.ts` | „Zapis haseł” (przełącznik `onToggle`, lista „Nigdy” `neverHosts`) i pytanie w okienku po odblokowaniu (`showUnlocked` w `locked.ts` pyta tło o kandydata karty) |
 | `src/page-mode.ts`, `src/open-in-tab.ts` | tryby strony, przycisk „Otwórz w karcie ↗” (`OpenTabApi`, `chromeOpenTabApi`) |
-| `src/ui/dom.ts` | pomocniki DOM: `h`, `show`, `form`, `passwordField`, `secretField` (pole wrażliwe: „Pokaż/Ukryj”, „Kopiuj”), `pinInput`, `confirmButton`, `busy` |
+| `src/ui/dom.ts` | pomocniki DOM: `h`, `show`, `form`, `passwordField` i `secretField` (pole wrażliwe: „Pokaż/Ukryj”, „Kopiuj”; oba na wspólnym `visibilityToggle`), `pinInput({ autocomplete?, long? })`, `confirmButton`, `confirmBox`, `busy` |
 | `src/ui/copy.ts`, `src/ui/status.ts` | kopiowanie (`copyText`, `copySecret` z czyszczeniem schowka), linia statusu |
 | `src/ui/list-editor.ts` | `listEditor`: lista z „+ Dodaj” i „Usuń” (adresy, aplikacje, telefony, własne pola) |
 | `src/ui/page.ts` | `MODE`, `IN_TAB`, `showInTab(tryb, widok)`, `openInTabButton` |
-| `src/ui/phone-url-fields.ts` | pola adresów telefonu (`phoneUrlFields`), wzorzec zgody, prośby o zgodę Chrome |
+| `src/ui/phone-url-fields.ts`, `src/ui/pairing-code.ts` | pola adresów telefonu (`phoneUrlFields`), wzorzec zgody, prośby o zgodę Chrome, `submitPhoneUrls` (odczyt adresów → zgoda → `busy`); pole kodu parowania z etykietą (`pairingCodeField`) |
 | `src/files/idb-file-store.ts`, `src/files/format-size.ts` | `IdbFileStore` (IndexedDB `passholder-files`: opisy plików i kawałki, zapis kawałek po kawałku, `uploadedEpoch`); `formatSize` („N KB”, „4,6 MB”) |
 | `src/views/forms/attachments.ts`, `src/ui/download.ts` | sekcja „Załączniki” formularza (dodawanie, limity, ostrzeżenia, pobieranie) i zapis pliku przez `Blob` |
 | `src/ui/state.ts` | jeden `VaultStore` strony, wspólny dla widoków |
-| `src/views/*.ts` | ekrany: `connect` (parowanie), `locked`, `list` (zakładki typów), `edit` (formularz wpisu), `addresses`, `pin-settings`, `transfer` |
+| `src/views/*.ts` | ekrany: `connect` (parowanie), `locked`, `list` (zakładki typów), `edit` (formularz wpisu), `addresses`, `pin-settings`, `transfer`; `router.ts` (przejścia między ekranami po nazwie), `index.ts` (rejestracja), `notes.ts` (`skippedNote`) |
 | `src/views/forms/*.ts` | części formularza: `login` (z `generator`), `contact`, `card`, `document`, `note`, `custom-fields` (własne pola) |
 | `scripts/screenshots.mjs`, `test/screens/harness.ts` | zrzuty ekranów w Chromium z przykładowymi wpisami ([TESTY.md](TESTY.md#zrzuty-ekranów-wtyczki)) |
 
@@ -399,6 +399,51 @@ zmian; zmieniły się tylko wywołania w kodzie (opcje konstruktora, adresy zaws
   („Zapisz”), `addToNever` i usunięcie kandydata („Później”, „Nigdy”). Pełne nazwy (`message`, `sender`, `candidate`).
   Kandydaci żyją w `chrome.storage.session`, którą Chrome czyści przy aktualizacji wtyczki, więc stary format
   nie wymaga migracji.
+
+## Widoki wtyczki
+
+Ustalone w grupie G11 przeglądu czystości kodu V3 (CK6, CW10, CW13, CS11, CS14 część wtyczki). Zachowanie i
+wygląd bez zmian.
+
+**Router widoków** (`src/views/router.ts`). Widoki nie importują się nawzajem (wcześniej 9 plików tworzyło cykl).
+Widok prosi o przejście po nazwie: `views().list({ message, error, type })`, `views().edit(typ, id)`,
+`views().locked()`, `views().unlocked()`, `views().connect()`, `views().addresses()`, `views().transfer()`,
+`views().pinSettings()`, `views().saveSettings()`, `views().saveQuestion(info)`. Rejestr wypełnia raz
+`src/views/index.ts` (jedyny plik importujący wszystkie widoki); ładuje go `popup.ts`, a w testach `setupPopup`
+i `test/screens/harness.ts`. Bez rejestracji `views()` rzuca błąd. `backToListButton(etykieta)` to wspólny przycisk
+„Wróć” / „Wróć do listy”.
+
+**Długie funkcje podzielone** (funkcja na sekcję lub wariant, obsługa zdarzeń w nazwanych funkcjach):
+
+| Plik | Części |
+|---|---|
+| `views/list.ts` | `typeTabs`, `matchesSection` („Pasujące do tej strony”), `entryRow(e, status, "list" \| "matches")`, `openButton`, `copyButton`, `listActions`, `sync`; `listView` tylko składa ekran. Zapamiętana zakładka (`currentType`) celowo zostaje stanem modułu: każdy powrót do listy ma trafić na ostatnią zakładkę |
+| `views/edit.ts` | `formContent` (wpis z formularza), `leaveForm` (powrót na zakładkę typu), `editView` |
+| `views/addresses.ts` | `addressesSection` (zapis adresów) i `repairSection` („Sparuj z innym telefonem / odtwórz telefon”) |
+| `views/connect.ts` | `pairingSteps`, `codeStep`, `passwordStep`, `finish`, `cancelButton` |
+| `views/transfer.ts` | `formatChoices`, `exportAs`, `exportSection`, `importFile`, `importSection` |
+| `views/forms/attachments.ts` | klasa `AttachmentsForm`: `render`, `row`, `askDownload`, `download`, `remove`, `add`, `chooser`, `read` |
+| `save/prompt-view.ts` | `promptFields`, klasa `SavePrompt` (nagłówek wg decyzji, podgląd, wysyłka odpowiedzi, `draft`), `lockedLayout` i `unlockedLayout` |
+
+**Argumenty-flagi zamienione na nazwy**: `listView(message, isError, type)` → `listView({ message, error, type })`;
+`entryRow(…, fillable, copyable)` → miejsce wiersza `"list" | "matches"`; `candidatesIn(root, strict)` i
+`isVisible(el, strict)` → `VisibilityCheck` `"basic" | "strict"`; `enablePin(pin, remember)` →
+`enablePin(pin, { rememberAfterRestart })` (`PinOptions`, też w `PinStore.enable`); `pinInput(autocomplete, long)` →
+`pinInput({ autocomplete, long })`.
+
+**Wspólna logika w jednym miejscu**:
+
+| Co | Gdzie | Używają |
+|---|---|---|
+| `parseUrl`, `webUrl` (tylko http/https), `fromExtensionPage(sender, idWtyczki)` | `src/web-url.ts` | `background.ts`, `save/candidates.ts`, `autofill/fill-tab.ts` |
+| `frameRole`, typ `FieldElement` | `src/page-frame.ts` | `autofill/fill-page.ts` (`topOrigin`), `save/watch.ts`, `save/read-form.ts` |
+| `matchSavedLogins(adres, wpisy, opcje)` (wpis → `MatchCandidate`) | `src/autofill/saved-logins.ts` | lista, `fillTab`, `onFillCommand`, `SaveCandidates` |
+| `setOrRemove` | `src/storage.ts` | lista „Nigdy”, kandydaci, okna pytań |
+| `submitPhoneUrls` | `src/ui/phone-url-fields.ts` | parowanie, zapis adresów, ponowne parowanie |
+| `savePreviewMessage`, `saveAnswerMessage` | `src/save/messages.ts` | okno pytania (`prompt-page.ts`) i okienko (`save-question.ts`) |
+
+`fromExtensionPage` w `SaveCandidates` sprawdza teraz pełny początek adresu `chrome-extension://<id>/` jak
+`background.ts` (wcześniej tylko protokół); w praktyce wynik jest ten sam, bo skrypt wtyczki nie działa na stronach innych wtyczek.
 
 ## Przepływ autouzupełniania (Chrome)
 

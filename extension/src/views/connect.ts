@@ -1,22 +1,23 @@
+import { p2p } from "@passholder/core";
 import { busy, form, h, passwordField, setStatus, show, statusLine } from "../ui/dom.ts";
 import { IN_TAB, showInTab } from "../ui/page.ts";
+import { pairingCodeField } from "../ui/pairing-code.ts";
 import {
   originPattern,
-  requestHostPermission,
-  requestOptionalHostPermission,
   phoneUrlFields,
+  requestOptionalHostPermission,
+  submitPhoneUrls,
 } from "../ui/phone-url-fields.ts";
 import { store } from "../ui/state.ts";
+import { MASTER_PASSWORD_LABEL } from "../ui/texts.ts";
 import {
   pairingCancelledMessage,
   pairingExpiredMessage,
   PairedButSyncFailed,
   type PendingPairingInfo,
 } from "../vault-store.ts";
-import { listView, skippedNote } from "./list.ts";
-import { p2p } from "@passholder/core";
-import { PAIRING_CODE_LABEL, pairingCodeInput } from "../ui/pairing-code.ts";
-import { MASTER_PASSWORD_LABEL } from "../ui/texts.ts";
+import { skippedNote } from "./notes.ts";
+import { views } from "./router.ts";
 
 const PAIRED =
   "Sparowano z telefonem. Możesz zamknąć tę kartę i używać ikony PassHolder na pasku. Logowanie PIN-em włączysz przyciskiem PIN.";
@@ -64,10 +65,28 @@ async function connectView(message = "") {
   codeStep(message);
 }
 
+/** What to do on the phone before step 1. */
+function pairingSteps() {
+  return h(
+    "ol",
+    { class: "steps" },
+    h(
+      "li",
+      {},
+      "W aplikacji PassHolder na telefonie otwórz Synchronizacja i wybierz „Dodaj wtyczkę”.",
+    ),
+    h(
+      "li",
+      {},
+      `Przepisz tu adres i ${p2p.PAIRING_CODE_LENGTH}-cyfrowy kod z ekranu telefonu. Kod jest ważny ${p2p.PAIRING_CODE_TTL_MS / 60_000} minuty i działa raz.`,
+    ),
+  );
+}
+
 /** Step 1: the phone's address and the one-time code from its "Synchronizacja" screen. */
 function codeStep(message = "") {
   const addresses = phoneUrlFields();
-  const code = pairingCodeInput();
+  const code = pairingCodeField();
   const name = h("input", {
     type: "text",
     value: defaultDeviceName(),
@@ -76,40 +95,21 @@ function codeStep(message = "") {
   const status = statusLine();
   setStatus(status, message, Boolean(message));
 
-  const submit = () => {
-    const typed = addresses.read();
-    if (typeof typed === "string") return setStatus(status, typed, true);
-    requestHostPermission(typed.origins, status, () => {
-      void busy(status, "Łączę z telefonem…", async () => {
-        await store.pairStart(typed.urls, code.value, name.value);
-        const pending = await store.pendingPairing();
-        if (!pending) return codeStep(pairingExpiredMessage(name.value.trim()));
-        passwordStep(pending);
-      });
+  const submit = () =>
+    submitPhoneUrls(addresses, status, "Łączę z telefonem…", async (urls) => {
+      await store.pairStart(urls, code.input.value, name.value);
+      const pending = await store.pendingPairing();
+      if (!pending) return codeStep(pairingExpiredMessage(name.value.trim()));
+      passwordStep(pending);
     });
-  };
 
   show(
     h("h1", {}, "PassHolder: sparuj z telefonem"),
-    h(
-      "ol",
-      { class: "steps" },
-      h(
-        "li",
-        {},
-        "W aplikacji PassHolder na telefonie otwórz Synchronizacja i wybierz „Dodaj wtyczkę”.",
-      ),
-      h(
-        "li",
-        {},
-        `Przepisz tu adres i ${p2p.PAIRING_CODE_LENGTH}-cyfrowy kod z ekranu telefonu. Kod jest ważny ${p2p.PAIRING_CODE_TTL_MS / 60_000} minuty i działa raz.`,
-      ),
-    ),
+    pairingSteps(),
     form(
       submit,
       ...addresses.fields,
-      h("label", {}, PAIRING_CODE_LABEL),
-      code,
+      ...code.nodes,
       h("label", {}, "Nazwa tej przeglądarki (zobaczysz ją w telefonie)"),
       name,
       h("div", { class: "actions" }, h("button", { type: "submit", class: "primary" }, "Sparuj")),
@@ -137,35 +137,10 @@ function passwordStep(pending: PendingPairingInfo, message = "") {
     requestOptionalHostPermission([...new Set(pending.phoneUrls.map(originPattern))], then);
   };
 
-  const submit = () => {
-    askOnce(() => {
-      void busy(status, "Liczę klucze z hasła głównego…", async () => {
-        try {
-          const { skipped } = await store.pairFinish(password.value);
-          listView(PAIRED + skippedNote(skipped));
-        } catch (error) {
-          if (error instanceof PairedButSyncFailed) return listView(error.message, true);
-          password.value = "";
-          // The pairing is gone (expired, or cancelled in another tab): the phone still lists this browser.
-          if (!(await store.hasPendingPairing()))
-            return codeStep(pairingExpiredMessage(pending.deviceName));
-          throw error;
-        }
-      });
-    });
-  };
-
-  const cancel = h(
-    "button",
-    {
-      type: "button",
-      onclick: async () => {
-        // Also when it expired meanwhile: the phone lists the browser either way.
-        codeStep(pairingCancelledMessage((await store.cancelPairing()) ?? pending.deviceName));
-      },
-    },
-    "Anuluj parowanie",
-  );
+  const submit = () =>
+    askOnce(
+      () => void busy(status, "Liczę klucze z hasła głównego…", () => finish(pending, password)),
+    );
 
   show(
     h("h1", {}, "PassHolder: hasło główne"),
@@ -183,10 +158,40 @@ function passwordStep(pending: PendingPairingInfo, message = "") {
         "div",
         { class: "actions" },
         h("button", { type: "submit", class: "primary" }, "Odblokuj i synchronizuj"),
-        cancel,
+        cancelButton(pending),
       ),
     ),
     status,
   );
   password.focus();
+}
+
+/** Finishes the pairing with the typed master password and shows the list; a wrong password stays on step 2. */
+async function finish(pending: PendingPairingInfo, password: HTMLInputElement): Promise<void> {
+  try {
+    const { skipped } = await store.pairFinish(password.value);
+    views().list({ message: PAIRED + skippedNote(skipped) });
+  } catch (error) {
+    if (error instanceof PairedButSyncFailed)
+      return views().list({ message: error.message, error: true });
+    password.value = "";
+    // The pairing is gone (expired, or cancelled in another tab): the phone still lists this browser.
+    if (!(await store.hasPendingPairing()))
+      return codeStep(pairingExpiredMessage(pending.deviceName));
+    throw error;
+  }
+}
+
+function cancelButton(pending: PendingPairingInfo) {
+  return h(
+    "button",
+    {
+      type: "button",
+      onclick: async () => {
+        // Also when it expired meanwhile: the phone lists the browser either way.
+        codeStep(pairingCancelledMessage((await store.cancelPairing()) ?? pending.deviceName));
+      },
+    },
+    "Anuluj parowanie",
+  );
 }

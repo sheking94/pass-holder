@@ -29,6 +29,17 @@ export interface KeyValueStore {
   remove(key: string): Promise<void>;
 }
 
+/** Stores a list or a map, or removes the key when it is empty, so no empty value is left behind. */
+export async function setOrRemove(
+  store: KeyValueStore,
+  key: string,
+  value: readonly unknown[] | Record<string, unknown>,
+): Promise<void> {
+  const empty = Array.isArray(value) ? value.length === 0 : Object.keys(value).length === 0;
+  if (empty) await store.remove(key);
+  else await store.set(key, value);
+}
+
 export function chromeStore(area: chrome.storage.StorageArea): KeyValueStore {
   return {
     async get<T>(key: string) {

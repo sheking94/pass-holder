@@ -1,7 +1,6 @@
 // Subpath import: the @passholder/core root pulls crypto libraries into the page bundle.
 import * as autofill from "@passholder/core/autofill";
-
-type FieldElement = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
+import { frameRole, type FieldElement } from "../page-frame.ts";
 
 declare global {
   var passholderFill: typeof fillPage | undefined;
@@ -101,10 +100,15 @@ function isCoveredOrCut(el: Element, rect: DOMRect, view: Window): boolean {
 }
 
 /**
- * Whether a person can see the field. `strict` (contact and card, review V3-S4) also rejects clipped, tiny,
- * cut-off and covered fields; login fill does not need it, because it only runs on the entry's own site.
+ * How sure the check must be that a person sees the field. "strict" (contact and card, review V3-S4) also
+ * rejects clipped, tiny, cut-off and covered fields; login fill does not need it, because it only runs on the
+ * entry's own site.
  */
-export function isVisible(el: Element, strict = false): boolean {
+export type VisibilityCheck = "basic" | "strict";
+
+/** Whether a person can see the field. */
+export function isVisible(el: Element, check: VisibilityCheck = "basic"): boolean {
+  const strict = check === "strict";
   const view = el.ownerDocument.defaultView;
   if (!view) return false;
   // Chrome 121+: covers display, visibility, opacity of the element and its ancestors, content-visibility.
@@ -131,10 +135,10 @@ const isField = (el: Element | null): el is FieldElement =>
   el instanceof HTMLSelectElement ||
   el instanceof HTMLTextAreaElement;
 
-function isFillable(el: FieldElement, strict = false): boolean {
+function isFillable(el: FieldElement, check: VisibilityCheck): boolean {
   if (el.disabled || (!(el instanceof HTMLSelectElement) && el.readOnly)) return false;
   if (el instanceof HTMLInputElement && el.type === "hidden") return false;
-  return isVisible(el, strict);
+  return isVisible(el, check);
 }
 
 interface Candidate {
@@ -143,10 +147,10 @@ interface Candidate {
   kind: autofill.FieldKind | null;
 }
 
-function candidatesIn(root: ParentNode, strict = false): Candidate[] {
+function candidatesIn(root: ParentNode, check: VisibilityCheck): Candidate[] {
   const out: Candidate[] = [];
   for (const el of root.querySelectorAll<FieldElement>("input, select, textarea")) {
-    if (!isFillable(el, strict)) continue;
+    if (!isFillable(el, check)) continue;
     const descriptor = describeField(el);
     out.push({ el, descriptor, kind: autofill.classifyField(descriptor) });
   }
@@ -188,12 +192,12 @@ const hasUsername = (cands: Candidate[]): boolean => cands.some((c) => c.kind ==
 function fillLogin(plan: autofill.FillPlan, doc: Document): number {
   const scopes: ParentNode[] = [...doc.forms, doc];
   for (const scope of scopes) {
-    const cands = candidatesIn(scope);
+    const cands = candidatesIn(scope, "basic");
     if (cands.filter(isPasswordInput).length === 1)
       return fillCandidates(plan, cands, hasUsername(cands));
   }
   // No login form: the first visible username/email field (two-step login) gets the login only.
-  const cands = candidatesIn(doc);
+  const cands = candidatesIn(doc, "basic");
   const username = cands.find((c) => c.kind === "username");
   const first = username ?? cands.find((c) => c.kind === "email");
   return first ? fillCandidates(plan, [first], username !== undefined) : 0;
@@ -206,10 +210,10 @@ function fillLogin(plan: autofill.FillPlan, doc: Document): number {
 function fillOther(plan: autofill.FillPlan, doc: Document): number {
   const active = doc.activeElement;
   let scope: ParentNode;
-  if (isField(active) && isFillable(active, true)) {
+  if (isField(active) && isFillable(active, "strict")) {
     scope = active.form ?? doc;
   } else {
-    const all = candidatesIn(doc, true);
+    const all = candidatesIn(doc, "strict");
     const first = all.find(
       (c) =>
         c.kind &&
@@ -217,21 +221,13 @@ function fillOther(plan: autofill.FillPlan, doc: Document): number {
     );
     scope = first?.el.form ?? doc;
   }
-  const cands = candidatesIn(scope, true);
+  const cands = candidatesIn(scope, "strict");
   return fillCandidates(plan, cands, hasUsername(cands));
 }
 
 /** The origin of the top frame when it is the frame's own or same-origin with it; undefined when cross-origin. */
 function topOrigin(doc: Document): string | undefined {
-  const win = doc.defaultView;
-  if (!win) return undefined;
-  try {
-    const top = win.top;
-    if (top === win) return win.location.origin;
-    return top?.location.origin === win.location.origin ? win.location.origin : undefined;
-  } catch {
-    return undefined;
-  }
+  return frameRole(doc) ? doc.defaultView?.location.origin : undefined;
 }
 
 /**

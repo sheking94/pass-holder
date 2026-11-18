@@ -2,7 +2,7 @@ import { fromBase64, toBase64, type p2p } from "@passholder/core";
 import * as files from "@passholder/core/files";
 import { PhoneClient } from "./phone-client.ts";
 import { invalidPinMessage, isValidPin } from "./pin-lock.ts";
-import { PinStore, type PinStatus } from "./pin-store.ts";
+import { PinStore, type PinOptions, type PinStatus } from "./pin-store.ts";
 import { STORAGE_KEYS, type KeyValueStore } from "./storage.ts";
 import { AccountStore, unwrapWithPassword, type Account } from "./vault/account.ts";
 import { VaultEntries } from "./vault/entries.ts";
@@ -292,12 +292,12 @@ export class VaultStore {
   }
 
   /** Turns on unlocking with a PIN (needs an unlocked vault). See PinStore.enable for where it is kept. */
-  async enablePin(pin: string, rememberAfterRestart: boolean): Promise<void> {
+  async enablePin(pin: string, options: PinOptions): Promise<void> {
     // Before requireKeys(): a PIN of the wrong shape is reported as such even while locked.
-    if (!isValidPin(pin, rememberAfterRestart))
-      throw new Error(invalidPinMessage(rememberAfterRestart));
+    if (!isValidPin(pin, options.rememberAfterRestart))
+      throw new Error(invalidPinMessage(options.rememberAfterRestart));
     const keys = this.vaultSession.requireKeys();
-    await this.pin.enable(pin, { vaultKey: fromBase64(keys.vaultKey) }, rememberAfterRestart);
+    await this.pin.enable(pin, { vaultKey: fromBase64(keys.vaultKey) }, options);
   }
 
   disablePin(): Promise<void> {

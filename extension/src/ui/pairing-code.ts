@@ -2,9 +2,9 @@
 import { p2p } from "@passholder/core";
 import { h } from "./dom.ts";
 
-export const PAIRING_CODE_LABEL = `Kod parowania (${p2p.PAIRING_CODE_LENGTH} cyfr)`;
+const PAIRING_CODE_LABEL = `Kod parowania (${p2p.PAIRING_CODE_LENGTH} cyfr)`;
 
-export function pairingCodeInput(): HTMLInputElement {
+function pairingCodeInput(): HTMLInputElement {
   return h("input", {
     type: "text",
     class: "mono",
@@ -14,4 +14,10 @@ export function pairingCodeInput(): HTMLInputElement {
     maxLength: p2p.PAIRING_CODE_LENGTH + 1,
     placeholder: "12345678".slice(0, p2p.PAIRING_CODE_LENGTH),
   });
+}
+
+/** The label and the input, for a form; read the code from input. */
+export function pairingCodeField(): { input: HTMLInputElement; nodes: HTMLElement[] } {
+  const input = pairingCodeInput();
+  return { input, nodes: [h("label", {}, PAIRING_CODE_LABEL), input] };
 }

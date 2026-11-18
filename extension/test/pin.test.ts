@@ -21,7 +21,7 @@ async function lockedBrowserWithPin(
 ) {
   const { local, session, store, makeClient } = await pairedBrowser();
   await store.putEntry("1", newLogin({ name: "bank.pl", username: "jan", password: "s3cret" }));
-  await store.enablePin(pin, rememberAfterRestart);
+  await store.enablePin(pin, { rememberAfterRestart });
   await store.lock();
   return { local, session, store, makeClient };
 }
@@ -91,7 +91,9 @@ describe("Unlocking with a PIN", () => {
       await expect(store.unlockWithPin(bad)).rejects.toThrow("od 4 do 6 cyfr");
     }
     expect((await store.pinStatus())?.attemptsLeft).toBe(MAX_PIN_ATTEMPTS);
-    await expect(store.enablePin("12345678", false)).rejects.toThrow("od 4 do 6 cyfr");
+    await expect(store.enablePin("12345678", { rememberAfterRestart: false })).rejects.toThrow(
+      "od 4 do 6 cyfr",
+    );
   }, 60_000);
 
   it("forgets a session PIN when the browser restarts, keeps a remembered one", async () => {
@@ -131,7 +133,7 @@ describe("Unlocking with a PIN", () => {
     await store.disablePin();
     expect(await store.pinStatus()).toBeUndefined();
 
-    await store.enablePin("654321-abc", true);
+    await store.enablePin("654321-abc", { rememberAfterRestart: true });
     await store.disconnect({ force: true }); // the vault has an unsynced entry; the user confirmed
     expect(await local.get(STORAGE_KEYS.pinLock)).toBeUndefined();
   }, 60_000);
@@ -140,11 +142,13 @@ describe("Unlocking with a PIN", () => {
     const { store, local, session } = await lockedBrowserWithPin(false, LONG_PIN);
     await store.unlockWithPin(LONG_PIN);
     for (const shortOrDigits of ["4821", "123456", "12345678901"]) {
-      await expect(store.enablePin(shortOrDigits, true)).rejects.toThrow(INVALID_REMEMBERED_PIN);
+      await expect(store.enablePin(shortOrDigits, { rememberAfterRestart: true })).rejects.toThrow(
+        INVALID_REMEMBERED_PIN,
+      );
     }
     expect(await session.get(STORAGE_KEYS.pinLock)).toBeDefined(); // the old PIN is still on
     expect(await local.get(STORAGE_KEYS.pinLock)).toBeUndefined();
-    await store.enablePin("1234567a", true);
+    await store.enablePin("1234567a", { rememberAfterRestart: true });
     expect(await store.pinStatus()).toEqual({
       rememberedAfterRestart: true,
       attemptsLeft: MAX_PIN_ATTEMPTS,
@@ -180,6 +184,8 @@ describe("Unlocking with a PIN", () => {
 
   it("needs an unlocked vault to turn the PIN on", async () => {
     const { store } = await lockedBrowserWithPin();
-    await expect(store.enablePin("9999", false)).rejects.toThrow("zablokowany");
+    await expect(store.enablePin("9999", { rememberAfterRestart: false })).rejects.toThrow(
+      "zablokowany",
+    );
   }, 60_000);
 });
