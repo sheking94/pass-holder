@@ -84,7 +84,7 @@ uruchomienia. Pełny opis testów: [../TESTY.md](../TESTY.md).
 
 ## 6. Jak sprawdzić na Windows
 
-W PowerShellu, w `C:\Users\krzys\Projekty\PassHolder`:
+W PowerShellu, w `<repo>`:
 
 ```powershell
 git pull

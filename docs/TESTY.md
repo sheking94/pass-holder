@@ -7,7 +7,7 @@ Co jest testowane, jak to uruchomić i co trzeba sprawdzić ręcznie.
 ### Windows (PowerShell)
 
 ```powershell
-cd C:\Users\krzys\Projekty\PassHolder
+cd <repo>
 fnm env --shell powershell | Out-String | Invoke-Expression
 npm ci
 npm test                 # core i extension (Vitest)

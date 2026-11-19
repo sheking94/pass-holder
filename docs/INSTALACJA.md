@@ -33,7 +33,7 @@ Kolejność: [1. narzędzia na Windows](#1-narzędzia-na-windows) → [2. telefo
 - Telefon z Androidem 8.0 lub nowszym (`minSdk = 26`) i kabel USB.
 - Wspólną sieć Wi-Fi dla telefonu i komputera; spoza domu opcjonalnie darmowe konto Tailscale.
 
-Przykłady poniżej zakładają repozytorium w `C:\Users\krzys\Projekty\PassHolder` i PowerShell.
+Przykłady używają PowerShell. `<repo>` oznacza katalog, do którego sklonowano repozytorium (np. `C:\Projekty\pass-holder`); podstaw własną ścieżkę.
 
 ---
 
@@ -42,7 +42,7 @@ Przykłady poniżej zakładają repozytorium w `C:\Users\krzys\Projekty\PassHold
 1. **Git for Windows** i kod:
 
    ```powershell
-   git clone git@github.com:sheking94/pass-holder.git C:\Users\krzys\Projekty\PassHolder
+   git clone git@github.com:sheking94/pass-holder.git <repo>
    ```
 
 2. **Node.js 22.18 lub nowszy przez fnm** (do budowania wtyczki):
@@ -85,7 +85,7 @@ Aplikacji nie ma w Google Play: budujesz ją i instalujesz przez USB.
 ### 2.2. Instalacja
 
 ```powershell
-cd C:\Users\krzys\Projekty\PassHolder\android
+cd <repo>\android
 $env:JAVA_HOME="$HOME\.jdks\jbr-21.0.11"
 .\gradlew.bat :app:installDebug
 ```
@@ -93,7 +93,7 @@ $env:JAVA_HOME="$HOME\.jdks\jbr-21.0.11"
 Pierwsza budowa pobiera Gradle i zależności (kilka minut). Na telefonie pojawi się aplikacja „PassHolder”.
 
 **Klucz podpisu.** Aplikacja jest podpisana kluczem debug z tego komputera:
-`C:\Users\krzys\.android\debug.keystore`. Zachowaj go (i zrób kopię): Android przyjmuje aktualizację tylko z
+`$HOME\.android\debug.keystore`. Zachowaj go (i zrób kopię): Android przyjmuje aktualizację tylko z
 tym samym podpisem. Inny klucz oznacza odinstalowanie aplikacji, czyli usunięcie sejfu z telefonu (wróci
 z wtyczki przez „Odtwórz z wtyczki”, patrz [kopia zapasowa](#kopia-zapasowa)).
 
@@ -102,19 +102,31 @@ którym budowano, może wydać „aktualizację”, którą Android zainstaluje 
 jego dane. Ponadto wersja debug pozwala czytać pliki aplikacji przez USB (`adb run-as`, przy włączonym
 debugowaniu USB). Wersja wydania z własnym kluczem nie ma tych słabości:
 
-```powershell
-cd C:\Users\krzys\Projekty\PassHolder\android
-keytool -genkeypair -v -keystore passholder-release.jks -alias passholder -keyalg RSA -keysize 4096 -validity 10000
-```
+Obu plików poniżej nie ma w repozytorium i nic ich nie generuje: tworzysz je raz, ręcznie. Główny
+`.gitignore` pomija `keystore.properties` i `*.jks` w każdym katalogu, więc nie trafią do repo
+(sprawdzisz to: `git check-ignore -v android\keystore.properties`).
 
-Potem plik `android\keystore.properties` (oba pliki są w `.gitignore`, nie trafią do repo):
+1. **Klucz.** `keytool` jest w JDK, ale zwykle nie ma go w `PATH`, więc wołaj go z `JAVA_HOME`. Polecenie
+   pyta o hasło magazynu i dane właściciela (mogą być dowolne):
 
-```
-storeFile=passholder-release.jks
-storePassword=<hasło magazynu>
-keyAlias=passholder
-keyPassword=<hasło klucza>
-```
+   ```powershell
+   cd <repo>\android
+   $env:JAVA_HOME="$HOME\.jdks\jbr-21.0.11"
+   & "$env:JAVA_HOME\bin\keytool.exe" -genkeypair -v -keystore passholder-release.jks -alias passholder -keyalg RSA -keysize 4096 -validity 10000
+   ```
+
+   Magazyn ma format PKCS12, w którym hasło klucza jest takie samo jak hasło magazynu.
+
+2. **Plik `android\keystore.properties`.** W tym samym katalogu (`<repo>\android`), z hasłem z kroku 1:
+
+   ```powershell
+   $haslo = Read-Host "Hasło magazynu"
+   "storeFile=passholder-release.jks", "storePassword=$haslo", "keyAlias=passholder", "keyPassword=$haslo" |
+     Set-Content -Encoding ascii keystore.properties
+   ```
+
+   `storeFile` jest liczone względem `<repo>\android` (`android/app/build.gradle.kts`). Hasło: tylko znaki
+   ASCII (bez polskich liter) i bez `\`, który format `.properties` traktuje jako znak ucieczki.
 
 Instalacja wersji wydania: `.\gradlew.bat :app:installRelease`. Bez `keystore.properties` wersja wydania
 dostaje klucz debug (jak dotąd). **Zmiana klucza wymaga odinstalowania aplikacji** (inny podpis): najpierw
@@ -158,7 +170,7 @@ Opis: [FUNKCJE.md](FUNKCJE.md#android-1). Wyłączenie: ten sam systemowy wybór
 ### 3.1. Zbudowanie
 
 ```powershell
-cd C:\Users\krzys\Projekty\PassHolder
+cd <repo>
 fnm env --shell powershell | Out-String | Invoke-Expression
 npm ci
 npm run build
@@ -169,7 +181,7 @@ Wynik trafia do `extension\dist\` (`extension/build.mjs`). Opcjonalnie sprawdź 
 ### 3.2. Załadowanie w Chrome
 
 1. Otwórz `chrome://extensions` i włącz **Tryb dewelopera** (prawy górny róg).
-2. **Załaduj rozpakowane** → wskaż `C:\Users\krzys\Projekty\PassHolder\extension\dist`.
+2. **Załaduj rozpakowane** → wskaż `<repo>\extension\dist`.
 3. Przypnij ikonę PassHolder do paska (ikona puzzla → pinezka).
 
 Nie przenoś katalogu `extension\dist`: Chrome ładuje wtyczkę bezpośrednio z niego, a wtyczka wczytana z
@@ -233,7 +245,7 @@ dopiero po **Zapisz** w „Adresy telefonu” (wtedy Chrome pyta o zgodę).
 ## Aktualizacje
 
 ```powershell
-cd C:\Users\krzys\Projekty\PassHolder
+cd <repo>
 git pull
 fnm env --shell powershell | Out-String | Invoke-Expression
 npm ci
@@ -365,14 +377,14 @@ Jeśli instalowałeś Tailscale tylko dla PassHoldera:
 W katalogu repozytorium leżą tylko wyniki instalacji i budowania (nie ma w nich haseł):
 
 ```powershell
-cd C:\Users\krzys\Projekty\PassHolder
+cd <repo>
 Remove-Item -Recurse -Force node_modules, extension\dist, android\build, android\app\build, android\core\build, android\.gradle -ErrorAction SilentlyContinue
 ```
 
-Albo usuń cały katalog `C:\Users\krzys\Projekty\PassHolder`, jeśli kod nie jest Ci już potrzebny.
+Albo usuń cały katalog `<repo>`, jeśli kod nie jest Ci już potrzebny.
 `android\local.properties` zawiera tylko ścieżkę do Android SDK.
 
-**Klucz podpisu** `C:\Users\krzys\.android\debug.keystore` usuwaj tylko wtedy, gdy nie budujesz już żadnych
+**Klucz podpisu** `$HOME\.android\debug.keystore` usuwaj tylko wtedy, gdy nie budujesz już żadnych
 aplikacji na Androida: Android Studio używa go dla wszystkich projektów i utworzy nowy przy następnej budowie.
 
 ### D7. Narzędzia na Windows (opcjonalnie)
