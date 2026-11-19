@@ -6,7 +6,7 @@ każdej: jak działa, gdzie jest kod, ograniczenia. Na początku: [typy wpisów]
 Spis: [Automatyczna blokada](#automatyczna-blokada) · [PIN we wtyczce](#pin-we-wtyczce) ·
 [Import i eksport](#import-i-eksport) · [Otwórz w karcie](#otwórz-w-karcie) ·
 [Odcisk palca i blokada po wyjściu (Android)](#odcisk-palca-i-blokada-po-wyjściu-android) ·
-[Czyszczenie schowka](#czyszczenie-schowka) · [Autouzupełnianie](#autouzupełnianie) ·
+[Zmiana hasła głównego](#zmiana-hasła-głównego) · [Czyszczenie schowka](#czyszczenie-schowka) · [Autouzupełnianie](#autouzupełnianie) ·
 [Pytanie o zapis](#pytanie-o-zapis)
 
 ## Typy wpisów (wtyczka i telefon)
@@ -60,7 +60,7 @@ typów; reguły (opis wiersza, pola wrażliwe, formaty, zapis) są wspólne, ró
     nigdzie indziej (ani do IndexedDB, ani do `chrome.storage`).
   - **Stany:** „czeka na synchronizację” (pliku nie ma jeszcze lokalnie albo nie został wysłany), „Plik jest
     uszkodzony”; takiego pliku nie da się pobrać. Wiersz listy pokazuje „📎 N”.
-  - Edycja loginu przez pytanie o zapis zachowuje załączniki. Synchronizacja plików: [SYNCHRONIZACJA.md](SYNCHRONIZACJA.md#75-pliki-we-wtyczce-vault-storets-filesidb-file-storets).
+  - Edycja loginu przez pytanie o zapis zachowuje załączniki. Synchronizacja plików: [SYNCHRONIZACJA.md](SYNCHRONIZACJA.md#75-pliki-we-wtyczce-vaultfilests-filesidb-file-storets).
 - **Import i eksport obejmują wszystkie typy** ([Import i eksport](#import-i-eksport)); pliki wpisów przenosi tylko PassHolder ZIP.
 - **Obie aplikacje trzeba zaktualizować razem.** Stara wtyczka dostaje od nowego telefonu 410 i pokazuje
   ogólny błąd synchronizacji; nowa wtyczka ze starym telefonem pokazuje „Zaktualizuj aplikację na telefonie”
@@ -162,7 +162,7 @@ Widoki: `views/locked.ts` (`pinLockedView`), `views/pin-settings.ts`.
 
 ## Import i eksport
 
-Wszystkie pięć typów wpisów, w trzech formatach. Lista → **Plik** otwiera kartę `?transfer` (okno wyboru pliku
+Wszystkie pięć typów wpisów, w czterech formatach. Lista → **Plik** otwiera kartę `?transfer` (okno wyboru pliku
 zamknęłoby okienko).
 
 - **Eksport:** wybierz format (PassHolder JSON, **PassHolder ZIP (wpisy i pliki)**, Bitwarden JSON, NordPass CSV), zaznacz „Rozumiem, plik będzie
@@ -199,7 +199,7 @@ zamknęłoby okienko).
   - Telefon czyta archiwum strumieniowo (jeden plik naraz w pamięci, bez kopii na dysku), więc `passholder.json` musi być
     pierwszy – tak zapisują obie strony; inaczej „Archiwum nie jest eksportem PassHolder”. Wtyczka czyta całość do pamięci i kolejność jej nie obchodzi.
   - `passholder.json` wyjęty z ZIP i zaimportowany sam daje wpisy bez plików; podsumowanie: „Pominięto N plików: … importuj całe archiwum ZIP”.
-  - Format i limity: [SPEC.md](SPEC.md#8-import-i-eksport); działanie w kodzie: [ARCHITEKTURA.md](ARCHITEKTURA.md).
+  - Format i limity: [SPEC.md](SPEC.md#4-wpisy); działanie w kodzie: [ARCHITEKTURA.md](ARCHITEKTURA.md).
 
 | Format | Import | Eksport |
 |---|---|---|
@@ -212,7 +212,7 @@ zamknęłoby okienko).
 `MM/RR`), tożsamość → kontakt. Tożsamość z własnym polem „Rodzaj dokumentu” wraca jako dokument. Bez odpowiednika:
 własne pola („Marka karty”, „Tytuł”, „Drugie imię”, „Firma”, „Numer SSN”, …). Eksport: dokument → tożsamość, PIN
 karty, dalsze telefony, e-maile i adresy → własne pola. Pełne mapowania i etykiety:
-[spec typów wpisów](superpowers/specs/2026-11-07-typy-wpisow-design.md) punkt 6.
+[spec typów wpisów](archive/specs/2026-11-07-typy-wpisow-design.md) punkt 6.
 
 **NordPass:** nagłówek `name,url,username,password,note,cardholdername,cardnumber,cvc,expirydate,zipcode,folder,
 full_name,phone_number,email,address1,address2,city,country,state,totp,shared_folder`; kolumny po nazwie, w dowolnej
@@ -381,7 +381,7 @@ Tylko na telefonie: **Ustawienia → „Zmień hasło główne”** (przegląd b
   ([SPEC.md](SPEC.md) §2).
 
 Kod: `android/core/.../p2p/PhoneVaultStore.kt` (`changeMasterPassword`), `android/app/.../VaultModel.kt`
-(`changeMasterPassword`), `ui/ChangePasswordScreen.kt`, `ui/SettingsScreen.kt`; wtyczka `extension/src/vault-store.ts`
+(`changeMasterPassword`), `ui/ChangePasswordScreen.kt`, `ui/SettingsScreen.kt`; wtyczka `extension/src/vault/pairing.ts`
 (`repair`, `opensStaticKey`). Zrzuty: `android/app/screenshots/64-zmiana-hasla.png`, `65-haslo-zmienione.png`.
 
 ## Czyszczenie schowka

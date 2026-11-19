@@ -45,18 +45,18 @@ cd android
 PASSHOLDER_INTEROP_TEST=1 ./gradlew :core:test --tests "*Interop*" --console=plain
 ```
 
-Testy ekranów (`:app:testDebugUnitTest`, Robolectric + Roborazzi, ok. 5 min) zapisują zrzuty w
+Testy ekranów (`:app:testDebugUnitTest`, Robolectric + Roborazzi, w chmurze 15–19 min) zapisują zrzuty w
 `android/app/screenshots/`; kody i hasła na nich są losowe. Wyniki Gradle: `android/*/build/reports/tests/`.
 
 Pokrycie TypeScript (opcjonalnie): `npm i --no-save @vitest/coverage-v8 && npx vitest run --coverage` w
 katalogu pakietu.
 
-## Liczby (2026-11-15)
+## Liczby (TypeScript 2026-11-19, Android 2026-11-15)
 
 | Pakiet | Pliki | Testy | Uwagi |
 |---|---|---|---|
-| `core` | 37 | 678 | w tym `core/test/p2p/`, `core/test/files/`, `core/test/autofill/` i `core/test/save/` |
-| `extension` | 35 | 413 | w tym widoki w happy-dom (`extension/test/ui/`), `extension/test/autofill/` i `extension/test/save/`; `background.ts` bez testów (logika w `fill-tab.ts` i `save/candidates.ts`) |
+| `core` | 40 | 690 | w tym `core/test/p2p/`, `core/test/files/`, `core/test/autofill/` i `core/test/save/` |
+| `extension` | 36 | 415 | w tym widoki w happy-dom (`extension/test/ui/`), `extension/test/autofill/` i `extension/test/save/`; `background.ts` bez testów (logika w `fill-tab.ts` i `save/candidates.ts`) |
 | `android/core` | 50 | 818 | 5 pomijane bez `PASSHOLDER_INTEROP_TEST=1`; w tym `autofill/` (wektory `core/test-vectors/autofill/`) i `save/` (wektory `core/test-vectors/save/`) |
 | `android/app` | 39 | 222 | Robolectric, zrzuty ekranów; w tym `autofill/`, ekrany autouzupełniania, zapis po odblokowaniu i załączniki (16 klas, po jednym teście), eksport i import ZIP (`TransferZip*`) |
 
@@ -67,6 +67,7 @@ katalogu pakietu.
 | Plik | Co sprawdza |
 |---|---|
 | `edge-cases.test.ts` | NFC, Base64/hex, AES-GCM (zły klucz i nonce, ucięty blob), złe hasło, granice KDF, generator |
+| `errors.test.ts` | `PassHolderError` (kod, komunikat po angielsku, `detail`, `cause`), `hasErrorCode`, `P2pHostError` (zapomniane urządzenie) |
 | `cipher.test.ts`, `generator.test.ts`, `vectors.test.ts` | szyfrowanie, generator, wektory `v1.json` |
 | `sync-edge.test.ts` | `processSync`: duplikaty, nieznana rewizja, rosnące rewizje |
 | `web-address.test.ts` | normalizacja adresu (G9, CS5): `normalizeHost` (kolejność: `www.` przed kropką, więc `www.` nie ma hosta, też w `matchUrl`), `parseWebAddress` z `assumeHttps` i bez, porty, inne schematy, `hostOf` |
@@ -89,10 +90,12 @@ katalogu pakietu.
 opisy, 3 przypadki łączenia, kroki hosta na jednym magazynie (z 507 na osobnym) i sprzątanie; odtwarza go
 `npm run gen-vectors-files -w core`, a w Kotlinie sprawdza go `FilesVectorsTest` (w tym wektory hosta).
 
-`core/test/transfer/*.test.ts` (6 plików): `csv` (cudzysłowy, CRLF, BOM, niezamknięty cudzysłów), `common` (klucz duplikatu,
+`core/test/transfer/*.test.ts` (8 plików): `csv` (cudzysłowy, CRLF, BOM, niezamknięty cudzysłów), `common` (klucz duplikatu,
 sortowanie), `passholder-json` (zły typ i nieznany klucz pomijane z numerem), `bitwarden-json` (typy 1–4, dokument,
 plik zaszyfrowany, własne pola), `nordpass-csv` (typ po kolumnie `type` i po kolumnach, wiersz krótszy niż nagłówek),
-`detect` (rozpoznanie z treści, pusty i uszkodzony plik). Pliki przykładowe z fałszywymi danymi:
+`detect` (rozpoznanie z treści, pusty i uszkodzony plik), `zip` (CRC32, zapis i odczyt stored/deflate, nazwy UTF-8,
+odrzucane ZIP64, szyfrowanie, inne metody) i `passholder-zip` (`archivePath`, eksport z `passholder.json` na początku,
+brakujące pliki, odczyt i odrzucane archiwa, limit rozpakowania, zły CRC). Pliki przykładowe z fałszywymi danymi:
 `core/test-vectors/transfer/` (`passholder.json`, `bitwarden.json`, `nordpass.csv`, `nordpass-typed.csv` i
 `*.expected.json`), a do eksportu i sortowania `export.passholder.json`, `export.bitwarden.json`,
 `export.nordpass.csv` (wpisy w tej samej kolejności co po `sortForExport`) i `sort.json` (nazwy z polskimi
@@ -136,6 +139,8 @@ nie parametry funkcji produkcyjnych.
 | `ui/transfer-view.test.ts` | ekran „Import i eksport”: formaty, zgoda i hasło główne przed eksportem (V3-N6), import pliku, błąd uszkodzonego pliku, zdanie o pominiętych plikach (`2 pliki nie zostaną wyeksportowane…`, brak go bez załączników) |
 | `idb-file-store.test.ts` | `IdbFileStore` (`fake-indexeddb`): plik kompletny, kawałki jeden po drugim, zmiana liczby kawałków, prefiks `id`, baza, która się nie otwiera (błąd w każdej operacji), dane między instancjami, synchronizacja z hostem telefonu (wysłanie i pobranie w drugim magazynie) |
 | `vault-store-files.test.ts` | pliki w `VaultStore`: plik z przeglądarki A pobrany w B, wznowienie po przerwanej fazie (jeden kawałek), sprzątanie po usunięciu załącznika i wpisu (plik niewysłany zostaje), błąd zapisu wpisu i sprzątania, stary telefon (404), zapamiętany plik uszkodzony, `putEntry` po blokadzie (także w trakcie zapisu plików), faza plików przerwana blokadą (bez kolejnych żądań i sprzątania), `disconnect` czyści pliki (i działa przy błędzie IndexedDB) |
+| `vault-store-archive.test.ts` | `importArchive` (pliki pod nowymi `id`, ponowny import bez zmian, ten sam wpis dwa razy, brak pliku w archiwum, blokada i błąd magazynu w trakcie: nic nie zostaje, uszkodzone archiwum) i `exportArchive` (plik czekający na synchronizację liczony jako brakujący) |
+| `error-messages.test.ts` | `errorMessage` (polski tekst kodu rdzenia z `detail`, błąd hosta, zapomniana przeglądarka) i `toUserError` |
 | `ui/attachments.test.ts` | sekcja „Załączniki” w karcie i okienku: nowy plik dopiero po „Zapisz” (treść jawna wyczyszczona po szyfrowaniu), limity (21. plik, 10 MB, pusty, zła nazwa), ten sam plik dwa razy, „Usuń” (zamyka pytanie o pobranie), ostrzeżenie przed „Pobierz”, „czeka na synchronizację” (także gdy stanu nie da się odczytać) i „Plik jest uszkodzony”, ostrzeżenie „Otwórz w karcie”, tryb `edit` (cel jednorazowy, id innego typu daje nowy wpis), „📎 N” na liście, „Pliki: 0 z t” … „Pliki: t z t” i komunikat po synchronizacji |
 | `format-size.test.ts` | `formatSize`: KB poniżej 1 MiB (co najmniej 1), MB z przecinkiem od 1 MiB |
 | `autofill/fill-page.test.ts` | `fillPage` w happy-dom: logowanie, dwuetapowe, rejestracja (`new-password` pomijane), karta z jednym i dwoma polami ważności, `<select>`, adres; pola ukryte, wyłączone i tylko do odczytu, pusta wartość, obcy origin i inny origin niż sprawdzony; kontakt i karta (V3-S4): `clip-path`, tylko formularz pola z kursorem albo pierwszego pasującego pola, pole 3 px, przykryte, ucięte przez `overflow`, etykieta nad polem nie przeszkadza |
@@ -183,6 +188,8 @@ Playwright z Chromium nie jest zależnością repozytorium: w kontenerze w chmur
 | `autofill/VerifyAppTest`, `AppTrustTest` (app) | V3-S3: 13 przeglądarek z poprawnymi skrótami, przeglądarka z innym certyfikatem lub nieczytelna nie jest zaufana, certyfikat po zmianie klucza (historia) pasuje, zaufanie przy pierwszym użyciu i potem tylko zapamiętany certyfikat; odczyt certyfikatów z `PackageManager` (API 35 historia, API 27 `signatures`), `remember`/`rememberIfNew` |
 | `CommonTest`, `CsvTest`, `JsonTextTest`, `SortVectorTest`, `PassHolderJsonTest`, `BitwardenJsonTest`, `NordPassCsvTest`, `TransferTest` | pakiet `transfer`: wektory z `core/test-vectors/transfer/`, przypadki z testów TS, kolejność sortowania, brzegi JSON/CSV |
 | `FileSyncStoreTest`, `PhoneVaultTest`, `PhoneVaultStoreTest` (dodatki) | `putAll` (jeden dopis, obcięty fragment), `importContents` (duplikaty, za duży wpis, rewizje, HLC), atomowość |
+| `transfer/PassHolderZipTest`, `p2p/PhoneVaultStoreArchiveTest` | PassHolder ZIP w Kotlinie: wspólne archiwum wtyczki i własne (`archive-kotlin.passholder.zip`), eksport (indeks pierwszy, zerowanie bajtów, brakujące pliki), odrzucane archiwa i limity rozpakowania; import do sejfu (ponowny import, brak pliku, ucięte archiwum, blokada w trakcie) |
+| `TransferZipScreenTest` (app) | eksport ZIP (ostrzeżenie, wpisy i gotowe pliki), import archiwum i samego `passholder.json`, blokada w trakcie importu |
 | `ImportSummaryTest`, `TransferFilesTest`, `TransferScreenTest`, `FilePickerLockTest` (app) | podsumowanie, limit 10 MiB i UTF-8, ekran importu i eksportu (zgoda, hasło główne przed eksportem, ponowny import), okno wyboru pliku 60 s |
 | `AttachmentFilesTest`, `FileSizeTest`, `AttachmentsScreenTest`, `AttachmentsListExportScreenTest` (app); `PhoneVaultStoreTest` (`discardFiles`) | wybór i zapis pliku (limity, kolejność sprawdzeń, nazwa `plik`, błędy dostawcy, `CreateDocumentOf`), `formatSize`, `skippedFilesPhrase`; ekran: dodanie, Anuluj/Wstecz/Usuń wpis kasują plik, ten sam plik dwa razy, limity, zablokowany sejf, „Pobierz” (ostrzeżenie, bajty), „czeka na synchronizację”, „Plik jest uszkodzony”, zmiana nazwy/hasła zachowuje pliki; „📎 N” na liście i dopisek o eksporcie (tylko gdy są pliki); `discardFiles` pomija plik używany przez wpis |
 | `BackupRulesTest`, `ClearClipboardWorkerTest` (app) | brak kopii zapasowych, czyszczenie schowka (HMAC z kluczem procesu zamiast SHA-256; nowy proces → czyszczenie bez porównania) |
@@ -508,7 +515,8 @@ CI (`.github/workflows/ci.yml`) odrzuca zmianę, gdy któreś z tych sprawdzeń 
   od G4. W testach i skryptach wolno `any`.
 - typescript-eslint nie działa z TypeScript 7 (brak API JS), więc `overrides` w `package.json` daje mu
   TypeScript 6.0. `tsc` w `core/` i `extension/` to nadal TypeScript 7.
-- ktlint: reguła nazw plików wyłączona do grupy G3 (nazwy).
+- ktlint: wszystkie reguły stylu `intellij_idea`, także nazwy plików (włączona w G3); funkcje `@Composable` mogą
+  zaczynać się wielką literą.
 - Commity z samym formatowaniem są w `.git-blame-ignore-revs`; `git config blame.ignoreRevsFile
   .git-blame-ignore-revs` pomija je w `git blame`.
 

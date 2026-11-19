@@ -163,7 +163,7 @@ Dwa moduły Gradle: `core` (czysta JVM, testy bez emulatora) i `app` (Jetpack Co
 | `autofill/AutofillAuthActivity.kt`, `AutofillSaveActivity.kt` | wspólna baza (stan w jednym typie `AuthPhase`: `Locked`/`Skipping`/`Open`/`Delivered`; odblokowanie tylko gdy sejf zablokowany: hasło / odcisk; haki `afterUnlock`, `UnlockedContent`, `onLockedWhileOpen`, `unlockAgain`; Wstecz i Anuluj = `RESULT_CANCELED`, blokada D1 także po wyjściu w tło, anulowanie starego terminu 60 s) i ekran zapisu: odblokowanie, potem podgląd (`exported="false"`, `FLAG_SECURE`) |
 | `autofill/SaveReview.kt`, `ui/SaveReviewScreen.kt` | `SaveReview` (wpisy sejfu odszyfrowane raz, `decision`/`title`/`initialDraft` z `SaveDraft`), `saveReviewed`/`saveSubmitted` (ponowny odczyt sejfu, `decideSave` od nowa, `upsertContent`; wynik `SaveOutcome`), `SaveReviewModel` (ViewModel: kandydat, szkic, blokada w trakcie podglądu; bez stanu instancji) i ekran Compose „Zapisz w PassHolder” (Nazwa, Login, Hasło, adres/aplikacja tylko do odczytu) |
 | `AutofillStatus.kt` | czy PassHolder jest usługą autouzupełniania (`hasEnabledAutofillServices`), wiersz w `SettingsScreen` |
-| `ui/*.kt` | ekrany Compose: `StartScreen`, `LockedScreen`, `ListScreen` (dolny pasek zakładek), `EditScreen` (powłoka formularza), `SettingsScreen`, `TransferScreen` (import i eksport; okno wyboru pliku 60 s w `LockController.expectFilePicker`), `VaultTopBar`, `SyncScreen`, `DevicesScreen`, `RestoreScreen`, `FingerprintDialog`, `Common` (`SecretField`, `MasterPasswordField`, `SettingSwitchRow`…), `UnlockForm`, `Dialogs` (`ConfirmDialog`, `DisconnectDialog`), `FilePicker` (`launchPicker`), `PassHolderUi` (wybór ekranu i przekazanie grup akcji), `ScreenActions` (interfejsy akcji dla ekranów) |
+| `ui/*.kt` | ekrany Compose: `StartScreen`, `LockedScreen`, `ListScreen` (dolny pasek zakładek), `EditScreen` (powłoka formularza), `SettingsScreen`, `ChangePasswordScreen` (zmiana hasła głównego), `TransferScreen` (import i eksport; okno wyboru pliku 60 s w `LockController.expectFilePicker`), `VaultTopBar`, `SyncScreen`, `DevicesScreen`, `RestoreScreen`, `FingerprintDialog`, `Common` (`SecretField`, `MasterPasswordField`, `SettingSwitchRow`…), `UnlockForm`, `Dialogs` (`ConfirmDialog`, `DisconnectDialog`), `FilePicker` (`launchPicker`), `PassHolderUi` (wybór ekranu i przekazanie grup akcji), `ScreenActions` (interfejsy akcji dla ekranów) |
 | `ui/forms/*.kt` | `LoginForm`, `ContactForm`, `CardForm`, `DocumentForm` (notatka używa samej powłoki), `ListEditor`, `AttachmentsEditor` (sekcja „Załączniki”), `CustomFieldsEditor`, `GeneratorCard`, `AppPickerDialog` |
 
 ## Konwencje nazw i kodu
@@ -770,7 +770,8 @@ Parowanie (`/p2p/v1/pair/hello`, `start`, `finish`) i odtwarzanie z wtyczki:
 ## Stan przeglądu bezpieczeństwa
 
 Raport: [archive/PRZEGLAD_BEZPIECZENSTWA.md](archive/PRZEGLAD_BEZPIECZENSTWA.md) (2026-11-01, jeszcze z serwerem Pi).
-Drugi, pełny przegląd po V3: [PRZEGLAD_BEZPIECZENSTWA_V3.md](PRZEGLAD_BEZPIECZENSTWA_V3.md) (2026-11-15).
+Drugi, pełny przegląd po V3: [archive/PRZEGLAD_BEZPIECZENSTWA_V3.md](archive/PRZEGLAD_BEZPIECZENSTWA_V3.md) (2026-11-15;
+wszystkie 5 grup poprawek zrobione, PR #51–#55).
 
 | Punkt | Stan |
 |---|---|
@@ -786,9 +787,16 @@ Drugi, pełny przegląd po V3: [PRZEGLAD_BEZPIECZENSTWA_V3.md](PRZEGLAD_BEZPIECZ
 | I3 | ograniczenie platform, bez zmian: hasła jako `String` w JS i Kotlinie nie dają się wyzerować; klucze na Androidzie są zerowane (`fill(0)`), we wtyczce trzymane jako Base64 w `chrome.storage.session` (pamięć przeglądarki) |
 | I4 | `MasterPasswordRules`: 12 znaków i bez oczywistych wzorców |
 | I5 | `npm audit`: 0 podatności; Gradle do sprawdzenia ręcznie ([TESTY.md](TESTY.md#zależności-przegląd-bezpieczeństwa-i5)) |
-| V3-N1, V3-N2 | host pamięta przyjęte pierwsze wiadomości Noise (kopia → 400) i trzyma ≤ 4 sesje na urządzenie; tryb Synchronizacja liczy aktywność tylko po udanej synchronizacji, pliku lub parowaniu; 403 dla obcego `Origin`, 415 bez JSON; odpowiada tylko w Wi-Fi, Ethernecie i Tailscale ([SYNCHRONIZACJA.md](SYNCHRONIZACJA.md#61-serwer-http-synchttpserverkt)) |
-| V3 (2026-11-15) | pełny przegląd po V3: 0 K, 0 W, 4 S, 7 N, 5 I; poprawki w osobnych wątkach ([PRZEGLAD_BEZPIECZENSTWA_V3.md](PRZEGLAD_BEZPIECZENSTWA_V3.md)) |
+| V3-N1, V3-N2 | grupa 4 (PR #52): host pamięta przyjęte pierwsze wiadomości Noise (kopia → 400) i trzyma ≤ 4 sesje na urządzenie; tryb Synchronizacja liczy aktywność tylko po udanej synchronizacji, pliku lub parowaniu; 403 dla obcego `Origin`, 415 bez JSON; odpowiada tylko w Wi-Fi, Ethernecie i Tailscale ([SYNCHRONIZACJA.md](SYNCHRONIZACJA.md#61-serwer-http-synchttpserverkt)) |
+| V3 (2026-11-15) | pełny przegląd po V3: 0 K, 0 W, 4 S, 7 N, 5 I; poprawki w grupach 1–5, PR #51–#55 ([archive/PRZEGLAD_BEZPIECZENSTWA_V3.md](archive/PRZEGLAD_BEZPIECZENSTWA_V3.md)) |
 | V3-S1, V3-N3, V3-S4, V3-I4 | grupa 1: pytanie o zapis w osobnym oknie wtyczki z odznaką, tylko zdarzenia użytkownika, stare hasło w „Poprzednie hasło”; kontakt i karta tylko w widocznych polach formularza z kursorem; `fill` i `password-copied` tylko ze stron wtyczki ([FUNKCJE.md](FUNKCJE.md#pytanie-o-zapis)) |
 | V3-S2, V3-N5 | grupa 2: subdomena pasuje tylko w obrębie domeny rejestrowalnej z wbudowanej listy sufiksów publicznych (TS i Kotlin, ta sama lista); Ctrl+Shift+L wypełnia tylko login dokładnego hosta; pytanie o zapis (wtyczka i telefon) zmienia hasło tylko we wpisie dokładnego hosta; Android: strona bez schematu = `http` ([FUNKCJE.md](FUNKCJE.md#autouzupełnianie)) |
 | V3-S3 | przeglądarki rozpoznawane po certyfikacie podpisu, aplikacje wpisu po zapamiętanym certyfikacie (`AppTrust.kt`, [FUNKCJE.md](FUNKCJE.md#android-1)) |
 | V3 grupa 5 (PR #54) | N4: próby PIN-u pod `navigator.locks`; N6: hasło główne przed eksportem (wtyczka `confirmMasterPassword`, telefon `confirmExport`); N7: `distributionSha256Sum` i `.github/workflows/ci.yml`; I1: SPEC §8 i PIN w FUNKCJE; I2: wtyczka odrzuca starszy HLC; I3: „Odłącz” kasuje `saveNever` i `saveCandidates` (HMAC schowka nie, uzasadnienie w raporcie); I5: granice KDF przy odczycie z dysku |
+
+## Stan przeglądu czystości kodu
+
+Raporty: [archive/PRZEGLAD_CZYSTOSCI_KODU.md](archive/PRZEGLAD_CZYSTOSCI_KODU.md) (2026-10-31, PR #6 i #16) i
+[archive/PRZEGLAD_CZYSTOSCI_KODU_V3.md](archive/PRZEGLAD_CZYSTOSCI_KODU_V3.md) (2026-11-16, 47 znalezisk). Wszystkie
+14 grup poprawek V3 (G1–G14) zrobione w PR #58–#71; ich wynik opisują sekcje „Konwencje nazw i kodu”, „Błędy”,
+„Wspólne pomocniki”, „Stałe, limity i teksty” i kolejne „Podział …” wyżej.

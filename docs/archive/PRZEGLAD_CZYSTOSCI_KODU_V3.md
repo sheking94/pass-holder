@@ -4,7 +4,7 @@
 - Narzędzie: skill `clean-code-reviewer` (zasady Clean Code R. C. Martina).
 - Zakres: cały kod produkcyjny `core/src`, `extension/src`, `android/core/src/main`, `android/app/src/main`.
 - To jest tylko przegląd. Kod nie został zmieniony.
-- Poprzedni przegląd: [archive/PRZEGLAD_CZYSTOSCI_KODU.md](archive/PRZEGLAD_CZYSTOSCI_KODU.md) (2026-10-31).
+- Poprzedni przegląd: [PRZEGLAD_CZYSTOSCI_KODU.md) (2026-10-31).
 
 Skróty ścieżek w tym dokumencie:
 
@@ -559,7 +559,7 @@ Każda grupa to jeden wątek i jeden PR, w tej kolejności.
 | G3 | Nazwy (D3: tak) — **zrobione** (bez przyrostków V2/V3, nazwy z CS16, konwencje w `docs/ARCHITEKTURA.md`, reguła ktlint `filename`) | CW12, CS16, CN3, CN4 | wszystkie | średni |
 | G4 | Błędy z kodami: TypeScript — **zrobione** (`PassHolderError` z kodem w rdzeniu, teksty w `extension/src/error-messages.ts`, `ActionResult`, `errorMessage`, nazwy z CS12) | CW1, CS7, CS8, CS12, CS13 (część TS) | core, wtyczka | duży |
 | G5 | Błędy z kodami: Kotlin — **zrobione** (`PassHolderException` z `ErrorCode` w `android/core/Errors.kt`, teksty w `app/ErrorMessages.kt`, łapanie po kodzie zamiast `IllegalArgumentException`/`IllegalStateException`) | CW1, CS7, CS8 (część Kotlin) | android | duży |
-| G6 | Wspólne pomocniki | CW2, CS6 | core, android | średni |
+| G6 | Wspólne pomocniki — **zrobione** (PR #63: `strict-json.ts`, `p2p/host-reply.ts`, `StrictJson.kt`, `AtomicFiles.kt`, `P2pPaths.kt`, `ProviderStreams.kt`) | CW2, CS6 | core, android | średni |
 | G7 | Stałe, limity i teksty w jednym miejscu — **zrobione** (`sizes.ts`/`Sizes.kt`, `field-formats.ts`/`FieldFormats`, teksty limitów ze stałych, etykiety eksportu w `transfer/common`, opis w `docs/ARCHITEKTURA.md` „Stałe, limity i teksty”) | CS1, CS2, CS3, CS4 | wszystkie | średni |
 | G8 | Protokół synchronizacji i plików — **zrobione** (żądanie parsowane raz, `markAccepted`/`resolveRemote`, plan/wysyłka/pobranie plików, `pageRecords`, funkcja na operację plików, typowane parowanie, `FileChunk`/`FileSecrets`, zaczepy testowe jako osobne funkcje, opis w `docs/ARCHITEKTURA.md` „Protokół synchronizacji i plików”; `VaultStore.repair` i `decideFor` → G10, `ResponseBuilder`/`authenticate` → G14) | CK5, CW7, CW15, CK8 (logika), CN2 | core, android | duży |
 | G9 | Import, eksport i format wpisu — **zrobione** (`guessKind`/`rowToEntry`, Bitwarden: funkcja na typ, `ItemType`/`FieldType`, wynik `Imported | Skipped`; plan/indeks/zapis ZIP, `ImportedArchive`, `FieldsSpec` w `EntryCodec`, `web-address.ts`/`WebAddress.kt`; opis w `docs/ARCHITEKTURA.md` „Import, eksport i format wpisu”) | CK4, CW6, CW8, CS5 | core, wtyczka, android | duży |

@@ -276,7 +276,7 @@ odblokowanym sejfie):
 **Sprzątanie:** telefon (`orphanFileIds`, przy odblokowanym sejfie) usuwa pliki nieużywane przez żaden żywy wpis
 i starsze niż 24 h (`ORPHAN_FILE_AGE_MS = 86400000`, od pierwszego kawałka, ściśle starsze); 24 h chroni plik
 wysłany przed wpisem, który go używa. Wtyczka po synchronizacji usuwa nieużywane pliki od razu (własne
-`pruneUnusedFiles`, punkt 7.5; `pruneLocalFiles` z rdzenia to wariant wzorcowy). Wektory hosta i sprzątania: `core/test-vectors/files/files.json`.
+`VaultFiles.prune`, punkt 7.5; `pruneLocalFiles` z rdzenia to wariant wzorcowy). Wektory hosta i sprzątania: `core/test-vectors/files/files.json`.
 
 **Host na telefonie (Kotlin, `core/files/`):** `P2pHost` obsługuje `/p2p/v2/file` przez `FileHost`, gdy dostał magazyn;
 bez niego odpowiada 404 jak na nieznaną ścieżkę. Zasady zgodne z hostem referencyjnym (walidacja, potem epoka, potem
@@ -355,7 +355,7 @@ Każdy w sieci może się połączyć przed uwierzytelnieniem, więc serwer ma l
 
 ## 7. Wtyczka
 
-### 7.1. Parowanie (`vault-store.ts`, `views/connect.ts`)
+### 7.1. Parowanie (`vault/pairing.ts`, `views/connect.ts`)
 
 Okienko przenosi parowanie do karty `?setup`, bo Chrome zamyka okienko przy prośbie o zgodę.
 
@@ -405,7 +405,7 @@ zwykłe parowanie kończy się błędem bez spalenia kodu.
   `pendingPairing`, listę „Nigdy” pytania o zapis (`saveNever`), niezapisanych kandydatów (`saveCandidates`, przegląd
   V3-I3) i pliki z IndexedDB. Telefon zachowuje to, co dostał; przeglądarkę usuwa się tam w „Urządzenia”.
 
-### 7.5. Pliki we wtyczce (`vault-store.ts`, `files/idb-file-store.ts`)
+### 7.5. Pliki we wtyczce (`vault/files.ts`, `files/idb-file-store.ts`)
 
 - **Kolejność w `sync()`:** najpierw wpisy (punkt 4.2), potem faza plików (`syncFiles` z rdzenia, punkt 5.3). Błąd fazy
   plików nie cofa wpisów: trafia do wyniku (`files.error`), a okno pokazuje „Nie wszystkie pliki zsynchronizowane: …”.
@@ -424,7 +424,7 @@ zwykłe parowanie kończy się błędem bez spalenia kodu.
   `chrome.storage.local` (`corruptFiles`). Kolejne synchronizacje go pomijają (`skip` w `syncFiles`; plik jest
   niezmienny, ponowna próba nic nie da), a wpis pokazuje „Plik jest uszkodzony”. `id` znika z listy, gdy żaden wpis go
   nie używa.
-- **Sprzątanie** (`pruneUnusedFiles`): po udanej fazie plików oraz po każdym `putEntry` i usunięciu wpisu kasuje
+- **Sprzątanie** (`VaultFiles.prune`): po udanej fazie plików oraz po każdym `putEntry` i usunięciu wpisu kasuje
   lokalne pliki, których nie używa żaden żywy wpis. Wyjątek: plik kompletny, dodany tu i nigdy niewysłany, zostaje
   (może należeć do wpisu zapisanego w innej karcie, jeszcze niezsynchronizowanego). Usunięty załącznik znika więc
   lokalnie od razu, a na telefonie po jego sprzątaniu (24 h). Błąd sprzątania nie psuje zapisu.
