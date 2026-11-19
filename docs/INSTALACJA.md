@@ -102,19 +102,31 @@ którym budowano, może wydać „aktualizację”, którą Android zainstaluje 
 jego dane. Ponadto wersja debug pozwala czytać pliki aplikacji przez USB (`adb run-as`, przy włączonym
 debugowaniu USB). Wersja wydania z własnym kluczem nie ma tych słabości:
 
-```powershell
-cd <repo>\android
-keytool -genkeypair -v -keystore passholder-release.jks -alias passholder -keyalg RSA -keysize 4096 -validity 10000
-```
+Obu plików poniżej nie ma w repozytorium i nic ich nie generuje: tworzysz je raz, ręcznie. Główny
+`.gitignore` pomija `keystore.properties` i `*.jks` w każdym katalogu, więc nie trafią do repo
+(sprawdzisz to: `git check-ignore -v android\keystore.properties`).
 
-Potem plik `android\keystore.properties` (oba pliki są w `.gitignore`, nie trafią do repo):
+1. **Klucz.** `keytool` jest w JDK, ale zwykle nie ma go w `PATH`, więc wołaj go z `JAVA_HOME`. Polecenie
+   pyta o hasło magazynu i dane właściciela (mogą być dowolne):
 
-```
-storeFile=passholder-release.jks
-storePassword=<hasło magazynu>
-keyAlias=passholder
-keyPassword=<hasło klucza>
-```
+   ```powershell
+   cd <repo>\android
+   $env:JAVA_HOME="$HOME\.jdks\jbr-21.0.11"
+   & "$env:JAVA_HOME\bin\keytool.exe" -genkeypair -v -keystore passholder-release.jks -alias passholder -keyalg RSA -keysize 4096 -validity 10000
+   ```
+
+   Magazyn ma format PKCS12, w którym hasło klucza jest takie samo jak hasło magazynu.
+
+2. **Plik `android\keystore.properties`.** W tym samym katalogu (`<repo>\android`), z hasłem z kroku 1:
+
+   ```powershell
+   $haslo = Read-Host "Hasło magazynu"
+   "storeFile=passholder-release.jks", "storePassword=$haslo", "keyAlias=passholder", "keyPassword=$haslo" |
+     Set-Content -Encoding ascii keystore.properties
+   ```
+
+   `storeFile` jest liczone względem `<repo>\android` (`android/app/build.gradle.kts`). Hasło: tylko znaki
+   ASCII (bez polskich liter) i bez `\`, który format `.properties` traktuje jako znak ucieczki.
 
 Instalacja wersji wydania: `.\gradlew.bat :app:installRelease`. Bez `keystore.properties` wersja wydania
 dostaje klucz debug (jak dotąd). **Zmiana klucza wymaga odinstalowania aplikacji** (inny podpis): najpierw
