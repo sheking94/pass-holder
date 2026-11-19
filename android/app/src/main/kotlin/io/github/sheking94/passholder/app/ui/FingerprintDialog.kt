@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.fragment.app.FragmentActivity
 import io.github.sheking94.passholder.app.FingerprintPrompt
+import io.github.sheking94.passholder.app.FingerprintResult
 import javax.crypto.Cipher
 
 /**
@@ -23,7 +24,13 @@ class FingerprintDialog(
     fun show(title: String, prepare: () -> Cipher?, onAuthorized: (Cipher) -> Unit) {
         val activity = activity ?: return
         val cipher = prepare() ?: return
-        prompt.authenticate(activity, title, cipher, onSuccess = onAuthorized, onError = { message -> message?.let(onError) })
+        prompt.authenticate(activity, title, cipher) { result ->
+            when (result) {
+                is FingerprintResult.Authorized -> onAuthorized(result.cipher)
+                is FingerprintResult.Failed -> onError(result.message)
+                FingerprintResult.Cancelled -> {}
+            }
+        }
     }
 }
 

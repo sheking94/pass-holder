@@ -23,12 +23,12 @@ fun LoginForm(fields: LoginFields, onChange: (LoginFields) -> Unit, entries: Ent
     var passwordShown by remember { mutableStateOf(false) }
     PlainField(fields.username, {
         onChange(fields.copy(username = it))
-    }, "Login", onCopy = { entries.copy("login", fields.username, sensitive = false) })
+    }, "Login", onCopy = { entries.copyText("login", fields.username) })
     SecretField(
         fields.password,
         { onChange(fields.copy(password = it)) },
         "Hasło",
-        onCopy = { entries.copy("hasło", fields.password, sensitive = true) },
+        onCopy = { entries.copySecret("hasło", fields.password) },
         monospace = true,
         revealed = passwordShown,
         onRevealedChange = { passwordShown = it },
@@ -39,17 +39,26 @@ fun LoginForm(fields: LoginFields, onChange: (LoginFields) -> Unit, entries: Ent
     }
     SecretField(fields.totp, {
         onChange(fields.copy(totp = it))
-    }, "TOTP", onCopy = { entries.copy("kod TOTP", fields.totp, sensitive = true) }, monospace = true)
+    }, "TOTP", onCopy = { entries.copySecret("kod TOTP", fields.totp) }, monospace = true)
     ListEditor("Adresy stron", fields.urls, { onChange(fields.copy(urls = it)) }, "Dodaj adres", { "" }) { url, update ->
         PlainField(url, update, "Adres strony", keyboardType = KeyboardType.Uri, placeholder = "https://")
     }
+    AndroidAppsEditor(fields.androidApps, { onChange(fields.copy(androidApps = it)) }, entries)
+}
+
+/**
+ * "Aplikacje Androida": an installed app shows as "label · package", a typed package stays an editable field;
+ * "+ Wybierz aplikację" opens the list of installed apps.
+ */
+@Composable
+private fun AndroidAppsEditor(packages: List<String>, onChange: (List<String>) -> Unit, entries: EntryActions) {
     val apps = rememberInstalledApps(entries)
     val labels = apps.orEmpty().associate { it.packageName to it.label }
     var picking by remember { mutableStateOf(false) }
     ListEditor(
         "Aplikacje Androida",
-        fields.androidApps,
-        { onChange(fields.copy(androidApps = it)) },
+        packages,
+        onChange,
         "Wpisz pakiet",
         { "" },
         extraActions = { TextButton(onClick = { picking = true }) { Text("+ Wybierz aplikację") } },
@@ -65,7 +74,7 @@ fun LoginForm(fields: LoginFields, onChange: (LoginFields) -> Unit, entries: Ent
             onPick = { pkg ->
                 // The picked installed app is the one tied to the login: remember its certificate (V3-S3).
                 entries.trustPickedApp(pkg)
-                if (pkg !in fields.androidApps) onChange(fields.copy(androidApps = fields.androidApps + pkg))
+                if (pkg !in packages) onChange(packages + pkg)
                 picking = false
             },
             onDismiss = { picking = false },

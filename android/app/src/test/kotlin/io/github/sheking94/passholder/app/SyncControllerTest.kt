@@ -22,7 +22,7 @@ class SyncControllerTest {
 
     @After
     fun cleanUp() {
-        controller.stop(null)
+        controller.stop()
         dir.deleteRecursively()
     }
 
@@ -35,7 +35,7 @@ class SyncControllerTest {
     @Test
     fun `a stop after the ticket cancels the start, a running server is not started twice`() {
         val ticket = controller.startTicket()
-        controller.stop(null)
+        controller.stop()
         assertFalse(controller.start(ticket))
         assertFalse(controller.running)
         assertEquals(-1, bound)
@@ -46,7 +46,7 @@ class SyncControllerTest {
         assertFalse("already running: no new server", controller.start())
         assertEquals(port, bound)
 
-        controller.stop(SyncController.IDLE_STOPPED)
+        controller.stopWithReason(SyncController.IDLE_STOPPED)
         assertFalse(listening(port))
         assertEquals(SyncController.IDLE_STOPPED, controller.state.value.stoppedReason)
     }
@@ -61,7 +61,7 @@ class SyncControllerTest {
             assertTrue(closed.start())
             assertFalse(listening(bound))
         } finally {
-            closed.stop(null)
+            closed.stop()
         }
     }
 }

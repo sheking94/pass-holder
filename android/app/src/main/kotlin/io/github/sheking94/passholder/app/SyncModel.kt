@@ -17,8 +17,11 @@ internal class SyncModel(
 ) : SyncActions {
     override val state: StateFlow<SyncUiState> = controller.state
 
-    /** The server stops and the pairing code is dropped; [reason] is shown on screen (see [SyncController.stop]). */
-    fun stop(reason: String?) = controller.stop(reason)
+    /** The server stops and the pairing code is dropped (see [SyncController.stop]). */
+    fun stop() = controller.stop()
+
+    /** As [stop], with [reason] shown on screen (see [SyncController.stopWithReason]). */
+    fun stopWithReason(reason: String) = controller.stopWithReason(reason)
 
     fun refreshDevices() = controller.refreshDevices()
 
@@ -38,7 +41,7 @@ internal class SyncModel(
     }
 
     override fun closeSync() {
-        controller.stop(null)
+        controller.stop()
         backToList()
         ui.refreshInBackground()
     }

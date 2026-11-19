@@ -46,7 +46,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         isBusy = { ui.busy },
         currentScreen = { ui.current.screen },
         showLocked = { status ->
-            syncModel.stop(null)
+            syncModel.stop()
             ui.replace(UiState(Screen.Locked, status = status))
         },
     )
@@ -100,7 +100,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     /** MainActivity.onStop, unless it is only a rotation. Sync mode never runs without the app on screen. */
     fun onLeftApp() {
-        syncModel.stop(SyncController.LEFT_APP_STOPPED)
+        syncModel.stopWithReason(SyncController.LEFT_APP_STOPPED)
         locks.onLeftApp()
     }
 
@@ -124,7 +124,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     override fun onCleared() {
-        syncModel.stop(null)
+        syncModel.stop()
         locks.onCleared()
     }
 

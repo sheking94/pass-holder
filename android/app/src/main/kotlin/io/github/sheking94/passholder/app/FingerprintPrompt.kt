@@ -21,12 +21,24 @@ import javax.crypto.spec.GCMParameterSpec
 
 enum class BiometricAvailability { Ready, NoFingerprint, Unsupported }
 
+/** How the fingerprint dialog ended. */
+sealed interface FingerprintResult {
+    /** A matching finger: [cipher] may now be used once. */
+    class Authorized(val cipher: Cipher) : FingerprintResult
+
+    /** The system's reason (too many attempts, the sensor failed…), for the status line. */
+    class Failed(val message: String) : FingerprintResult
+
+    /** The user cancelled or chose the master password: not an error. */
+    data object Cancelled : FingerprintResult
+}
+
 /** Shows the system fingerprint dialog. [SystemFingerprintPrompt] on the phone, a fake in tests. */
 interface FingerprintPrompt {
     fun availability(context: Context): BiometricAvailability
 
-    /** [onError] gets null when the user just cancelled or chose the master password. */
-    fun authenticate(activity: FragmentActivity, title: String, cipher: Cipher, onSuccess: (Cipher) -> Unit, onError: (String?) -> Unit)
+    /** Shows the dialog titled [title] that unlocks [cipher]; [onResult] gets how it ended. */
+    fun authenticate(activity: FragmentActivity, title: String, cipher: Cipher, onResult: (FingerprintResult) -> Unit)
 }
 
 object SystemFingerprintPrompt : FingerprintPrompt {
@@ -36,23 +48,26 @@ object SystemFingerprintPrompt : FingerprintPrompt {
         else -> BiometricAvailability.Unsupported
     }
 
-    override fun authenticate(
-        activity: FragmentActivity,
-        title: String,
-        cipher: Cipher,
-        onSuccess: (Cipher) -> Unit,
-        onError: (String?) -> Unit,
-    ) {
+    override fun authenticate(activity: FragmentActivity, title: String, cipher: Cipher, onResult: (FingerprintResult) -> Unit) {
         val callback = object : BiometricPrompt.AuthenticationCallback() {
             override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                result.cryptoObject?.cipher?.let(onSuccess) ?: onError("Brak klucza po weryfikacji odcisku")
+                val unlocked = result.cryptoObject?.cipher
+                onResult(
+                    if (unlocked !=
+                        null
+                    ) {
+                        FingerprintResult.Authorized(unlocked)
+                    } else {
+                        FingerprintResult.Failed("Brak klucza po weryfikacji odcisku")
+                    },
+                )
             }
 
             override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                 val cancelled = errorCode == BiometricPrompt.ERROR_USER_CANCELED ||
                     errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON ||
                     errorCode == BiometricPrompt.ERROR_CANCELED
-                onError(if (cancelled) null else errString.toString())
+                onResult(if (cancelled) FingerprintResult.Cancelled else FingerprintResult.Failed(errString.toString()))
             }
             // onAuthenticationFailed (a finger that does not match): the dialog stays open and says so itself.
         }

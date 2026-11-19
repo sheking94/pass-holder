@@ -1,14 +1,12 @@
 package io.github.sheking94.passholder.app.autofill
 
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
-import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import io.github.sheking94.passholder.app.PassHolderApp
 import io.github.sheking94.passholder.app.ui.SaveReviewScreen
+import io.github.sheking94.passholder.app.ui.SaveReviewUi
 import io.github.sheking94.passholder.core.save.SaveDecision
 
 /**
@@ -34,17 +32,23 @@ class AutofillSaveActivity : AutofillAuthActivity() {
         val data = model.candidate ?: app.pendingSave.take()?.also { model.candidate = it }
         if (data == null) {
             // The candidate expired while this screen was open.
-            toast("Minęły ${PendingSave.TTL_MS / 60_000} minuty – zaloguj się ponownie, aby zapisać")
+            showToast("Minęły ${PendingSave.TTL_MS / 60_000} minuty – zaloguj się ponownie, aby zapisać")
             return AfterUnlock.Deliver(null)
         }
-        val review = try {
-            // Decrypted once here; kept in memory only while this screen lives.
-            SaveReview(data, app.phoneStore.entries(), appLabelOf(packageManager, data.app.packageName))
-        } catch (e: Exception) {
-            Log.w(PassHolderApp.TAG, "Reading the vault for the save review failed", e)
-            toast(SAVE_FAILED)
-            return AfterUnlock.Deliver(null)
-        }
+        val review = readReview(data) ?: return AfterUnlock.Deliver(null)
+        return startReview(review)
+    }
+
+    /** [data] checked against the vault, decrypted once here and kept in memory only while this screen lives. */
+    private fun readReview(data: SaveData): SaveReview? = try {
+        SaveReview(data, app.phoneStore.entries(), appLabelOf(packageManager, data.app.packageName))
+    } catch (e: Exception) {
+        Log.w(PassHolderApp.TAG, "Reading the vault for the save review failed", e)
+        showToast(SAVE_FAILED)
+        null
+    }
+
+    private fun startReview(review: SaveReview): AfterUnlock {
         // An address that cannot be saved: nothing to ask about.
         if (review.target == null) return AfterUnlock.Deliver(null)
         // Unlocked again after the vault locked during the review: the same draft, as the user left it.
@@ -54,7 +58,7 @@ class AutofillSaveActivity : AutofillAuthActivity() {
         }
         val draft = review.initialDraft()
         if (review.decision(draft) == SaveDecision.None) {
-            toast(ALREADY_SAVED)
+            showToast(ALREADY_SAVED)
             return AfterUnlock.Deliver(null)
         }
         model.start(review, draft)
@@ -66,7 +70,7 @@ class AutofillSaveActivity : AutofillAuthActivity() {
         val done = model.done
         if (done != null) {
             LaunchedEffect(done) {
-                done.toast?.let(::toast)
+                done.toast?.let(::showToast)
                 finishAfterUnlock(null)
             }
             return
@@ -81,20 +85,19 @@ class AutofillSaveActivity : AutofillAuthActivity() {
         val review = model.review ?: return
         val draft = model.draft
         SaveReviewScreen(
-            title = review.title(draft),
-            isNew = review.createsEntry(draft),
-            draft = draft,
-            place = review.place,
-            canSave = review.decision(draft) != SaveDecision.None,
-            saving = model.saving,
+            SaveReviewUi(
+                title = review.title(draft),
+                isNew = review.createsEntry(draft),
+                draft = draft,
+                place = review.place,
+                canSave = review.decision(draft) != SaveDecision.None,
+                saving = model.saving,
+            ),
             onDraftChange = { model.draft = it },
             onSave = { model.save(app) },
             onCancel = ::cancel,
         )
     }
-
-    private fun toast(text: String) =
-        Handler(Looper.getMainLooper()).post { Toast.makeText(applicationContext, text, Toast.LENGTH_SHORT).show() }
 
     override fun onLockedWhileOpen() = model.dropReview()
 

@@ -4,7 +4,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -54,16 +53,10 @@ fun DevicesScreen(state: UiState, navigation: Navigation, syncActions: SyncActio
     }
 
     toRemove?.let { device ->
-        AlertDialog(
-            onDismissRequest = { toRemove = null },
-            text = { Text("Usunąć urządzenie ${device.name}? Nie będzie mogło się synchronizować.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    toRemove = null
-                    syncActions.removeDevice(device.deviceId)
-                }) { Text("Usuń", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = { TextButton(onClick = { toRemove = null }) { Text("Anuluj") } },
+        ConfirmDialog(
+            "Usunąć urządzenie ${device.name}? Nie będzie mogło się synchronizować.",
+            onConfirm = { syncActions.removeDevice(device.deviceId) },
+            onDismiss = { toRemove = null },
         )
     }
 }

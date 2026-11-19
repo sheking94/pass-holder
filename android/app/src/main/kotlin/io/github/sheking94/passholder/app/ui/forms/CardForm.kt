@@ -15,7 +15,7 @@ fun CardForm(fields: CardFields, onChange: (CardFields) -> Unit, entries: EntryA
         fields.number,
         { onChange(fields.copy(number = it)) },
         "Numer",
-        onCopy = { entries.copy("numer karty", fields.number, sensitive = true) },
+        onCopy = { entries.copySecret("numer karty", fields.number) },
         monospace = true,
         keyboardType = KeyboardType.Number,
     )
@@ -24,14 +24,14 @@ fun CardForm(fields: CardFields, onChange: (CardFields) -> Unit, entries: EntryA
         fields.cvc,
         { onChange(fields.copy(cvc = it)) },
         "CVC",
-        onCopy = { entries.copy("CVC", fields.cvc, sensitive = true) },
+        onCopy = { entries.copySecret("CVC", fields.cvc) },
         keyboardType = KeyboardType.NumberPassword,
     )
     SecretField(
         fields.pin,
         { onChange(fields.copy(pin = it)) },
         "PIN",
-        onCopy = { entries.copy("PIN", fields.pin, sensitive = true) },
+        onCopy = { entries.copySecret("PIN", fields.pin) },
         keyboardType = KeyboardType.NumberPassword,
     )
 }

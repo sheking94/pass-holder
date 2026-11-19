@@ -129,7 +129,7 @@ Dwa moduły Gradle: `core` (czysta JVM, testy bez emulatora) i `app` (Jetpack Co
 | `transfer/Common.kt`, `Csv.kt`, `JsonText.kt`, `PassHolderJson.kt`, `BitwardenJson.kt`, `NordPassCsv.kt`, `Transfer.kt`, `PassHolderZip.kt`, `ArchiveReader.kt` | pakiet `core.transfer`: ZIP bez `ZipInputStream` (własny strumieniowy parser: CRC i pomijanie pliku bez rozpakowania, budżet rozpakowywania; zapis `java.util.zip`); port `core/src/transfer/` (`contentKey`, `sortForExport` na `RuleBasedCollator` zgodnym z wektorem `sort.json`, CSV RFC 4180, serializacja JSON jak `JSON.stringify`, `Transfer.parseImportFile` i `exportFile`); te same pliki przykładowe z `core/test-vectors/transfer/` |
 | `files/Attachment.kt`, `FileChunks.kt`, `FileHost.kt`, `DiskFileStore.kt` | pliki w sejfie (port `core/src/files/` bez klienta): opis załącznika (stałe, ścisły parser), szyfrowanie kawałkami (`FileSecrets`), host `/p2p/v2/file` (`FileHost`: `parse` do `FileRequest`, funkcja na operację; `FileStore.put(FileChunk, now)`) i magazyn na dysku telefonu (`p2p/files/`, zapis przez `AtomicFiles.write`); `P2pHost` dostaje magazyn jako ostatni parametr |
 | `p2p/PhoneVaultStore.kt` (fasada) i jego części `HostStorage.kt`, `VaultLifecycle.kt`, `VaultKeys.kt`, `PhoneSession.kt`, `PhoneEntries.kt`, `PhoneFiles.kt`, `PhoneArchiveImport.kt`, `PhoneSyncMode.kt` (patrz „Podział `PhoneVaultStore`” niżej); `PhoneVault.kt`, `FileSyncStore.kt`, `HostState.kt` (`HostPhase`) | sejf telefonu: tworzenie, odtwarzanie, blokada (15 min), wpisy (`entries()` zwraca wszystkie typy, `upsertContent` zapisuje dokładnie podaną treść i odmawia nadpisania wpisu innego typu), urządzenia; pliki `records.jsonl` i `host.json`; import: `importContents` (duplikaty po `contentKey`, jeden zapis) i `allContents`; pliki: `addFile`, `isFileComplete`, `readFile`, `pruneFiles`, `discardFiles` (kasuje podane pliki poza używanymi przez żywy wpis), kasowanie przy zmianie epoki |
-| `autofill/Keywords.kt`, `Fields.kt`, `Values.kt`, `Match.kt`, `PublicSuffix.kt` | port `core/src/autofill/` 1:1 (`classifyField`, `planFor`, `fillValue`, `matchUrl` na `parseWebAddress`, `matchLogins`, `publicSuffix`/`registrableDomain` z zasobu `public_suffix_rules.txt`) na tych samych wektorach `{match,psl,fields,values}.json`; `matchApp`: przeglądarka zweryfikowana podpisem (`AppRequest.browserVerified`; 13 pakietów z certyfikatami SHA-256 w `TRUSTED_BROWSERS`) z `webDomain` → `matchLogins` (brak `webScheme` = `http`, `pageScheme`), inaczej loginy z pakietem w `androidApps`, po nazwie, tylko przy `appVerified`; `verifyApp` ustawia obie flagi z certyfikatów pakietu i zapamiętanych (V3-S3); wektory `test-vectors/autofill/app.json` (tylko Kotlin) |
+| `autofill/Keywords.kt`, `Fields.kt`, `Values.kt`, `Match.kt`, `AppRequest.kt`, `PublicSuffix.kt` | port `core/src/autofill/` 1:1 (`classifyField`, `planFor`, `fillValue`, `matchUrl` na `parseWebAddress`, `matchLogins`, `publicSuffix`/`registrableDomain` z zasobu `public_suffix_rules.txt`) na tych samych wektorach `{match,psl,fields,values}.json`; `matchApp`: przeglądarka zweryfikowana podpisem (`AppRequest.browserVerified`; 13 pakietów z certyfikatami SHA-256 w `TRUSTED_BROWSERS`) z `webDomain` → `matchLogins` (brak `webScheme` = `http`, `pageScheme`), inaczej loginy z pakietem w `androidApps`, po nazwie, tylko przy `appVerified`; `verifyApp` ustawia obie flagi z certyfikatów pakietu i zapamiętanych (V3-S3; `AppRequest`, `TRUSTED_BROWSERS` i `verifyApp` w `AppRequest.kt`); wektory `test-vectors/autofill/app.json` (tylko Kotlin) |
 | `autofill/Planner.kt` | `planRequest`: grupa formularza (login, karta, kontakt) i jej pola; `planDatasets`: pasujące wpisy → wartości pól (`ListIndex` dla list), bez wpisów bez wartości, najwyżej 10; generyczne po typie id pola, więc testowane bez Androida |
 | `save/SaveUrl.kt`, `Decide.kt`, `SaveFields.kt` | port `core/src/save/` (`saveUrl`, `saveName`, `decideSave`; te same wektory `core/test-vectors/save/{url,decide}.json`) plus `saveFields` (pole hasła: pierwsze nowe hasło, inaczej hasło; login: pole loginu, inaczej ostatni e-mail przed hasłem), `saveTargetFor` (zaufana przeglądarka z domeną → `Web`, inaczej `App` z pakietem), `newLogin`, `withPassword` |
 | `SyncStore.putAll` (w `p2p/HostSync.kt`), `p2p/FileSyncStore.kt` | `putAll`: wiele rekordów jednym dopisem i `fsync` (import atomowy); domyślnie pętla `put` |
@@ -150,20 +150,20 @@ Dwa moduły Gradle: `core` (czysta JVM, testy bez emulatora) i `app` (Jetpack Co
 | `AttachmentFiles.kt`, `FileSize.kt` | wybrany plik (nazwa i rozmiar z `OpenableColumns`, najwyżej 10 MiB + 1 bajt, kolejność sprawdzeń jak we wtyczce), zapis przez `CreateDocumentOf` (własny kontrakt: nazwa i typ, tryb `"wt"`); `formatSize` („N KB”, „4,6 MB”) |
 | `BiometricController.kt`, `BiometricUnlock.kt`, `BiometricKeyProtector.kt`, `FingerprintPrompt.kt` | odcisk palca: zaszyfrowany klucz sejfu (`BiometricUnlock`, `exportVaultKey`/`unlockWithVaultKey`), klucz w Android Keystore (`BiometricKeyProtector`/`KeystoreKeyProtector`; StrongBox, gdy jest; tylko przy odblokowanym telefonie), systemowe okno odcisku (`FingerprintPrompt`) |
 | `InstalledApps.kt` | aplikacje z ikoną w launcherze (`PackageManager`; w manifeście `<queries>` MAIN + LAUNCHER, bez `QUERY_ALL_PACKAGES`) |
-| `AppTrust.kt` | V3-S3: `SystemAppSigners` czyta SHA-256 certyfikatów pakietu (Android 9+: historia podpisu albo wszyscy sygnatariusze, niżej `signatures`; niewidoczny pakiet → `null`); `AppTrust.verify` ustawia flagi `AppRequest` (`verifyApp` z rdzenia), `remember`/`rememberIfNew` zapamiętują certyfikat pakietu w `SharedPreferences` `app_certs`. Wołane w `buildFillResponse` (i tam zaufanie przy pierwszym użyciu dla pakietu z `androidApps`), `readSaveData`, `saveReviewed` (nowy login aplikacji) i przy wyborze aplikacji w formularzu loginu; w manifeście `<queries>` także 13 pakietów przeglądarek |
+| `AppTrust.kt` | V3-S3: `SystemAppSigners` czyta SHA-256 certyfikatów pakietu (Android 9+: historia podpisu albo wszyscy sygnatariusze, niżej `signatures`; niewidoczny pakiet → `null`); `AppTrust.verify` ustawia flagi `AppRequest` (`verifyApp` z rdzenia), `remember`/`rememberIfNew` zapamiętują certyfikat pakietu w `SharedPreferences` `app_certs`. Wołane w `buildFillResponse` (i tam zaufanie przy pierwszym użyciu dla pakietu z `androidApps`), `readSaveData`, `saveSubmitted` (nowy login aplikacji) i przy wyborze aplikacji w formularzu loginu; w manifeście `<queries>` także 13 pakietów przeglądarek |
 | `entries/EntryTypes.kt` | `EntryType`, opis wiersza, wyszukiwanie, `tidy`, walidacja (port `extension/src/entry-types.ts`) |
 | `SecureClipboard.kt` | kopiowanie i czyszczenie schowka po minucie (WorkManager; w zadaniu tylko HMAC hasła z kluczem procesu) |
 | `autofill/ViewNodeReader.kt` | `AssistStructure` → `ParsedRequest`: pakiet, `webDomain`/`webScheme`, widoczne i włączone pola tekstowe i list (`describeNode`: `htmlInfo`, `autofillHints`, `inputType`, `idEntry`, podpowiedź) |
 | `autofill/PassHolderAutofillService.kt` | usługa (`BIND_AUTOFILL_SERVICE`): `respond` (własny pakiet, brak sejfu → `null`; ekran bez pól do wypełnienia: odpowiedź tylko z `SaveInfo`, gdy ma pole hasła, inaczej `null`; zablokowany → „Odblokuj PassHolder”; inaczej `buildFillResponse`), praca w osobnym wątku; `onSaveRequest` czyta `readSaveData`: API ≥ 28 zawsze kandydat do `pendingSave` i `onSuccess(savePendingIntent)` (podgląd w `AutofillSaveActivity`); API < 28 `saveLogin` od razu, zablokowany → `onFailure`. Ekran logowania bez pasujących wpisów też dostaje `SaveInfo` |
-| `autofill/ResponseBuilder.kt` | `FillResponse`: `Dataset` z wierszem `res/layout/autofill_item.xml` i, na API 30+, podpowiedzią w pasku klawiatury (`androidx.autofill` `InlineSuggestionUi`, ≤ `min(10, maxSuggestionCount)`); `SaveInfo` (hasło + login, `FLAG_SAVE_ON_ALL_VIEWS_INVISIBLE`) dla każdego ekranu z polem hasła (także „nowe hasło”, każda grupa) przy włączonym „Pytaj o zapis haseł”, id pól i opis aplikacji w `clientState` |
+| `autofill/ResponseBuilder.kt` | `ResponseBuilder(context, inline)` (`datasets`, `locked`, `inlinePresentation`) i `saveOnlyResponse`; `FillResponse`: `Dataset` z wierszem `res/layout/autofill_item.xml` i, na API 30+, podpowiedzią w pasku klawiatury (`androidx.autofill` `InlineSuggestionUi`, ≤ `min(10, maxSuggestionCount)`); `SaveInfo` (hasło + login, `FLAG_SAVE_ON_ALL_VIEWS_INVISIBLE`) dla każdego ekranu z polem hasła (także „nowe hasło”, każda grupa) przy włączonym „Pytaj o zapis haseł”, id pól i opis aplikacji w `clientState` |
 | `autofill/AutofillUnlockActivity.kt`, `ui/AutofillUnlockScreen.kt` | ekran odblokowania z podpowiedzi (podklasa `AutofillAuthActivity`): po odblokowaniu buduje odpowiedź i zwraca `EXTRA_AUTHENTICATION_RESULT` |
 | `autofill/SaveState.kt` | `SaveSpec` (pola i aplikacja z chwili wypełniania), `saveSpecFor` (przełącznik, pole hasła; grupa bez znaczenia), `clientState` i jego odczyt (`saveSpecIds`); obejście API 33 dla `Parcelable` w `autofill/Parcelables.kt` (`Intent.parcelable`, `Bundle.parcelable`) |
-| `autofill/SaveLogin.kt` | `saveLogin` (tylko API 26–27: zapis bez podglądu, przez `saveReviewed` z danymi jak wpisane; wynik `SAVED`/`UPDATED`/`NOTHING`/`LOCKED`), `readSaveData` (wartości po id ze wszystkich `fillContexts`, od ostatniego), komunikaty, `appLabelOf` |
+| `autofill/SaveLogin.kt` | `saveLogin` (tylko API 26–27: zapis bez podglądu, przez `saveSubmitted` z danymi jak wpisane; wynik `SAVED`/`UPDATED`/`NOTHING`/`LOCKED`), `readSaveData` (wartości po id ze wszystkich `fillContexts`, od ostatniego), komunikaty, `appLabelOf` |
 | `autofill/PendingSave.kt` | kandydat każdego zapisu (API ≥ 28) do chwili otwarcia podglądu: tylko pamięć procesu, 2 minuty (`app.clock`), jeden naraz; `take()` zabiera, `hasFresh()` tylko pyta |
-| `autofill/AutofillAuthActivity.kt`, `AutofillSaveActivity.kt` | wspólna baza (odblokowanie tylko gdy sejf zablokowany: hasło / odcisk; haki `afterUnlock`, `UnlockedContent`, `onLockedWhileOpen`, `unlockAgain`; Wstecz i Anuluj = `RESULT_CANCELED`, blokada D1 także po wyjściu w tło, anulowanie starego terminu 60 s) i ekran zapisu: odblokowanie, potem podgląd (`exported="false"`, `FLAG_SECURE`) |
-| `autofill/SaveReview.kt`, `ui/SaveReviewScreen.kt` | `SaveReview` (wpisy sejfu odszyfrowane raz, `decision`/`title`/`initialDraft` z `SaveDraft`), `saveReviewed` (ponowny odczyt sejfu, `decideSave` od nowa, `upsertContent`; wynik `SaveOutcome`), `SaveReviewModel` (ViewModel: kandydat, szkic, blokada w trakcie podglądu; bez stanu instancji) i ekran Compose „Zapisz w PassHolder” (Nazwa, Login, Hasło, adres/aplikacja tylko do odczytu) |
+| `autofill/AutofillAuthActivity.kt`, `AutofillSaveActivity.kt` | wspólna baza (stan w jednym typie `AuthPhase`: `Locked`/`Skipping`/`Open`/`Delivered`; odblokowanie tylko gdy sejf zablokowany: hasło / odcisk; haki `afterUnlock`, `UnlockedContent`, `onLockedWhileOpen`, `unlockAgain`; Wstecz i Anuluj = `RESULT_CANCELED`, blokada D1 także po wyjściu w tło, anulowanie starego terminu 60 s) i ekran zapisu: odblokowanie, potem podgląd (`exported="false"`, `FLAG_SECURE`) |
+| `autofill/SaveReview.kt`, `ui/SaveReviewScreen.kt` | `SaveReview` (wpisy sejfu odszyfrowane raz, `decision`/`title`/`initialDraft` z `SaveDraft`), `saveReviewed`/`saveSubmitted` (ponowny odczyt sejfu, `decideSave` od nowa, `upsertContent`; wynik `SaveOutcome`), `SaveReviewModel` (ViewModel: kandydat, szkic, blokada w trakcie podglądu; bez stanu instancji) i ekran Compose „Zapisz w PassHolder” (Nazwa, Login, Hasło, adres/aplikacja tylko do odczytu) |
 | `AutofillStatus.kt` | czy PassHolder jest usługą autouzupełniania (`hasEnabledAutofillServices`), wiersz w `SettingsScreen` |
-| `ui/*.kt` | ekrany Compose: `StartScreen`, `LockedScreen`, `ListScreen` (dolny pasek zakładek), `EditScreen` (powłoka formularza), `SettingsScreen`, `TransferScreen` (import i eksport; okno wyboru pliku 60 s w `LockController.expectFilePicker`), `VaultTopBar`, `SyncScreen`, `DevicesScreen`, `RestoreScreen`, `FingerprintDialog`, `Common` (m.in. `SecretField`), `PassHolderUi` (wybór ekranu i przekazanie grup akcji), `ScreenActions` (interfejsy akcji dla ekranów) |
+| `ui/*.kt` | ekrany Compose: `StartScreen`, `LockedScreen`, `ListScreen` (dolny pasek zakładek), `EditScreen` (powłoka formularza), `SettingsScreen`, `TransferScreen` (import i eksport; okno wyboru pliku 60 s w `LockController.expectFilePicker`), `VaultTopBar`, `SyncScreen`, `DevicesScreen`, `RestoreScreen`, `FingerprintDialog`, `Common` (`SecretField`, `MasterPasswordField`, `SettingSwitchRow`…), `UnlockForm`, `Dialogs` (`ConfirmDialog`, `DisconnectDialog`), `FilePicker` (`launchPicker`), `PassHolderUi` (wybór ekranu i przekazanie grup akcji), `ScreenActions` (interfejsy akcji dla ekranów) |
 | `ui/forms/*.kt` | `LoginForm`, `ContactForm`, `CardForm`, `DocumentForm` (notatka używa samej powłoki), `ListEditor`, `AttachmentsEditor` (sekcja „Załączniki”), `CustomFieldsEditor`, `GeneratorCard`, `AppPickerDialog` |
 
 ## Konwencje nazw i kodu
@@ -468,7 +468,84 @@ i `TransferActions`; obie przekazują je do `LockController`.
   działają po zakończeniu konstrukcji.
 - **Testy** wołają akcje przez grupy (`vm.transfer.importFrom(…)`, `vm.navigation.selectTab(…)`); treść testów
   bez zmian. Zostało `vm.reloadEntries()` dla testów, które zmieniają sejf poza ekranami.
-- Zostawione na G14: długie ekrany i powtórzone okna dialogowe (CK7, CS14), flaga `sensitive` w `copy` (CW10).
+- Zostawione na G14 (zrobione tam): długie ekrany i powtórzone okna dialogowe (CK7, CS14), flaga `sensitive` w `copy` (CW10).
+
+## Ekrany i autouzupełnianie Androida
+
+Ustalone w grupie G14 przeglądu czystości kodu V3 (CK7, CK8, CW10, CW11, CS14, CS18 oraz odłożone z G8 i G13).
+Zachowanie i teksty bez zmian (`android/app/.../app/`).
+
+**Wspólne elementy ekranów (CS14)**
+
+| Element | Plik | Zastępuje |
+|---|---|---|
+| `SecretField(value, onValueChange, label, onCopy?, onDone?, …)` | `ui/Common.kt` | `PasswordField` i `SecretField`; „Kopiuj” tylko z `onCopy`, klawisz „Gotowe” tylko z `onDone` |
+| `MasterPasswordField` | `ui/Common.kt` | `PasswordField(…, "Hasło główne")` w 7 miejscach (etykieta domyślna `UiTexts.MASTER_PASSWORD`) |
+| `SettingSwitchRow(label, checked, enabled, onCheckedChange, hint?)` | `ui/Common.kt` | trzy wiersze z przełącznikiem w `SettingsScreen` |
+| `ConfirmDialog(text, onConfirm, onDismiss, title?, confirmLabel = "Usuń")` | `ui/Dialogs.kt` | okna „Usunąć…?” w `EditScreen`, `DevicesScreen`; `DisconnectDialog` = „Usunąć sejf z tego telefonu?” (`StartScreen`, `LockedScreen`) |
+| `UnlockForm(title, busy, status, fingerprintOn, onUnlock, onFingerprint, secondaryAction)` | `ui/UnlockForm.kt` | ten sam formularz w `LockedScreen` i `AutofillUnlockScreen` |
+| `FilePicks.launchPicker(onMissing) { }` | `ui/FilePicker.kt` | pomocnik `pick` w `TransferScreen` i `AttachmentsEditor` (tekst `UiTexts.NO_FILE_PICKER`) |
+
+Okno „Pobrać plik?” w `AttachmentsEditor` zostaje osobne (`DownloadDialog`): nic nie usuwa, więc „Pobierz” nie
+jest w kolorze błędu.
+
+**Długie ekrany podzielone (CK7)**
+
+- `TransferScreen`: `ImportSection`, `ExportSection`, `ExportChoices`; wybór eksportu to `ExportChoice.TextFile(format)`
+  albo `ExportChoice.Zip` (zamiast `format` + flagi `zip`), okna zapisu w `ExportLaunchers` (JSON, CSV, ZIP).
+- `AttachmentsEditor`: `AttachmentRow`, `DownloadDialog`. `ListScreen`: `TypeTabs`, `EntryRow`.
+  `EditScreen`: `TypeSection` (pola typu wpisu). `LoginForm`: `AndroidAppsEditor`.
+- `SaveReviewScreen` (decyzja D5): stan w `SaveReviewUi`, ekran ma 4 parametry zamiast 9.
+
+**Flagi zamienione na nazwy (CW10)**
+
+| Było | Jest |
+|---|---|
+| `EntryActions.copy(label, value, sensitive)` | `copyText(label, value)`, `copySecret(label, value)` |
+| `SyncController.stop(reason: String?)`, 7× `stop(null)` | `stop()`, `stopWithReason(reason)`; wspólne `stopServer` prywatne |
+| `TransferFiles.defaultFileName(format, day, zip)` | `defaultFileName(format, day)`, `archiveFileName(day)` |
+| `ArchiveReader.readData(e, limit: Int?)` | `readData(e, limit: Int)`, `skipData(e)` |
+| `AutofillAuthActivity.runUnlock(unlock: (() -> Unit)?)` | `unlockAndContinue(unlock)`, `continueWithOpenVault()` |
+
+Zostały świadomie: `matchLogins`/`matchApp(…, exactOnly = true)` i prywatne `SyncModel.launch(offerCodeUntilPaired = …)`
+— w Kotlinie wywołanie z nazwanym argumentem czyta się jak obiekt opcji z G11.
+
+**`AutofillAuthActivity`: jeden typ stanu (CW11)**
+
+Siedem flag (`busy`, `skipping`, `delivered`, `lockPendingFromStop`, `relock: Boolean?`…) zastąpił `AuthPhase` w
+ViewModelu `AuthScreenState`:
+
+```
+Locked(busy) ──hasło/odcisk──► Locked(busy = true) ──afterUnlock──► Deliver → Delivered (RESULT_OK, finish)
+     ▲                                                        └───► Stay → Open(locksOnLeave, lockStarted)
+     └──────── unlockAgain / leaveUnlocked / błąd ◄───────────────────────┘
+Skipping: sejf otwarty na starcie (skipsUnlockWhenOpen), praca za pustym ekranem
+```
+
+`locksOnLeave` to dawne `relock == true` (sejf otworzył ten ekran, więc zamknięcie go blokuje, D1). `lockStarted` to
+dawne `lockPendingFromStop`. `onCreate` woła `startPhase()` i `Content()`. Po obrocie zostaje tylko `Open`; przerwana
+praca startuje od nowa jak wcześniej. Błąd z korutyny zamkniętego (obróconego) ekranu nie zmienia stanu nowego
+(`isActive`), bo stan jest w ViewModelu. Odwołania „D1” w komentarzach wskazują sekcję „Przepływ autouzupełniania
+(Android)”; „R2” zastąpił opis wprost.
+
+**Autouzupełnianie i powtórzenia (CK8, CS9, CS18, CW16)**
+
+- `ResponseBuilder(context, inline)`: kontekst i żądanie klawiatury raz w konstruktorze; `locked(ids, auth, save)`,
+  `inlinePresentation(index, title, subtitle)` (było po 5 parametrów). Warunek API 30 jest w `inlinePresentation`,
+  drugi raz tylko w `locked` dla przeciążenia `setAuthentication` z API 30.
+- `FingerprintPrompt.authenticate(activity, title, cipher, onResult)`: wynik `FingerprintResult`
+  (`Authorized`, `Failed`, `Cancelled`) zamiast `onSuccess` + `onError(String?)`.
+- `respond`/`buildFillResponse`: plan i `saveSpecFor` liczone raz, wspólne `datasetsFor(…)`.
+  `onSaveRequest` → `save(…)`; `AutofillSaveActivity.afterUnlock` → `readReview`, `startReview`;
+  `readRequest` → `fillableNode`.
+- `LeaveLock.lockIfExpired()` zamiast 4× `if (leaveLock.expired()) store.lock()`; `showToast` (`autofill/Toasts.kt`)
+  zamiast dwóch kopii; `SAVE_FAILED` także w usłudze.
+- `saveLogin` nie buduje już `SaveReview`: woła `saveSubmitted(app, data, appLabel, draft)`; `saveReviewed` to cienka
+  nakładka dla podglądu.
+- Rdzeń: `AppRequest`, `TRUSTED_BROWSERS` i `verifyApp` w `core/autofill/AppRequest.kt` (`Match.kt` tylko dopasowuje);
+  `SyncHttpServer`: `badRequest()` zamiast 6× `HttpError(400, "bad request")`, `closeQuietly` użyte w `start`/`stop`.
+
+Test ręczny: T33 w `docs/TESTY.md`.
 
 ## Widoki wtyczki
 

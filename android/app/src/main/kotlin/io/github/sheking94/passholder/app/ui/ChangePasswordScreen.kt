@@ -25,15 +25,15 @@ fun ChangePasswordScreen(state: UiState, navigation: Navigation, vault: VaultAct
 
     FormColumn {
         Text("Zmień hasło główne", style = MaterialTheme.typography.headlineSmall)
-        PasswordField(current, {
+        MasterPasswordField(current, {
             current = it
             status.clearError()
         }, "Obecne hasło główne")
-        PasswordField(new, {
+        MasterPasswordField(new, {
             new = it
             status.clearError()
         }, "Nowe hasło główne")
-        PasswordField(repeat, {
+        MasterPasswordField(repeat, {
             repeat = it
             status.clearError()
         }, "Powtórz nowe hasło", onDone = change)

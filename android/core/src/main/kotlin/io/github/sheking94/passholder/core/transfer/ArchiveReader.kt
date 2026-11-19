@@ -118,7 +118,7 @@ class ArchiveReader internal constructor(private val input: InputStream, private
             val e = nextEntry() ?: break
             allowance = declared[e.name] ?: 0L
             if (e.name !in wanted) {
-                readData(e, null)
+                skipData(e)
                 continue
             }
             when (val d = readData(e, Attachments.MAX_FILE_SIZE)) {
@@ -232,8 +232,16 @@ class ArchiveReader internal constructor(private val input: InputStream, private
         if (fill()) invalid()
     }
 
-    /** The entry's data: its bytes when [limit] is given and not passed, else read past ([limit] null: [Data.Skipped]). */
-    private fun readData(e: Local, limit: Int?): Data = when {
+    /** The entry's bytes, or [Data.TooLarge] (read past, not kept) when they pass [limit]. */
+    private fun readData(e: Local, limit: Int): Data = readOrSkip(e, limit)
+
+    /** Reads past an entry nobody asked for. */
+    private fun skipData(e: Local) {
+        readOrSkip(e, null)
+    }
+
+    /** [limit] null: read past ([Data.Skipped]), as for [skipData]. */
+    private fun readOrSkip(e: Local, limit: Int?): Data = when {
         e.method == METHOD_STORED -> readStored(e, limit)
         e.descriptor -> inflateUntilEnd(e, limit)
         else -> inflateKnown(e, limit)

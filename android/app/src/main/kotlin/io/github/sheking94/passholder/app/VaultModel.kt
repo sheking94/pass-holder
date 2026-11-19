@@ -34,7 +34,7 @@ internal class VaultModel(
         if (masterPassword.isEmpty()) return ui.fail("Podaj hasło główne")
         ui.launchOperation("Liczę klucze z hasła głównego…") {
             store.finishRestore(masterPassword)
-            sync.stop(null)
+            sync.stop()
             ui.showList("Odtworzono sejf z wtyczki. Od teraz przechowuje go ten telefon.")
         }
     }
@@ -47,14 +47,14 @@ internal class VaultModel(
     }
 
     override fun lock() = ui.launchOperation("Blokuję…") {
-        sync.stop(null)
+        sync.stop()
         store.lock()
         locks.onLockedByUser()
         ui.replace(UiState(Screen.Locked))
     }
 
     override fun disconnect() = ui.launchOperation("Usuwam sejf z telefonu…") {
-        sync.stop(null)
+        sync.stop()
         store.disconnect()
         // The vault is gone: whatever happens to the fingerprint key below, the start screen is the only right one.
         val warning = forgetFingerprint().exceptionOrNull()?.let {
@@ -70,7 +70,7 @@ internal class VaultModel(
         if (newPassword != repeat) return ui.fail(UiTexts.PASSWORDS_DIFFER)
         if (newPassword == oldPassword) return ui.fail(errorMessage(ErrorCode.PASSWORD_UNCHANGED))
         ui.launchOperation("Liczę klucze z nowego hasła… (to celowo trwa kilka sekund)") {
-            sync.stop(null)
+            sync.stop()
             store.changeMasterPassword(oldPassword, newPassword)
             val hadFingerprint = biometrics.enabled.value
             val fingerprintError = forgetFingerprint().exceptionOrNull()

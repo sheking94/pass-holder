@@ -1,12 +1,6 @@
 package io.github.sheking94.passholder.app.ui
 
 import androidx.activity.compose.LocalActivity
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -15,7 +9,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -29,10 +22,7 @@ import kotlinx.coroutines.flow.first
  */
 @Composable
 fun LockedScreen(state: UiState, vault: VaultActions, fingerprint: FingerprintActions) {
-    // remember, not rememberSaveable: the master password must not end up in the saved instance state.
-    var password by remember { mutableStateOf("") }
     var askDisconnect by remember { mutableStateOf(false) }
-    val unlock = { if (!state.busy) vault.unlock(password) }
     val biometricEnabled by fingerprint.enabled.collectAsStateWithLifecycle()
     val activity = LocalActivity.current
     val dialog = rememberFingerprintDialog(fingerprint)
@@ -47,30 +37,9 @@ fun LockedScreen(state: UiState, vault: VaultActions, fingerprint: FingerprintAc
         if (fingerprint.takeOfferOnLockedScreen()) unlockWithFinger()
     }
 
-    FormColumn {
-        Text("PassHolder jest zablokowany", style = MaterialTheme.typography.headlineSmall)
-        PasswordField(password, { password = it }, "Hasło główne", onDone = unlock)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = unlock, enabled = !state.busy) { Text("Odblokuj") }
-            TextButton(onClick = { askDisconnect = true }, enabled = !state.busy) { Text("Usuń sejf z telefonu") }
-        }
-        if (biometricEnabled) {
-            OutlinedButton(onClick = { unlockWithFinger() }, enabled = !state.busy) { Text("Odblokuj odciskiem palca") }
-        }
-        StatusLine(state.status, state.busy)
+    UnlockForm("PassHolder jest zablokowany", state.busy, state.status, biometricEnabled, vault::unlock, { unlockWithFinger() }) {
+        TextButton(onClick = { askDisconnect = true }, enabled = !state.busy) { Text("Usuń sejf z telefonu") }
     }
 
-    if (askDisconnect) {
-        AlertDialog(
-            onDismissRequest = { askDisconnect = false },
-            text = { Text("Usunąć sejf z tego telefonu? Wpisy zostaną tylko na sparowanych wtyczkach.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    askDisconnect = false
-                    vault.disconnect()
-                }) { Text("Usuń", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = { TextButton(onClick = { askDisconnect = false }) { Text("Anuluj") } },
-        )
-    }
+    if (askDisconnect) DisconnectDialog(onConfirm = vault::disconnect, onDismiss = { askDisconnect = false })
 }

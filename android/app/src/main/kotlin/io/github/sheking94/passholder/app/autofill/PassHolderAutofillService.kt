@@ -6,8 +6,6 @@ import android.content.Intent
 import android.content.IntentSender
 import android.os.Build
 import android.os.CancellationSignal
-import android.os.Handler
-import android.os.Looper
 import android.service.autofill.AutofillService
 import android.service.autofill.FillCallback
 import android.service.autofill.FillRequest
@@ -15,9 +13,11 @@ import android.service.autofill.FillResponse
 import android.service.autofill.SaveCallback
 import android.service.autofill.SaveRequest
 import android.util.Log
+import android.view.autofill.AutofillId
 import android.view.inputmethod.InlineSuggestionsRequest
-import android.widget.Toast
 import io.github.sheking94.passholder.app.PassHolderApp
+import io.github.sheking94.passholder.core.autofill.DatasetSpec
+import io.github.sheking94.passholder.core.autofill.FillRequestPlan
 import io.github.sheking94.passholder.core.autofill.planDatasets
 import io.github.sheking94.passholder.core.autofill.planRequest
 import io.github.sheking94.passholder.core.p2p.LoginFields
@@ -26,14 +26,9 @@ import kotlin.concurrent.thread
 
 /** Suggestions and the save request for the unlocked vault (null when neither applies); also used by the unlock screen. */
 fun buildFillResponse(app: PassHolderApp, request: ParsedRequest, inline: InlineSuggestionsRequest?): FillResponse? {
-    val plan = planRequest(request.nodes) ?: return saveSpecFor(app, request)?.let(ResponseBuilder::saveOnlyResponse)
-    // Entries are decrypted here, per request, and dropped with the response.
-    val entries = app.phoneStore.entries()
-    val pkg = request.app.packageName
-    // Trust on first use (V3-S3): the first fill for an app tied to a login remembers its certificate.
-    if (entries.any { (it.content.fields as? LoginFields)?.androidApps?.contains(pkg) == true }) app.appTrust.rememberIfNew(pkg)
-    val specs = planDatasets(plan, app.appTrust.verify(request.app), entries)
-    return ResponseBuilder.datasets(app, specs, inline, saveSpecFor(app, request))
+    val save = saveSpecFor(app, request)
+    val plan = planRequest(request.nodes) ?: return save?.let(::saveOnlyResponse)
+    return ResponseBuilder(app, inline).datasets(datasetsFor(app, request, plan), save)
 }
 
 /**
@@ -49,12 +44,22 @@ internal fun respond(
     if (request.app.packageName == app.packageName) return null
     val store = app.phoneStore
     if (!store.hasVault) return null
+    val save = saveSpecFor(app, request)
     // Nothing to fill (e.g. only a "new password" field): at most the save request, never the unlock prompt.
-    val plan = planRequest(request.nodes) ?: return saveSpecFor(app, request)?.let(ResponseBuilder::saveOnlyResponse)
-    // D1: the 60 s timer may not have run (deep sleep, a frozen app); the deadline still holds.
-    if (app.leaveLock.expired()) store.lock()
-    if (!store.isUnlocked) return ResponseBuilder.locked(app, plan.nodes.map { it.first.id }, auth(), inline, saveSpecFor(app, request))
-    return buildFillResponse(app, request, inline)
+    val plan = planRequest(request.nodes) ?: return save?.let(::saveOnlyResponse)
+    app.leaveLock.lockIfExpired()
+    val builder = ResponseBuilder(app, inline)
+    if (!store.isUnlocked) return builder.locked(plan.nodes.map { it.first.id }, auth(), save)
+    return builder.datasets(datasetsFor(app, request, plan), save)
+}
+
+/** The datasets of the unlocked vault for [plan]. Entries are decrypted here, per request, and dropped with the response. */
+private fun datasetsFor(app: PassHolderApp, request: ParsedRequest, plan: FillRequestPlan<AutofillId>): List<DatasetSpec<AutofillId>> {
+    val entries = app.phoneStore.entries()
+    val pkg = request.app.packageName
+    // Trust on first use (V3-S3): the first fill for an app tied to a login remembers its certificate.
+    if (entries.any { (it.content.fields as? LoginFields)?.androidApps?.contains(pkg) == true }) app.appTrust.rememberIfNew(pkg)
+    return planDatasets(plan, app.appTrust.verify(request.app), entries)
 }
 
 /**
@@ -110,33 +115,37 @@ class PassHolderAutofillService : AutofillService() {
         val app = application as PassHolderApp
         thread(name = "PassHolder-autofill-save") {
             try {
-                val data = readSaveData(app, request)
-                if (data != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                    // Every save goes through the review screen (spec 5.4), unlocking first when locked; the
-                    // candidate stays in memory (not in the intent) for it.
-                    app.pendingSave.put(data)
-                    callback.onSuccess(savePendingIntent(this).intentSender)
-                    return@thread
-                }
-                // Android 8.0-8.1 cannot open a screen here: save as typed, or ask to unlock first.
-                val outcome = data?.let { saveLogin(app, it) { pkg -> appLabelOf(packageManager, pkg) } } ?: SaveOutcome.NOTHING
-                if (outcome == SaveOutcome.LOCKED) {
-                    callback.onFailure("Odblokuj PassHolder i spróbuj ponownie")
-                    return@thread
-                }
-                saveToast(outcome)?.let { text ->
-                    Handler(Looper.getMainLooper()).post { Toast.makeText(applicationContext, text, Toast.LENGTH_SHORT).show() }
-                }
-                callback.onSuccess()
+                save(app, request, callback)
             } catch (e: Exception) {
                 Log.w(PassHolderApp.TAG, "Saving the login failed", e)
                 app.pendingSave.clear()
                 try {
-                    callback.onFailure("Nie udało się zapisać w PassHolder")
+                    callback.onFailure(SAVE_FAILED)
                 } catch (e2: Exception) {
                     Log.w(PassHolderApp.TAG, "Save failure rejected", e2)
                 }
             }
         }
+    }
+
+    /**
+     * Every save goes through the review screen (spec 5.4), unlocking first when locked; the candidate stays in
+     * memory (not in the intent) for it. Android 8.0-8.1 cannot open a screen here: it saves as typed, or asks to
+     * unlock first.
+     */
+    private fun save(app: PassHolderApp, request: SaveRequest, callback: SaveCallback) {
+        val data = readSaveData(app, request)
+        if (data != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            app.pendingSave.put(data)
+            callback.onSuccess(savePendingIntent(this).intentSender)
+            return
+        }
+        val outcome = data?.let { saveLogin(app, it) { pkg -> appLabelOf(packageManager, pkg) } } ?: SaveOutcome.NOTHING
+        if (outcome == SaveOutcome.LOCKED) {
+            callback.onFailure("Odblokuj PassHolder i spróbuj ponownie")
+            return
+        }
+        saveToast(outcome)?.let(::showToast)
+        callback.onSuccess()
     }
 }

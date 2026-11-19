@@ -483,6 +483,15 @@ hasłem i odciskiem; okno odcisku otwiera się samo po powrocie do aplikacji. (5
 (kod z odliczaniem), sync z wtyczką, „Zakończ”; Urządzenia → „Usuń”. (6) **Import i eksport:** eksport z hasłem
 głównym, import pliku. Zapisz wynik i wersję Androida.
 
+**T33. Przegląd czystości V3, G14 (ekrany i autouzupełnianie, Android).** Wygląd i działanie mają być jak przed
+zmianą. (1) **Okna „Usunąć…?”:** usuń wpis, urządzenie i (na ekranie blokady) „Usuń sejf z telefonu” → Anuluj, potem
+Usuń. (2) **Pola haseł:** „Pokaż/Ukryj” przy haśle głównym (blokada, nowy sejf, zmiana hasła, eksport); w formularzu
+loginu „Kopiuj” przy haśle i TOTP, generator pokazuje hasło. (3) **Ustawienia:** trzy przełączniki (odcisk, 60 s,
+zapis), stuknięcie w napis też przełącza. (4) **Import i eksport:** każdy z 4 formatów proponuje właściwą nazwę
+(`.json`, `.zip`, `.csv`), eksport ZIP i JSON, import. (5) **Autouzupełnianie:** podpowiedź „Odblokuj PassHolder” →
+hasło i odcisk → wypełnienie; Anuluj i Wstecz; obrót ekranu w trakcie. (6) **Zapis:** zaloguj się w aplikacji,
+podgląd „Zapisz w PassHolder”, wyjście w tło i powrót, Zapisz (toast). Zapisz wynik i wersję Androida.
+
 ## Formatowanie i lint (przegląd czystości V3, CN1)
 
 CI (`.github/workflows/ci.yml`) odrzuca zmianę, gdy któreś z tych sprawdzeń nie przechodzi.

@@ -52,7 +52,7 @@ fun RestoreScreen(state: UiState, vault: VaultActions, syncActions: SyncActions)
                 "Wtyczka przesłała sejf. Podaj jego hasło główne (to samo co we wtyczce); od tej chwili sejf przechowuje ten telefon.",
                 style = MaterialTheme.typography.bodyMedium,
             )
-            PasswordField(password, { password = it }, "Hasło główne", onDone = finish)
+            MasterPasswordField(password, { password = it }, onDone = finish)
             Button(onClick = finish, enabled = !state.busy) { Text("Zakończ odtwarzanie") }
         }
         OutlinedButton(onClick = vault::abortRestore, enabled = !state.busy) { Text("Przerwij odtwarzanie") }

@@ -1,14 +1,12 @@
 package io.github.sheking94.passholder.app.ui
 
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -44,8 +42,8 @@ fun StartScreen(state: UiState, vault: VaultActions) {
                 "Sejf będzie na tym telefonie. Wtyczkę w przeglądarce sparujesz potem przyciskiem „Synchronizacja”.",
                 style = MaterialTheme.typography.bodyMedium,
             )
-            PasswordField(password, { password = it }, "Hasło główne")
-            PasswordField(repeat, { repeat = it }, "Powtórz hasło główne", onDone = create)
+            MasterPasswordField(password, { password = it })
+            MasterPasswordField(repeat, { repeat = it }, "Powtórz hasło główne", onDone = create)
             Text(
                 "${MasterPasswordRules.HINT} (np. zdanie z kilku słów). Hasła głównego nie da się odzyskać: bez niego nie otworzysz sejfu.",
                 style = MaterialTheme.typography.bodySmall,
@@ -80,17 +78,5 @@ private fun CorruptVault(state: UiState, vault: VaultActions) {
         Button(onClick = { askDisconnect = true }, enabled = !state.busy) { Text("Usuń sejf z telefonu") }
         StatusLine(state.status, state.busy)
     }
-    if (askDisconnect) {
-        AlertDialog(
-            onDismissRequest = { askDisconnect = false },
-            text = { Text("Usunąć sejf z tego telefonu? Wpisy zostaną tylko na sparowanych wtyczkach.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    askDisconnect = false
-                    vault.disconnect()
-                }) { Text("Usuń", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = { TextButton(onClick = { askDisconnect = false }) { Text("Anuluj") } },
-        )
-    }
+    if (askDisconnect) DisconnectDialog(onConfirm = vault::disconnect, onDismiss = { askDisconnect = false })
 }

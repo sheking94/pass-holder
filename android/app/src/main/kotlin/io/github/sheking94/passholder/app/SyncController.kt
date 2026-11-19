@@ -54,7 +54,7 @@ class SyncController(
     private val lock = Any()
     private var server: SyncHttpServer? = null
 
-    /** How many times [stop] was called. Guarded by [lock]; see [startTicket]. */
+    /** How many times [stop] or [stopWithReason] was called. Guarded by [lock]; see [startTicket]. */
     private var stops = 0L
 
     /** The devices as last seen, to tell a new pairing or sync apart. Guarded by [lock]. */
@@ -107,11 +107,16 @@ class SyncController(
         }
     }
 
+    /** Stops the server and drops the pairing code ("Zakończ", locking, a new vault…); no reason on screen. */
+    fun stop() = stopServer(reason = null)
+
     /**
-     * Stops the server and drops the pairing code. [reason] is shown on screen; a stop with a reason does
-     * nothing when sync mode is already off, so it does not replace an earlier reason.
+     * Stops sync mode with [reason] shown on screen. Does nothing when sync mode is already off, so it does not
+     * replace an earlier reason.
      */
-    fun stop(reason: String?) = synchronized(lock) {
+    fun stopWithReason(reason: String) = stopServer(reason)
+
+    private fun stopServer(reason: String?) = synchronized(lock) {
         stops++
         val stopped = server
         server = null
@@ -141,7 +146,7 @@ class SyncController(
      */
     fun checkIdle(): Boolean {
         if (running && now() - lastActivityAt.get() >= PhoneSync.SYNC_IDLE_MS) {
-            stop(IDLE_STOPPED)
+            stopWithReason(IDLE_STOPPED)
             return true
         }
         refreshOffer()

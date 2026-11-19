@@ -56,6 +56,14 @@ class LeaveLock(
     /** The time ran out and [cancel] has not been called since; changes nothing (the caller locks). */
     fun expired(): Boolean = deadline?.let { now() >= it } ?: false
 
+    /**
+     * Locks the vault now, on the caller's thread, when the time ran out ([expired]): the timer may not have run
+     * (deep sleep, a frozen app), but the deadline still holds. The deadline stays, as in [lockNow].
+     */
+    fun lockIfExpired() {
+        if (expired()) store.lock()
+    }
+
     companion object {
         const val DELAY_MS = 60_000L
     }
