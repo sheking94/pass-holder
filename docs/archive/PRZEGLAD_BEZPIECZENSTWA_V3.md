@@ -5,7 +5,7 @@
 - **Data:** 2026-11-15
 - **Stan kodu:** `main` @ `8a5b19328d6378d9d2644bb6f7712eb7b45e68fb` (od `b515ca5` z planu doszedł tylko sam plan, PR #49; kod
   bez zmian).
-- **Plan i model zagrożeń:** [superpowers/plans/2026-11-15-przeglad-bezpieczenstwa.md](superpowers/plans/2026-11-15-przeglad-bezpieczenstwa.md)
+- **Plan i model zagrożeń:** [plany/2026-11-15-przeglad-bezpieczenstwa.md](plany/2026-11-15-przeglad-bezpieczenstwa.md)
   (napastnicy A1–A9, skala K/W/S/N/I, tropy T1–T17). Punkty zamknięte z sekcji 3 planu (m.in. N2, N5, I3) nie są tu
   zgłaszane ponownie.
 - **Metoda:** czytanie kodu etapami 1–10 planu (`core/src`, `extension/src`, `extension/static`, `android/core`,
@@ -105,7 +105,7 @@ utrzymać włączony i zablokować, ale nie odczytać. Testy automatyczne nie po
 
 - **Stan:** naprawione (grupa 3): przeglądarki po certyfikacie SHA-256 z listy, aplikacje wpisu po certyfikacie
   zapamiętanym przy wyborze z listy, przy zapisie albo przy pierwszej podpowiedzi (`verifyApp`, `AppTrust.kt`;
-  [FUNKCJE.md](FUNKCJE.md#android-1)). Na telefonie do sprawdzenia: T28 w [TESTY.md](TESTY.md).
+  [FUNKCJE.md](../FUNKCJE.md#android-1)). Na telefonie do sprawdzenia: T28 w [TESTY.md](../TESTY.md).
 - **Waga / pewność:** Średnia / z kodu (zachowanie na telefonie: hipoteza)
 - **Napastnik:** A3 · **Obszar:** Android, autouzupełnianie · **Powiązanie:** trop T7
 - **Miejsce:** `android/core/.../core/autofill/Match.kt:15-29` (`TRUSTED_BROWSERS`), `Match.kt:127-138` (`matchApp`)
@@ -162,7 +162,7 @@ utrzymać włączony i zablokować, ale nie odczytać. Testy automatyczne nie po
 - **Stan (2026-11-15, grupa 4):** poprawione w `host.ts` i `P2pHost.kt`. Limit 4 sesji na urządzenie (2 to za mało,
   gdy wtyczka po zerwanym połączeniu ponawia, a stara sesja żyje jeszcze 60 s). Pamięć `e` dłuższa niż w propozycji:
   do 4096 przyjętych wiadomości przez cały start trybu, bo przy 60 s napastnik mógłby co minutę odnawiać jedną sesję.
-  Opis: [SYNCHRONIZACJA.md](SYNCHRONIZACJA.md#51-noise-po-http) punkt 5.1 („Powtórzenia uzgadniania”); test ręczny T27.
+  Opis: [SYNCHRONIZACJA.md](../SYNCHRONIZACJA.md#51-noise-po-http) punkt 5.1 („Powtórzenia uzgadniania”); test ręczny T27.
 
 ### V3-N2. Nieuwierzytelnione żądania utrzymują tryb Synchronizacja i zajmują serwer
 
@@ -413,7 +413,7 @@ T1 → V3-N1, T3 i T4 → V3-N2, T5 → V3-S1 i V3-N3, T6 → V3-S2, T7 → V3-S
 - **Prawdziwy Chrome:** V3-S1 i V3-S4 (przykrycie panelu, widoczność pól), czy Local Network Access blokuje proste
   `POST` ze strony do telefonu (V3-N2, trop T4).
 - **Podatności Gradle:** baza OSV niedostępna z kontenera (403). Do uruchomienia na Windows, jak w
-  [TESTY.md](TESTY.md#zależności-przegląd-bezpieczeństwa-i5), dla wersji z `android/gradle/libs.versions.toml`
+  [TESTY.md](../TESTY.md#zależności-przegląd-bezpieczeństwa-i5), dla wersji z `android/gradle/libs.versions.toml`
   (m.in. Bouncy Castle 1.82, kotlinx-serialization 1.9.0, biometric 1.1.0).
 - **Testy ręczne** T4, T7, T15, T17–T25 z TESTY.md nadal niepotwierdzone (T27 doszedł z poprawkami grupy 4).
 - Formalny audyt CPace i Noise (poza zakresem, jak w planie).
@@ -428,7 +428,7 @@ Każda grupa to jeden wątek i jeden PR, w tej kolejności:
    dopasowaniu, brak schematu = `http`). **Zrobione** (2026-11-15), zob. „Stan poprawek” niżej.
 3. **Zaufane przeglądarki na Androidzie:** V3-S3 (certyfikaty podpisu). **Zrobione.**
 4. **Serwer telefonu:** V3-N1, V3-N2 (limit sesji na urządzenie, odrzucenie powtórzeń, aktywność po uwierzytelnieniu,
-   `Origin`/`Content-Type`, interfejsy).
+   `Origin`/`Content-Type`, interfejsy). **Zrobione w PR #52.**
 5. **Drobne:** V3-N4, V3-N6, V3-N7, V3-I1, V3-I2, V3-I3, V3-I5. **Zrobione w PR #54** (bez HMAC schowka z V3-I3).
 
 **Decyzje właściciela** (naprawa zmienia zachowanie):
