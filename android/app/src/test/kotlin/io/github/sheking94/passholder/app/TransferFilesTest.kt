@@ -39,7 +39,7 @@ class TransferFilesTest {
         assertEquals("passholder-2026-11-09.json", TransferFiles.defaultFileName(TransferFormat.PASSHOLDER, day))
         assertEquals("passholder-2026-11-09.json", TransferFiles.defaultFileName(TransferFormat.BITWARDEN, day))
         assertEquals("passholder-2026-11-09.csv", TransferFiles.defaultFileName(TransferFormat.NORDPASS, day))
-        assertEquals("passholder-2026-11-09.zip", TransferFiles.defaultFileName(TransferFormat.PASSHOLDER, day, zip = true))
+        assertEquals("passholder-2026-11-09.zip", TransferFiles.archiveFileName(day))
     }
 
     @Test

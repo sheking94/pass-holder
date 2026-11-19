@@ -56,6 +56,9 @@ class SyncHttpServer(
 
     private class HttpError(val status: Int, val error: String) : Exception(error)
 
+    /** A request that does not follow HTTP/1.x as this server reads it. */
+    private fun badRequest() = HttpError(400, "bad request")
+
     private val lock = Any()
     private var serverSocket: ServerSocket? = null
     private var pool: ExecutorService? = null
@@ -71,10 +74,7 @@ class SyncHttpServer(
             socket.bind(InetSocketAddress(port))
         } catch (e: Throwable) {
             // Otherwise every failed "Włącz ponownie" on a busy port leaks a file descriptor.
-            try {
-                socket.close()
-            } catch (_: IOException) {
-            }
+            closeQuietly(socket)
             throw e
         }
         val executor = ThreadPoolExecutor(threads, threads, 0L, TimeUnit.MILLISECONDS, ArrayBlockingQueue(queueCapacity))
@@ -93,10 +93,7 @@ class SyncHttpServer(
             pool = null
             pair
         }
-        try {
-            socket?.close()
-        } catch (_: IOException) {
-        }
+        socket?.let(::closeQuietly)
         executor?.shutdownNow()
     }
 
@@ -208,9 +205,9 @@ class SyncHttpServer(
     private fun readRequest(input: InputStream): Pair<String, ByteArray> {
         val lines = readHeaderLines(input)
         val parts = lines[0].split(' ')
-        if (parts.size != 3 || !parts[2].startsWith("HTTP/1.")) throw HttpError(400, "bad request")
+        if (parts.size != 3 || !parts[2].startsWith("HTTP/1.")) throw badRequest()
         val headers = parseHeaders(lines.drop(1))
-        val host = headers["host"] ?: throw HttpError(400, "bad request")
+        val host = headers["host"] ?: throw badRequest()
         if (!isAllowedHost(host)) throw HttpError(403, "forbidden host")
         if (parts[0] != "POST") throw HttpError(405, "method not allowed")
         val length = contentLength(headers)
@@ -226,12 +223,12 @@ class SyncHttpServer(
         val headers = HashMap<String, String>()
         for (line in lines) {
             val colon = line.indexOf(':')
-            if (colon <= 0) throw HttpError(400, "bad request")
+            if (colon <= 0) throw badRequest()
             val name = line.substring(0, colon).lowercase()
             val value = line.substring(colon + 1).trim()
             val previous = headers[name]
             if ((name == "content-length" || name == "host") && previous != null && previous != value) {
-                throw HttpError(400, "bad request")
+                throw badRequest()
             }
             headers[name] = value
         }
@@ -242,7 +239,7 @@ class SyncHttpServer(
     private fun contentLength(headers: Map<String, String>): Int {
         if (headers.containsKey("transfer-encoding")) throw HttpError(501, "not implemented")
         val raw = headers["content-length"] ?: throw HttpError(411, "length required")
-        if (raw.isEmpty() || !raw.all { it in '0'..'9' } || raw.length > 10) throw HttpError(400, "bad request")
+        if (raw.isEmpty() || !raw.all { it in '0'..'9' } || raw.length > 10) throw badRequest()
         val length = raw.toLong()
         if (length > P2pHost.MAX_BODY_BYTES) throw HttpError(413, "body too large")
         return length.toInt()
@@ -271,7 +268,7 @@ class SyncHttpServer(
             if (b == '\n'.code) {
                 if (line.endsWith("\r")) line.setLength(line.length - 1)
                 if (line.isEmpty()) {
-                    if (lines.isEmpty()) throw HttpError(400, "bad request")
+                    if (lines.isEmpty()) throw badRequest()
                     return lines
                 }
                 lines.add(line.toString())

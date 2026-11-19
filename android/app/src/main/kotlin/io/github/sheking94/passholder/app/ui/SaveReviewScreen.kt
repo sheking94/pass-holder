@@ -14,33 +14,33 @@ import androidx.compose.ui.unit.dp
 import io.github.sheking94.passholder.app.autofill.SaveDraft
 
 /**
- * The login the system's save question is about, to check and edit before it goes into the vault (spec 5.4).
- * [title] is the decision for the current [draft]; the name is asked only for a new entry ([isNew]); [place] is
- * the site or the app, read-only. "Zapisz" needs [canSave]; both buttons are off while [saving].
+ * What the review screen shows: [title] is the decision for the current [draft]; the name is asked only for a new
+ * entry ([isNew]); [place] is the site or the app, read-only. "Zapisz" needs [canSave]; both buttons are off while [saving].
  */
+data class SaveReviewUi(
+    val title: String,
+    val isNew: Boolean,
+    val draft: SaveDraft,
+    val place: String,
+    val canSave: Boolean,
+    val saving: Boolean,
+)
+
+/** The login the system's save question is about, to check and edit before it goes into the vault (spec 5.4). */
 @Composable
-fun SaveReviewScreen(
-    title: String,
-    isNew: Boolean,
-    draft: SaveDraft,
-    place: String,
-    canSave: Boolean,
-    saving: Boolean,
-    onDraftChange: (SaveDraft) -> Unit,
-    onSave: () -> Unit,
-    onCancel: () -> Unit,
-) {
+fun SaveReviewScreen(ui: SaveReviewUi, onDraftChange: (SaveDraft) -> Unit, onSave: () -> Unit, onCancel: () -> Unit) {
+    val draft = ui.draft
     FormColumn {
         Text("Zapisz w PassHolder", style = MaterialTheme.typography.headlineSmall)
-        Text(title, style = MaterialTheme.typography.titleMedium)
-        if (isNew) PlainField(draft.name, { onDraftChange(draft.copy(name = it)) }, "Nazwa")
+        Text(ui.title, style = MaterialTheme.typography.titleMedium)
+        if (ui.isNew) PlainField(draft.name, { onDraftChange(draft.copy(name = it)) }, "Nazwa")
         PlainField(draft.username, { onDraftChange(draft.copy(username = it)) }, "Login")
-        PasswordField(draft.password, { onDraftChange(draft.copy(password = it)) }, "Hasło")
-        Text(place, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        SecretField(draft.password, { onDraftChange(draft.copy(password = it)) }, "Hasło")
+        Text(ui.place, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = onSave, enabled = canSave && !saving) { Text("Zapisz") }
-            TextButton(onClick = onCancel, enabled = !saving) { Text("Anuluj") }
+            Button(onClick = onSave, enabled = ui.canSave && !ui.saving) { Text("Zapisz") }
+            TextButton(onClick = onCancel, enabled = !ui.saving) { Text("Anuluj") }
         }
-        if (saving) LinearProgressIndicator(Modifier.fillMaxWidth())
+        if (ui.saving) LinearProgressIndicator(Modifier.fillMaxWidth())
     }
 }

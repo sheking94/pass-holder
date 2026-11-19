@@ -159,8 +159,11 @@ interface EntryActions : StatusActions {
 
     fun delete(id: String)
 
-    /** Copies a field; a [sensitive] one is cleared from the clipboard after a while. [label] is a copy noun. */
-    fun copy(label: String, value: String, sensitive: Boolean)
+    /** Copies a plain field (login, a visible custom field). [label] is a copy noun ("login"). */
+    fun copyText(label: String, value: String)
+
+    /** Copies a secret (password, TOTP, card number…): marked sensitive and cleared from the clipboard after a while. */
+    fun copySecret(label: String, value: String)
 
     /** The generator's last used options. */
     fun generatorOptions(): GeneratorOptions

@@ -566,8 +566,8 @@ Każda grupa to jeden wątek i jeden PR, w tej kolejności.
 | G10 | Podział `VaultStore` i `save/candidates.ts` — **zrobione** (części w `extension/src/vault/`, opcje konstruktora, `repair` w krokach, kandydat z `form: {origin, signature}`, `answerSave`, jedna lista uszkodzonych plików; opis w `docs/ARCHITEKTURA.md` „Podział `VaultStore` i pytania o zapis”) | CK1, CW14, CS19 | wtyczka | duży |
 | G11 | Widoki wtyczki — **zrobione** (router `views/router.ts` bez cyklu importów, długie widoki podzielone na sekcje, flagi → opcje i nazwy, wspólne `web-url.ts`/`page-frame.ts`/`saved-logins.ts`/`setOrRemove`/`submitPhoneUrls`, jedno pole sekretu; opis w `docs/ARCHITEKTURA.md` „Widoki wtyczki”) | CK6, CW10, CW13, CS11, CS14 (część wtyczki) | wtyczka | duży |
 | G12 | Podział `PhoneVaultStore` — **zrobione** (fasada i części `HostStorage`, `VaultLifecycle`, `VaultKeys`, `PhoneSession`, `PhoneEntries`, `PhoneFiles`, `PhoneArchiveImport`, `PhoneSyncMode`; `HostPhase`; bez `!!`; opis w `docs/ARCHITEKTURA.md` „Podział `PhoneVaultStore`”) | CK2, CW4, CS10, CS13 (część Kotlin) | android | duży |
-| G13 | Podział `AppViewModel`, ekrany bez całego modelu | CK3, CW5, CW9, CS15 | android | duży |
-| G14 | Ekrany i autouzupełnianie Androida | CK7, CK8 (Compose), CW10, CW11, CS14, CS18 | android | średni |
+| G13 | Podział `AppViewModel`, ekrany bez całego modelu — **zrobione** (części `*Model.kt` + `UiStateHolder`, interfejsy akcji w `ui/ScreenActions.kt`; opis w `docs/ARCHITEKTURA.md` „Podział `AppViewModel`”) | CK3, CW5, CW9, CS15 | android | duży |
+| G14 | Ekrany i autouzupełnianie Androida — **zrobione** (`ConfirmDialog`, `SettingSwitchRow`, jedno `SecretField`, `UnlockForm`, `launchPicker`, długie ekrany na sekcje, `SaveReviewUi`, `AuthPhase` w `AutofillAuthActivity`, `ResponseBuilder(context, inline)`, `FingerprintResult`, flagi → nazwy; opis w `docs/ARCHITEKTURA.md` „Ekrany i autouzupełnianie Androida”) | CK7, CK8 (Compose), CW10, CW11, CS14, CS18 | android | średni |
 
 CW16 (funkcje 20–50 linii), CS9 (podwójna praca) i CS17 (sprytny kod) wchodzą do grup G8–G14 według pliku.
 

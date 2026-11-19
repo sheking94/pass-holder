@@ -62,15 +62,12 @@ object TransferFiles {
         }
     }
 
-    /** The name the save dialog suggests: passholder-RRRR-MM-DD.json, .csv for NordPass, .zip for a PassHolder ZIP ([zip]). */
-    fun defaultFileName(format: TransferFormat, day: LocalDate = LocalDate.now(), zip: Boolean = false): String =
-        "passholder-$day.${if (zip) {
-            "zip"
-        } else if (format == TransferFormat.NORDPASS) {
-            "csv"
-        } else {
-            "json"
-        }}"
+    /** The name the save dialog suggests for a text export: passholder-RRRR-MM-DD.json, .csv for NordPass. */
+    fun defaultFileName(format: TransferFormat, day: LocalDate = LocalDate.now()): String =
+        "passholder-$day.${if (format == TransferFormat.NORDPASS) "csv" else "json"}"
+
+    /** The name the save dialog suggests for a PassHolder ZIP: passholder-RRRR-MM-DD.zip. */
+    fun archiveFileName(day: LocalDate = LocalDate.now()): String = "passholder-$day.zip"
 
     /** The first bytes of a ZIP archive (a local file header): 50 4B 03 04. */
     private val ZIP_MAGIC = byteArrayOf(0x50, 0x4B, 0x03, 0x04)

@@ -31,6 +31,7 @@ import io.github.sheking94.passholder.app.entries.EntryType
 import io.github.sheking94.passholder.app.entries.entrySummary
 import io.github.sheking94.passholder.app.entries.matchesQuery
 import io.github.sheking94.passholder.core.p2p.LoginFields
+import io.github.sheking94.passholder.core.p2p.PhoneEntry
 
 @Composable
 fun ListScreen(state: UiState, navigation: Navigation, vault: VaultActions, entries: EntryActions) {
@@ -41,19 +42,7 @@ fun ListScreen(state: UiState, navigation: Navigation, vault: VaultActions, entr
 
     Scaffold(
         topBar = { VaultTopBar(state, navigation, vault) },
-        bottomBar = {
-            // PassHolderUi already keeps every screen out of the system bars.
-            NavigationBar(windowInsets = WindowInsets(0)) {
-                EntryType.entries.forEach { type ->
-                    NavigationBarItem(
-                        selected = type == state.tab,
-                        onClick = { navigation.selectTab(type) },
-                        icon = { Text(type.icon) },
-                        label = { Text(type.tab, maxLines = 1) },
-                    )
-                }
-            }
-        },
+        bottomBar = { TypeTabs(state.tab, navigation::selectTab) },
         contentWindowInsets = WindowInsets(0),
     ) { padding ->
         Column(Modifier.padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -77,37 +66,54 @@ fun ListScreen(state: UiState, navigation: Navigation, vault: VaultActions, entr
                     }
                 }
                 items(rows, key = { it.id }) { entry ->
-                    val login = entry.content.fields as? LoginFields
-                    Row(
-                        Modifier.clickable(enabled = !state.busy) { navigation.openEntry(entry.id) }.padding(vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        Text(state.tab.icon, style = MaterialTheme.typography.titleLarge)
-                        Column(Modifier.weight(1f)) {
-                            val files = entry.content.attachments.size
-                            Text(
-                                if (files > 0) "${entry.content.name} 📎 $files" else entry.content.name,
-                                style = MaterialTheme.typography.titleMedium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Text(
-                                entrySummary(entry.content),
-                                style = MaterialTheme.typography.bodyMedium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                        if (login != null) {
-                            TextButton(onClick = { entries.copy("login", login.username, false) }) { Text("Login") }
-                            TextButton(onClick = { entries.copy("hasło", login.password, true) }) { Text("Hasło") }
-                        }
-                    }
+                    EntryRow(entry, state.tab, state.busy, onOpen = { navigation.openEntry(entry.id) }, entries)
                     HorizontalDivider()
                 }
             }
             StatusLine(state.status, state.busy)
+        }
+    }
+}
+
+/** The tabs of the entry types at the bottom. */
+@Composable
+private fun TypeTabs(selected: EntryType, onSelect: (EntryType) -> Unit) {
+    // PassHolderUi already keeps every screen out of the system bars.
+    NavigationBar(windowInsets = WindowInsets(0)) {
+        EntryType.entries.forEach { type ->
+            NavigationBarItem(
+                selected = type == selected,
+                onClick = { onSelect(type) },
+                icon = { Text(type.icon) },
+                label = { Text(type.tab, maxLines = 1) },
+            )
+        }
+    }
+}
+
+/** An entry: its icon, name (with the number of files), summary and, for a login, "Login" and "Hasło" to copy. */
+@Composable
+private fun EntryRow(entry: PhoneEntry, type: EntryType, busy: Boolean, onOpen: () -> Unit, entries: EntryActions) {
+    val login = entry.content.fields as? LoginFields
+    Row(
+        Modifier.clickable(enabled = !busy, onClick = onOpen).padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(type.icon, style = MaterialTheme.typography.titleLarge)
+        Column(Modifier.weight(1f)) {
+            val files = entry.content.attachments.size
+            Text(
+                if (files > 0) "${entry.content.name} 📎 $files" else entry.content.name,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(entrySummary(entry.content), style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        if (login != null) {
+            TextButton(onClick = { entries.copyText("login", login.username) }) { Text("Login") }
+            TextButton(onClick = { entries.copySecret("hasło", login.password) }) { Text("Hasło") }
         }
     }
 }

@@ -98,30 +98,34 @@ fun readRequest(structure: AssistStructure): ParsedRequest {
             if (webScheme == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 webScheme = node.webScheme?.takeIf { it.isNotEmpty() }
             }
-            val id = node.autofillId
-            val type = node.autofillType
-            if (id != null && (type == View.AUTOFILL_TYPE_TEXT || type == View.AUTOFILL_TYPE_LIST) && node.isEnabled) {
-                val html = node.htmlInfo
-                val attrs = HashMap<String, String>()
-                html?.attributes?.forEach { attrs[it.first.lowercase()] = it.second }
-                val isList = type == View.AUTOFILL_TYPE_LIST
-                val na = NodeAttrs(
-                    hints = node.autofillHints?.toList().orEmpty(),
-                    htmlTag = html?.tag,
-                    htmlAttrs = attrs,
-                    inputType = node.inputType,
-                    idEntry = node.idEntry,
-                    hint = node.hint,
-                    contentDescription = node.contentDescription?.toString(),
-                    maxTextLength = node.maxTextLength,
-                    options = node.autofillOptions?.map { it.toString() },
-                    isList = isList,
-                )
-                nodes += AutofillNode(id, describeNode(na), isList)
-            }
+            fillableNode(node)?.let { nodes += it }
             for (i in 0 until node.childCount) visit(node.getChildAt(i))
         }
         visit(structure.getWindowNodeAt(count - 1).rootViewNode)
     }
     return ParsedRequest(AppRequest(packageName, webDomain, webScheme), nodes)
+}
+
+/** An enabled text or list field with an autofill id, described for the planner; null for any other node. */
+private fun fillableNode(node: AssistStructure.ViewNode): AutofillNode<AutofillId>? {
+    val id = node.autofillId ?: return null
+    val type = node.autofillType
+    if ((type != View.AUTOFILL_TYPE_TEXT && type != View.AUTOFILL_TYPE_LIST) || !node.isEnabled) return null
+    val html = node.htmlInfo
+    val attrs = HashMap<String, String>()
+    html?.attributes?.forEach { attrs[it.first.lowercase()] = it.second }
+    val isList = type == View.AUTOFILL_TYPE_LIST
+    val na = NodeAttrs(
+        hints = node.autofillHints?.toList().orEmpty(),
+        htmlTag = html?.tag,
+        htmlAttrs = attrs,
+        inputType = node.inputType,
+        idEntry = node.idEntry,
+        hint = node.hint,
+        contentDescription = node.contentDescription?.toString(),
+        maxTextLength = node.maxTextLength,
+        options = node.autofillOptions?.map { it.toString() },
+        isList = isList,
+    )
+    return AutofillNode(id, describeNode(na), isList)
 }

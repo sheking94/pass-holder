@@ -44,15 +44,9 @@ class FakeFingerprintPrompt : FingerprintPrompt {
 
     override fun availability(context: Context) = BiometricAvailability.Ready
 
-    override fun authenticate(
-        activity: FragmentActivity,
-        title: String,
-        cipher: Cipher,
-        onSuccess: (Cipher) -> Unit,
-        onError: (String?) -> Unit,
-    ) {
+    override fun authenticate(activity: FragmentActivity, title: String, cipher: Cipher, onResult: (FingerprintResult) -> Unit) {
         shown++
-        if (cancel) onError(null) else onSuccess(cipher)
+        onResult(if (cancel) FingerprintResult.Cancelled else FingerprintResult.Authorized(cipher))
     }
 }
 

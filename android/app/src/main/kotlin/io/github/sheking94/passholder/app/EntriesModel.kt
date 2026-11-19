@@ -49,19 +49,21 @@ internal class EntriesModel(
         }
     }
 
+    /** [label] ("login", "wartość"…) is used as given in the status. Nothing happens for an empty [value]. */
+    override fun copyText(label: String, value: String) {
+        if (value.isEmpty()) return
+        SecureClipboard.copyText(context, label, value)
+        ui.showStatus("Skopiowano $label.")
+    }
+
     /**
-     * A [sensitive] field (password, TOTP, card number…) is marked sensitive and the clipboard is cleared after
+     * A secret (password, TOTP, card number…) is marked sensitive and the clipboard is cleared after
      * [SecureClipboard.CLEAR_AFTER_MINUTES]. [label] ("hasło", "numer karty"…) is used as given in the status.
      */
-    override fun copy(label: String, value: String, sensitive: Boolean) {
+    override fun copySecret(label: String, value: String) {
         if (value.isEmpty()) return
-        if (sensitive) {
-            SecureClipboard.copyPassword(context, label, value)
-            ui.showStatus("Skopiowano $label. Schowek zostanie wyczyszczony za ${SecureClipboard.CLEAR_AFTER_MINUTES} min.")
-        } else {
-            SecureClipboard.copyText(context, label, value)
-            ui.showStatus("Skopiowano $label.")
-        }
+        SecureClipboard.copyPassword(context, label, value)
+        ui.showStatus("Skopiowano $label. Schowek zostanie wyczyszczony za ${SecureClipboard.CLEAR_AFTER_MINUTES} min.")
     }
 
     override fun generatorOptions(): GeneratorOptions = settings.generatorOptions

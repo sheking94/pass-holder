@@ -1,7 +1,8 @@
 package io.github.sheking94.passholder.app.ui
 
-import android.content.ActivityNotFoundException
+import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -44,15 +45,20 @@ private val IMPORT_TYPES =
 internal const val CSV_WARNING =
     "Nie otwieraj pliku CSV w Excelu ani LibreOffice: pole zaczynające się od „=”, „+”, „-” lub „@” arkusz wykona jako formułę."
 
-/** [zip]: PassHolder ZIP, written with the files by [TransferActions.exportArchiveTo] ([format] is then not used). */
-private class ExportChoice(val format: TransferFormat, val label: String, val hint: Boolean, val zip: Boolean = false)
+/** One way to export: a [TextFile] in a [TransferFormat], or the PassHolder [Zip] with the files. */
+private sealed class ExportChoice(val label: String, val hint: Boolean) {
+    class TextFile(val format: TransferFormat, label: String, hint: Boolean) : ExportChoice(label, hint)
+
+    /** Written with the files by [TransferActions.exportArchiveTo]. */
+    data object Zip : ExportChoice("PassHolder ZIP (wpisy i pliki)", hint = false)
+}
 
 /** The same choices, order and labels as the extension. */
 private val EXPORT_CHOICES = listOf(
-    ExportChoice(TransferFormat.PASSHOLDER, "PassHolder JSON (wszystko, bez strat)", hint = false),
-    ExportChoice(TransferFormat.PASSHOLDER, "PassHolder ZIP (wpisy i pliki)", hint = false, zip = true),
-    ExportChoice(TransferFormat.BITWARDEN, "Bitwarden JSON", hint = true),
-    ExportChoice(TransferFormat.NORDPASS, "NordPass CSV", hint = true),
+    ExportChoice.TextFile(TransferFormat.PASSHOLDER, "PassHolder JSON (wszystko, bez strat)", hint = false),
+    ExportChoice.Zip,
+    ExportChoice.TextFile(TransferFormat.BITWARDEN, "Bitwarden JSON", hint = true),
+    ExportChoice.TextFile(TransferFormat.NORDPASS, "NordPass CSV", hint = true),
 )
 
 private const val PLAIN_WARNING =
@@ -70,112 +76,131 @@ private const val ZIP_WARNING =
 @Composable
 fun TransferScreen(state: UiState, navigation: Navigation, transfer: TransferActions) {
     BackHandler(onBack = navigation::backToList)
-    // An index into EXPORT_CHOICES: two choices share TransferFormat.PASSHOLDER.
-    var chosen by rememberSaveable { mutableIntStateOf(0) }
-    val choice = EXPORT_CHOICES[chosen]
-    val format = choice.format
-    var understood by rememberSaveable { mutableStateOf(false) }
-    // Security review V3-N6. remember, not rememberSaveable: the password must not end up in the saved instance state.
-    var password by remember { mutableStateOf("") }
-
-    val openFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { transfer.importFrom(it) }
-    // The save dialog's type is fixed per launcher.
-    val saveJson =
-        rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { transfer.exportTo(format, it) }
-    val saveCsv = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { transfer.exportTo(format, it) }
-    val saveZip =
-        rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { transfer.exportArchiveTo(it) }
-
-    fun pick(launch: () -> Unit) {
-        transfer.beginFilePick()
-        try {
-            launch()
-        } catch (_: ActivityNotFoundException) {
-            transfer.endFilePick()
-            transfer.fail("Na telefonie nie ma aplikacji do wyboru plików.")
-        }
-    }
-
     FormColumn {
         Text("Import i eksport", style = MaterialTheme.typography.headlineSmall)
         Text("Import rozpoznaje format sam: PassHolder ZIP, PassHolder JSON, Bitwarden JSON (bez szyfrowania) albo NordPass CSV.")
-
-        Text("Import", style = MaterialTheme.typography.titleMedium)
-        Text("Wpisy, które już są w sejfie z identyczną treścią, zostaną pominięte.", style = MaterialTheme.typography.bodyMedium)
-        Button(onClick = { pick { openFile.launch(IMPORT_TYPES) } }, enabled = !state.busy) { Text("Importuj plik") }
-
+        ImportSection(state, transfer)
         HorizontalDivider()
-        Text("Eksport", style = MaterialTheme.typography.titleMedium)
-        Column(Modifier.selectableGroup()) {
-            EXPORT_CHOICES.forEachIndexed { i, option ->
-                Row(
-                    Modifier.fillMaxWidth().selectable(selected = chosen == i, role = Role.RadioButton) { chosen = i },
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    RadioButton(selected = chosen == i, onClick = null)
-                    Text(option.label, Modifier.padding(start = 8.dp), style = MaterialTheme.typography.bodyLarge)
-                }
-                if (option.hint) {
-                    Text(
-                        "Część pól trafi do notatki lub własnych pól.",
-                        Modifier.padding(start = 32.dp, bottom = 4.dp),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-                // Security review N2: the values stay as they are (import must restore them exactly), so warn instead.
-                if (option.format == TransferFormat.NORDPASS) {
-                    Text(CSV_WARNING, Modifier.padding(start = 32.dp, bottom = 4.dp), style = MaterialTheme.typography.bodySmall)
-                }
-            }
-        }
-        val files = countAttachments(state.entries.map { it.content })
-        if (files > 0) {
-            Text(
-                "${skippedFilesPhrase(files)} w formatach JSON i CSV. Wybierz PassHolder ZIP, żeby je zabrać.",
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
-        Text(
-            if (choice.zip) ZIP_WARNING else PLAIN_WARNING,
-            color = MaterialTheme.colorScheme.error,
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        Row(
-            Modifier.fillMaxWidth().toggleable(understood, role = Role.Checkbox) { understood = it },
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Checkbox(checked = understood, onCheckedChange = null)
-            Text("Rozumiem, plik będzie zawierał hasła jawnym tekstem")
-        }
-        PasswordField(password, {
-            password = it
-            transfer.clearError()
-        }, "Hasło główne")
-        Button(
-            onClick = {
-                val name = TransferFiles.defaultFileName(format, zip = choice.zip)
-                val typed = password
-                password = ""
-                transfer.confirmExport(typed) {
-                    pick {
-                        when {
-                            choice.zip -> saveZip.launch(name)
-                            format == TransferFormat.NORDPASS -> saveCsv.launch(name)
-                            else -> saveJson.launch(name)
-                        }
-                    }
-                }
-            },
-            enabled = understood && !state.busy,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.error,
-                contentColor = MaterialTheme.colorScheme.onError,
-            ),
-        ) { Text("Zapisz plik") }
-
+        ExportSection(state, transfer)
         HorizontalDivider()
         OutlinedButton(onClick = navigation::backToList) { Text("Wróć do listy") }
         StatusLine(state.status, state.busy)
     }
+}
+
+@Composable
+private fun ImportSection(state: UiState, transfer: TransferActions) {
+    val openFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { transfer.importFrom(it) }
+    Text("Import", style = MaterialTheme.typography.titleMedium)
+    Text("Wpisy, które już są w sejfie z identyczną treścią, zostaną pominięte.", style = MaterialTheme.typography.bodyMedium)
+    Button(onClick = { transfer.launchPicker { openFile.launch(IMPORT_TYPES) } }, enabled = !state.busy) { Text("Importuj plik") }
+}
+
+/** The format, the warning, "Rozumiem…", the master password and "Zapisz plik". */
+@Composable
+private fun ExportSection(state: UiState, transfer: TransferActions) {
+    // An index into EXPORT_CHOICES (rememberSaveable keeps a plain Int).
+    var chosen by rememberSaveable { mutableIntStateOf(0) }
+    val choice = EXPORT_CHOICES[chosen]
+    var understood by rememberSaveable { mutableStateOf(false) }
+    // Security review V3-N6. remember, not rememberSaveable: the password must not end up in the saved instance state.
+    var password by remember { mutableStateOf("") }
+    val save = rememberExportLaunchers(transfer, (choice as? ExportChoice.TextFile)?.format)
+
+    Text("Eksport", style = MaterialTheme.typography.titleMedium)
+    ExportChoices(chosen) { chosen = it }
+    val files = countAttachments(state.entries.map { it.content })
+    if (files > 0) {
+        Text(
+            "${skippedFilesPhrase(files)} w formatach JSON i CSV. Wybierz PassHolder ZIP, żeby je zabrać.",
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+    Text(
+        if (choice == ExportChoice.Zip) ZIP_WARNING else PLAIN_WARNING,
+        color = MaterialTheme.colorScheme.error,
+        style = MaterialTheme.typography.bodyMedium,
+    )
+    Row(
+        Modifier.fillMaxWidth().toggleable(understood, role = Role.Checkbox) { understood = it },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Checkbox(checked = understood, onCheckedChange = null)
+        Text("Rozumiem, plik będzie zawierał hasła jawnym tekstem")
+    }
+    MasterPasswordField(password, {
+        password = it
+        transfer.clearError()
+    })
+    Button(
+        onClick = {
+            val typed = password
+            password = ""
+            transfer.confirmExport(typed) { transfer.launchPicker { save.launch(choice) } }
+        },
+        enabled = understood && !state.busy,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.error,
+            contentColor = MaterialTheme.colorScheme.onError,
+        ),
+    ) { Text("Zapisz plik") }
+}
+
+/** The radio buttons of [EXPORT_CHOICES], with the hints under the formats that lose fields. */
+@Composable
+private fun ExportChoices(chosen: Int, onChoose: (Int) -> Unit) {
+    Column(Modifier.selectableGroup()) {
+        EXPORT_CHOICES.forEachIndexed { i, option ->
+            Row(
+                Modifier.fillMaxWidth().selectable(selected = chosen == i, role = Role.RadioButton) { onChoose(i) },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RadioButton(selected = chosen == i, onClick = null)
+                Text(option.label, Modifier.padding(start = 8.dp), style = MaterialTheme.typography.bodyLarge)
+            }
+            if (option.hint) {
+                Text(
+                    "Część pól trafi do notatki lub własnych pól.",
+                    Modifier.padding(start = 32.dp, bottom = 4.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            // Security review N2: the values stay as they are (import must restore them exactly), so warn instead.
+            if (option is ExportChoice.TextFile && option.format == TransferFormat.NORDPASS) {
+                Text(CSV_WARNING, Modifier.padding(start = 32.dp, bottom = 4.dp), style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    }
+}
+
+/** The save dialogs: their file type is fixed per launcher, so JSON, CSV and ZIP have one each. */
+private class ExportLaunchers(
+    private val json: ManagedActivityResultLauncher<String, Uri?>,
+    private val csv: ManagedActivityResultLauncher<String, Uri?>,
+    private val zip: ManagedActivityResultLauncher<String, Uri?>,
+) {
+    /** Opens the save dialog of [choice] with the name it suggests. */
+    fun launch(choice: ExportChoice) = when (choice) {
+        ExportChoice.Zip -> zip.launch(TransferFiles.archiveFileName())
+
+        is ExportChoice.TextFile -> {
+            val launcher = if (choice.format == TransferFormat.NORDPASS) csv else json
+            launcher.launch(TransferFiles.defaultFileName(choice.format))
+        }
+    }
+}
+
+/** [textFormat] is the chosen text format when the dialog returns (null while the ZIP is chosen). */
+@Composable
+private fun rememberExportLaunchers(transfer: TransferActions, textFormat: TransferFormat?): ExportLaunchers {
+    val json = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        transfer.exportTo(textFormat ?: TransferFormat.PASSHOLDER, uri)
+    }
+    val csv =
+        rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) {
+            transfer.exportTo(TransferFormat.NORDPASS, it)
+        }
+    val zip = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { transfer.exportArchiveTo(it) }
+    return remember(json, csv, zip) { ExportLaunchers(json, csv, zip) }
 }

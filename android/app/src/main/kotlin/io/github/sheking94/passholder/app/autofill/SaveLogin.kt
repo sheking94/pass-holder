@@ -21,12 +21,10 @@ enum class SaveOutcome { SAVED, UPDATED, NOTHING, LOCKED }
  */
 fun saveLogin(app: PassHolderApp, data: SaveData, appLabel: (String) -> String): SaveOutcome {
     val store = app.phoneStore
-    // D1: the 60 s timer may not have run (deep sleep, a frozen app); the deadline still holds.
-    if (app.leaveLock.expired()) store.lock()
+    app.leaveLock.lockIfExpired()
     if (!store.isUnlocked) return SaveOutcome.LOCKED
-    // No entries here: saveReviewed reads the vault itself.
-    val review = SaveReview(data, emptyList(), appLabel(data.app.packageName))
-    return saveReviewed(app, review, review.initialDraft())
+    // A blank name: a new login gets the default one.
+    return saveSubmitted(app, data, appLabel(data.app.packageName), SaveDraft("", data.username, data.password))
 }
 
 /** Text typed into the node with [id], searched through the whole structure; null when absent. */

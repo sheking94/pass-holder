@@ -1,6 +1,5 @@
 package io.github.sheking94.passholder.app.ui.forms
 
-import android.content.ActivityNotFoundException
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -30,6 +29,7 @@ import io.github.sheking94.passholder.app.AttachmentFiles
 import io.github.sheking94.passholder.app.CreateDocumentOf
 import io.github.sheking94.passholder.app.formatSize
 import io.github.sheking94.passholder.app.ui.AttachmentActions
+import io.github.sheking94.passholder.app.ui.launchPicker
 import io.github.sheking94.passholder.core.files.Attachment
 
 /**
@@ -62,17 +62,6 @@ fun AttachmentsEditor(attachments: List<Attachment>, onChange: (List<Attachment>
         if (target == null) files.endFilePick() else files.downloadFile(target, uri)
     }
 
-    fun pick(launch: () -> Unit) {
-        files.beginFilePick()
-        try {
-            launch()
-        } catch (_: ActivityNotFoundException) {
-            savingId = null
-            files.endFilePick()
-            files.fail("Na telefonie nie ma aplikacji do wyboru plików.")
-        }
-    }
-
     OutlinedCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Załączniki", style = MaterialTheme.typography.titleSmall)
@@ -83,38 +72,64 @@ fun AttachmentsEditor(attachments: List<Attachment>, onChange: (List<Attachment>
                         ready?.contains(a.id) == false -> AttachmentFiles.WAITING
                         else -> null
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(a.name, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyLarge)
-                            Text(
-                                listOfNotNull(formatSize(a.size), note).joinToString(" · "),
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
-                        TextButton(onClick = { asking = a }, enabled = ready != null && note == null && !busy) { Text("Pobierz") }
-                        TextButton(onClick = { onChange(attachments.filter { it.id != a.id }) }, enabled = !busy) {
-                            Text("Usuń", color = MaterialTheme.colorScheme.error)
-                        }
-                    }
+                    AttachmentRow(
+                        a,
+                        note,
+                        canDownload = ready != null && note == null && !busy,
+                        busy = busy,
+                        onDownload = { asking = a },
+                        onRemove = { onChange(attachments.filter { it.id != a.id }) },
+                    )
                 }
             }
-            TextButton(onClick = { pick { openFile.launch(arrayOf("*/*")) } }, enabled = !busy) { Text("+ Dodaj plik") }
+            TextButton(onClick = { files.launchPicker { openFile.launch(arrayOf("*/*")) } }, enabled = !busy) { Text("+ Dodaj plik") }
         }
     }
 
     asking?.let { a ->
-        AlertDialog(
-            onDismissRequest = { asking = null },
-            title = { Text("Pobrać plik?") },
-            text = { Text(AttachmentFiles.DOWNLOAD_WARNING) },
-            confirmButton = {
-                TextButton(onClick = {
-                    asking = null
-                    savingId = a.id
-                    pick { saveFile.launch(CreateDocumentOf.Input(a.name, a.mime)) }
-                }) { Text("Pobierz") }
-            },
-            dismissButton = { TextButton(onClick = { asking = null }) { Text("Anuluj") } },
-        )
+        DownloadDialog(onDismiss = { asking = null }) {
+            savingId = a.id
+            files.launchPicker(onMissing = { savingId = null }) { saveFile.launch(CreateDocumentOf.Input(a.name, a.mime)) }
+        }
     }
+}
+
+/** A file: its name, "size · [note]", "Pobierz" (when [canDownload]) and "Usuń". */
+@Composable
+private fun AttachmentRow(
+    attachment: Attachment,
+    note: String?,
+    canDownload: Boolean,
+    busy: Boolean,
+    onDownload: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(attachment.name, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyLarge)
+            Text(listOfNotNull(formatSize(attachment.size), note).joinToString(" · "), style = MaterialTheme.typography.bodySmall)
+        }
+        TextButton(onClick = onDownload, enabled = canDownload) { Text("Pobierz") }
+        TextButton(onClick = onRemove, enabled = !busy) { Text("Usuń", color = MaterialTheme.colorScheme.error) }
+    }
+}
+
+/**
+ * "Pobrać plik?" with the warning that the saved file is not encrypted. Not a ConfirmDialog: downloading
+ * destroys nothing, so "Pobierz" is not in the error colour.
+ */
+@Composable
+private fun DownloadDialog(onDismiss: () -> Unit, onDownload: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Pobrać plik?") },
+        text = { Text(AttachmentFiles.DOWNLOAD_WARNING) },
+        confirmButton = {
+            TextButton(onClick = {
+                onDismiss()
+                onDownload()
+            }) { Text("Pobierz") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Anuluj") } },
+    )
 }

@@ -43,23 +43,23 @@ class ResponseBuilderTest {
 
     @Test
     fun `no specs give no response`() {
-        assertNull(ResponseBuilder.datasets(app, emptyList(), null, null))
+        assertNull(ResponseBuilder(app, null).datasets(emptyList(), null))
     }
 
     @Test
     fun `no specs with save spec still give a response`() {
         val save = SaveSpec(SaveFields(autofillId(2), null), AppRequest("com.x", null, null))
-        assertNotNull(ResponseBuilder.datasets(app, emptyList(), null, save))
+        assertNotNull(ResponseBuilder(app, null).datasets(emptyList(), save))
     }
 
     @Test
     fun `two specs give a response`() {
-        assertNotNull(ResponseBuilder.datasets(app, listOf(spec(0), spec(1)), null, null))
+        assertNotNull(ResponseBuilder(app, null).datasets(listOf(spec(0), spec(1)), null))
     }
 
     @Test
     fun `locked vault gives an unlock prompt`() {
-        assertNotNull(ResponseBuilder.locked(app, listOf(autofillId(1), autofillId(2)), auth(), null, null))
+        assertNotNull(ResponseBuilder(app, null).locked(listOf(autofillId(1), autofillId(2)), auth(), null))
     }
 }
 
@@ -78,24 +78,24 @@ class ResponseBuilderInlineTest {
     @Test
     fun `keyboard strip gets at most maxSuggestionCount suggestions`() {
         val inline = request(styled = true)
-        for (i in 0..2) assertNotNull("index $i", ResponseBuilder.inlinePresentation(app, inline, i, "Wpis", "jan"))
-        assertNull(ResponseBuilder.inlinePresentation(app, inline, 3, "Wpis", "jan"))
-        assertNotNull(ResponseBuilder.datasets(app, (0 until 5).map(::spec), inline, null))
+        for (i in 0..2) assertNotNull("index $i", ResponseBuilder(app, inline).inlinePresentation(i, "Wpis", "jan"))
+        assertNull(ResponseBuilder(app, inline).inlinePresentation(3, "Wpis", "jan"))
+        assertNotNull(ResponseBuilder(app, inline).datasets((0 until 5).map(::spec), null))
         val auth = PendingIntent.getActivity(app, 0, Intent(app, AutofillUnlockActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
-        assertNotNull(ResponseBuilder.locked(app, listOf(autofillId(1)), auth.intentSender, inline, null))
+        assertNotNull(ResponseBuilder(app, inline).locked(listOf(autofillId(1)), auth.intentSender, null))
     }
 
     @Test
     fun `never more than ten in the strip`() {
         val inline = request(styled = true, max = 50)
-        assertNotNull(ResponseBuilder.inlinePresentation(app, inline, 9, "Wpis", null))
-        assertNull(ResponseBuilder.inlinePresentation(app, inline, 10, "Wpis", null))
+        assertNotNull(ResponseBuilder(app, inline).inlinePresentation(9, "Wpis", null))
+        assertNull(ResponseBuilder(app, inline).inlinePresentation(10, "Wpis", null))
     }
 
     @Test
     fun `spec without a style gives no inline suggestion`() {
         val inline = request(styled = false)
-        assertNull(ResponseBuilder.inlinePresentation(app, inline, 0, "Wpis", "jan"))
-        assertNotNull(ResponseBuilder.datasets(app, listOf(spec(0)), inline, null))
+        assertNull(ResponseBuilder(app, inline).inlinePresentation(0, "Wpis", "jan"))
+        assertNotNull(ResponseBuilder(app, inline).datasets(listOf(spec(0)), null))
     }
 }

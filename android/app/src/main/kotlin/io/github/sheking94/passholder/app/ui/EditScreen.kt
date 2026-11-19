@@ -3,7 +3,6 @@ package io.github.sheking94.passholder.app.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -28,6 +27,7 @@ import io.github.sheking94.passholder.core.p2p.CardFields
 import io.github.sheking94.passholder.core.p2p.ContactFields
 import io.github.sheking94.passholder.core.p2p.DocumentFields
 import io.github.sheking94.passholder.core.p2p.EntryContent
+import io.github.sheking94.passholder.core.p2p.EntryFields
 import io.github.sheking94.passholder.core.p2p.LoginFields
 import io.github.sheking94.passholder.core.p2p.NoteFields
 
@@ -63,18 +63,7 @@ fun EditScreen(
         Text(if (original != null) type.editTitle else type.newTitle, style = MaterialTheme.typography.headlineSmall)
         PlainField(content.name, { edit(content.copy(name = it)) }, "Nazwa")
 
-        when (val fields = content.fields) {
-            is LoginFields -> LoginForm(fields, { edit(content.copy(fields = it)) }, entries)
-
-            is ContactFields -> ContactForm(fields, { edit(content.copy(fields = it)) })
-
-            is CardFields -> CardForm(fields, { edit(content.copy(fields = it)) }, entries)
-
-            is DocumentFields -> DocumentForm(fields, { edit(content.copy(fields = it)) })
-
-            // A note has no fields of its own: its text is "Treść" below.
-            NoteFields -> {}
-        }
+        TypeSection(content.fields, { edit(content.copy(fields = it)) }, entries)
 
         MultilineField(
             content.note,
@@ -96,17 +85,23 @@ fun EditScreen(
     }
 
     if (askDelete && id != null) {
-        AlertDialog(
-            onDismissRequest = { askDelete = false },
-            title = { Text("Usunąć wpis?") },
-            text = { Text("Po synchronizacji zniknie też z wtyczek.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    askDelete = false
-                    entries.delete(id)
-                }) { Text("Usuń", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = { TextButton(onClick = { askDelete = false }) { Text("Anuluj") } },
+        ConfirmDialog(
+            "Po synchronizacji zniknie też z wtyczek.",
+            onConfirm = { entries.delete(id) },
+            onDismiss = { askDelete = false },
+            title = "Usunąć wpis?",
         )
+    }
+}
+
+/** The fields of the entry's type. A note has none of its own: its text is "Treść" of the form. */
+@Composable
+private fun TypeSection(fields: EntryFields, onChange: (EntryFields) -> Unit, entries: EntryActions) {
+    when (fields) {
+        is LoginFields -> LoginForm(fields, onChange, entries)
+        is ContactFields -> ContactForm(fields, onChange)
+        is CardFields -> CardForm(fields, onChange, entries)
+        is DocumentFields -> DocumentForm(fields, onChange)
+        NoteFields -> {}
     }
 }

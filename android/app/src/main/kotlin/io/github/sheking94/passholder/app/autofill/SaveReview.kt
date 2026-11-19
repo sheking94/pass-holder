@@ -54,7 +54,7 @@ private fun PhoneEntry.savedLogin(): SavedLogin {
  * caller; of the logins matching the request only what the decision and the header need is kept (id, name, login,
  * password). [appLabel] names a new login of an app.
  */
-class SaveReview(val data: SaveData, entries: List<PhoneEntry>, private val appLabel: String) {
+class SaveReview(val data: SaveData, entries: List<PhoneEntry>, val appLabel: String) {
     /** Null when the address cannot be saved. */
     val target: SaveTarget? = saveTargetFor(data.app)
 
@@ -74,10 +74,7 @@ class SaveReview(val data: SaveData, entries: List<PhoneEntry>, private val appL
     fun decision(draft: SaveDraft): SaveDecision = decideSave(draft.username, draft.password, saved, related)
 
     /** The submitted login; the name as a new entry would get it (spec 3.3). */
-    fun initialDraft(): SaveDraft {
-        val name = target?.let { newLogin(it, appLabel, "", "").name }.orEmpty()
-        return SaveDraft(name, data.username, data.password)
-    }
+    fun initialDraft(): SaveDraft = SaveDraft(target?.let { defaultName(it, appLabel) }.orEmpty(), data.username, data.password)
 
     /** "Nowy login" or "Zmiana hasła: <entry>"; while the password is empty, what saving would do once typed. */
     fun title(draft: SaveDraft): String = when (val d = intent(draft)) {
@@ -103,26 +100,33 @@ class SaveReview(val data: SaveData, entries: List<PhoneEntry>, private val appL
     }
 }
 
+/** The name a new login for [target] gets when the user gives none (spec 3.3). */
+private fun defaultName(target: SaveTarget, appLabel: String): String = newLogin(target, appLabel, "", "").name
+
+/** Saves [draft] of the reviewed login: see [saveSubmitted]. */
+fun saveReviewed(app: PassHolderApp, review: SaveReview, draft: SaveDraft): SaveOutcome =
+    saveSubmitted(app, review.data, review.appLabel, draft)
+
 /**
- * Saves [draft] (spec 3.3, 5.4). The vault is read again here and the decision taken anew from what the user typed,
- * so a change made since the review started (a sync, another save) is not overwritten: a new login gets the name of
- * the draft (the default one when left blank), a changed password updates only the password of the entry as it is
- * now. [SaveOutcome.NOTHING]: the vault has this login with this password already. A locked vault, also one whose
+ * Saves [draft] of the submitted login [data] (spec 3.3, 5.4). The vault is read again here and the decision taken
+ * anew from what the user typed, so a change made since the review started (a sync, another save) is not
+ * overwritten: a new login gets the name of the draft (the default one, from [appLabel] for an app, when left
+ * blank), a changed password updates only the password of the entry as it is now. [SaveOutcome.NOTHING]: the vault
+ * has this login with this password already, or the address cannot be saved. A locked vault, also one whose
  * deadline passed, saves nothing and reports [SaveOutcome.LOCKED].
  */
-fun saveReviewed(app: PassHolderApp, review: SaveReview, draft: SaveDraft): SaveOutcome {
+fun saveSubmitted(app: PassHolderApp, data: SaveData, appLabel: String, draft: SaveDraft): SaveOutcome {
     val store = app.phoneStore
-    // D1: the 60 s timer may not have run (deep sleep, a frozen app); the deadline still holds.
-    if (app.leaveLock.expired()) store.lock()
+    app.leaveLock.lockIfExpired()
     if (!store.isUnlocked) return SaveOutcome.LOCKED
-    val target = review.target ?: return SaveOutcome.NOTHING
-    val logins = matchingLogins(review.data.app, store.entries())
+    val target = saveTargetFor(data.app) ?: return SaveOutcome.NOTHING
+    val logins = matchingLogins(data.app, store.entries())
     val decision = decideSave(draft.username, draft.password, logins.exact.map { it.savedLogin() }, logins.related.map { it.savedLogin() })
     return when (decision) {
         SaveDecision.None -> SaveOutcome.NOTHING
 
         SaveDecision.Create -> {
-            val name = draft.name.trim().ifEmpty { review.initialDraft().name }
+            val name = draft.name.trim().ifEmpty { defaultName(target, appLabel) }
             val content = newLogin(target, name, draft.username, draft.password).copy(name = name)
             store.upsertContent(UUID.randomUUID().toString(), content)
             // The app the login was saved in is the one tied to it now (V3-S3).

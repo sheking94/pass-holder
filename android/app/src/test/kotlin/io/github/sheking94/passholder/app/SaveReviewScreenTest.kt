@@ -11,6 +11,7 @@ import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.sheking94.passholder.app.autofill.SaveDraft
 import io.github.sheking94.passholder.app.ui.PassHolderTheme
 import io.github.sheking94.passholder.app.ui.SaveReviewScreen
+import io.github.sheking94.passholder.app.ui.SaveReviewUi
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -31,12 +32,14 @@ class SaveReviewScreenTest {
             PassHolderTheme {
                 Surface(Modifier.fillMaxSize()) {
                     SaveReviewScreen(
-                        title = "Nowy login",
-                        isNew = true,
-                        draft = SaveDraft("github.com", "jan.kowalski@example.com", "Tajne-haslo-2026"),
-                        place = "Strona: github.com",
-                        canSave = true,
-                        saving = false,
+                        SaveReviewUi(
+                            title = "Nowy login",
+                            isNew = true,
+                            draft = SaveDraft("github.com", "jan.kowalski@example.com", "Tajne-haslo-2026"),
+                            place = "Strona: github.com",
+                            canSave = true,
+                            saving = false,
+                        ),
                         onDraftChange = {},
                         onSave = {},
                         onCancel = {},

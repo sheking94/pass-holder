@@ -7,10 +7,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -20,7 +18,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.semantics.Role
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.sheking94.passholder.app.BiometricAvailability
@@ -44,6 +41,8 @@ fun SettingsScreen(state: UiState, navigation: Navigation, fingerprint: Fingerpr
     }
 }
 
+private const val NO_FINGERPRINT_HINT = "Najpierw dodaj odcisk palca w ustawieniach telefonu."
+
 /** The switch that turns fingerprint unlock on and off. Hidden on phones without a strong fingerprint reader. */
 @Composable
 private fun FingerprintSetting(state: UiState, fingerprint: FingerprintActions) {
@@ -53,63 +52,45 @@ private fun FingerprintSetting(state: UiState, fingerprint: FingerprintActions) 
     if (availability == BiometricAvailability.Unsupported && !enabled) return
 
     val canToggle = !state.busy && (enabled || availability == BiometricAvailability.Ready)
-    // The whole row is the switch, so tapping the label works too.
-    Row(
-        Modifier.fillMaxWidth().toggleable(value = enabled, enabled = canToggle, role = Role.Switch) { on ->
+    SettingSwitchRow(
+        "Odblokowanie odciskiem palca",
+        checked = enabled,
+        enabled = canToggle,
+        onCheckedChange = { on ->
             if (on) {
                 dialog.show("Włącz odblokowanie odciskiem palca", fingerprint::cipherToEnable, fingerprint::onEnableAuthorized)
             } else {
                 fingerprint.disable()
             }
         },
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text("Odblokowanie odciskiem palca", style = MaterialTheme.typography.bodyLarge)
-            if (availability == BiometricAvailability.NoFingerprint && !enabled) {
-                Text("Najpierw dodaj odcisk palca w ustawieniach telefonu.", style = MaterialTheme.typography.bodySmall)
-            }
-        }
-        Switch(checked = enabled, onCheckedChange = null, enabled = canToggle)
-    }
+        hint = if (availability == BiometricAvailability.NoFingerprint && !enabled) NO_FINGERPRINT_HINT else null,
+    )
 }
 
 /** Leaving the app locks the vault after 60 s (on, default) or at once (off). */
 @Composable
 private fun LockDelaySetting(state: UiState, settings: SettingsActions) {
     val on by settings.lockDelay.collectAsStateWithLifecycle()
-    Row(
-        Modifier.fillMaxWidth().toggleable(value = on, enabled = !state.busy, role = Role.Switch) { settings.setLockDelay(it) },
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text("Blokuj dopiero po ${LeaveLock.DELAY_MS / 1000} s poza aplikacją", style = MaterialTheme.typography.bodyLarge)
-            Text(
-                if (on) "Krótkie wyjście (np. wklejenie hasła) nie blokuje sejfu." else "Sejf blokuje się od razu po wyjściu z aplikacji.",
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
-        Switch(checked = on, onCheckedChange = null, enabled = !state.busy)
-    }
+    SettingSwitchRow(
+        "Blokuj dopiero po ${LeaveLock.DELAY_MS / 1000} s poza aplikacją",
+        checked = on,
+        enabled = !state.busy,
+        onCheckedChange = settings::setLockDelay,
+        hint = if (on) "Krótkie wyjście (np. wklejenie hasła) nie blokuje sejfu." else "Sejf blokuje się od razu po wyjściu z aplikacji.",
+    )
 }
 
 /** Whether PassHolder offers to save a login typed into another app. */
 @Composable
 private fun AskToSaveSetting(state: UiState, settings: SettingsActions) {
     val on by settings.askToSave.collectAsStateWithLifecycle()
-    Row(
-        Modifier.fillMaxWidth().toggleable(value = on, enabled = !state.busy, role = Role.Switch) { settings.setAskToSave(it) },
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text("Pytaj o zapis haseł", style = MaterialTheme.typography.bodyLarge)
-            Text(
-                if (on) "Po zalogowaniu PassHolder zapyta, czy zapisać hasło." else "PassHolder nie pyta o zapis.",
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
-        Switch(checked = on, onCheckedChange = null, enabled = !state.busy)
-    }
+    SettingSwitchRow(
+        "Pytaj o zapis haseł",
+        checked = on,
+        enabled = !state.busy,
+        onCheckedChange = settings::setAskToSave,
+        hint = if (on) "Po zalogowaniu PassHolder zapyta, czy zapisać hasło." else "PassHolder nie pyta o zapis.",
+    )
 }
 
 /**
