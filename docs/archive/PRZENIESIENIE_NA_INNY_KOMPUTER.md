@@ -2,7 +2,7 @@
 
 > Dokument historyczny: dotyczy wersji z serwerem na Raspberry Pi (przed planem 4).
 
-Stan sprawdzony na Ubuntu 4 listopada 2026, w folderze `/home/sheking/Projekty/PassHolder`.
+Stan sprawdzony na Ubuntu 4 listopada 2026, w folderze `<repo>` (np. `~/Projekty/pass-holder`).
 Niczego nie skopiowano ani nie usunięto; to tylko inwentaryzacja i instrukcja.
 
 ## 1. Co jest, a czego nie ma w GitHubie
@@ -29,16 +29,16 @@ Serwer na Pi trzyma swój `server.key` i bazę na samym Pi, więc zmiana kompute
 
 ## 2. Co skopiować (pliki tajne)
 
-1. **Klucz CA**: `/home/sheking/Projekty/PassHolder/passholder-ca.key` + `passholder-ca.crt`.
+1. **Klucz CA**: `<repo>/passholder-ca.key` + `passholder-ca.crt`.
    Bez niego nowe certyfikaty serwera (`deploy/make-certs.sh`) podpiszesz tylko nowym CA, a wtedy
    trzeba od nowa instalować CA w Chrome i na telefonie. Odcisk SHA-256 do sprawdzenia po przeniesieniu:
    `B4:24:26:EC:71:E8:AC:26:2B:71:0A:DB:B0:9B:48:C6:A2:F7:12:64:4F:33:34:5B:91:AA:7A:E1:95:3E:D0:30`.
-2. **Klucz podpisu aplikacji Android**: `/home/sheking/.android/debug.keystore`.
+2. **Klucz podpisu aplikacji Android**: `~/.android/debug.keystore`.
    Wydanie (`release`) jest podpisywane kluczem debug (`android/app/build.gradle.kts`, linia 23–25).
    Nowy komputer wygeneruje inny klucz, a Android **odmówi aktualizacji** aplikacji podpisanej innym
    kluczem. Jedyne wyjście to odinstalowanie, które **kasuje sejf z telefonu**. Na Windowsie plik
    trafia do `C:\Users\<użytkownik>\.android\debug.keystore` (zastąp ten wygenerowany przez Android Studio).
-3. **Klucz SSH do GitHuba** (opcjonalnie): `/home/sheking/.ssh/id_ed25519` (+ `.pub`).
+3. **Klucz SSH do GitHuba** (opcjonalnie): `~/.ssh/id_ed25519` (+ `.pub`).
    Prościej jednak wygenerować nowy klucz na Windowsie (`ssh-keygen -t ed25519`) i dodać go w GitHubie
    (`gh ssh-key add`). Stary można potem usunąć z konta.
 
@@ -65,7 +65,7 @@ Serwer na Pi trzyma swój `server.key` i bazę na samym Pi, więc zmiana kompute
 | Claude Code | zaloguj się tym samym kontem; plugin superpowers i ustawienia konta pobiorą się same |
 
 Konfiguracja Claude Code na Ubuntu to tylko `~/.claude/settings.json` z `"outputStyle": "Explanatory"`
-(ustaw ponownie). Pamięć projektu Claude leży w `~/.claude/projects/-home-sheking-Projekty-PassHolder/memory/`
+(ustaw ponownie). Pamięć projektu Claude leży w `~/.claude/projects/<ścieżka-repo-z-myślnikami>/memory/`
 (dwa pliki, `MEMORY.md` i `p2p-sync-decision.md`). Na Windowsie katalog nazwie się inaczej, bo zależy od ścieżki
 projektu, więc pliki można przekopiować ręcznie do nowego katalogu `memory/` albo pominąć: ta sama decyzja jest
 opisana w `docs/SYNCHRONIZACJA_P2P.md`. Historia rozmów (`*.jsonl`) nie jest potrzebna.
@@ -95,7 +95,7 @@ opisana w `docs/SYNCHRONIZACJA_P2P.md`. Historia rozmów (`*.jsonl`) nie jest po
 
 ## 6. Po przeniesieniu
 
-1. Zatwierdź nowy folder/urządzenie w projekcie Claude (pamięć projektu wskazuje dotąd ścieżkę `/home/sheking/Projekty/PassHolder`).
+1. Zatwierdź nowy folder/urządzenie w projekcie Claude (pamięć projektu wskazuje dotąd starą ścieżkę `<repo>`).
 2. `npm ci && npm test` w repo, żeby sprawdzić środowisko JS.
 3. Zbuduj aplikację Android i zainstaluj ją **jako aktualizację** na telefonie: jeśli instalacja się powiedzie bez odinstalowania,
    klucz podpisu przeniósł się poprawnie.
